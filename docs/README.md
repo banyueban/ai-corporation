@@ -66,7 +66,20 @@
 | [安全威胁模型](06-engineering/Threat-Model.md) | 完成 | 桌面 Agent 沙箱的必要工程补充 |
 | [决策记录](06-engineering/Decision-Records.md) | 完成 | 关键架构取舍及后续变更规则 |
 
-### 2.6 项目工作入口
+### 2.6 UI/UX 设计
+
+| 文档 | 状态 | 用途 |
+|---|---|---|
+| [UI/UX 文档中心](07-ui/README.md) | 完成 | UI 实现入口与设计完成定义 |
+| [UI/UX 总体规范](07-ui/UI-UX-Specification.md) | 完成 | 体验原则、窗口、导航、状态语言与文案 |
+| [信息架构](07-ui/Information-Architecture.md) | 完成 | 页面层级、路由、详情层和领域映射 |
+| [核心用户流程](07-ui/Core-User-Flows.md) | 完成 | 设置、创建、执行、审批、恢复和交付流程 |
+| [低保真页面线框](07-ui/Wireframes.md) | 完成 | 11 个关键屏幕的信息优先级与布局 |
+| [页面与交互状态矩阵](07-ui/Screen-State-Matrix.md) | 完成 | 页面、领域对象和异常状态行为 |
+| [基础设计系统](07-ui/Design-System.md) | 完成 | Token、组件、可访问性和平台适配 |
+| [UI 专项验收标准](07-ui/UI-Acceptance.md) | 完成 | UI Definition of Done 与 UI-AC-01 至 UI-AC-07 |
+
+### 2.7 项目工作入口
 
 | 文档 | 位置 | 用途 |
 |---|---|---|
@@ -82,7 +95,8 @@
 5. Organization、Scheduler、Evaluation；
 6. Artifact、Memory 和三份协议；
 7. 数据、Tool、Policy、Provider、桌面/Rust、Plugin、Observability；
-8. 统一验收标准、MVP 计划、工程规范、测试方案和威胁模型。
+8. UI/UX 文档中心、低保真线框、状态矩阵和 UI 专项验收标准；
+9. 统一验收标准、MVP 计划、工程规范、测试方案和威胁模型。
 
 ## 4. v0.1 冻结决策
 

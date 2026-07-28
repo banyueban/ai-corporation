@@ -38,6 +38,7 @@ pnpm --filter @ai-corporation/desktop start
 - Codex 工作规则：[AGENTS.md](AGENTS.md)
 - 当前项目进度：[PROJECT_STATUS.md](PROJECT_STATUS.md)
 - 唯一验收入口：[docs/06-engineering/Acceptance-Standard.md](docs/06-engineering/Acceptance-Standard.md)
+- UI/UX 设计入口：[docs/07-ui/README.md](docs/07-ui/README.md)
 
 开始任何编码任务前，先确认当前进度与验收要求。完成任务后必须更新项目进度并附实际验证证据。
 

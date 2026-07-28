@@ -53,6 +53,8 @@ Playwright Electron：
 - 暂停/恢复；
 - 重启恢复。
 
+用户界面实现后，还必须覆盖 [UI 专项验收标准](../07-ui/UI-Acceptance.md)中与当前 Milestone 对应的 UI-AC 场景，并验证键盘、焦点、1024 × 700、1440 × 900、200% 缩放以及安全关键审批信息。
+
 ### 2.5 安全测试
 
 见 Threat Model，至少覆盖：
@@ -213,4 +215,3 @@ P0/P1 阻止发布。
 - 已知缺陷；
 - 模型 live smoke 日期与 Provider；
 - 是否满足发布门槛。
-

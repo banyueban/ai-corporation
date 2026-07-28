@@ -11,7 +11,7 @@
 
 ## 1. 当前结论
 
-产品范围、总体架构、核心引擎、协议、数据与基础设施设计已经形成开发基线。pnpm/Cargo workspace、Electron Main、Typed Preload 和 React Renderer 已可构建并启动；Rust Sidecar、typed health RPC、SQLite、完整测试工程与 CI 尚未完成，因此 Milestone 0 仍为进行中。产品功能属于 Milestone 1 及后续里程碑，尚未开始实施。
+产品范围、总体架构、核心引擎、协议、数据、基础设施和低保真 UI/UX 已经形成开发基线。pnpm/Cargo workspace、Electron Main、Typed Preload 和 React Renderer 已可构建并启动；Rust Sidecar、typed health RPC、SQLite、完整测试工程与 CI 尚未完成，因此 Milestone 0 仍为进行中。当前 Renderer 是工程壳，不代表产品 UI 已实现；产品功能属于 Milestone 1 及后续里程碑。
 
 ## 2. 已完成内容
 
@@ -53,6 +53,17 @@
 - [x] 统一验收标准；
 - [x] Codex 仓库工作规则。
 
+### 2.5 UI/UX 设计
+
+- [x] UI/UX 总体规范与桌面窗口基线；
+- [x] 全局与 Corporation 内信息架构；
+- [x] 9 条核心用户流程；
+- [x] 11 个关键屏幕低保真线框；
+- [x] 页面、Task、Approval、Artifact、Evaluation、预算和 Provider 状态矩阵；
+- [x] 基础设计系统、组件、可访问性和跨平台适配规范；
+- [x] UI 专项验收标准 UI-AC-01 至 UI-AC-07；
+- [x] UI 规范已接入 AGENTS、统一验收标准、工程规范和 MVP 开发计划。
+
 ## 3. Milestone 0 实施状态
 
 - [x] pnpm workspace；
@@ -81,6 +92,8 @@
 7. 配置 Windows/macOS CI 构建；
 8. 更新 README 中的启动、测试和构建命令。
 
+当前 Milestone 0 只需维持安全、可构建的工程壳；产品级 UI 从 Milestone 1 起按 `docs/07-ui/` 实现，不在 Milestone 0 提前扩张范围。
+
 验收依据：
 
 - [MVP 开发计划：Milestone 0](docs/06-engineering/MVP-Plan.md)
@@ -100,6 +113,17 @@
 - 应用签名与 notarization 凭据不属于早期开发阻塞项，但属于公开发布前置条件。
 
 ## 6. 当前验证记录
+
+### 2026-07-29：低保真 UI/UX 设计基线
+
+- `docs/07-ui/` 已包含 8 份 UI 文档；
+- 信息架构、9 条核心用户流程、11 个关键屏幕线框、交互状态矩阵、基础设计系统和 UI 专项验收标准已完成；
+- UI 文档内部 Markdown 链接检查：0 个缺失；
+- AGENTS、Acceptance Standard、Engineering Standards 和 MVP Plan 已引用 UI 基线；
+- `pnpm check:status`：通过；
+- `pnpm test`：通过，3 个项目状态结构测试通过，现有 workspace 测试无失败；
+- `git diff --check`：通过；
+- 本次只完成设计与规范接入，未将当前 Renderer 工程壳误标记为产品 UI 完成。
 
 ### 2026-07-29：项目状态结构纠正
 

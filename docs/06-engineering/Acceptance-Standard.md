@@ -55,6 +55,7 @@ L4 产品发布验收
 - [ ] 符合领域模型和状态不变量；
 - [ ] IPC、RPC、Agent、Task、Artifact 和 Event 数据符合对应协议；
 - [ ] TypeScript、Rust、SQLite 和 Electron 的职责边界没有被破坏；
+- [ ] 用户可见变更符合 [UI/UX 文档中心](../07-ui/README.md)定义的信息架构、核心流程、状态矩阵和组件约束；
 - [ ] 设计发生变化时，相关文档与 Decision Record 已同步；
 - [ ] 没有重复定义互相竞争的状态机、协议或策略规则。
 
@@ -95,6 +96,16 @@ L4 产品发布验收
 - [ ] 启动、测试、构建方式可执行；
 - [ ] 已知限制明确记录；
 - [ ] `PROJECT_STATUS.md` 已更新。
+
+### 3.7 UI/UX（涉及用户界面时）
+
+- [ ] 屏幕和导航符合 [信息架构](../07-ui/Information-Architecture.md)；
+- [ ] 核心操作符合 [用户流程](../07-ui/Core-User-Flows.md)与[低保真线框](../07-ui/Wireframes.md)的信息优先级；
+- [ ] 已实现 [页面与交互状态矩阵](../07-ui/Screen-State-Matrix.md)中适用的加载、空、错误、降级、等待、恢复和终态；
+- [ ] 组件、Token、键盘、焦点和跨平台行为符合 [基础设计系统](../07-ui/Design-System.md)；
+- [ ] Approval、Recovery、预算和验收失败没有隐藏风险、精确资源、证据或后果；
+- [ ] 状态和进度由领域事实驱动，不使用无法验证的“马上完成”或模型自述；
+- [ ] 满足 [UI 专项验收标准](../07-ui/UI-Acceptance.md)中适用条目。
 
 ## 4. 功能验收
 
@@ -158,6 +169,8 @@ L4 产品发布验收
 | Artifact/Change Set | 原子性、冲突、路径和恢复测试 |
 | Agent/Task/Evaluation 闭环 | 集成测试 |
 | 用户可见关键旅程 | Electron E2E |
+| UI 组件、导航与状态 | 组件测试 + 路由/状态映射 + 可访问性扫描 |
+| Approval/Recovery 等安全关键 UI | 交互测试 + Electron E2E + 人工安全复核 |
 | 跨平台能力 | Windows/macOS 对应测试 |
 
 ### 5.2 必须执行的工程检查
@@ -278,6 +291,8 @@ v0.1 发布必须同时满足：
 - [ ] 数据库迁移、备份和恢复通过；
 - [ ] 崩溃恢复不重复副作用；
 - [ ] 关键性能目标达到或有批准的偏差记录；
+- [ ] UI-AC-01 至 UI-AC-07 中已实现功能对应的场景通过，完整发布时全部通过；
+- [ ] 1024 × 700、1440 × 900 和 200% 缩放下可完成核心流程；
 - [ ] 发布包和 Rust Sidecar 完整性可验证。
 
 ### 9.3 安全
@@ -346,5 +361,6 @@ Codex 和项目成员只能使用以下状态：
 - [测试方案](Testing-Strategy.md)
 - [安全威胁模型](Threat-Model.md)
 - [MVP 开发计划](MVP-Plan.md)
+- [UI/UX 文档中心](../07-ui/README.md)
+- [UI 专项验收标准](../07-ui/UI-Acceptance.md)
 - 各核心引擎、协议和基础设施详细设计
-
