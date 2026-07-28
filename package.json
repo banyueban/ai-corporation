@@ -9,7 +9,8 @@
   },
   "scripts": {
     "build": "pnpm --recursive run build",
-    "test": "pnpm --recursive run test",
+    "check:status": "node scripts/check-project-status.mjs",
+    "test": "node --test scripts/check-project-status.test.mjs && pnpm --recursive run test",
     "typecheck": "pnpm --recursive run typecheck"
   }
 }

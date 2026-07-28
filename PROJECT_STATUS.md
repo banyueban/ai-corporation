@@ -11,7 +11,7 @@
 
 ## 1. 当前结论
 
-产品范围、总体架构、核心引擎、协议、数据与基础设施设计已经形成开发基线。pnpm/Cargo workspace、Electron Main、Typed Preload 和 React Renderer 已可构建并启动；Rust Sidecar、typed health RPC、SQLite、完整测试工程与 CI 尚未完成，因此 Milestone 0 仍为进行中。
+产品范围、总体架构、核心引擎、协议、数据与基础设施设计已经形成开发基线。pnpm/Cargo workspace、Electron Main、Typed Preload 和 React Renderer 已可构建并启动；Rust Sidecar、typed health RPC、SQLite、完整测试工程与 CI 尚未完成，因此 Milestone 0 仍为进行中。产品功能属于 Milestone 1 及后续里程碑，尚未开始实施。
 
 ## 2. 已完成内容
 
@@ -53,7 +53,7 @@
 - [x] 统一验收标准；
 - [x] Codex 仓库工作规则。
 
-## 3. 尚未开始
+## 3. Milestone 0 实施状态
 
 - [x] pnpm workspace；
 - [x] Cargo workspace；
@@ -63,7 +63,6 @@
 - [ ] SQLite migration runner；
 - [ ] 自动化测试与 CI；
 - [ ] Windows/macOS 构建；
-- [ ] 任何产品功能实现。
 
 ## 4. 下一步任务
 
@@ -101,6 +100,14 @@
 - 应用签名与 notarization 凭据不属于早期开发阻塞项，但属于公开发布前置条件。
 
 ## 6. 当前验证记录
+
+### 2026-07-29：项目状态结构纠正
+
+- “尚未开始”章节已改为“Milestone 0 实施状态”，并移除不属于 Milestone 0 的产品功能条目；
+- `pnpm check:status`：通过；
+- `pnpm test`：通过，新增 3 个状态文档结构检查测试；
+- `pnpm typecheck`：通过；
+- `AGENTS.md` 已要求每次状态更新后运行结构检查。
 
 ### 2026-07-29：Rust workspace 与 Electron 桌面壳
 
@@ -149,10 +156,14 @@
 3. “下一步任务”；
 4. “当前阻塞项”；
 5. “当前验证记录”中的实际命令与结果。
+6. 运行 `pnpm check:status`，确认状态文档结构一致。
 
 规则：
 
 - 只记录已经发生且有证据的进度；
+- 当前 Milestone 的实施状态只列该 Milestone 的交付物，不混入后续里程碑任务；
+- 章节标题必须与内容状态一致，标题含“尚未开始”的章节不得出现已完成项；
+- 更新任务顺序或 Milestone 边界前，必须与 `docs/06-engineering/MVP-Plan.md` 对照；
 - 设计完成与代码完成分开；
 - 代码生成不等于功能完成；
 - 验收未通过时标记“部分完成”或“阻塞”；
