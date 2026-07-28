@@ -1,0 +1,31 @@
+# JavaScript / TypeScript
+node_modules/
+.pnpm-store/
+dist/
+coverage/
+
+# Rust
+target/
+
+# Electron packaging
+release/
+out/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.swp
+
+# Logs and temporary files
+*.log
+tmp/
+temp/
