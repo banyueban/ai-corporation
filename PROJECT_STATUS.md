@@ -100,7 +100,7 @@
 
 - Rust toolchain 未安装，`cargo fmt`、`cargo clippy`、`cargo test` 和 Cargo metadata 尚无法执行；
 - 系统 PATH 未提供 Node.js；本次使用 Codex bundled Node.js 24.14.0 完成 pnpm 验证；
-- GitHub 远程仓库的 owner/name、可见性和写入认证尚未确定，因此尚未设置 `origin` 或推送；
+- GitHub `origin` 已配置为 `git@github.com:banyueban/ai-corporation.git`，SSH 已认证为 `banyueban`，但 GitHub 返回 `Repository not found`；需要确认仓库已创建且路径准确；
 - Windows/macOS 构建执行环境；
 - 应用签名与 notarization 凭据不属于早期开发阻塞项，但属于公开发布前置条件。
 
@@ -115,7 +115,8 @@
 - `pnpm test`：通过，当前为 0 个测试的工程初始化基线；
 - `pnpm build`：通过；
 - Rust 检查：未执行，因为当前环境没有 `rustc`/`cargo`；
-- GitHub 推送：未执行，因为远程仓库尚未确定。
+- GitHub SSH 身份验证：通过，GitHub 返回 `Hi banyueban! You've successfully authenticated`；
+- `git ls-remote origin` / `git push --set-upstream origin main`：失败，GitHub 返回 `Repository not found`，未发生远程写入。
 
 ### 2026-07-29：设计文档基线
 
