@@ -1,0 +1,114 @@
+:root {
+  color: #e9eef7;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  background: #080c14;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+.app-shell {
+  display: grid;
+  min-height: 100vh;
+  place-content: center;
+  gap: 2rem;
+  padding: 4rem;
+  background:
+    radial-gradient(circle at top left, rgb(38 88 156 / 35%), transparent 42%),
+    #080c14;
+}
+
+.hero,
+.runtime-card {
+  width: min(44rem, calc(100vw - 4rem));
+}
+
+.eyebrow {
+  margin: 0 0 0.75rem;
+  color: #75a7ff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+h1,
+h2,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  margin-bottom: 1rem;
+  font-size: clamp(2.5rem, 7vw, 5rem);
+  line-height: 0.95;
+}
+
+.summary {
+  max-width: 38rem;
+  margin-bottom: 0;
+  color: #aebbd0;
+  font-size: 1.15rem;
+  line-height: 1.7;
+}
+
+.runtime-card {
+  padding: 1.5rem;
+  border: 1px solid #26354d;
+  border-radius: 1rem;
+  background: rgb(14 23 38 / 88%);
+}
+
+.runtime-card h2 {
+  font-size: 1rem;
+}
+
+.runtime-card dl {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin: 0;
+}
+
+.runtime-card dl div {
+  padding: 1rem;
+  border-radius: 0.75rem;
+  background: #111c2e;
+}
+
+.runtime-card dt {
+  color: #8ea0ba;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+.runtime-card dd {
+  margin: 0.35rem 0 0;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+@media (max-width: 640px) {
+  .app-shell {
+    padding: 2rem;
+  }
+
+  .hero,
+  .runtime-card {
+    width: min(100%, calc(100vw - 2rem));
+  }
+
+  .runtime-card dl {
+    grid-template-columns: 1fr;
+  }
+}

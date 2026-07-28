@@ -24,7 +24,14 @@ cargo test --workspace
 ```
 
 当前 pnpm workspace 包含 `apps/*` 和 `packages/*`，Cargo workspace 包含
-`crates/*`。Electron、React 和 Sidecar RPC 将按 Milestone 0 的任务顺序加入。
+`crates/*`。Electron Main、Typed Preload 和 React Renderer 位于
+`apps/desktop`；Rust Sidecar RPC 将按 Milestone 0 的任务顺序加入。
+
+构建并启动当前桌面壳：
+
+```bash
+pnpm --filter @ai-corporation/desktop start
+```
 
 ## 开发入口
 

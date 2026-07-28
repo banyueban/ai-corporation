@@ -1,0 +1,28 @@
+{
+  "name": "@ai-corporation/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Electron desktop shell for AI Corporation.",
+  "main": "dist/electron/main/index.js",
+  "scripts": {
+    "build": "pnpm run build:electron && pnpm run build:renderer",
+    "build:electron": "tsc --project tsconfig.electron.json",
+    "build:renderer": "vite build",
+    "start": "pnpm run build && electron .",
+    "test": "node --test",
+    "typecheck": "tsc --project tsconfig.electron.json --noEmit && tsc --project tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@types/node": "26.1.2",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.4",
+    "electron": "43.2.0",
+    "typescript": "5.9.2",
+    "vite": "8.1.5"
+  }
+}

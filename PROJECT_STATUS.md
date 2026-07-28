@@ -3,7 +3,7 @@
 | 属性 | 当前值 |
 |---|---|
 | 当前产品版本 | v0.1 MVP |
-| 当前阶段 | Milestone 0 进行中：工程 workspace 已初始化 |
+| 当前阶段 | Milestone 0 进行中：workspace 与 Electron 桌面壳已初始化 |
 | 当前 Milestone | Milestone 0：工程基线 |
 | 总体状态 | 进行中 |
 | 最近更新 | 2026-07-29 |
@@ -11,7 +11,7 @@
 
 ## 1. 当前结论
 
-产品范围、总体架构、核心引擎、协议、数据与基础设施设计已经形成开发基线。项目尚未初始化 Electron、TypeScript、Rust、SQLite 或测试工程，因此不能标记为“开发进行中”或“工程基线完成”。
+产品范围、总体架构、核心引擎、协议、数据与基础设施设计已经形成开发基线。pnpm/Cargo workspace、Electron Main、Typed Preload 和 React Renderer 已可构建并启动；Rust Sidecar、typed health RPC、SQLite、完整测试工程与 CI 尚未完成，因此 Milestone 0 仍为进行中。
 
 ## 2. 已完成内容
 
@@ -56,8 +56,8 @@
 ## 3. 尚未开始
 
 - [x] pnpm workspace；
-- [ ] Cargo workspace（配置已创建，等待 Rust 工具链验证）；
-- [ ] Electron Main、Preload、React Renderer；
+- [x] Cargo workspace；
+- [x] Electron Main、Preload、React Renderer；
 - [ ] Rust Native Core Sidecar；
 - [ ] Electron ↔ Rust 健康检查；
 - [ ] SQLite migration runner；
@@ -73,16 +73,14 @@
 
 任务顺序：
 
-1. 安装 Rust stable 工具链并验证 Cargo workspace；
-2. 创建 Electron Main、Typed Preload 和 React Renderer；
-3. 创建 Rust Sidecar；
-4. 实现 Main 与 Sidecar 的 typed health RPC；
-5. 配置 TypeScript strict、format、lint、Vitest；
-6. 配置 Rust fmt、clippy 和测试；
-7. 建立 SQLite migration runner 骨架；
-8. 落实 CSP、contextIsolation、sandbox 和禁用 nodeIntegration；
-9. 配置 Windows/macOS CI 构建；
-10. 更新 README 中的启动、测试和构建命令。
+1. 创建 Rust Sidecar；
+2. 实现 Main 与 Sidecar 的 typed health RPC；
+3. 配置 TypeScript strict、format、lint、Vitest；
+4. 配置 Rust fmt、clippy 和测试；
+5. 建立 SQLite migration runner 骨架；
+6. 落实 CSP、contextIsolation、sandbox 和禁用 nodeIntegration；
+7. 配置 Windows/macOS CI 构建；
+8. 更新 README 中的启动、测试和构建命令。
 
 验收依据：
 
@@ -98,12 +96,26 @@
 
 当前环境阻塞与外部条件：
 
-- Rust toolchain 未安装，`cargo fmt`、`cargo clippy`、`cargo test` 和 Cargo metadata 尚无法执行；
 - 系统 PATH 未提供 Node.js；本次使用 Codex bundled Node.js 24.14.0 完成 pnpm 验证；
 - Windows/macOS 构建执行环境；
 - 应用签名与 notarization 凭据不属于早期开发阻塞项，但属于公开发布前置条件。
 
 ## 6. 当前验证记录
+
+### 2026-07-29：Rust workspace 与 Electron 桌面壳
+
+- rustup 1.29.0 安装器 SHA-256：与 Rust 官方发布值 `86478E53F769379D7F0EBFA7C9AA97CB76CA92233F79AA2CC0DBEE2EFAAC73C7` 一致；
+- Rust stable：`rustc 1.97.1`、`cargo 1.97.1`；
+- Visual Studio Build Tools 2022：已添加 `Microsoft.VisualStudio.Workload.VCTools`；
+- `cargo metadata --format-version 1 --no-deps`：通过；
+- `cargo fmt --all --check`：通过；
+- `cargo clippy --workspace --all-targets -- -D warnings`：通过；
+- `cargo test --workspace`：通过，1 个测试通过；
+- `pnpm typecheck`：通过；
+- `pnpm test`：通过，当前为 0 个 TypeScript 测试的工程基线；
+- `pnpm build`：通过，Electron Main、Preload 与 Vite Renderer 产物已生成；
+- Electron 隐藏启动冒烟：通过，主进程持续运行 5 秒并创建 3 个子进程，stderr 为空；
+- Electron 安全基线已在实现中设置 `contextIsolation: true`、`sandbox: true`、`nodeIntegration: false`、`webSecurity: true`，自动化安全测试仍待后续任务补齐。
 
 ### 2026-07-29：Milestone 0 workspace 初始化
 
