@@ -116,7 +116,7 @@
 - Rust 检查：未执行，因为当前环境没有 `rustc`/`cargo`；
 - GitHub SSH 身份验证：通过，GitHub 返回 `Hi banyueban! You've successfully authenticated`；
 - GitHub 远程仓库：`git@github.com:banyueban/ai-corporation.git`，SSH 访问验证通过；
-- `git push --set-upstream origin main`：待本状态更新提交后执行。
+- `git push --set-upstream origin main`：通过，本地 `main` 已创建并跟踪 `origin/main`。
 
 ### 2026-07-29：设计文档基线
 
