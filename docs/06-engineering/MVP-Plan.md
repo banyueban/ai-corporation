@@ -37,8 +37,8 @@
 
 验收：
 
-- 两个平台应用可启动；
-- Renderer 调用一个 typed IPC，再调用 Rust `health` RPC；
+- 两个平台最终打包应用可启动；
+- 最终打包应用的 Renderer 调用一个 typed IPC，再调用 Rust `health` RPC；
 - CI 生成未签名开发安装包；
 - 安全配置自动测试通过。
 

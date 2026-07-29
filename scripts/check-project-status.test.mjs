@@ -35,3 +35,44 @@ test("stops checking at the next peer section", () => {
 
   assert.deepEqual(errors, []);
 });
+
+test("rejects advancing past a milestone with incomplete acceptance", () => {
+  const errors = checkProjectStatusStructure(`
+| 当前阶段 | Milestone 0 已完成 |
+| 当前 Milestone | Milestone 1：本地项目骨架 |
+
+## 3. Milestone 0 实施状态
+
+- [x] Windows/macOS 构建；
+- [ ] Windows/macOS 打包产物启动与 Rust health E2E；
+`);
+
+  assert.equal(errors.length, 1);
+});
+
+test("requires packaged health evidence in Milestone 0 status", () => {
+  const errors = checkProjectStatusStructure(`
+| 当前阶段 | Milestone 0 验收中 |
+| 当前 Milestone | Milestone 0：工程基线 |
+
+## 3. Milestone 0 实施状态
+
+- [x] Windows/macOS 构建；
+`);
+
+  assert.equal(errors.length, 1);
+});
+
+test("allows closing Milestone 0 when packaged health is complete", () => {
+  const errors = checkProjectStatusStructure(`
+| 当前阶段 | Milestone 0 已完成 |
+| 当前 Milestone | Milestone 1：本地项目骨架 |
+
+## 3. Milestone 0 实施状态
+
+- [x] Windows/macOS 构建；
+- [x] Windows/macOS 打包产物启动与 Rust health E2E；
+`);
+
+  assert.deepEqual(errors, []);
+});

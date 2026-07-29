@@ -1,0 +1,153 @@
+import { spawn } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import net from "node:net";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { chromium } from "playwright";
+
+const STARTUP_TIMEOUT_MS = 30_000;
+const desktopDirectory = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+);
+const repositoryDirectory = path.resolve(desktopDirectory, "..", "..");
+const executableArgument = process.argv
+  .slice(2)
+  .find((argument) => argument !== "--");
+
+if (executableArgument === undefined) {
+  throw new Error(
+    "Usage: pnpm test:packaged -- <repository-relative executable path>",
+  );
+}
+
+const executablePath = path.resolve(repositoryDirectory, executableArgument);
+if (!existsSync(executablePath)) {
+  throw new Error(`Packaged executable does not exist: ${executablePath}`);
+}
+
+const userDataDirectory = mkdtempSync(
+  path.join(os.tmpdir(), "ai-corporation-packaged-e2e-"),
+);
+const port = await reservePort();
+const diagnosticChunks = [];
+const child = spawn(
+  executablePath,
+  [`--remote-debugging-port=${port}`, `--user-data-dir=${userDataDirectory}`],
+  {
+    env: process.env,
+    shell: false,
+    stdio: ["ignore", "pipe", "pipe"],
+    windowsHide: true,
+  },
+);
+
+child.stdout.on("data", recordDiagnostic);
+child.stderr.on("data", recordDiagnostic);
+
+let browser;
+try {
+  await waitForDebugEndpoint(port, child);
+  browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
+  const page = await waitForApplicationPage(browser);
+
+  await page
+    .getByText("AI Corporation Desktop", { exact: true })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page
+    .getByText(/Native Core ready/u)
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+
+  const healthText = await page.getByText(/Native Core ready/u).innerText();
+  const evidenceDirectory = path.join(repositoryDirectory, "release");
+  const evidencePath = path.join(
+    evidenceDirectory,
+    `packaged-health-${process.platform}-${process.arch}.png`,
+  );
+  mkdirSync(evidenceDirectory, { recursive: true });
+  await page.screenshot({ path: evidencePath });
+  console.log(`Packaged application health verified: ${healthText}`);
+  console.log(`Evidence screenshot: ${evidencePath}`);
+} catch (error) {
+  const diagnostics = Buffer.concat(diagnosticChunks).toString("utf8").trim();
+  if (diagnostics.length > 0) {
+    console.error(diagnostics);
+  }
+  throw error;
+} finally {
+  await browser?.close().catch(() => undefined);
+  if (child.exitCode === null) {
+    child.kill();
+  }
+  rmSync(userDataDirectory, { force: true, recursive: true });
+}
+
+function recordDiagnostic(chunk) {
+  const currentLength = diagnosticChunks.reduce(
+    (length, current) => length + current.length,
+    0,
+  );
+  if (currentLength < 32 * 1024) {
+    diagnosticChunks.push(Buffer.from(chunk));
+  }
+}
+
+async function reservePort() {
+  const server = net.createServer();
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = server.address();
+  if (address === null || typeof address === "string") {
+    server.close();
+    throw new Error("Could not reserve a debug port");
+  }
+  await new Promise((resolve, reject) => {
+    server.close((error) => {
+      if (error === undefined) {
+        resolve();
+      } else {
+        reject(error);
+      }
+    });
+  });
+  return address.port;
+}
+
+async function waitForDebugEndpoint(port, process) {
+  const deadline = Date.now() + STARTUP_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    if (process.exitCode !== null) {
+      throw new Error(
+        `Packaged application exited before startup: ${process.exitCode}`,
+      );
+    }
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/json/version`);
+      if (response.ok) {
+        return;
+      }
+    } catch {
+      // The endpoint is expected to reject connections while Electron starts.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  throw new Error("Packaged application debug endpoint did not start");
+}
+
+async function waitForApplicationPage(browser) {
+  const deadline = Date.now() + STARTUP_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    for (const context of browser.contexts()) {
+      for (const page of context.pages()) {
+        if ((await page.getByText("AI Corporation Desktop").count()) > 0) {
+          return page;
+        }
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  throw new Error("Packaged application window did not become observable");
+}

@@ -3,15 +3,15 @@
 | 属性 | 当前值 |
 |---|---|
 | 当前产品版本 | v0.1 MVP |
-| 当前阶段 | Milestone 0 已完成，准备进入 Milestone 1 |
-| 当前 Milestone | Milestone 1：本地项目骨架（尚未开始） |
+| 当前阶段 | Milestone 0 验收重新打开：打包产物启动尚未充分验证 |
+| 当前 Milestone | Milestone 0：工程基线 |
 | 总体状态 | 进行中 |
 | 最近更新 | 2026-07-29 |
-| 下一检查点 | Milestone 1 验收 |
+| 下一检查点 | Windows/macOS 打包产物真实启动与 health E2E |
 
 ## 1. 当前结论
 
-产品范围、总体架构、核心引擎、协议、数据、基础设施和低保真 UI/UX 已经形成开发基线。Milestone 0 的 Rust Sidecar、typed health RPC、SQLite migration runner、安全 Electron 壳、自动化测试、CI 和打包配置均已实现；本地 Windows 检查、真实 Electron → Rust E2E、NSIS 打包以及 GitHub Actions 的 Windows x64/macOS Apple Silicon 全流程均已通过，两个平台的未签名开发安装包 artifact 已生成，因此 Milestone 0 完成。当前 Renderer 是工程壳，不代表产品 UI 已实现；下一步按计划进入 Milestone 1。
+产品范围、总体架构、核心引擎、协议、数据、基础设施和低保真 UI/UX 已经形成开发基线。Milestone 0 的实现、开发态 E2E、双平台构建和安装包生成已经通过，但现有 CI 的 Electron E2E 在打包前运行，没有证明最终打包产物能够打开窗口并完成 Rust `health` 调用；本地 Windows 也只记录了进程存活，没有读取打包产物的实际 UI 状态。因此撤销此前“Milestone 0 完成”的结论，当前状态恢复为验收中。在 Windows/macOS 打包产物启动与 health E2E 产生直接证据前，不进入 Milestone 1。
 
 ## 2. 已完成内容
 
@@ -74,33 +74,31 @@
 - [x] SQLite migration runner；
 - [x] 自动化测试与 CI 配置；
 - [x] Windows/macOS 构建；
+- [ ] Windows/macOS 打包产物启动与 Rust health E2E；
 
 ## 4. 下一步任务
 
-### Milestone 1：本地项目骨架
+### Milestone 0：打包产物补验
 
-目标：用户可创建并恢复 Corporation，不接真实模型。
+目标：直接启动最终打包产物，并观察窗口与 Rust health 的真实结果。
 
-任务顺序：
+补验顺序：
 
-1. 实现 Workspace 选择与权限边界；
-2. 实现 Corporation CRUD（删除除外）；
-3. 实现 Goal Contract 手工录入与 Mock 生成；
-4. 建立 SQLite 核心表；
-5. 实现 Domain Event 与时间线；
-6. 实现暂停/恢复基础状态机；
-7. 按 `docs/07-ui/` 实现对应用户可见流程并执行 UI 专项验收。
+1. 对 Windows unpacked/安装产物执行可观察的窗口与 `Native Core ready` 验证；
+2. 将同一打包产物测试接入 Windows/macOS CI，并置于打包步骤之后；
+3. 验证测试失败时阻断 artifact 上传和 Milestone 完成标记；
+4. 记录两个平台当前提交对应的实际测试证据；
+5. 全部通过后再关闭 Milestone 0 并切换到 Milestone 1。
 
-Milestone 1 不接入真实模型，不实现后续 Milestone 的 Agent 执行、审批或验收闭环。
+补验不得使用开发目录启动结果代替打包产物，不得用进程存活代替窗口与 health 状态。
 
 验收依据：
 
-- [MVP 开发计划：Milestone 1](docs/06-engineering/MVP-Plan.md)
+- [MVP 开发计划：Milestone 0](docs/06-engineering/MVP-Plan.md)
 - [统一验收标准](docs/06-engineering/Acceptance-Standard.md)
 - [Electron、TypeScript 与 Rust 工程架构](docs/05-infrastructure/Desktop-and-Rust-Architecture.md)
 - [工程与编码规范](docs/06-engineering/Engineering-Standards.md)
 - [安全威胁模型](docs/06-engineering/Threat-Model.md)
-- [UI/UX 文档中心](docs/07-ui/README.md)
 
 ## 5. 当前阻塞项
 
@@ -110,9 +108,18 @@ Milestone 1 不接入真实模型，不实现后续 Milestone 的 Agent 执行�
 
 - 系统 PATH 未提供 Node.js；本次使用 Codex bundled Node.js 24.14.0 完成 pnpm 验证；
 - Codex 的外层 Windows 沙箱与 Chromium 子进程沙箱存在嵌套冲突；应用自身保持 `sandbox: true`，Electron 启动与 E2E 需在外层沙箱之外验证；
+- macOS 打包产物只能在 macOS CI runner 上补验；
 - 应用签名与 notarization 凭据不属于早期开发阻塞项，但属于公开发布前置条件。
 
 ## 6. 当前验证记录
+
+### 2026-07-29：Milestone 0 完成标记撤销
+
+- 此前的开发态 Electron E2E 证明了源码构建后的 Renderer → Main → Rust 路径，但没有启动 electron-builder 生成的最终应用；
+- 此前的 Windows unpacked 冒烟只证明进程曾存活，没有读取窗口内容或确认 `Native Core ready`；
+- CI #2/#3 证明双平台检查、开发态 E2E、安装包构建和 artifact 上传通过，但没有在打包后启动产物；
+- 因证据层级不足，撤销“Milestone 0 全部适用验收项已通过”和“无未解决 P0/P1 缺陷”的结论；
+- 当前未确认存在 P0/P1，但打包产物可运行性属于未完成的 Milestone 必检项，完成状态恢复为验收中。
 
 ### 2026-07-29：Milestone 0 实现与本地 Windows 验收
 
@@ -130,7 +137,7 @@ Milestone 1 不接入真实模型，不实现后续 Milestone 的 Agent 执行�
 - GitHub Actions CI #2（run `30411656548`）：Windows x64 与 macOS Apple Silicon 的工程检查、真实 Electron E2E、未签名安装包构建和 artifact 上传全部通过；
 - Windows artifact `ai-corporation-windows-x64`：247,686,996 字节，SHA-256 `54025488ec33a3610be6e64d16b165cda63f6326f2012125660a16f49671ec10`；
 - macOS artifact `ai-corporation-macos-arm64`：488,860,737 字节，SHA-256 `24c39a430e95ff5a6d601110122db7c0f21d3bef7e666bc02a6f1afbd06e0372`；
-- Milestone 0 的全部适用验收项已通过，无未解决 P0/P1 缺陷。
+- 上述记录只证明开发态 E2E、构建和 artifact 生成，不再作为打包产物启动验收依据。
 
 ### 2026-07-29：低保真 UI/UX 设计基线
 
