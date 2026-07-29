@@ -3,7 +3,7 @@
 | 属性           | 值                                                                                     |
 | -------------- | -------------------------------------------------------------------------------------- |
 | 任务单元 ID    | M1-TU-02                                                                               |
-| 状态           | 进行中                                                                                 |
+| 状态           | 完成                                                                                   |
 | 所属 Milestone | Milestone 1：本地项目骨架                                                              |
 | 主要结果       | 已授权 Workspace 可持久化恢复，并通过窄 IPC 返回重新验证后的公开权限状态               |
 | 基线提交       | `274f41d993eeb09fab5a2166a48cad9ae2cc67f5`                                             |
@@ -109,18 +109,18 @@
 
 ## 7. 验收合同
 
-- [ ] Repository 正常：可信授权写入后可按 ID 读取，并以稳定顺序返回严格的 `WorkspacePublic[]`；
-- [ ] Repository 恢复：关闭并重新打开独立 SQLite 文件后，已提交 Workspace 保持一致且 migration checksum 仍有效；
-- [ ] Repository 隔离：更新一个 Workspace 的验证状态不改变其他 Workspace，事务失败不产生部分更新；
-- [ ] IPC 正常：授权窗口可通过 `workspace:list` 和 `workspace:revalidate` 获得 runtime Schema 验证后的公开 DTO；
-- [ ] IPC 越权：非法窗口来源、额外请求字段、非 UUID v7 ID 和未知 channel 被拒绝；
-- [ ] 字段边界：Renderer API、IPC 成功值、失败值和日志均不包含 canonical root、路径身份、SQL 或用户文件内容；
-- [ ] 权限：Windows 与 macOS 上真实可写根返回 `READ_WRITE`，可读但写探针被拒绝时返回 `READ_ONLY`，根不可读时持久化为 `PERMISSION_DENIED`；
-- [ ] 身份变化：替换根目录或身份不匹配后状态为 `UNVERIFIED`，原 canonical root 与 `pathIdentity` 不被覆盖；
-- [ ] 状态：根缺失持久化为 `MISSING`，权限拒绝持久化为 `PERMISSION_DENIED`，Native Core/存储不可用返回固定安全错误；
-- [ ] 探针清理：权限探针正常和失败路径均无残留；创建失败与清理失败分别断言；
-- [ ] 回归：M1-TU-01 路径攻击、Milestone 0 health、SQLite migration runner、协议兼容和工程检查继续通过；
-- [ ] 跨平台：同一验收提交的 Windows x64 与 macOS Apple Silicon CI job 均通过适用 Repository、权限、IPC 和回归测试。
+- [x] Repository 正常：可信授权写入后可按 ID 读取，并以稳定顺序返回严格的 `WorkspacePublic[]`；
+- [x] Repository 恢复：关闭并重新打开独立 SQLite 文件后，已提交 Workspace 保持一致且 migration checksum 仍有效；
+- [x] Repository 隔离：更新一个 Workspace 的验证状态不改变其他 Workspace，事务失败不产生部分更新；
+- [x] IPC 正常：授权窗口可通过 `workspace:list` 和 `workspace:revalidate` 获得 runtime Schema 验证后的公开 DTO；
+- [x] IPC 越权：非法窗口来源、额外请求字段、非 UUID v7 ID 和未知 channel 被拒绝；
+- [x] 字段边界：Renderer API、IPC 成功值、失败值和日志均不包含 canonical root、路径身份、SQL 或用户文件内容；
+- [x] 权限：Windows 与 macOS 上真实可写根返回 `READ_WRITE`，可读但写探针被拒绝时返回 `READ_ONLY`，根不可读时持久化为 `PERMISSION_DENIED`；
+- [x] 身份变化：替换根目录或身份不匹配后状态为 `UNVERIFIED`，原 canonical root 与 `pathIdentity` 不被覆盖；
+- [x] 状态：根缺失持久化为 `MISSING`，权限拒绝持久化为 `PERMISSION_DENIED`，Native Core/存储不可用返回固定安全错误；
+- [x] 探针清理：权限探针正常和失败路径均无残留；创建失败与清理失败分别断言；
+- [x] 回归：M1-TU-01 路径攻击、Milestone 0 health、SQLite migration runner、协议兼容和工程检查继续通过；
+- [x] 跨平台：同一验收提交的 Windows x64 与 macOS Apple Silicon CI job 均通过适用 Repository、权限、IPC 和回归测试。
 
 ## 8. 隔离与干扰控制
 

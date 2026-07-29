@@ -3,18 +3,18 @@
 | 属性           | 当前值                                    |
 | -------------- | ----------------------------------------- |
 | 当前产品版本   | v0.1 MVP                                  |
-| 当前阶段       | Milestone 1 第二个任务单元实施与验收中    |
+| 当前阶段       | Milestone 1 第三个任务单元合同建立前      |
 | 当前 Milestone | Milestone 1：本地项目骨架                 |
-| 当前任务单元   | M1-TU-02（进行中）                        |
+| 当前任务单元   | M1-TU-02（完成）                          |
 | 总体状态       | 进行中                                    |
 | 最近更新       | 2026-07-30                                |
-| 下一检查点     | M1-TU-02 本地与双平台合同验收             |
+| 下一检查点     | M1-TU-03 合同范围与就绪审查               |
 
 ## 1. 当前结论
 
-Milestone 0 已通过全部适用验收；当前没有已知未解决的 P0/P1 缺陷。Milestone 1 仅完成 `M1-TU-01` 的 Workspace 路径/Schema/SQLite 基础，尚未形成完整 Workspace 用户流程。
+Milestone 0 已通过全部适用验收；当前没有已知未解决的 P0/P1 缺陷。Milestone 1 已完成 `M1-TU-01` 与 `M1-TU-02`，形成 Workspace 路径/Schema/SQLite、Repository、窄 IPC、持久化恢复和权限重新验证基础，尚未形成完整 Workspace 用户流程。
 
-`M1-TU-01` 的 Workspace DTO/Schema、SQLite migration、Rust 路径边界和结构化错误已在提交 `de00200c3c4a63274274f6769fea19d33ce540a0` 实现，并通过 Windows x64 与 macOS Apple Silicon 的真实文件系统验收。`M1-TU-02` 的 Workspace Repository、窄 IPC、持久化恢复和权限重新验证已完成本地实现及合同检查，任务仍须等待同一验收提交的 Windows x64 与 macOS Apple Silicon CI 全部通过后才能关闭。原生目录选择、Workspace UI、Corporation 和其他 Milestone 1 功能仍未实现。
+`M1-TU-02` 的验收提交 `948e975a1a82977bf14ed3bc4eceb3ed1f8b1e8a` 已通过 Windows x64 与 macOS Apple Silicon 的真实权限 fixture、工程检查、开发态窗口 E2E、最终打包应用 E2E 和制品上传，合同 12 项全部通过。该结论只关闭 `M1-TU-02`；原生目录选择、Workspace UI、Corporation 和其他 Milestone 1 功能仍未实现。
 
 ## 2. 已完成基线
 
@@ -47,16 +47,14 @@ Milestone 0 已通过全部适用验收；当前没有已知未解决的 P0/P1 �
 
 ## 4. 下一步任务
 
-当前允许推进：
+当前已关闭：
 
 - [M1-TU-02 Workspace Repository、IPC 与权限重新验证](docs/06-engineering/task-units/M1-TU-02-workspace-repository-ipc.md)；
-- 当前状态：进行中；
-- 实施基线：`274f41d993eeb09fab5a2166a48cad9ae2cc67f5`；
-- 主要结果：已授权 Workspace 可持久化恢复，并通过窄 IPC 返回重新验证后的公开权限状态；
-- 对应 Milestone 1 范围：Workspace Repository/IPC、权限重新验证和持久化；
-- 非范围：原生目录选择器、Renderer UI、用户可见 Workspace E2E 和 Corporation CRUD。
+- 当前状态：完成；
+- 验收提交：`948e975a1a82977bf14ed3bc4eceb3ed1f8b1e8a`；
+- GitHub Actions：run `30472788800`，Windows x64 与 macOS Apple Silicon jobs 均成功。
 
-当前只允许按该合同实施和验收；合同外工作进入后续任务，不得静默扩大范围。
+下一步只允许建立并审查 `M1-TU-03` 合同，重新核对原生目录选择 UI、Renderer 重载和跨平台 Electron E2E 的范围、接口、所有权、隔离及验收标准；合同达到“就绪”前不得实施。
 
 Milestone 1 任务覆盖地图：
 
@@ -99,7 +97,11 @@ Milestone 1 任务覆盖地图：
 - M1-TU-02 合同范围、接口、所有权、隔离和验收内容审查：通过，实施基线 `274f41d993eeb09fab5a2166a48cad9ae2cc67f5`；
 - M1-TU-02 本地工程检查：Workspace 协议 9 项、Repository/迁移 9 项、Desktop service/IPC/path 14 项、Native Core 7 项及 Workspace Rust 权限/路径 7 项测试通过；
 - M1-TU-02 本地真实窗口 E2E：可见 Electron 窗口、Native Core health 与 `workspace:list` 公共 IPC 通过；
-- M1-TU-02 尚未完成双平台 CI 验收，合同验收项保持未勾选；
+- M1-TU-02 验收提交：`948e975a1a82977bf14ed3bc4eceb3ed1f8b1e8a`；
+- GitHub Actions：run `30472788800`；
+- Windows x64 job `90646928059`：真实 ACL 可写/只读/不可读权限 fixture、工程检查、开发态窗口 E2E、最终打包应用 health 与 Workspace IPC E2E、制品上传均成功；
+- macOS Apple Silicon job `90646928030`：真实权限位可写/只读/不可读 fixture、工程检查、开发态窗口 E2E、最终打包应用 health 与 Workspace IPC E2E、制品上传均成功；
+- M1-TU-02 合同 12 项全部通过，P0/P1 为 0；该结论不代表 `M1-TU-03`、完整 Workspace 用户流程或 Milestone 1 完成；
 - 文档优化提交 `f1ae2096ed3fc96e86f2019e051f0c01b28d25eb` 已推送。
 
 本节只保留当前有效验证摘要，不记录被替代的过程结论。
