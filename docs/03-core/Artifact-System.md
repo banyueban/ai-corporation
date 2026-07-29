@@ -19,34 +19,11 @@ Artifact System 管理 AI Corporation 中所有可交付、可引用、可验证
 
 ## 3. 元数据与版本
 
-```ts
-type Artifact = {
-  id: string;
-  corporationId: string;
-  taskId: string;
-  type: ArtifactType;
-  logicalName: string;
-  status: "DRAFT" | "CANDIDATE" | "APPROVED" | "REJECTED" | "SUPERSEDED";
-  currentVersion: number;
-  createdAt: string;
-};
-
-type ArtifactVersion = {
-  artifactId: string;
-  version: number;
-  creatorRunId: string;
-  mediaType: string;
-  storageKind: "INLINE_JSON" | "MANAGED_FILE" | "WORKSPACE_REF";
-  storageRef: string;
-  sha256: string;
-  sizeBytes: number;
-  sourceRefs: ArtifactRef[];
-  baseVersion?: number;
-  createdAt: string;
-};
-```
+Artifact Manifest、版本、生命周期、完整性、引用和 Change Set 字段只由 [Artifact Protocol](../04-protocols/Artifact-Protocol.md)定义；物理列只由 [SQLite Schema](../05-infrastructure/SQLite-Schema.md)定义。本模块只规定创建、版本化、校验、提交和恢复行为。
 
 版本不可变。修订创建新版本。
+
+`Artifact.status` 只表示生命周期，`ArtifactIntegrityStatus` 表示当前内容或引用是否完整。`CONFLICT` 只属于 Change Set，不是 Artifact 生命周期状态。
 
 ## 4. 存储策略
 
@@ -167,11 +144,10 @@ interface ArtifactService {
 - Artifact 内容注入不获得权限；
 - 用户工作区文件不随 Corporation 内部清理误删。
 
-## 12. v0.1 完成标准
+## 12. v0.1 模块验收断言
 
 - 文本、JSON、文件、补丁、测试与评价报告可登记；
 - 修订保留历史；
 - 工作区变更有 diff、审批、原子提交和冲突检测；
 - 最终 Artifact 可追溯；
 - 大输出不污染 SQLite 与模型上下文。
-

@@ -178,7 +178,7 @@ type ModelRoute = {
 
 ## 9. Provider 健康与熔断
 
-状态：
+以下是运行时健康/熔断状态，不是 Provider 配置启用状态，也不是具体错误原因：
 
 - `HEALTHY`
 - `DEGRADED`
@@ -192,6 +192,8 @@ type ModelRoute = {
 - 半开只允许一个探测请求；
 - 熔断状态持久化短期信息，重启后不过度重试；
 - 回退必须符合数据策略和预算。
+
+Provider 的配置状态由持久化层维护为 `ENABLED` 或 `DISABLED`；认证、限流、配额等具体原因使用 Model Provider 的标准错误类别表达。
 
 ## 10. 并发与公平
 
@@ -260,11 +262,10 @@ interface Scheduler {
 - 数据策略阻止错误回退；
 - 失败结果更新按能力域统计。
 
-## 15. v0.1 完成标准
+## 15. v0.1 模块验收断言
 
 - 在多个 Ready Task 中稳定选择下一任务；
 - 在多个 Agent/模型候选中输出可解释决策；
 - 并发运行不突破预算与槽位；
 - Provider 故障能安全回退或暂停；
 - 调度结果可由事件和 Decision Record 完整追踪。
-

@@ -32,6 +32,16 @@ export function checkProjectStatusStructure(markdown) {
       const level = heading[1].length;
       const title = heading[2].trim();
 
+      if (
+        /^\d{4}-\d{2}-\d{2}(?:\s|：|:)/u.test(title) ||
+        /(?:历史记录|变更时间线|验证时间线)/u.test(title)
+      ) {
+        errors.push(
+          `line ${index + 1}: PROJECT_STATUS.md must contain only current facts; ` +
+            `history belongs in Git/CI, not heading "${title}"`,
+        );
+      }
+
       if (notStartedHeading !== undefined && level <= notStartedHeading.level) {
         notStartedHeading = undefined;
       }

@@ -108,7 +108,13 @@ type NormalizedUsage = {
 
 ## 8. 错误归一化
 
-类别：
+Provider 状态分成三个相互独立的维度：
+
+- `ProviderConfigStatus`：`ENABLED` 或 `DISABLED`，表示配置是否允许被调度；
+- `ProviderHealthStatus`：`HEALTHY`、`DEGRADED`、`OPEN` 或 `HALF_OPEN`，由 Scheduler 维护运行时健康和熔断；
+- `ProviderFailureReason`：以下标准错误类别，描述最近一次失败原因。
+
+错误类别：
 
 - `AUTHENTICATION`
 - `PERMISSION`
@@ -164,11 +170,10 @@ type NormalizedUsage = {
 - 不满足能力时调用前失败；
 - 数据策略阻断。
 
-## 13. v0.1 完成标准
+## 13. v0.1 模块验收断言
 
 - 真实 Provider 与 Mock Provider 可互换；
 - Agent/Task 不包含厂商专属字段；
 - Tool Calling、JSON 输出、流式、取消可归一化；
 - 成本和错误可记录；
 - 凭据边界验证通过。
-

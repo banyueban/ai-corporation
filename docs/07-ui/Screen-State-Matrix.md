@@ -78,6 +78,8 @@
 
 ## 7. Corporation Workspace 状态
 
+表中大写值来自 Corporation 领域状态。`PAUSING` 是暂停命令尚未完成的 UI 过渡状态，不持久化为 Corporation 状态。
+
 | Corporation 状态 | Header | 主内容 | 主操作 |
 |---|---|---|---|
 | DRAFT | 草稿 | Goal/Plan 尚未确认 | 继续设置 |
@@ -133,18 +135,26 @@
 | High process/delete | Once only | 拒绝或无危险默认焦点 |
 | Critical/forbidden | 不显示批准 | 返回/查看策略 |
 
-## 10. Artifact 状态
+## 10. Artifact 生命周期与完整性状态
 
-| 状态 | 表现 | 操作 |
+生命周期状态：
+
+| 生命周期状态 | 表现 | 操作 |
 |---|---|---|
 | DRAFT | 草稿标记 | 预览 |
 | CANDIDATE | 等待验收 | 预览、Diff、查看来源 |
 | APPROVED | 成功标记 | 打开、导出、追溯 |
 | REJECTED | 失败标记 + Issue 数 | 查看问题和旧版本 |
 | SUPERSEDED | 弱化 | 跳转当前版本 |
-| CONFLICT | 工作区冲突 | 比较、保留外部版本、重新生成 |
+完整性状态独立于生命周期状态：
+
+| 完整性状态 | 表现 | 操作 |
+|---|---|---|
+| VALID | 内容和引用校验通过 | 按生命周期状态操作 |
 | CORRUPTED | 哈希不匹配 | 停止使用、恢复备份 |
 | MISSING | 引用文件不存在 | 定位、重新生成 |
+
+`CONFLICT` 是 Change Set 状态，表现为“工作区冲突”，操作是比较、保留外部版本或重新生成；不得把 Artifact 生命周期改写为 `CONFLICT`。
 
 ## 11. Evaluation 状态
 
@@ -154,7 +164,7 @@
 | Running judge | 显示语义验收，不显示隐藏推理 |
 | PASS | 逐项通过 + Evidence |
 | FAIL | REQUIRED 问题置顶 + 修订入口 |
-| INCONCLUSIVE | 明确“无法自动判断” + 人工选项 |
+| INCONCLUSIVE | 单个 Evaluator 无法判断；聚合后显示 `NEEDS_HUMAN` 或补充证据入口 |
 | ERROR | 验收器错误，不将 Artifact 标记为内容失败 |
 | Revision limit reached | 显示历史修订 + 人工决策 |
 
@@ -170,16 +180,32 @@
 
 ## 13. Provider 状态
 
-| 状态 | UI |
+Provider 配置状态：
+
+| 配置状态 | UI |
 |---|---|
-| Healthy | Active |
-| Degraded | 黄色 Banner、显示回退 |
+| ENABLED | 可被调度；同时展示健康状态 |
+| DISABLED | 只读配置，不参与调度 |
+
+Provider 运行时健康状态：
+
+| 健康状态 | UI |
+|---|---|
+| HEALTHY | 正常 |
+| DEGRADED | 黄色 Banner、显示回退 |
+| OPEN | 暂时不可用，不连续重试 |
+| HALF_OPEN | 显示正在探测，只允许单个探测请求 |
+
+最近失败原因作为补充信息展示，不替代配置或健康状态：
+
+| 失败原因 | UI |
+|---|---|
 | Rate limited | 显示下次重试时间 |
 | Authentication failed | 阻断并跳转设置 |
 | Quota exhausted | 阻断、切换 Provider/增加配额 |
-| Circuit open | 显示暂时不可用，不连续重试 |
-| Disabled | 只读配置 |
 | Model missing | 要求选择替代模型 |
+| Timeout / Network | 显示重试时间、网络诊断和可用回退 |
+| Invalid request / Content filter | 显示不可重试原因和修改入口 |
 
 ## 14. 通用异步规则
 
@@ -200,4 +226,3 @@
 - `Esc`：关闭非阻断抽屉；审批模态需二次 Esc 或明确取消；
 - 焦点不进入隐藏内容；
 - 状态更新不强制抢焦点，除非出现阻断安全请求。
-

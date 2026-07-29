@@ -32,7 +32,10 @@
 DRAFT → PLANNING → ORGANIZING → EXECUTING → VERIFYING → COMPLETED
                     ↘                    ↘
                      PAUSED / WAITING_HUMAN / FAILED / CANCELLED
+COMPLETED / FAILED / CANCELLED → ARCHIVED
 ```
+
+`ARCHIVED` 是持久化的只读生命周期状态。`PAUSING`、`Start pending` 等仅表示命令尚未完成的 UI 过渡状态，不进入 Corporation 领域状态或 SQLite 枚举。
 
 ### 2.2 Goal Contract
 
@@ -178,4 +181,3 @@ erDiagram
 8. 每次模型或工具调用都必须关联 `corporation_id`、`task_id` 和 `run_id`。
 9. 终态事件写入后不可删除；敏感内容通过脱敏或密文引用存储。
 10. 达到预算、重试或时间上限后必须停止，不得自行扩大边界。
-

@@ -1,129 +1,128 @@
-# M1-TU-01 Workspace 选择与路径边界
+# M1-TU-01 Workspace 路径边界基础
 
-| 属性           | 内容                                                                                |
-| -------------- | ----------------------------------------------------------------------------------- |
-| 任务单元 ID    | M1-TU-01                                                                            |
-| 状态           | 就绪                                                                                |
-| 所属 Milestone | Milestone 1：本地项目骨架                                                           |
-| 主要结果       | 用户可选择一个本地目录作为 Workspace，应用保存授权元数据，Rust 拒绝所有工作区外路径 |
-| 基线提交       | `8217b75`                                                                           |
-| 计划平台       | Windows x64、macOS Apple Silicon                                                    |
+| 属性 | 值 |
+|---|---|
+| 任务单元 ID | M1-TU-01 |
+| 状态 | 未开始 |
+| 所属 Milestone | Milestone 1：本地项目骨架 |
+| 主要结果 | 冻结 Workspace 数据合同，并由 Rust 在独立测试中可靠拒绝工作区外路径 |
+| 基线提交 | 实施前由干净工作区的当前 HEAD 记录；文档优化完成前不进入“就绪” |
 
 ## 1. 需求与设计引用
 
-- 用户要求：Milestone 0 经验必须进入下一个任务，并以边界清晰、可独立验收的任务单元执行；
-- [MVP 开发计划：Milestone 1](../MVP-Plan.md)；
-- [PRD FR-001 工作区管理](../../01-product/PRD.md)；
-- [总体技术设计](../../02-architecture/Technical-Design.md)；
+- [MVP Plan：Milestone 1](../MVP-Plan.md)；
+- [PRD FR-001](../../01-product/PRD.md)；
+- [领域模型与术语](../../02-architecture/Domain-Model.md)；
 - [数据模型](../../05-infrastructure/Data-Model.md)；
 - [SQLite Schema](../../05-infrastructure/SQLite-Schema.md)；
 - [Electron、TypeScript 与 Rust 工程架构](../../05-infrastructure/Desktop-and-Rust-Architecture.md)；
-- [UI Flow 02](../../07-ui/Core-User-Flows.md)与 [UI-03 线框](../../07-ui/Wireframes.md)；
-- [页面与交互状态矩阵](../../07-ui/Screen-State-Matrix.md)；
 - [安全威胁模型](../Threat-Model.md)。
 
 ## 2. 前置条件
 
-- GitHub 仓库 `banyueban/ai-corporation`、`main` 分支和推送权限已确认；
-- 基线提交的 Windows/macOS CI 均通过；
-- Electron Renderer → Preload → Main → Rust typed health 链路已存在；
-- SQLite migration runner 已存在；
-- 应用自身 Chromium sandbox、context isolation 和 Node integration 安全设置保持不变；
-- 实施前重新检查工作区是否存在用户或其他任务的未提交改动。
+实施就绪条件：
+
+- Milestone 0 的 Rust Sidecar、协议包、SQLite migration runner 和跨平台 CI 基线仍通过；
+- Workspace DTO、路径字段和结构化错误在上述设计文档中无歧义；
+- 实施前记录完整基线提交并检查用户或其他任务的未提交改动；
+- 本任务专属修改区和共享迁移/RPC 冲突区无人并发占用。
+
+验收环境条件：
+
+- Windows x64 与 macOS Apple Silicon CI 可运行；
+- 无法在当前平台执行的另一平台断言必须由对应 CI job 提供直接证据。
 
 ## 3. 包含范围
 
-- 原生目录选择入口及取消行为；
-- Workspace DTO、运行时 Schema 和 typed IPC/RPC 合同；
-- canonical path 解析和平台路径标识；
-- Workspace 授权根目录及权限状态的 SQLite 持久化；
-- Rust 对工作区内/外路径的边界判定；
-- 工作区不存在、权限变化和只读状态的结构化错误；
-- 最小 UI 状态：未选择、选择中、已授权、取消、无权限、路径失效；
-- Windows/macOS 对应的单元、集成、安全和 Electron E2E。
+- Workspace DTO 与运行时 Schema：
+  - Renderer 可见：`workspaceId`、`displayPath`、`permissionMode`、`accessStatus`；
+  - 可信边界专用：`canonicalRootPath`、`pathIdentity`、`lastVerifiedAt`；
+- Workspace SQLite migration 与约束，不实现完整 Repository CRUD；
+- Rust canonical path 解析、平台路径身份和工作区内/外边界判定；
+- `..`、外部绝对路径、盘符/卷越界、符号链接和 Windows 重解析点防护；
+- 工作区不存在、权限拒绝和无效路径的结构化错误；
+- 独立 Rust、Schema、migration 和安全测试。
 
 ## 4. 非范围
 
-- Corporation CRUD；
-- Goal Contract 录入或 Mock 生成；
-- Domain Event 时间线；
-- Corporation 暂停/恢复状态机；
-- `workspace.list`、`read_text`、`search`、写入或 Change Set 的完整实现；
+- 原生目录选择器；
+- Renderer、Preload 与 Electron Main 的 Workspace 业务 IPC；
+- Workspace Repository CRUD 和应用重启恢复；
+- Workspace 选择 UI、页面状态和 Electron E2E；
+- Corporation CRUD、Goal Contract 和 Domain Event 时间线；
+- `workspace.list`、`read_text`、`search`、写入和 Change Set；
 - Provider、模型调用、Tool Runtime 和 Policy Engine；
-- 最近工作区列表、收藏、云同步或多 Workspace 并发；
 - 安装包签名与 macOS notarization。
 
-发现上述需求时，新建后续任务单元，不扩张本单元。
+后续建议顺序是“Workspace Repository 与 IPC”再到“目录选择 UI 与跨平台 E2E”。前一单元接口冻结并验收前，不建立后续就绪合同。
+
+本任务只覆盖 Milestone 1 中 Workspace 选择与权限的路径/Schema 基础、SQLite Workspace 部分，以及“工作区外路径被 Rust 拒绝”验收；完整用户选择、持久化恢复和其他核心表仍由后续任务完成，不得据此关闭整个 Milestone 1。
 
 ## 5. 依赖与接口
 
-- Renderer 只获得脱敏 Workspace DTO，不获得任意 Node 文件系统能力；
-- Preload 只暴露白名单方法，输入输出经过运行时 Schema；
-- Electron Main 负责原生目录选择和 IPC 编排；
-- Rust 负责 canonical path 与边界判定，不承载 Corporation 业务；
-- SQLite 保存授权元数据，不把原始数据库行暴露给 Renderer；
-- 路径错误使用结构化错误码，不依赖平台错误字符串；
-- 后续 Corporation 单元只依赖本单元冻结的 Workspace ID、授权状态和 canonical root。
+- 协议层是 Workspace DTO、枚举和结构化错误的唯一来源；
+- Rust 接收可信进程传入的授权根和候选相对路径，返回规范化边界结果，不承载 Corporation 业务；
+- `displayPath` 仅表示用户主动授权、允许展示的路径，不参与安全判断；
+- `canonicalRootPath` 和 `pathIdentity` 不得进入 Renderer DTO、普通日志或错误消息；
+- SQLite 保存授权边界所需元数据，不把原始数据库行暴露给 Renderer；
+- 后续单元只能依赖本单元冻结的 Workspace ID、权限状态、访问状态和路径边界接口。
 
 ## 6. 交付物与所有权
 
 专属修改区：
 
-- Workspace 领域类型、Repository 和相关测试；
-- Workspace IPC/RPC Schema 与兼容测试；
+- Workspace 协议类型、运行时 Schema 和兼容测试；
+- Workspace SQLite migration 及迁移测试；
 - Rust workspace path boundary 模块与安全测试；
-- Workspace 选择 UI 组件及状态测试；
-- 本任务专属 E2E fixture。
+- 本任务专属路径 fixture。
 
 共享冲突区：
 
 - SQLite migration 编号；
-- Preload 公共 API；
 - Rust RPC envelope；
-- Electron Main 启动和窗口配置；
-- `PROJECT_STATUS.md`；
-- CI workflow。
+- 协议包公共导出；
+- CI workflow；
+- `PROJECT_STATUS.md`。
 
-共享冲突区由本任务串行修改；若其他任务需要同时修改，必须先冻结接口或暂停其中一个任务。
+共享冲突区由本任务串行修改；其他任务需要同时修改时，必须先冻结接口或暂停其中一个任务。
 
 ## 7. 验收合同
 
-- [ ] 正常：用户选择可读写目录后，UI 显示 canonical Workspace 信息和真实权限；
-- [ ] 取消：用户取消选择时不创建数据库记录，不改变已有 Workspace；
-- [ ] 持久化：应用或 Renderer 重载后可恢复同一 Workspace 授权元数据；
-- [ ] 边界：工作区内规范化路径被允许；
-- [ ] 越界：`..`、绝对外部路径、盘符/卷越界被 Rust 拒绝；
+- [ ] Schema：Renderer DTO 不包含 `canonicalRootPath`、`pathIdentity` 或任意文件系统能力；
+- [ ] Migration：空库可迁移到 Workspace Schema，约束、回滚和迁移校验通过；
+- [ ] 正常：工作区内相对路径被规范化并允许；
+- [ ] 越界：`..`、外部绝对路径和盘符/卷越界被 Rust 拒绝；
 - [ ] 链接：指向工作区外的符号链接或 Windows 重解析点被拒绝；
-- [ ] 权限：目录消失、权限被撤销或只读时返回结构化状态且 UI 不宣称可写；
-- [ ] IPC：非白名单调用和无效 Schema 被拒绝；
-- [ ] 安全：Renderer 仍无 Node、任意文件和原始绝对路径泄漏能力；
-- [ ] 隔离：测试不依赖执行顺序、用户真实目录或其他任务数据库；
-- [ ] 跨平台：Windows x64 与 macOS Apple Silicon 的适用路径边界和 Electron E2E 均通过；
-- [ ] 回归：Milestone 0 health、Electron 安全检查和打包产物启动测试继续通过。
+- [ ] 状态：目录不存在、权限拒绝和无效路径返回稳定结构化错误；
+- [ ] 隐私：错误和日志不包含 `canonicalRootPath`、路径身份元数据或用户文件内容；
+- [ ] 隔离：测试使用专属临时目录和数据库，不依赖执行顺序或用户真实目录；
+- [ ] 跨平台：Windows x64 与 macOS Apple Silicon 的适用路径边界测试均通过；
+- [ ] 回归：Milestone 0 health、协议兼容、SQLite migration runner 和工程检查继续通过。
 
 ## 8. 隔离与干扰控制
 
-- 每个测试创建带 `M1-TU-01` 前缀和随机后缀的临时根目录；
-- 工作区内、工作区外和链接目标使用同一 fixture 显式构造；
-- SQLite 使用任务专属临时数据库，不读取开发者现有应用数据；
-- E2E 使用独立 Electron user data directory；
-- 端口动态分配，不复用固定调试端口；
-- 子进程退出后等待完成，再清理目录；功能失败与清理失败分别报告；
-- Windows 与 macOS 证据分别记录；
-- 测试结束检查无残留进程、数据库锁和临时权限更改。
+- 每个测试创建独立临时根目录、外部目录、链接 fixture 和 SQLite 数据库；
+- Windows 与 macOS 平台 fixture 分开，不能用字符串替代真实文件系统断言；
+- 测试不得读取或写入用户真实项目目录；
+- 测试结束后先关闭数据库和文件句柄，再清理临时资源；
+- 功能断言失败和清理失败分别报告；
+- 不使用其他任务生成的数据库、端口、缓存或进程作为本任务证据。
 
 ## 9. 证据计划
 
-- `pnpm check`：工程回归；
-- Workspace Schema/Repository/路径边界单元与集成测试报告；
-- Electron E2E：目录选择取消、授权成功、重载恢复和权限失败；
-- 安全攻击集：路径穿越、绝对外部路径、盘符/卷越界、符号链接/重解析点；
-- Windows/macOS CI job 及对应 commit；
-- 必要的 UI 截图，显示真实权限和错误状态；
-- 最终打包应用回归 E2E。
+至少保存：
+
+- Workspace Schema/协议测试报告；
+- SQLite migration 测试报告；
+- Rust 路径边界和安全测试报告；
+- Windows x64 与 macOS Apple Silicon 对应 CI job；
+- `pnpm check` 与适用的 Rust 检查结果；
+- 验收提交完整 SHA。
+
+每条证据必须直接对应第 7 节断言；构建成功不能替代真实路径边界测试。
 
 ## 10. 完成规则
 
-仅当第 7 节全部适用条目通过、证据对应同一验收提交、P0/P1 为 0、共享接口回归通过且 `PROJECT_STATUS.md` 只更新本任务真实状态时，才可将本任务标记为“完成”。
+仅当第 7 节全部适用条目通过、证据对应同一验收提交、P0/P1 为 0、共享接口回归通过且 `PROJECT_STATUS.md` 只更新本任务真实状态时，才可标记“完成”。
 
-本任务完成不代表 Corporation CRUD、Milestone 1 或任何后续任务完成。
+本任务完成只证明工作区外路径拒绝及其 Workspace/SQLite 基础已通过；不代表完整 Workspace 选择、SQLite 核心表、IPC、Repository、UI、Corporation CRUD 或 Milestone 1 完成。

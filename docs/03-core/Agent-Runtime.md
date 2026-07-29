@@ -28,23 +28,7 @@ Agent Runtime 将一个已分配 Task 转换为受控的模型与工具执行循
 
 ## 3. Agent Definition
 
-```ts
-type AgentDefinition = {
-  schemaVersion: "1.0";
-  id: string;
-  name: string;
-  role: "PLANNER" | "EXECUTOR" | "JUDGE" | "SPECIALIST";
-  objective: string;
-  capabilities: CapabilityClaim[];
-  instructionTemplateId: string;
-  allowedToolIds: string[];
-  modelPolicyId: string;
-  memoryPolicy: MemoryPolicy;
-  outputSchemas: string[];
-  defaultLimits: RunLimits;
-  version: number;
-};
-```
+Agent Definition、Run 请求、Agent 输出和协议错误的字段只由 [Agent Protocol](../04-protocols/Agent-Protocol.md)定义。Runtime 必须按 `definitionId + definitionVersion` 加载并校验完整协议对象，不维护字段副本。
 
 Agent Instance 绑定 Corporation：
 
@@ -201,17 +185,7 @@ while (!limits.exhausted() && !signal.aborted) {
 
 ## 9. 结构化输出
 
-Agent 的最终输出必须包含：
-
-```ts
-type AgentOutputEnvelope = {
-  summary: string;
-  artifacts: ArtifactCandidate[];
-  claims: EvidenceBackedClaim[];
-  unresolvedIssues: Issue[];
-  requestedFollowups: FollowupRequest[];
-};
-```
+Agent 的最终输出必须符合 [Agent Protocol 的 `AgentOutputEnvelope`](../04-protocols/Agent-Protocol.md)。Runtime 只规定处理行为，不重新定义字段。
 
 处理顺序：
 
@@ -381,11 +355,10 @@ interface AgentRuntime {
 - 长期记忆写入隔离；
 - Judge/Executor 身份分离。
 
-## 19. v0.1 完成标准
+## 19. v0.1 模块验收断言
 
 - 一个 Executor 可完成模型→工具→Artifact 的有限循环；
 - 所有调用可追踪并计费；
 - 工具权限不可由模型输出提升；
 - 退出恢复不会重复已确认副作用；
 - 结构化输出失败、Provider 限流、审批等待和取消均有稳定路径。
-

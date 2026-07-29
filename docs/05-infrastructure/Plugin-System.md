@@ -110,11 +110,10 @@ interface PluginManager {
 }
 ```
 
-## 10. v0.1 完成标准
+## 10. v0.1 模块验收断言
 
 - 内置贡献通过统一 Registry 加载；
 - 可安装一个纯声明式本地插件；
 - 新权限明确展示；
 - 插件不能绕过 Policy/Tool Runtime；
 - 历史运行保留插件版本引用。
-

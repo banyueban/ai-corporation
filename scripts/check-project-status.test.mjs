@@ -76,3 +76,15 @@ test("allows closing Milestone 0 when packaged health is complete", () => {
 
   assert.deepEqual(errors, []);
 });
+
+test("rejects historical timeline headings in current project status", () => {
+  const errors = checkProjectStatusStructure(`
+## 6. 当前验证摘要
+
+### 2026-07-29：旧验证记录
+
+- 曾经通过
+`);
+
+  assert.equal(errors.length, 1);
+});

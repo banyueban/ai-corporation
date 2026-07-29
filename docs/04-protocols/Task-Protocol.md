@@ -7,6 +7,22 @@ Task Protocol 是 AI Corporation 的工作合同。它使 Planner、Scheduler、
 ## 2. Task Contract
 
 ```ts
+type TaskKind = "ANALYSIS" | "GENERATION" | "TRANSFORMATION" | "VALIDATION" | "HUMAN_DECISION";
+type RiskLevel = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+type TaskStatus =
+  | "DRAFT"
+  | "BLOCKED"
+  | "READY"
+  | "RUNNING"
+  | "VERIFYING"
+  | "WAITING_HUMAN"
+  | "RETRY_PENDING"
+  | "REPLAN_REQUIRED"
+  | "PAUSED"
+  | "COMPLETED"
+  | "FAILED"
+  | "CANCELLED";
+
 type TaskContract = {
   schemaVersion: "1.0";
   id: string;
@@ -202,4 +218,3 @@ type TaskCommand =
 - 依赖图可检测环；
 - 权限要求可映射到 Policy；
 - 预算、重试和输出合同可由各引擎一致消费。
-

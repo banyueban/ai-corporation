@@ -150,8 +150,6 @@
 - Windows/macOS build；
 - 关键 E2E。
 
-## 14. Definition of Done
+## 14. 验收引用
 
-功能只有在正常、错误、取消、恢复和安全边界均有验证后才完成。
-
-任务单元的边界、隔离和完成状态按 [解耦任务单元规范](Task-Unit-Standard.md)执行；任务单元通过不得自动提升相邻任务或 Milestone 状态。
+本文档不重复 Definition of Done。统一完成、缺陷和证据门槛见 [Acceptance Standard](Acceptance-Standard.md)；任务边界、隔离和关闭规则见 [Task Unit Standard](Task-Unit-Standard.md)；涉及界面时同时满足 [UI Acceptance](../07-ui/UI-Acceptance.md)。

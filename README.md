@@ -77,4 +77,4 @@ macOS 构建需要 Xcode Command Line Tools。安装包默认输出到 `release/
 
 ## 文档入口
 
-完整文档目录、阅读顺序和状态见 [docs/README.md](docs/README.md)。
+文档角色、唯一权威来源和按任务阅读路由见 [docs/README.md](docs/README.md)。功能实现进度只看 [PROJECT_STATUS.md](PROJECT_STATUS.md)。

@@ -62,6 +62,20 @@ export function checkTaskUnitDocument(markdown, fileName) {
     if (!markdown.startsWith(`# ${id} `)) {
       errors.push(`${fileName}: title does not start with "# ${id} "`);
     }
+
+    const milestoneNumber = /^M(\d+)-TU-\d{2}$/u.exec(id)?.[1];
+    const milestoneName = metadata.get("所属 Milestone");
+    if (
+      milestoneNumber !== undefined &&
+      milestoneName !== undefined &&
+      !new RegExp(`\\bMilestone\\s+${milestoneNumber}\\b`, "u").test(
+        milestoneName,
+      )
+    ) {
+      errors.push(
+        `${fileName}: task unit ID ${id} does not match "${milestoneName}"`,
+      );
+    }
   }
 
   const status = metadata.get("状态");
@@ -72,6 +86,31 @@ export function checkTaskUnitDocument(markdown, fileName) {
   for (const section of requiredSections) {
     if (!new RegExp(`^##\\s+\\d+\\.\\s+${section}\\s*$`, "mu").test(markdown)) {
       errors.push(`${fileName}: missing section "${section}"`);
+    }
+  }
+
+  const designReferences =
+    /^##\s+\d+\.\s+需求与设计引用\s*$([\s\S]*?)(?=^##\s|(?![\s\S]))/mu.exec(
+      markdown,
+    );
+  if (
+    designReferences === null ||
+    !/(?:^|\/)MVP-Plan\.md(?:[)#：:]|$)/mu.test(designReferences[1])
+  ) {
+    errors.push(
+      `${fileName}: requirements and design references must link MVP-Plan.md`,
+    );
+  } else if (id !== undefined) {
+    const milestoneNumber = /^M(\d+)-TU-\d{2}$/u.exec(id)?.[1];
+    if (
+      milestoneNumber !== undefined &&
+      !new RegExp(`\\bMilestone\\s+${milestoneNumber}\\b`, "u").test(
+        designReferences[1],
+      )
+    ) {
+      errors.push(
+        `${fileName}: MVP Plan reference must identify Milestone ${milestoneNumber}`,
+      );
     }
   }
 

@@ -99,7 +99,7 @@ Scheduler、Policy、Evaluation 产生 Decision Record，包含：
 - API Key、Bearer Token；
 - Provider Header；
 - 密码和常见 Secret 格式；
-- 用户主目录绝对路径（UI 必需场景除外）；
+- 用户主目录绝对路径；用户主动授权的 Workspace 展示路径只允许进入对应 UI，不进入普通日志、Trace 或错误；
 - 文件内容；
 - Prompt 中敏感片段；
 - 插件私有配置。
@@ -167,11 +167,10 @@ interface Observability {
 - DEBUG 模式仍不暴露密钥；
 - 大输出不进入事件。
 
-## 13. v0.1 完成标准
+## 13. v0.1 模块验收断言
 
 - 每个 Task 可追踪到模型、工具、Artifact、评价；
 - 用户看得懂当前状态与阻塞；
 - 成本和 Token 可按任务汇总；
 - 诊断信息默认本地且脱敏；
 - 不收集隐藏推理或无必要敏感内容。
-

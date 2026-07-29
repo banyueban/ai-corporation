@@ -7,6 +7,9 @@ Artifact Protocol 定义成果物的身份、版本、内容定位、来源和�
 ## 2. Artifact Manifest
 
 ```ts
+type ArtifactStatus = "DRAFT" | "CANDIDATE" | "APPROVED" | "REJECTED" | "SUPERSEDED";
+type ArtifactIntegrityStatus = "VALID" | "CORRUPTED" | "MISSING";
+
 type ArtifactManifest = {
   schemaVersion: "1.0";
   id: string;
@@ -15,6 +18,7 @@ type ArtifactManifest = {
   logicalName: string;
   type: ArtifactType;
   status: ArtifactStatus;
+  integrityStatus: ArtifactIntegrityStatus;
   currentVersion: number;
   createdAt: string;
   updatedAt: string;
@@ -135,4 +139,3 @@ v0.1 的 `DELETE` 默认需要人工审批，即使路径在工作区内。
 - 来源链完整；
 - Change Set 可检测冲突并防越界；
 - 大内容不经 IPC 一次性复制。
-

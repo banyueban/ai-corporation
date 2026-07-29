@@ -6,79 +6,57 @@
 
 ## 2. 聚合
 
-### 2.1 Workspace 聚合
+本节中的名称是逻辑实体，不等同于“一实体一张表”。每个逻辑实体必须明确映射到独立表、父表结构化字段、账本/事件投影或受管 Artifact；禁止由实现者临时选择存储位置。
 
-- `workspace`
-- `workspace_permission`
-- `workspace_snapshot`
+| 聚合 | 逻辑实体 | v0.1 物理映射 |
+|---|---|---|
+| Workspace | `workspace` | `workspace` 表 |
+| Workspace | `workspace_permission` | `workspace.permission_mode`、`access_status`、`last_verified_at` |
+| Workspace | `workspace_snapshot` | `workspace.path_identity_json`；只保存平台身份校验的最小元数据 |
+| Corporation | `corporation` | `corporation` 表 |
+| Corporation | `goal_contract` | `corporation.active_goal_version` 指向当前版本，不设可变主表 |
+| Corporation | `goal_contract_version` | `goal_contract_version` 表，不可变 |
+| Corporation | `corporation_policy` | v0.1 使用内置、版本化 Policy Bundle；`corporation.policy_version` 保存版本 |
+| Corporation | `organization` | `corporation.active_organization_version` 指向当前版本 |
+| Corporation | `organization_version` | `organization_version` 表，不可变 |
+| Task | `task_plan` | `task_plan` 表 |
+| Task | `task` | `task` 表 |
+| Task | `task_dependency` | `task_dependency` 表 |
+| Task | `task_input` | `task.contract_json.inputRefs` |
+| Task | `task_output_contract` | `task.contract_json.expectedOutputs` |
+| Task | `acceptance_criterion` | `task.contract_json.acceptanceCriteria` |
+| Task | `task_lease` | `task.lease_owner`、`lease_expires_at` |
+| Agent | `agent_definition` | `agent_definition` 表；能力和策略在版本化 `definition_json` |
+| Agent | `agent_instance` | `agent_instance` 表 |
+| Agent | `agent_capability` | `agent_definition.definition_json.capabilities` |
+| Agent | `agent_run` | `agent_run` 表 |
+| Agent | `model_call` | `model_call` 表 |
+| Agent | `tool_invocation` | `tool_invocation` 表 |
+| Artifact | `artifact` | `artifact` 表 |
+| Artifact | `artifact_version` | `artifact_version` 表，不可变 |
+| Artifact | `artifact_source` | `artifact_source` 表 |
+| Artifact | `change_set` | `artifact` 中 `CHANGE_SET` 类型及其当前 `artifact_version` |
+| Artifact | `change_set_operation` | Change Set 的版本化内容，按 Artifact Protocol Schema 存储 |
+| Evaluation | `evaluation_plan` | `task.contract_json.acceptanceCriteria` 与运行时选择的 evaluator 列表 |
+| Evaluation | `evaluation` | `evaluation` 表 |
+| Evaluation | `criterion_result` | `evaluation.report_json.criterionResults` |
+| Evaluation | `evidence_ref` | `evaluation.report_json.evidenceRefs`，引用 Artifact/Run/Tool 记录 |
+| Evaluation | `evaluation_issue` | `evaluation.report_json.issues` |
+| Governance | `approval_request` | `approval_request` 表 |
+| Governance | `budget_account` | `budget_ledger` 的 Corporation 级投影 |
+| Governance | `budget_reservation` | `budget_ledger` 中成对的 `RESERVE`/`RELEASE` 条目 |
+| Governance | `budget_ledger` | `budget_ledger` 表，只追加 |
+| Governance | `policy_decision` | `domain_event` 中版本化 Policy Decision 事件 |
+| Governance | `domain_event` | `domain_event` 表，只追加 |
+| Governance | `decision_record` | `DECISION_RECORD` Artifact |
+| Governance | `provider` | `provider` 表 |
+| Governance | `model_route` | Agent Definition/Instance 的版本化路由引用与运行时调度记录 |
+| Governance | `memory_item` | `memory_item` 表 |
+| Governance | `capability_outcome` | Evaluation、Agent Run 与用量记录形成的可重建投影 |
 
-Workspace 保存用户授权根目录和平台标识。路径是敏感数据，展示和日志需最小化。
+Workspace 路径是敏感数据。Renderer 只获得用户主动授权的 `display_path`、Workspace ID、权限和可访问状态；`canonical_root_path` 与 `path_identity_json` 只存在于 Electron Main、Rust Core 和持久化层。
 
-### 2.2 Corporation 聚合
-
-- `corporation`
-- `goal_contract`
-- `goal_contract_version`
-- `corporation_policy`
-- `organization`
-- `organization_version`
-
-Corporation 是顶级业务所有者。其状态变更必须版本化。
-
-### 2.3 Task 聚合
-
-- `task_plan`
-- `task`
-- `task_dependency`
-- `task_input`
-- `task_output_contract`
-- `acceptance_criterion`
-- `task_lease`
-
-Task 使用稳定 ID；计划修订可创建新 Task 或标记旧 Task 被取代，禁止改变已执行 Task 的历史合同。
-
-### 2.4 Agent 聚合
-
-- `agent_definition`
-- `agent_instance`
-- `agent_capability`
-- `agent_run`
-- `model_call`
-- `tool_invocation`
-
-Definition 可复用；Instance 属于 Corporation；Run 属于 Task。
-
-### 2.5 Artifact 聚合
-
-- `artifact`
-- `artifact_version`
-- `artifact_source`
-- `change_set`
-- `change_set_operation`
-
-Version 不可变。文件内容在 Artifact Store，数据库保存引用。
-
-### 2.6 Evaluation 聚合
-
-- `evaluation_plan`
-- `evaluation`
-- `criterion_result`
-- `evidence_ref`
-- `evaluation_issue`
-
-### 2.7 Governance 与运营
-
-- `approval_request`
-- `budget_account`
-- `budget_reservation`
-- `budget_ledger`
-- `policy_decision`
-- `domain_event`
-- `decision_record`
-- `provider`
-- `model_route`
-- `memory_item`
-- `capability_outcome`
+Task 使用稳定 ID；计划修订可创建新 Task 或标记旧 Task 被取代，禁止改变已执行 Task 的历史合同。Agent Definition 可复用，Instance 属于 Corporation，Run 属于 Task。Artifact Version 不可变；文件内容位于 Artifact Store，数据库保存引用和哈希。
 
 ## 3. 核心关系
 
@@ -225,11 +203,10 @@ WHERE id = ? AND version = ?;
 - 新版本首次打开后记录 schema version；
 - 迁移测试覆盖从所有已发布版本升级。
 
-## 12. v0.1 完成标准
+## 12. v0.1 模块验收断言
 
 - 所有核心实体有明确所有权；
 - 外键、唯一性和状态约束落地；
 - 账本与事件不可被普通业务更新；
 - 密钥不进入数据库；
 - 数据删除、备份和迁移行为有测试。
-

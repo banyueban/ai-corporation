@@ -272,11 +272,10 @@ interface EvaluationEngine {
 - 冲突证据进入人工；
 - CommandEvaluator 不能绕过 Tool Policy。
 
-## 17. v0.1 完成标准
+## 17. v0.1 模块验收断言
 
 - 支持 Schema、文件、内容规则、命令、LLM Judge；
 - 每个 Task 的成功标准能映射到 Evaluator；
 - 结论包含证据和结构化问题；
 - 失败可正确路由到修订、重规划或人工；
 - 不出现无限评价/修订循环。
-

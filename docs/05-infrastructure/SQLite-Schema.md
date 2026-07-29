@@ -30,14 +30,27 @@ CREATE TABLE schema_migrations (
 
 ## 3. 工作区与 Corporation
 
+Workspace 字段边界：
+
+- `display_path` 是用户在原生目录选择器中主动授权、允许 Renderer 展示的路径；
+- `canonical_root_path` 是敏感安全字段，只允许 Electron Main、Rust Core 和持久化层访问；
+- `permission_mode` 描述当前真实读写能力，`access_status` 描述路径是否仍可访问；
+- `path_identity_json` 保存平台目录/卷身份校验所需的最小元数据，不向 Renderer 原样暴露；
+- 每次创建、恢复或执行文件操作前更新 `last_verified_at` 并重新验证路径身份与权限。
+
 ```sql
 CREATE TABLE workspace (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
-  root_path TEXT NOT NULL,
+  display_path TEXT NOT NULL,
   canonical_root_path TEXT NOT NULL,
   platform TEXT NOT NULL CHECK (platform IN ('windows', 'macos')),
   permission_mode TEXT NOT NULL CHECK (permission_mode IN ('READ_ONLY', 'READ_WRITE')),
+  access_status TEXT NOT NULL CHECK (access_status IN (
+    'UNVERIFIED','AVAILABLE','MISSING','PERMISSION_DENIED'
+  )),
+  path_identity_json TEXT NOT NULL DEFAULT '{}',
+  last_verified_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   UNIQUE(canonical_root_path)
@@ -70,6 +83,16 @@ CREATE TABLE goal_contract_version (
   original_goal TEXT NOT NULL,
   structured_goal_json TEXT NOT NULL,
   status TEXT NOT NULL CHECK (status IN ('DRAFT','APPROVED','SUPERSEDED')),
+  created_by TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (corporation_id, version)
+);
+
+CREATE TABLE organization_version (
+  corporation_id TEXT NOT NULL REFERENCES corporation(id) ON DELETE CASCADE,
+  version INTEGER NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('DRAFT','APPROVED','SUPERSEDED')),
+  snapshot_json TEXT NOT NULL,
   created_by TEXT NOT NULL,
   created_at TEXT NOT NULL,
   PRIMARY KEY (corporation_id, version)
@@ -194,7 +217,7 @@ CREATE TABLE provider (
   endpoint TEXT,
   secret_ref TEXT,
   config_json TEXT NOT NULL DEFAULT '{}',
-  status TEXT NOT NULL CHECK (status IN ('ACTIVE','DISABLED','ERROR')),
+  config_status TEXT NOT NULL CHECK (config_status IN ('ENABLED','DISABLED')),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -258,6 +281,8 @@ CREATE TABLE artifact (
   logical_name TEXT NOT NULL,
   type TEXT NOT NULL,
   status TEXT NOT NULL CHECK (status IN ('DRAFT','CANDIDATE','APPROVED','REJECTED','SUPERSEDED')),
+  integrity_status TEXT NOT NULL DEFAULT 'VALID'
+    CHECK (integrity_status IN ('VALID','CORRUPTED','MISSING')),
   current_version INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,

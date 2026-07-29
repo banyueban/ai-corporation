@@ -21,29 +21,16 @@ Task Engine 将 Goal Contract 转换为可执行 DAG，并负责整个任务生�
 - 执行验收逻辑；
 - 绕过 Policy Engine。
 
-## 2. Task 结构
+## 2. Task 合同与运行记录
 
 ```ts
-type Task = {
-  schemaVersion: "1.0";
+type TaskRuntimeRecord = {
   id: string;
   corporationId: string;
   planVersion: number;
-  parentId?: string;
-  title: string;
-  objective: string;
-  description?: string;
-  kind: "ANALYSIS" | "GENERATION" | "TRANSFORMATION" | "VALIDATION" | "HUMAN_DECISION";
-  priority: number;
-  riskLevel: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
-  requiredCapabilities: CapabilityRequirement[];
-  inputRefs: ArtifactRef[];
-  expectedOutputs: OutputContract[];
-  acceptanceCriteria: AcceptanceCriterion[];
-  budget: TaskBudget;
+  contract: TaskContract;
   status: TaskStatus;
   attempt: number;
-  maxAttempts: number;
   assignedAgentId?: string;
   leaseOwner?: string;
   leaseExpiresAt?: string;
@@ -51,6 +38,8 @@ type Task = {
   updatedAt: string;
 };
 ```
+
+不可变的目标、能力、工具、输入、输出、验收、预算、重试、权限、假设和非目标只由 [Task Protocol 的 `TaskContract`](../04-protocols/Task-Protocol.md)定义，并以 `task.contract_json` 保存版本化快照。Task Engine 不复制合同字段；`TaskRuntimeRecord` 只附加状态、分配、尝试次数和租约等运行事实。
 
 依赖边独立存储：
 
@@ -315,11 +304,10 @@ interface TaskEngine {
 - 重规划复用已完成任务；
 - 事务回滚后状态与事件一致。
 
-## 15. v0.1 完成标准
+## 15. v0.1 模块验收断言
 
 - 可从 Goal Contract 生成 2–20 个任务的有效 DAG；
 - 支持顺序和最多两个并行任务；
 - 状态机、租约、暂停、恢复、取消可运行；
 - 验收失败可触发带反馈修订；
 - 应用异常退出后不会重复提交已确认的文件变更。
-

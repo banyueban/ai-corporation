@@ -22,7 +22,7 @@ function taskUnit({
 | 基线提交 | \`abc1234\` |
 
 ## 1. 需求与设计引用
-内容
+[MVP Plan：Milestone 1](../MVP-Plan.md)
 ## 2. 前置条件
 内容
 ## 3. 包含范围
@@ -63,6 +63,22 @@ test("rejects a completed task unit with unchecked acceptance", () => {
 test("rejects unresolved placeholders after a task becomes ready", () => {
   const result = checkTaskUnitDocument(
     `${taskUnit()}\nTBD`,
+    "M1-TU-01-example.md",
+  );
+  assert.equal(result.errors.length, 1);
+});
+
+test("rejects a task unit without an MVP Plan reference", () => {
+  const result = checkTaskUnitDocument(
+    taskUnit().replace("[MVP Plan：Milestone 1](../MVP-Plan.md)", "内容"),
+    "M1-TU-01-example.md",
+  );
+  assert.equal(result.errors.length, 1);
+});
+
+test("rejects an MVP Plan reference to a different Milestone", () => {
+  const result = checkTaskUnitDocument(
+    taskUnit().replace("MVP Plan：Milestone 1", "MVP Plan：Milestone 2"),
     "M1-TU-01-example.md",
   );
   assert.equal(result.errors.length, 1);

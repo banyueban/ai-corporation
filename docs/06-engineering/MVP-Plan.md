@@ -8,25 +8,17 @@
 
 任何用户可见功能进入实现前，必须读取 [UI/UX 文档中心](../07-ui/README.md)。Milestone 0 的工程壳不要求达到产品高保真视觉，但从 Milestone 1 起的页面、交互和状态必须遵守 UI 基线与专项验收标准。
 
-## 2. Definition of Done
+## 2. 实施与退出规则
 
-每个故事完成必须：
+通用 Definition of Done、缺陷门槛和证据要求只由[统一验收标准](Acceptance-Standard.md)定义。本文档只定义 Milestone 范围、交付物、演示和退出条件。
 
-- 满足验收标准；
-- 领域与协议类型已更新；
-- 单元/集成测试通过；
-- 错误路径和取消路径可用；
-- 日志无敏感数据；
-- 文档与迁移同步；
-- Windows/macOS 相关差异已验证或明确记录。
-
-### 2.1 任务单元与阶段复盘
+### 2.1 任务单元与阶段改进
 
 - 每个 Milestone 开始实现前，按 [解耦任务单元规范](Task-Unit-Standard.md)拆分首个可独立验收的垂直切片；
 - 每次只启动一个“就绪”任务单元，相邻能力进入后续任务合同；
 - 每个任务单元必须定义包含/非范围、依赖、交付物所有权、共享冲突区、隔离方式和直接验收证据；
 - 单元通过不自动代表功能或 Milestone 通过；
-- Milestone 关闭后、下一 Milestone 首个实现任务开始前，必须形成阶段复盘，并把改进落到规范、自动检查或下一任务合同。
+- Milestone 关闭后、下一 Milestone 首个实现任务开始前，必须检查过程问题，并把仍然有效的改进直接落到当前规范、自动检查或下一任务合同；不保留单独的历史复盘文档。
 
 ## 3. Milestone 0：工程基线
 
@@ -56,12 +48,12 @@
 
 交付：
 
-- Workspace 选择与权限；
-- Corporation CRUD（删除除外）；
-- Goal Contract 手工录入/Mock 生成；
-- SQLite 核心表；
-- Domain Event 与时间线；
-- 暂停/恢复基础状态机。
+- Workspace 选择、授权、权限重新验证和展示；
+- Corporation 创建、读取、更新和归档，删除不在本 Milestone；
+- Goal Contract 手工录入或 Mock 生成并版本化保存，不调用真实模型、不生成 Task Graph；
+- 支持 Workspace、Corporation、Goal、Event 和恢复状态的 SQLite 核心表；
+- 状态变化与 Domain Event 同事务写入，并提供最小时间线；
+- 支持安全暂停、应用重启和恢复且不重复已提交副作用的基础状态机。
 
 演示：
 
@@ -73,7 +65,7 @@
 
 - 状态与事件事务一致；
 - 工作区外路径被 Rust 拒绝；
-- Renderer 重载不丢状态。
+- Renderer 重载和应用重启不丢失已持久化状态。
 
 ## 5. Milestone 2：Provider 与 Goal/Plan
 
@@ -183,7 +175,7 @@
 - 20 次 dogfood；
 - 已知限制与隐私说明。
 
-发布门槛见 PRD。
+产品指标见 PRD；完整发布总门槛只由[统一验收标准](Acceptance-Standard.md)定义。
 
 ## 10. 工作分解
 
