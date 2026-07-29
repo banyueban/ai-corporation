@@ -3,7 +3,7 @@
 | 属性           | 值                                                                  |
 | -------------- | ------------------------------------------------------------------- |
 | 任务单元 ID    | M1-TU-01                                                            |
-| 状态           | 进行中                                                              |
+| 状态           | 完成                                                                |
 | 所属 Milestone | Milestone 1：本地项目骨架                                           |
 | 主要结果       | 冻结 Workspace 数据合同，并由 Rust 在独立测试中可靠拒绝工作区外路径 |
 | 基线提交       | `f1ae2096ed3fc96e86f2019e051f0c01b28d25eb`                          |
@@ -89,16 +89,16 @@
 
 ## 7. 验收合同
 
-- [ ] Schema：Renderer DTO 不包含 `canonicalRootPath`、`pathIdentity` 或任意文件系统能力；
-- [ ] Migration：空库可迁移到 Workspace Schema，约束、回滚和迁移校验通过；
-- [ ] 正常：工作区内相对路径被规范化并允许；
-- [ ] 越界：`..`、外部绝对路径和盘符/卷越界被 Rust 拒绝；
-- [ ] 链接：指向工作区外的符号链接或 Windows 重解析点被拒绝；
-- [ ] 状态：目录不存在、权限拒绝和无效路径返回稳定结构化错误；
-- [ ] 隐私：错误和日志不包含 `canonicalRootPath`、路径身份元数据或用户文件内容；
-- [ ] 隔离：测试使用专属临时目录和数据库，不依赖执行顺序或用户真实目录；
-- [ ] 跨平台：Windows x64 与 macOS Apple Silicon 的适用路径边界测试均通过；
-- [ ] 回归：Milestone 0 health、协议兼容、SQLite migration runner 和工程检查继续通过。
+- [x] Schema：Renderer DTO 不包含 `canonicalRootPath`、`pathIdentity` 或任意文件系统能力；
+- [x] Migration：空库可迁移到 Workspace Schema，约束、回滚和迁移校验通过；
+- [x] 正常：工作区内相对路径被规范化并允许；
+- [x] 越界：`..`、外部绝对路径和盘符/卷越界被 Rust 拒绝；
+- [x] 链接：指向工作区外的符号链接或 Windows 重解析点被拒绝；
+- [x] 状态：目录不存在、权限拒绝和无效路径返回稳定结构化错误；
+- [x] 隐私：错误和日志不包含 `canonicalRootPath`、路径身份元数据或用户文件内容；
+- [x] 隔离：测试使用专属临时目录和数据库，不依赖执行顺序或用户真实目录；
+- [x] 跨平台：Windows x64 与 macOS Apple Silicon 的适用路径边界测试均通过；
+- [x] 回归：Milestone 0 health、协议兼容、SQLite migration runner 和工程检查继续通过。
 
 ## 8. 隔离与干扰控制
 

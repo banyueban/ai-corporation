@@ -3,18 +3,18 @@
 | 属性           | 当前值                                    |
 | -------------- | ----------------------------------------- |
 | 当前产品版本   | v0.1 MVP                                  |
-| 当前阶段       | Milestone 1 首个任务单元实施与验收中      |
+| 当前阶段       | Milestone 1 首个任务单元已完成            |
 | 当前 Milestone | Milestone 1：本地项目骨架                 |
-| 当前任务单元   | M1-TU-01（进行中）                        |
+| 当前任务单元   | M1-TU-01（完成）                          |
 | 总体状态       | 进行中                                    |
 | 最近更新       | 2026-07-29                                |
-| 下一检查点     | M1-TU-01 Windows/macOS 路径边界与工程回归 |
+| 下一检查点     | 建立并审查 M1-TU-02 任务合同              |
 
 ## 1. 当前结论
 
-Milestone 0 已通过全部适用验收；当前没有已知未解决的 P0/P1 缺陷。Milestone 1 尚未实现任何产品功能。
+Milestone 0 已通过全部适用验收；当前没有已知未解决的 P0/P1 缺陷。Milestone 1 仅完成 `M1-TU-01` 的 Workspace 路径/Schema/SQLite 基础，尚未形成完整 Workspace 用户流程。
 
-文档基线已按单一权威来源原则完成优化并以提交 `f1ae2096ed3fc96e86f2019e051f0c01b28d25eb` 推送。`M1-TU-01` 已冻结该提交为实施基线，当前正在实现和验收 Workspace DTO/Schema、SQLite migration 与 Rust 路径边界；完整 Workspace 选择、Repository/IPC、UI、Corporation 和其他 Milestone 1 功能仍未实现。
+文档基线已按单一权威来源原则完成优化并以提交 `f1ae2096ed3fc96e86f2019e051f0c01b28d25eb` 推送。`M1-TU-01` 的 Workspace DTO/Schema、SQLite migration、Rust 路径边界和结构化错误已在提交 `de00200c3c4a63274274f6769fea19d33ce540a0` 实现，并通过 Windows x64 与 macOS Apple Silicon 的真实文件系统验收。完整 Workspace 选择、Repository/IPC、UI、Corporation 和其他 Milestone 1 功能仍未实现。
 
 ## 2. 已完成基线
 
@@ -47,14 +47,16 @@ Milestone 0 已通过全部适用验收；当前没有已知未解决的 P0/P1 �
 
 ## 4. 下一步任务
 
-当前只允许推进：
+当前任务结论：
 
 - [M1-TU-01 Workspace 路径边界基础](docs/06-engineering/task-units/M1-TU-01-workspace-boundary.md)；
-- 当前状态：进行中；
+- 当前状态：完成；
 - 实施基线：`f1ae2096ed3fc96e86f2019e051f0c01b28d25eb`；
 - 主要结果：冻结 Workspace DTO/Schema 和 SQLite 边界，由 Rust 拒绝工作区外路径；
 - 对应 Milestone 1 范围：Workspace 选择与权限的路径/Schema 基础、SQLite Workspace 表，以及“工作区外路径被 Rust 拒绝”验收；
 - 非范围：原生目录选择器、Workspace Repository/IPC、Renderer UI、Electron E2E 和 Corporation CRUD。
+
+下一步只允许建立和审查 `M1-TU-02` 的任务合同；合同达到“就绪”前不得实施 Workspace Repository、IPC 或权限重新验证。
 
 Milestone 1 任务覆盖地图：
 
@@ -84,14 +86,17 @@ Milestone 1 任务覆盖地图：
 当前有效验证：
 
 - Markdown 内部链接检查：0 个失效；
-- 规则优先级、状态词、Workspace 信任边界、领域/UI 状态和数据映射交叉检查：通过；
-- MVP Plan、项目状态与 M1-TU-01 的范围交叉检查：通过；任务合同检查器强制要求直接引用 MVP Plan；
+- M1-TU-01 验收提交：`de00200c3c4a63274274f6769fea19d33ce540a0`；
+- GitHub Actions：run `30467936772`；
+- Windows x64 job `90630475452`：真实 junction、盘符和 UNC 越界测试通过，工程检查、开发态 E2E、打包应用 E2E 和制品上传均成功；
+- macOS Apple Silicon job `90630475318`：真实 symlink 越界测试通过，工程检查、开发态 E2E、打包应用 E2E 和制品上传均成功；
+- Workspace 协议测试 7 项、SQLite migration 测试 6 项、Native Core 测试 7 项、Workspace Rust 路径边界测试 4 项通过；
 - `pnpm check`：通过，包含状态/任务合同、格式、lint、TypeScript、全部 workspace 测试、Rust test/fmt/clippy 和 secret scan；
 - `pnpm check:status`：通过；
 - `pnpm check:task-units`：通过，1 份任务合同；
 - `git diff --check`：通过；
-- 项目内独立历史/复盘文档：0 份。
-- 文档优化提交 `f1ae209` 已推送；实施基线冻结时工作区无其他任务改动，共享冲突区无人占用。
+- 项目内独立历史/复盘文档：0 份；
+- 文档优化提交 `f1ae2096ed3fc96e86f2019e051f0c01b28d25eb` 已推送。
 
 本节只保留当前有效验证摘要，不记录被替代的过程结论。
 
