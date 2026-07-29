@@ -3,18 +3,18 @@
 | 属性           | 当前值                                    |
 | -------------- | ----------------------------------------- |
 | 当前产品版本   | v0.1 MVP                                  |
-| 当前阶段       | Milestone 1 第二个任务合同审查中          |
+| 当前阶段       | Milestone 1 第二个任务单元已就绪          |
 | 当前 Milestone | Milestone 1：本地项目骨架                 |
-| 当前任务单元   | M1-TU-02（未开始）                        |
+| 当前任务单元   | M1-TU-02（就绪）                          |
 | 总体状态       | 进行中                                    |
 | 最近更新       | 2026-07-29                                |
-| 下一检查点     | M1-TU-02 合同就绪门禁                     |
+| 下一检查点     | M1-TU-02 Repository、IPC 与权限验收       |
 
 ## 1. 当前结论
 
 Milestone 0 已通过全部适用验收；当前没有已知未解决的 P0/P1 缺陷。Milestone 1 仅完成 `M1-TU-01` 的 Workspace 路径/Schema/SQLite 基础，尚未形成完整 Workspace 用户流程。
 
-`M1-TU-01` 的 Workspace DTO/Schema、SQLite migration、Rust 路径边界和结构化错误已在提交 `de00200c3c4a63274274f6769fea19d33ce540a0` 实现，并通过 Windows x64 与 macOS Apple Silicon 的真实文件系统验收。当前正在审查 `M1-TU-02` 的 Workspace Repository、窄 IPC、持久化恢复和权限重新验证合同；合同达到“就绪”前不实施。原生目录选择、Workspace UI、Corporation 和其他 Milestone 1 功能仍未实现。
+`M1-TU-01` 的 Workspace DTO/Schema、SQLite migration、Rust 路径边界和结构化错误已在提交 `de00200c3c4a63274274f6769fea19d33ce540a0` 实现，并通过 Windows x64 与 macOS Apple Silicon 的真实文件系统验收。`M1-TU-02` 已完成 Workspace Repository、窄 IPC、持久化恢复和权限重新验证的范围、接口、所有权、隔离及验收审查，并冻结提交 `274f41d993eeb09fab5a2166a48cad9ae2cc67f5` 为实施基线。原生目录选择、Workspace UI、Corporation 和其他 Milestone 1 功能仍未实现。
 
 ## 2. 已完成基线
 
@@ -50,13 +50,13 @@ Milestone 0 已通过全部适用验收；当前没有已知未解决的 P0/P1 �
 当前允许推进：
 
 - [M1-TU-02 Workspace Repository、IPC 与权限重新验证](docs/06-engineering/task-units/M1-TU-02-workspace-repository-ipc.md)；
-- 当前状态：未开始，合同审查中；
-- 合同设计起点：`0824e250390b988c5013e7f983906fffa889b8b9`；
+- 当前状态：就绪；
+- 实施基线：`274f41d993eeb09fab5a2166a48cad9ae2cc67f5`；
 - 主要结果：已授权 Workspace 可持久化恢复，并通过窄 IPC 返回重新验证后的公开权限状态；
 - 对应 Milestone 1 范围：Workspace Repository/IPC、权限重新验证和持久化；
 - 非范围：原生目录选择器、Renderer UI、用户可见 Workspace E2E 和 Corporation CRUD。
 
-合同通过范围、接口、所有权、隔离和验收审查并冻结实施基线后，才可标记“就绪”和开始实现。
+当前只允许按该合同实施和验收；合同外工作进入后续任务，不得静默扩大范围。
 
 Milestone 1 任务覆盖地图：
 
@@ -96,6 +96,7 @@ Milestone 1 任务覆盖地图：
 - `pnpm check:task-units`：通过，2 份任务合同；
 - `git diff --check`：通过；
 - 项目内独立历史/复盘文档：0 份；
+- M1-TU-02 合同范围、接口、所有权、隔离和验收内容审查：通过，实施基线 `274f41d993eeb09fab5a2166a48cad9ae2cc67f5`；
 - 文档优化提交 `f1ae2096ed3fc96e86f2019e051f0c01b28d25eb` 已推送。
 
 本节只保留当前有效验证摘要，不记录被替代的过程结论。
