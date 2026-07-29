@@ -1,17 +1,18 @@
 # AI Corporation Desktop 项目进度
 
-| 属性           | 当前值                                   |
-| -------------- | ---------------------------------------- |
-| 当前产品版本   | v0.1 MVP                                 |
-| 当前阶段       | Milestone 0 已验收，准备进入本地项目骨架 |
-| 当前 Milestone | Milestone 1：本地项目骨架（尚未开始）    |
-| 总体状态       | 进行中                                   |
-| 最近更新       | 2026-07-29                               |
-| 下一检查点     | Workspace 选择、Corporation 持久化与恢复 |
+| 属性           | 当前值                                       |
+| -------------- | -------------------------------------------- |
+| 当前产品版本   | v0.1 MVP                                     |
+| 当前阶段       | Milestone 0 复盘完成，首个 M1 任务合同已建立 |
+| 当前 Milestone | Milestone 1：本地项目骨架（尚未开始）        |
+| 当前任务单元   | M1-TU-01（未开始，等待基线冻结）             |
+| 总体状态       | 进行中                                       |
+| 最近更新       | 2026-07-29                                   |
+| 下一检查点     | M1-TU-01 Workspace 选择与路径边界验收        |
 
 ## 1. 当前结论
 
-Milestone 0 的工程基线及全部适用验收项已通过。提交 `55ba7de` 对应的 GitHub Actions CI #5（run `30415519753`）在 Windows x64 与 macOS Apple Silicon 上均完成工程检查、开发态 Electron E2E、未签名安装包构建、最终打包应用窗口与 Rust `health` E2E，以及 artifact 上传。两个最终应用均直接显示 `Native Core ready · v0.1.0`。当前没有已知未解决的 P0/P1 缺陷；项目准备进入 Milestone 1，但尚未将任何 Milestone 1 产品功能标记为完成。
+Milestone 0 的工程基线及全部适用验收项已通过。提交 `55ba7de` 对应的 GitHub Actions CI #5（run `30415519753`）在 Windows x64 与 macOS Apple Silicon 上均完成工程检查、开发态 Electron E2E、未签名安装包构建、最终打包应用窗口与 Rust `health` E2E，以及 artifact 上传。两个最终应用均直接显示 `Native Core ready · v0.1.0`。Milestone 0 阶段复盘已形成，并已将任务边界、就绪门禁、直接证据和干扰隔离要求写入可自动检查的任务单元规范。当前没有已知未解决的 P0/P1 缺陷；Milestone 1 首个任务合同已建立但尚未实施，待本次治理提交形成稳定基线后转为“就绪”，未将任何 Milestone 1 产品功能标记为完成。
 
 ## 2. 已完成内容
 
@@ -51,6 +52,8 @@ Milestone 0 的工程基线及全部适用验收项已通过。提交 `55ba7de` 
 - [x] 安全威胁模型；
 - [x] 架构决策记录；
 - [x] 统一验收标准；
+- [x] 解耦任务单元规范与自动结构检查；
+- [x] Milestone 0 阶段复盘；
 - [x] Codex 仓库工作规则。
 
 ### 2.5 UI/UX 设计
@@ -80,23 +83,22 @@ Milestone 0 的工程基线及全部适用验收项已通过。提交 `55ba7de` 
 
 ### Milestone 1：本地项目骨架
 
-目标：用户可创建并恢复 Corporation，不接真实模型。
+当前只启动首个任务单元：
 
-实施顺序：
+- [M1-TU-01 Workspace 选择与路径边界](docs/06-engineering/task-units/M1-TU-01-workspace-boundary.md)
+- 状态：未开始，等待本次治理提交形成稳定基线；
+- 主要结果：用户可选择一个本地目录作为 Workspace，应用保存授权元数据，Rust 拒绝所有工作区外路径；
+- 非范围：Corporation CRUD、Goal Contract、Domain Event、暂停/恢复和完整文件工具。
 
-1. 实现 Workspace 选择、权限授予与 Rust 路径边界；
-2. 实现 Corporation CRUD（删除除外）及 SQLite 核心表；
-3. 实现 Goal Contract 手工录入与 Mock 生成；
-4. 实现 Domain Event、时间线与事务一致性；
-5. 实现暂停/恢复基础状态机与应用重启恢复；
-6. 按 UI/UX 规范完成相关页面、交互状态和专项验收。
+该任务完成后只关闭 `M1-TU-01`，不自动标记 Corporation CRUD、完整 Milestone 1 或后续任务完成。后续单元在当前单元接口冻结并验收后再建立合同。
 
-演示路径：选择工作区 → 创建 Corporation → 保存目标 → 重启应用 → 恢复。
+Milestone 1 最终演示路径仍为：选择工作区 → 创建 Corporation → 保存目标 → 重启应用 → 恢复。
 
 验收依据：
 
 - [MVP 开发计划：Milestone 1](docs/06-engineering/MVP-Plan.md)
 - [统一验收标准](docs/06-engineering/Acceptance-Standard.md)
+- [解耦任务单元规范](docs/06-engineering/Task-Unit-Standard.md)
 - [工程与编码规范](docs/06-engineering/Engineering-Standards.md)
 - [UI/UX 文档中心](docs/07-ui/README.md)
 - [安全威胁模型](docs/06-engineering/Threat-Model.md)
@@ -112,6 +114,15 @@ Milestone 0 的工程基线及全部适用验收项已通过。提交 `55ba7de` 
 - 应用签名与 notarization 凭据不属于早期开发阻塞项，但属于公开发布前置条件。
 
 ## 6. 当前验证记录
+
+### 2026-07-29：Milestone 0 阶段复盘与任务单元治理
+
+- 新增 [Milestone 0 阶段复盘](docs/06-engineering/retrospectives/Milestone-0-Retrospective.md)，记录状态错位、远程仓库前置条件、代理信号误验收和测试清理耦合问题的直接原因与系统性根因；
+- 新增 [解耦任务单元规范](docs/06-engineering/Task-Unit-Standard.md)，规定唯一 ID、包含/非范围、依赖、交付物所有权、共享冲突区、隔离、直接证据和完成门禁；
+- 新增 `pnpm check:task-units`，自动检查任务合同结构、状态、占位内容、重复 ID 和完成状态下的未勾选验收项；
+- AGENTS、统一验收标准、工程规范、测试方案和 MVP 开发计划已接入任务单元与阶段复盘要求；
+- 建立 [M1-TU-01 Workspace 选择与路径边界](docs/06-engineering/task-units/M1-TU-01-workspace-boundary.md)，合同已完成，等待本次治理提交形成稳定基线，尚未开始产品实现；
+- 本次只完成流程治理和下个任务合同，没有实现或验收任何 Milestone 1 产品功能。
 
 ### 2026-07-29：Milestone 0 打包产物补验完成
 
