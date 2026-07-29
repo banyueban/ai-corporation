@@ -1,17 +1,17 @@
 # AI Corporation Desktop 项目进度
 
-| 属性           | 当前值                                             |
-| -------------- | -------------------------------------------------- |
-| 当前产品版本   | v0.1 MVP                                           |
-| 当前阶段       | Milestone 0 验收重新打开：打包产物启动尚未充分验证 |
-| 当前 Milestone | Milestone 0：工程基线                              |
-| 总体状态       | 进行中                                             |
-| 最近更新       | 2026-07-29                                         |
-| 下一检查点     | Windows/macOS 打包产物真实启动与 health E2E        |
+| 属性           | 当前值                                   |
+| -------------- | ---------------------------------------- |
+| 当前产品版本   | v0.1 MVP                                 |
+| 当前阶段       | Milestone 0 已验收，准备进入本地项目骨架 |
+| 当前 Milestone | Milestone 1：本地项目骨架（尚未开始）    |
+| 总体状态       | 进行中                                   |
+| 最近更新       | 2026-07-29                               |
+| 下一检查点     | Workspace 选择、Corporation 持久化与恢复 |
 
 ## 1. 当前结论
 
-产品范围、总体架构、核心引擎、协议、数据、基础设施和低保真 UI/UX 已经形成开发基线。Milestone 0 的实现、开发态 E2E、双平台构建和安装包生成已经通过，但现有 CI 的 Electron E2E 在打包前运行，没有证明最终打包产物能够打开窗口并完成 Rust `health` 调用；本地 Windows 也只记录了进程存活，没有读取打包产物的实际 UI 状态。因此撤销此前“Milestone 0 完成”的结论，当前状态恢复为验收中。在 Windows/macOS 打包产物启动与 health E2E 产生直接证据前，不进入 Milestone 1。
+Milestone 0 的工程基线及全部适用验收项已通过。提交 `55ba7de` 对应的 GitHub Actions CI #5（run `30415519753`）在 Windows x64 与 macOS Apple Silicon 上均完成工程检查、开发态 Electron E2E、未签名安装包构建、最终打包应用窗口与 Rust `health` E2E，以及 artifact 上传。两个最终应用均直接显示 `Native Core ready · v0.1.0`。当前没有已知未解决的 P0/P1 缺陷；项目准备进入 Milestone 1，但尚未将任何 Milestone 1 产品功能标记为完成。
 
 ## 2. 已完成内容
 
@@ -74,30 +74,31 @@
 - [x] SQLite migration runner；
 - [x] 自动化测试与 CI 配置；
 - [x] Windows/macOS 构建；
-- [ ] Windows/macOS 打包产物启动与 Rust health E2E；
+- [x] Windows/macOS 打包产物启动与 Rust health E2E；
 
 ## 4. 下一步任务
 
-### Milestone 0：打包产物补验
+### Milestone 1：本地项目骨架
 
-目标：直接启动最终打包产物，并观察窗口与 Rust health 的真实结果。
+目标：用户可创建并恢复 Corporation，不接真实模型。
 
-补验顺序：
+实施顺序：
 
-1. 对 Windows unpacked/安装产物执行可观察的窗口与 `Native Core ready` 验证；
-2. 将同一打包产物测试接入 Windows/macOS CI，并置于打包步骤之后；
-3. 验证测试失败时阻断 artifact 上传和 Milestone 完成标记；
-4. 记录两个平台当前提交对应的实际测试证据；
-5. 全部通过后再关闭 Milestone 0 并切换到 Milestone 1。
+1. 实现 Workspace 选择、权限授予与 Rust 路径边界；
+2. 实现 Corporation CRUD（删除除外）及 SQLite 核心表；
+3. 实现 Goal Contract 手工录入与 Mock 生成；
+4. 实现 Domain Event、时间线与事务一致性；
+5. 实现暂停/恢复基础状态机与应用重启恢复；
+6. 按 UI/UX 规范完成相关页面、交互状态和专项验收。
 
-补验不得使用开发目录启动结果代替打包产物，不得用进程存活代替窗口与 health 状态。
+演示路径：选择工作区 → 创建 Corporation → 保存目标 → 重启应用 → 恢复。
 
 验收依据：
 
-- [MVP 开发计划：Milestone 0](docs/06-engineering/MVP-Plan.md)
+- [MVP 开发计划：Milestone 1](docs/06-engineering/MVP-Plan.md)
 - [统一验收标准](docs/06-engineering/Acceptance-Standard.md)
-- [Electron、TypeScript 与 Rust 工程架构](docs/05-infrastructure/Desktop-and-Rust-Architecture.md)
 - [工程与编码规范](docs/06-engineering/Engineering-Standards.md)
+- [UI/UX 文档中心](docs/07-ui/README.md)
 - [安全威胁模型](docs/06-engineering/Threat-Model.md)
 
 ## 5. 当前阻塞项
@@ -108,10 +109,21 @@
 
 - 系统 PATH 未提供 Node.js；本次使用 Codex bundled Node.js 24.14.0 完成 pnpm 验证；
 - Codex 的外层 Windows 沙箱与 Chromium 子进程沙箱存在嵌套冲突；应用自身保持 `sandbox: true`，Electron 启动与 E2E 需在外层沙箱之外验证；
-- macOS 打包产物只能在 macOS CI runner 上补验；
 - 应用签名与 notarization 凭据不属于早期开发阻塞项，但属于公开发布前置条件。
 
 ## 6. 当前验证记录
+
+### 2026-07-29：Milestone 0 打包产物补验完成
+
+- 验收提交：`55ba7de203463ebcae6c14f97e663adff3e36296`；
+- GitHub Actions CI #5：run `30415519753`，Windows x64 job `90461072074` 与 macOS Apple Silicon job `90461072105` 均为 `success`；
+- 两个平台的工程检查、开发态 Electron E2E、未签名安装包构建、最终打包应用 health E2E 和 artifact 上传均成功；
+- Windows 最终 `AI Corporation Desktop.exe` 直接启动后显示 `Native Core ready · v0.1.0`，CI 截图为 `release/packaged-health-win32-x64.png`；
+- macOS 最终 `AI Corporation Desktop.app` 直接启动后显示 `Native Core ready · v0.1.0`，CI 截图为 `release/packaged-health-darwin-arm64.png`；
+- Windows artifact `ai-corporation-windows-x64`：247,794,673 字节，SHA-256 `d6b6c1fe255123310e7a1af28610fe0b69fb54619b04ef6ad5a99259772afc5d`；
+- macOS artifact `ai-corporation-macos-arm64`：488,967,135 字节，SHA-256 `ad9437c1a832045e598e7739eecd60be347a830fff6da8f91d38c48126842cb0`；
+- 本地 Windows 最终 unpacked 产物也已独立通过同一窗口与 Rust health 测试，截图经人工核对，退出后无残留应用进程；
+- 基于以上直接证据，Milestone 0 关闭；这些证据不代表 Milestone 1 的任何产品功能已经实现或验收。
 
 ### 2026-07-29：Milestone 0 完成标记撤销
 
