@@ -4,6 +4,7 @@ use std::io::{self, BufRead, Read, Write};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use workspace_fs::{WorkspacePathError, resolve_workspace_path};
 
 pub const CRATE_NAME: &str = "native-core";
 pub const SCHEMA_VERSION: u32 = 1;
@@ -27,6 +28,15 @@ struct HealthParams {
     session_token: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct WorkspaceCanonicalizeParams {
+    schema_version: u32,
+    session_token: String,
+    root_path: String,
+    candidate_relative_path: String,
+}
+
 #[derive(Debug, Serialize)]
 struct RpcResponse {
     jsonrpc: &'static str,
@@ -41,6 +51,8 @@ struct RpcResponse {
 struct RpcError {
     code: i32,
     message: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    data: Option<Value>,
 }
 
 impl RpcResponse {
@@ -58,7 +70,24 @@ impl RpcResponse {
             jsonrpc: JSON_RPC_VERSION,
             id,
             result: None,
-            error: Some(RpcError { code, message }),
+            error: Some(RpcError {
+                code,
+                message,
+                data: None,
+            }),
+        }
+    }
+
+    fn workspace_error(id: Value, error: &WorkspacePathError) -> Self {
+        Self {
+            jsonrpc: JSON_RPC_VERSION,
+            id,
+            result: None,
+            error: Some(RpcError {
+                code: -32010,
+                message: "Workspace path rejected",
+                data: Some(json!({ "reason": error.code() })),
+            }),
         }
     }
 }
@@ -91,25 +120,31 @@ fn process_value(value: Value, expected_session_token: &str) -> RpcResponse {
         return RpcResponse::error(Value::Null, -32600, "Invalid request");
     }
 
-    if request.method != "health" {
-        return RpcResponse::error(request.id, -32601, "Method not found");
+    match request.method.as_str() {
+        "health" => process_health(request.id, request.params, expected_session_token),
+        "workspace.canonicalize" => {
+            process_workspace_canonicalize(request.id, request.params, expected_session_token)
+        }
+        _ => RpcResponse::error(request.id, -32601, "Method not found"),
     }
+}
 
-    let params = match serde_json::from_value::<HealthParams>(request.params) {
+fn process_health(id: Value, params: Value, expected_session_token: &str) -> RpcResponse {
+    let params = match serde_json::from_value::<HealthParams>(params) {
         Ok(params) => params,
-        Err(_) => return RpcResponse::error(request.id, -32602, "Invalid params"),
+        Err(_) => return RpcResponse::error(id, -32602, "Invalid params"),
     };
 
     if params.schema_version != SCHEMA_VERSION {
-        return RpcResponse::error(request.id, -32602, "Unsupported schema version");
+        return RpcResponse::error(id, -32602, "Unsupported schema version");
     }
 
     if !constant_time_eq(&params.session_token, expected_session_token) {
-        return RpcResponse::error(request.id, -32001, "Unauthorized");
+        return RpcResponse::error(id, -32001, "Unauthorized");
     }
 
     RpcResponse::success(
-        request.id,
+        id,
         json!({
             "schemaVersion": SCHEMA_VERSION,
             "status": "ok",
@@ -117,6 +152,41 @@ fn process_value(value: Value, expected_session_token: &str) -> RpcResponse {
             "pid": std::process::id(),
         }),
     )
+}
+
+fn process_workspace_canonicalize(
+    id: Value,
+    params: Value,
+    expected_session_token: &str,
+) -> RpcResponse {
+    let params = match serde_json::from_value::<WorkspaceCanonicalizeParams>(params) {
+        Ok(params) => params,
+        Err(_) => return RpcResponse::error(id, -32602, "Invalid params"),
+    };
+
+    if params.schema_version != SCHEMA_VERSION {
+        return RpcResponse::error(id, -32602, "Unsupported schema version");
+    }
+
+    if !constant_time_eq(&params.session_token, expected_session_token) {
+        return RpcResponse::error(id, -32001, "Unauthorized");
+    }
+
+    match resolve_workspace_path(
+        std::path::Path::new(&params.root_path),
+        std::path::Path::new(&params.candidate_relative_path),
+    ) {
+        Ok(result) => match serde_json::to_value(result) {
+            Ok(mut value) => {
+                if let Value::Object(object) = &mut value {
+                    object.insert("schemaVersion".to_owned(), Value::from(SCHEMA_VERSION));
+                }
+                RpcResponse::success(id, value)
+            }
+            Err(_) => RpcResponse::error(id, -32603, "Internal error"),
+        },
+        Err(error) => RpcResponse::workspace_error(id, &error),
+    }
 }
 
 fn serialize_response(response: &RpcResponse) -> String {
@@ -200,17 +270,38 @@ fn drain_until_newline<R: BufRead>(reader: &mut R) -> io::Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+    use std::io;
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::time::{SystemTime, UNIX_EPOCH};
+
     use serde_json::{Value, json};
 
     use super::{MAX_REQUEST_BYTES, SCHEMA_VERSION, handle_line, run};
 
     const TOKEN: &str = "0123456789abcdef";
+    static FIXTURE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
     fn parse_response(response: &str) -> Value {
         match serde_json::from_str(response) {
             Ok(value) => value,
             Err(error) => panic!("response must be JSON: {error}"),
         }
+    }
+
+    fn temporary_workspace() -> io::Result<PathBuf> {
+        let sequence = FIXTURE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(io::Error::other)?
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "M1-TU-01-native-core-{}-{timestamp}-{sequence}",
+            std::process::id()
+        ));
+        fs::create_dir_all(root.join("nested"))?;
+        Ok(root)
     }
 
     #[test]
@@ -304,5 +395,63 @@ mod tests {
         assert!(response.contains("Request too large"));
         assert!(response.contains("after-oversized"));
         assert_eq!(response.lines().count(), 2);
+    }
+
+    #[test]
+    fn workspace_canonicalize_returns_only_trusted_boundary_metadata() -> io::Result<()> {
+        let root = temporary_workspace()?;
+        let response = parse_response(&handle_line(
+            &json!({
+                "jsonrpc": "2.0",
+                "id": "workspace-1",
+                "method": "workspace.canonicalize",
+                "params": {
+                    "schemaVersion": SCHEMA_VERSION,
+                    "sessionToken": TOKEN,
+                    "rootPath": root.to_string_lossy(),
+                    "candidateRelativePath": "nested",
+                },
+            })
+            .to_string(),
+            TOKEN,
+        ));
+
+        assert_eq!(response["result"]["schemaVersion"], SCHEMA_VERSION);
+        assert_eq!(response["result"]["relativePath"], "nested");
+        assert_eq!(response["result"]["targetExists"], true);
+        assert!(response["result"]["canonicalRootPath"].is_string());
+        assert!(response["result"]["canonicalPath"].is_string());
+        assert!(response["result"]["pathIdentity"]["platform"].is_string());
+
+        fs::remove_dir_all(root)
+    }
+
+    #[test]
+    fn workspace_canonicalize_rejects_escape_without_path_disclosure() -> io::Result<()> {
+        let root = temporary_workspace()?;
+        let response_text = handle_line(
+            &json!({
+                "jsonrpc": "2.0",
+                "id": "workspace-escape",
+                "method": "workspace.canonicalize",
+                "params": {
+                    "schemaVersion": SCHEMA_VERSION,
+                    "sessionToken": TOKEN,
+                    "rootPath": root.to_string_lossy(),
+                    "candidateRelativePath": "../sensitive.txt",
+                },
+            })
+            .to_string(),
+            TOKEN,
+        );
+        let response = parse_response(&response_text);
+
+        assert_eq!(response["error"]["code"], -32010);
+        assert_eq!(response["error"]["message"], "Workspace path rejected");
+        assert_eq!(response["error"]["data"]["reason"], "OUTSIDE_ROOT");
+        assert!(!response_text.contains("sensitive.txt"));
+        assert!(!response_text.contains(&root.to_string_lossy().to_string()));
+
+        fs::remove_dir_all(root)
     }
 }

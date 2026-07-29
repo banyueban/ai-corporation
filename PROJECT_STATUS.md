@@ -1,20 +1,20 @@
 # AI Corporation Desktop 项目进度
 
-| 属性           | 当前值                                                    |
-| -------------- | --------------------------------------------------------- |
-| 当前产品版本   | v0.1 MVP                                                  |
-| 当前阶段       | Milestone 1 首个任务单元已就绪                            |
-| 当前 Milestone | Milestone 1：本地项目骨架                                 |
-| 当前任务单元   | M1-TU-01（就绪）                                          |
-| 总体状态       | 进行中                                                    |
-| 最近更新       | 2026-07-29                                                |
-| 下一检查点     | M1-TU-01 Workspace Schema、migration 与 Rust 路径边界验收 |
+| 属性           | 当前值                                    |
+| -------------- | ----------------------------------------- |
+| 当前产品版本   | v0.1 MVP                                  |
+| 当前阶段       | Milestone 1 首个任务单元实施与验收中      |
+| 当前 Milestone | Milestone 1：本地项目骨架                 |
+| 当前任务单元   | M1-TU-01（进行中）                        |
+| 总体状态       | 进行中                                    |
+| 最近更新       | 2026-07-29                                |
+| 下一检查点     | M1-TU-01 Windows/macOS 路径边界与工程回归 |
 
 ## 1. 当前结论
 
 Milestone 0 已通过全部适用验收；当前没有已知未解决的 P0/P1 缺陷。Milestone 1 尚未实现任何产品功能。
 
-文档基线已按单一权威来源原则完成优化：规则优先级和状态词已统一，Workspace 路径信任边界已明确，领域/UI 状态已分层，逻辑实体到 SQLite 的映射已补齐，首个 M1 任务单元已缩小。文档优化提交 `f1ae2096ed3fc96e86f2019e051f0c01b28d25eb` 已通过适用检查并推送，当前工作区无其他任务占用共享冲突区。`M1-TU-01` 已冻结该提交为实施基线并进入“就绪”；Milestone 1 仍未实现任何产品功能。
+文档基线已按单一权威来源原则完成优化并以提交 `f1ae2096ed3fc96e86f2019e051f0c01b28d25eb` 推送。`M1-TU-01` 已冻结该提交为实施基线，当前正在实现和验收 Workspace DTO/Schema、SQLite migration 与 Rust 路径边界；完整 Workspace 选择、Repository/IPC、UI、Corporation 和其他 Milestone 1 功能仍未实现。
 
 ## 2. 已完成基线
 
@@ -50,7 +50,7 @@ Milestone 0 已通过全部适用验收；当前没有已知未解决的 P0/P1 �
 当前只允许推进：
 
 - [M1-TU-01 Workspace 路径边界基础](docs/06-engineering/task-units/M1-TU-01-workspace-boundary.md)；
-- 当前状态：就绪；
+- 当前状态：进行中；
 - 实施基线：`f1ae2096ed3fc96e86f2019e051f0c01b28d25eb`；
 - 主要结果：冻结 Workspace DTO/Schema 和 SQLite 边界，由 Rust 拒绝工作区外路径；
 - 对应 Milestone 1 范围：Workspace 选择与权限的路径/Schema 基础、SQLite Workspace 表，以及“工作区外路径被 Rust 拒绝”验收；

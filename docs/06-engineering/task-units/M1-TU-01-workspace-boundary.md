@@ -3,7 +3,7 @@
 | 属性           | 值                                                                  |
 | -------------- | ------------------------------------------------------------------- |
 | 任务单元 ID    | M1-TU-01                                                            |
-| 状态           | 就绪                                                                |
+| 状态           | 进行中                                                              |
 | 所属 Milestone | Milestone 1：本地项目骨架                                           |
 | 主要结果       | 冻结 Workspace 数据合同，并由 Rust 在独立测试中可靠拒绝工作区外路径 |
 | 基线提交       | `f1ae2096ed3fc96e86f2019e051f0c01b28d25eb`                          |
@@ -13,6 +13,7 @@
 - [MVP Plan：Milestone 1](../MVP-Plan.md)；
 - [PRD FR-001](../../01-product/PRD.md)；
 - [领域模型与术语](../../02-architecture/Domain-Model.md)；
+- [Workspace Protocol](../../04-protocols/Workspace-Protocol.md)；
 - [数据模型](../../05-infrastructure/Data-Model.md)；
 - [SQLite Schema](../../05-infrastructure/SQLite-Schema.md)；
 - [Electron、TypeScript 与 Rust 工程架构](../../05-infrastructure/Desktop-and-Rust-Architecture.md)；

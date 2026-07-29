@@ -45,7 +45,7 @@ type DesktopApi = {
     command(command: CorporationCommand): Promise<void>;
     subscribe(
       request: EventSubscription,
-      listener: (event: RedactedDomainEvent) => void
+      listener: (event: RedactedDomainEvent) => void,
     ): Unsubscribe;
   };
   approvals: {
@@ -94,7 +94,8 @@ Preload 不暴露原始 `ipcRenderer`。
 
 - `health`（Milestone 0 已实现，协议见
   [Native Core Health RPC](../04-protocols/Native-Health-RPC.md)）
-- `workspace.canonicalize`
+- `workspace.canonicalize`（协议见
+  [Workspace Protocol](../04-protocols/Workspace-Protocol.md)）
 - `workspace.read_text`
 - `workspace.search`
 - `workspace.prepare_changeset`
