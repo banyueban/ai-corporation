@@ -1,20 +1,20 @@
 # AI Corporation Desktop 项目进度
 
-| 属性 | 当前值 |
-|---|---|
-| 当前产品版本 | v0.1 MVP |
-| 当前阶段 | Milestone 1 实施前文档基线优化完成，待确认 |
-| 当前 Milestone | Milestone 1：本地项目骨架 |
-| 当前任务单元 | M1-TU-01（未开始，待文档优化验收并记录实施基线） |
-| 总体状态 | 进行中 |
-| 最近更新 | 2026-07-29 |
-| 下一检查点 | 用户确认文档优化结果并冻结 M1-TU-01 实施基线 |
+| 属性           | 当前值                                                    |
+| -------------- | --------------------------------------------------------- |
+| 当前产品版本   | v0.1 MVP                                                  |
+| 当前阶段       | Milestone 1 首个任务单元已就绪                            |
+| 当前 Milestone | Milestone 1：本地项目骨架                                 |
+| 当前任务单元   | M1-TU-01（就绪）                                          |
+| 总体状态       | 进行中                                                    |
+| 最近更新       | 2026-07-29                                                |
+| 下一检查点     | M1-TU-01 Workspace Schema、migration 与 Rust 路径边界验收 |
 
 ## 1. 当前结论
 
 Milestone 0 已通过全部适用验收；当前没有已知未解决的 P0/P1 缺陷。Milestone 1 尚未实现任何产品功能。
 
-文档基线已按单一权威来源原则完成优化：规则优先级和状态词已统一，Workspace 路径信任边界已明确，领域/UI 状态已分层，逻辑实体到 SQLite 的映射已补齐，首个 M1 任务单元已缩小。Milestone 1 的 Workspace、Corporation、Goal Contract、SQLite、Domain Event/时间线和暂停/恢复范围已映射到当前及后续建议任务；任务合同必须直接引用 MVP Plan 对应 Milestone，并说明本单元覆盖与非范围。适用文档和工程检查已经通过；用户确认并形成干净实施基线前，`M1-TU-01` 保持“未开始”。
+文档基线已按单一权威来源原则完成优化：规则优先级和状态词已统一，Workspace 路径信任边界已明确，领域/UI 状态已分层，逻辑实体到 SQLite 的映射已补齐，首个 M1 任务单元已缩小。文档优化提交 `f1ae2096ed3fc96e86f2019e051f0c01b28d25eb` 已通过适用检查并推送，当前工作区无其他任务占用共享冲突区。`M1-TU-01` 已冻结该提交为实施基线并进入“就绪”；Milestone 1 仍未实现任何产品功能。
 
 ## 2. 已完成基线
 
@@ -50,22 +50,22 @@ Milestone 0 已通过全部适用验收；当前没有已知未解决的 P0/P1 �
 当前只允许推进：
 
 - [M1-TU-01 Workspace 路径边界基础](docs/06-engineering/task-units/M1-TU-01-workspace-boundary.md)；
-- 当前状态：未开始；
-- 进入“就绪”前必须完成本轮文档验收、记录干净基线提交并确认共享冲突区无人占用；
+- 当前状态：就绪；
+- 实施基线：`f1ae2096ed3fc96e86f2019e051f0c01b28d25eb`；
 - 主要结果：冻结 Workspace DTO/Schema 和 SQLite 边界，由 Rust 拒绝工作区外路径；
 - 对应 Milestone 1 范围：Workspace 选择与权限的路径/Schema 基础、SQLite Workspace 表，以及“工作区外路径被 Rust 拒绝”验收；
 - 非范围：原生目录选择器、Workspace Repository/IPC、Renderer UI、Electron E2E 和 Corporation CRUD。
 
 Milestone 1 任务覆盖地图：
 
-| 建议任务单元 | 主要结果 | 对应 Milestone 1 范围 |
-|---|---|---|
-| `M1-TU-01` | Workspace Schema、migration、Rust 路径边界 | Workspace 选择与权限的路径/Schema 基础、SQLite Workspace 表、工作区外路径拒绝 |
-| `M1-TU-02` | Workspace Repository、IPC、权限重新验证 | Workspace 选择与权限的 Repository/IPC 和权限重新验证、Workspace 持久化 |
-| `M1-TU-03` | 原生目录选择 UI、Renderer 重载、跨平台 Electron E2E | Workspace 选择与权限的完整用户流程、Renderer 重载不丢失 Workspace 状态 |
-| `M1-TU-04` | Corporation 核心表与 CRUD，状态和 Domain Event 同事务写入 | Corporation CRUD、Corporation/Event 表、状态与事件事务一致、Domain Event 后端基础 |
-| `M1-TU-05` | Goal Contract 手工/Mock、版本保存和最小时间线；不接真实模型 | Goal Contract 手工/Mock 与版本保存、Goal 表、最小时间线 |
-| `M1-TU-06` | 暂停/恢复状态机、应用重启恢复和 Milestone 演示 | 暂停/恢复、应用重启、不丢失已持久化状态和 Milestone 演示 |
+| 建议任务单元 | 主要结果                                                    | 对应 Milestone 1 范围                                                             |
+| ------------ | ----------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `M1-TU-01`   | Workspace Schema、migration、Rust 路径边界                  | Workspace 选择与权限的路径/Schema 基础、SQLite Workspace 表、工作区外路径拒绝     |
+| `M1-TU-02`   | Workspace Repository、IPC、权限重新验证                     | Workspace 选择与权限的 Repository/IPC 和权限重新验证、Workspace 持久化            |
+| `M1-TU-03`   | 原生目录选择 UI、Renderer 重载、跨平台 Electron E2E         | Workspace 选择与权限的完整用户流程、Renderer 重载不丢失 Workspace 状态            |
+| `M1-TU-04`   | Corporation 核心表与 CRUD，状态和 Domain Event 同事务写入   | Corporation CRUD、Corporation/Event 表、状态与事件事务一致、Domain Event 后端基础 |
+| `M1-TU-05`   | Goal Contract 手工/Mock、版本保存和最小时间线；不接真实模型 | Goal Contract 手工/Mock 与版本保存、Goal 表、最小时间线                           |
+| `M1-TU-06`   | 暂停/恢复状态机、应用重启恢复和 Milestone 演示              | 暂停/恢复、应用重启、不丢失已持久化状态和 Milestone 演示                          |
 
 该表只证明计划覆盖，不代表后续合同已经建立或功能已经实现。后续单元不在前置接口冻结前建立“就绪”合同；每个合同必须重新核对其内容属于 MVP Plan 的 Milestone 1，禁止遗漏或静默移动 Milestone 范围。
 
@@ -81,7 +81,7 @@ Milestone 1 任务覆盖地图：
 
 ## 6. 当前验证摘要
 
-本轮文档优化的当前有效验证：
+当前有效验证：
 
 - Markdown 内部链接检查：0 个失效；
 - 规则优先级、状态词、Workspace 信任边界、领域/UI 状态和数据映射交叉检查：通过；
@@ -91,6 +91,7 @@ Milestone 1 任务覆盖地图：
 - `pnpm check:task-units`：通过，1 份任务合同；
 - `git diff --check`：通过；
 - 项目内独立历史/复盘文档：0 份。
+- 文档优化提交 `f1ae209` 已推送；实施基线冻结时工作区无其他任务改动，共享冲突区无人占用。
 
 本节只保留当前有效验证摘要，不记录被替代的过程结论。
 
