@@ -41,6 +41,7 @@
 | [Task Protocol](04-protocols/Task-Protocol.md) | 完成 | Task Protocol 协议设计 |
 | [Artifact Protocol](04-protocols/Artifact-Protocol.md) | 完成 | Artifact Protocol 协议设计 |
 | [Event Protocol](04-protocols/Event-Protocol.md) | 完成 | 对原计划中 Event Bus 的工程化补充 |
+| [Native Core Health RPC](04-protocols/Native-Health-RPC.md) | 完成 | Milestone 0 Electron 与 Rust 握手协议 |
 
 ### 2.4 数据与基础设施
 

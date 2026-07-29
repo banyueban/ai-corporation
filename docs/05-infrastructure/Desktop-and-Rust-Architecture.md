@@ -92,6 +92,8 @@ Preload 不暴露原始 `ipcRenderer`。
 
 ### 5.3 RPC 方法
 
+- `health`（Milestone 0 已实现，协议见
+  [Native Core Health RPC](../04-protocols/Native-Health-RPC.md)）
 - `workspace.canonicalize`
 - `workspace.read_text`
 - `workspace.search`
@@ -195,4 +197,3 @@ v0.1 可先支持手动检查更新，但架构要求：
 - Rust 只通过窄接口提供系统能力；
 - 安全设置自动测试；
 - 安装、启动、更新前备份和卸载流程可验证。
-

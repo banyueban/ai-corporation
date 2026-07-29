@@ -3,15 +3,15 @@
 | 属性 | 当前值 |
 |---|---|
 | 当前产品版本 | v0.1 MVP |
-| 当前阶段 | Milestone 0 进行中：workspace 与 Electron 桌面壳已初始化 |
+| 当前阶段 | Milestone 0 验收中：实现完成，等待双平台 CI 结果 |
 | 当前 Milestone | Milestone 0：工程基线 |
 | 总体状态 | 进行中 |
 | 最近更新 | 2026-07-29 |
-| 下一检查点 | Milestone 0 验收 |
+| 下一检查点 | Windows/macOS CI 与安装包产物验收 |
 
 ## 1. 当前结论
 
-产品范围、总体架构、核心引擎、协议、数据、基础设施和低保真 UI/UX 已经形成开发基线。pnpm/Cargo workspace、Electron Main、Typed Preload 和 React Renderer 已可构建并启动；Rust Sidecar、typed health RPC、SQLite、完整测试工程与 CI 尚未完成，因此 Milestone 0 仍为进行中。当前 Renderer 是工程壳，不代表产品 UI 已实现；产品功能属于 Milestone 1 及后续里程碑。
+产品范围、总体架构、核心引擎、协议、数据、基础设施和低保真 UI/UX 已经形成开发基线。Milestone 0 的 Rust Sidecar、typed health RPC、SQLite migration runner、安全 Electron 壳、自动化测试、CI 和打包配置均已实现；本地 Windows 检查、真实 Electron → Rust E2E 与 NSIS 打包已通过。Windows/macOS CI 尚未产生远程验收结果，因此 Milestone 0 仍处于验收中，不能标记完成。当前 Renderer 是工程壳，不代表产品 UI 已实现；产品功能属于 Milestone 1 及后续里程碑。
 
 ## 2. 已完成内容
 
@@ -69,10 +69,10 @@
 - [x] pnpm workspace；
 - [x] Cargo workspace；
 - [x] Electron Main、Preload、React Renderer；
-- [ ] Rust Native Core Sidecar；
-- [ ] Electron ↔ Rust 健康检查；
-- [ ] SQLite migration runner；
-- [ ] 自动化测试与 CI；
+- [x] Rust Native Core Sidecar；
+- [x] Electron ↔ Rust 健康检查；
+- [x] SQLite migration runner；
+- [x] 自动化测试与 CI 配置；
 - [ ] Windows/macOS 构建；
 
 ## 4. 下一步任务
@@ -81,16 +81,12 @@
 
 目标：建立可重复构建、可测试、符合安全基线的空应用。
 
-任务顺序：
+剩余验收顺序：
 
-1. 创建 Rust Sidecar；
-2. 实现 Main 与 Sidecar 的 typed health RPC；
-3. 配置 TypeScript strict、format、lint、Vitest；
-4. 配置 Rust fmt、clippy 和测试；
-5. 建立 SQLite migration runner 骨架；
-6. 落实 CSP、contextIsolation、sandbox 和禁用 nodeIntegration；
-7. 配置 Windows/macOS CI 构建；
-8. 更新 README 中的启动、测试和构建命令。
+1. 提交并推送 Milestone 0 实现；
+2. 验证 Windows x64 与 macOS Apple Silicon CI；
+3. 确认两个 CI job 均生成未签名开发安装包；
+4. 若全部必检项通过，关闭 Milestone 0 并将下一步切换到 Milestone 1。
 
 当前 Milestone 0 只需维持安全、可构建的工程壳；产品级 UI 从 Milestone 1 起按 `docs/07-ui/` 实现，不在 Milestone 0 提前扩张范围。
 
@@ -109,10 +105,24 @@
 当前环境阻塞与外部条件：
 
 - 系统 PATH 未提供 Node.js；本次使用 Codex bundled Node.js 24.14.0 完成 pnpm 验证；
-- Windows/macOS 构建执行环境；
+- Windows/macOS 远程 CI 结果尚未产生；
+- Codex 的外层 Windows 沙箱与 Chromium 子进程沙箱存在嵌套冲突；应用自身保持 `sandbox: true`，Electron 启动与 E2E 需在外层沙箱之外验证；
 - 应用签名与 notarization 凭据不属于早期开发阻塞项，但属于公开发布前置条件。
 
 ## 6. 当前验证记录
+
+### 2026-07-29：Milestone 0 实现与本地 Windows 验收
+
+- Rust Native Core 已实现 stdin/stdout JSON-RPC `health`，包含随机会话令牌、常量时间校验、64 KiB 请求上限和安全错误；
+- Renderer → Typed Preload → Electron Main → Rust Sidecar 的真实 E2E：1 个场景通过；
+- SQLite migration runner：4 个测试通过，覆盖幂等、历史迁移变更拒绝、失败回滚和重复版本；
+- 协议 Schema：3 个测试通过；Electron 安全与路径配置：4 个测试通过；Rust：5 个测试通过；
+- `pnpm check`：通过，包含状态结构、format、lint、typecheck、全部单元测试、Rust test/fmt/clippy 与 secret scan；
+- CSP 已禁止对象、表单和任意 base URI；`contextIsolation: true`、`sandbox: true`、`nodeIntegration: false`、`webSecurity: true` 自动测试通过；
+- Windows x64 unpacked 应用构建通过，主进程持续运行 5 秒未退出，`resources/native-core.exe` 存在；
+- Windows x64 NSIS 未签名安装包生成通过，大小 99,715,029 字节，SHA-256 为 `69378E7F536E7BA82902711A7DA7B5C4B77E6A84093A5D2EF6ED1D12C3C1A149`；
+- Electron 在 Codex 外层沙箱内复现 `0xC0000135` 子进程退出；在外层沙箱外、应用自身仍启用 Chromium sandbox 时启动与 E2E 通过，未采用 `--no-sandbox` 降级；
+- Windows/macOS GitHub Actions 尚待推送后验证，因此本记录不宣称 Milestone 0 完成。
 
 ### 2026-07-29：低保真 UI/UX 设计基线
 

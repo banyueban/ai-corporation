@@ -1,25 +1,21 @@
 import path from "node:path";
-import { app, BrowserWindow } from "electron";
+import {
+  NATIVE_HEALTH_IPC_CHANNEL,
+  type HealthResult,
+} from "@ai-corporation/protocols";
+import { app, BrowserWindow, ipcMain, type IpcMainInvokeEvent } from "electron";
+import { NativeCoreClient } from "./native-core-client";
+import { resolveNativeCorePath } from "./native-core-path";
+import { createWindowOptions } from "./window-options";
 
 const rendererEntryPath = path.join(__dirname, "../../renderer/index.html");
 const preloadPath = path.join(__dirname, "../preload/index.js");
 
+let mainWindow: BrowserWindow | undefined;
+let nativeCoreClient: NativeCoreClient | undefined;
+
 function createMainWindow(): BrowserWindow {
-  const window = new BrowserWindow({
-    height: 800,
-    minHeight: 640,
-    minWidth: 960,
-    show: false,
-    title: "AI Corporation Desktop",
-    webPreferences: {
-      contextIsolation: true,
-      nodeIntegration: false,
-      preload: preloadPath,
-      sandbox: true,
-      webSecurity: true,
-    },
-    width: 1280,
-  });
+  const window = new BrowserWindow(createWindowOptions(preloadPath));
 
   window.once("ready-to-show", () => {
     window.show();
@@ -33,11 +29,49 @@ function createMainWindow(): BrowserWindow {
   });
 
   void window.loadFile(rendererEntryPath);
+  mainWindow = window;
 
   return window;
 }
 
-void app.whenReady().then(() => {
+function assertTrustedRenderer(event: IpcMainInvokeEvent): void {
+  if (
+    mainWindow === undefined ||
+    event.sender.id !== mainWindow.webContents.id ||
+    event.senderFrame === null ||
+    event.senderFrame.url !== mainWindow.webContents.getURL()
+  ) {
+    throw new Error("IPC caller is not authorized");
+  }
+}
+
+async function handleNativeHealth(
+  event: IpcMainInvokeEvent,
+): Promise<HealthResult> {
+  assertTrustedRenderer(event);
+  if (nativeCoreClient === undefined) {
+    throw new Error("Native Core is unavailable");
+  }
+
+  return nativeCoreClient.health();
+}
+
+void app.whenReady().then(async () => {
+  ipcMain.handle(NATIVE_HEALTH_IPC_CHANNEL, handleNativeHealth);
+
+  try {
+    nativeCoreClient = await NativeCoreClient.start(
+      resolveNativeCorePath({
+        appPath: app.getAppPath(),
+        isPackaged: app.isPackaged,
+        platform: process.platform,
+        resourcesPath: process.resourcesPath,
+      }),
+    );
+  } catch {
+    nativeCoreClient = undefined;
+  }
+
   createMainWindow();
 
   app.on("activate", () => {
@@ -51,4 +85,10 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
   }
+});
+
+app.on("before-quit", () => {
+  ipcMain.removeHandler(NATIVE_HEALTH_IPC_CHANNEL);
+  nativeCoreClient?.stop();
+  nativeCoreClient = undefined;
 });

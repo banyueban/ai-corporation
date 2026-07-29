@@ -2,7 +2,9 @@ packages:
   - apps/*
   - packages/*
 
-onlyBuiltDependencies:
-  - electron
+allowBuilds:
+  electron: true
+  electron-winstaller: false
+  esbuild: true
 
 strictPeerDependencies: true

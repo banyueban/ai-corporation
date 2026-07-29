@@ -2,27 +2,69 @@
   "name": "@ai-corporation/desktop",
   "version": "0.1.0",
   "private": true,
+  "author": "AI Corporation contributors",
   "description": "Electron desktop shell for AI Corporation.",
   "main": "dist/electron/main/index.js",
+  "packageManager": "pnpm@11.9.0",
   "scripts": {
     "build": "pnpm run build:electron && pnpm run build:renderer",
-    "build:electron": "tsc --project tsconfig.electron.json",
+    "build:electron": "esbuild src/main/index.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist/electron/main/index.js && esbuild src/preload/index.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist/electron/preload/index.js",
     "build:renderer": "vite build",
-    "start": "pnpm run build && electron .",
-    "test": "node --test",
-    "typecheck": "tsc --project tsconfig.electron.json --noEmit && tsc --project tsconfig.json --noEmit"
-  },
-  "dependencies": {
-    "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "package": "pnpm --workspace-root build:rust:release && pnpm run build && node scripts/prepare-package.mjs && electron-builder --publish never",
+    "package:dir": "pnpm --workspace-root build:rust:release && pnpm run build && node scripts/prepare-package.mjs && electron-builder --dir --publish never",
+    "start": "pnpm --workspace-root build:rust && pnpm run build && electron .",
+    "test": "vitest run",
+    "test:e2e": "pnpm --workspace-root build:rust && pnpm run build && playwright test",
+    "typecheck": "tsc --project tsconfig.electron.json --noEmit && tsc --project tsconfig.json --noEmit && tsc --project tsconfig.test.json --noEmit"
   },
   "devDependencies": {
+    "@ai-corporation/protocols": "workspace:*",
     "@types/node": "26.1.2",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.4",
+    "@playwright/test": "1.62.0",
     "electron": "43.2.0",
+    "electron-builder": "26.15.3",
+    "esbuild": "0.28.1",
+    "playwright": "1.62.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
     "typescript": "5.9.2",
-    "vite": "8.1.5"
+    "vite": "8.1.5",
+    "vitest": "4.1.10"
+  },
+  "build": {
+    "appId": "com.aicorporation.desktop",
+    "productName": "AI Corporation Desktop",
+    "asar": true,
+    "directories": {
+      "app": "build/app",
+      "output": "../../release"
+    },
+    "files": [
+      "**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "build",
+        "to": ".",
+        "filter": [
+          "native-core",
+          "native-core.exe"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        "dmg"
+      ]
+    }
   }
 }

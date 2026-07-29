@@ -15,10 +15,7 @@ export function checkProjectStatusStructure(markdown) {
       const level = heading[1].length;
       const title = heading[2].trim();
 
-      if (
-        notStartedHeading !== undefined &&
-        level <= notStartedHeading.level
-      ) {
+      if (notStartedHeading !== undefined && level <= notStartedHeading.level) {
         notStartedHeading = undefined;
       }
 
@@ -29,10 +26,7 @@ export function checkProjectStatusStructure(markdown) {
       continue;
     }
 
-    if (
-      notStartedHeading !== undefined &&
-      /^\s*-\s*\[[xX]\]\s+/u.test(line)
-    ) {
+    if (notStartedHeading !== undefined && /^\s*-\s*\[[xX]\]\s+/u.test(line)) {
       errors.push(
         `line ${index + 1}: completed item appears under ` +
           `"${notStartedHeading.title}" (line ${notStartedHeading.line})`,
@@ -45,9 +39,7 @@ export function checkProjectStatusStructure(markdown) {
 
 function run() {
   const statusPath = resolve("PROJECT_STATUS.md");
-  const errors = checkProjectStatusStructure(
-    readFileSync(statusPath, "utf8"),
-  );
+  const errors = checkProjectStatusStructure(readFileSync(statusPath, "utf8"));
 
   if (errors.length > 0) {
     console.error("PROJECT_STATUS.md structure check failed:");

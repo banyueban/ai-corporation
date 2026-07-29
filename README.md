@@ -2,7 +2,7 @@
 
 AI Corporation Desktop 是一款本地优先、跨平台的自主任务执行桌面软件。用户给出目标后，系统负责澄清成功条件、生成任务图、组建最小 AI 团队、执行任务、验收产物，并在必要时请求用户决策。
 
-当前仓库处于 **v0.1 设计与 MVP 实现准备阶段**。
+当前仓库处于 **v0.1 MVP 实现阶段**。
 
 ## 开发环境
 
@@ -15,23 +15,32 @@ AI Corporation Desktop 是一款本地优先、跨平台的自主任务执行桌
 
 ```bash
 pnpm install
-pnpm typecheck
-pnpm test
-pnpm build
-cargo fmt --all --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
+pnpm check
 ```
 
 当前 pnpm workspace 包含 `apps/*` 和 `packages/*`，Cargo workspace 包含
 `crates/*`。Electron Main、Typed Preload 和 React Renderer 位于
-`apps/desktop`；Rust Sidecar RPC 将按 Milestone 0 的任务顺序加入。
+`apps/desktop`；Rust Native Core Sidecar 位于 `crates/native-core`。
 
-构建并启动当前桌面壳：
+常用命令：
 
 ```bash
+# 构建 TypeScript/Electron 与 Rust
+pnpm build
+
+# 启动桌面应用（先构建 Sidecar）
 pnpm --filter @ai-corporation/desktop start
+
+# 运行 Renderer → IPC → Rust health 端到端测试
+pnpm test:e2e
+
+# 生成当前平台的未签名开发安装包
+pnpm --filter @ai-corporation/desktop package
 ```
+
+Windows 构建 Rust 需要 Visual Studio Build Tools 2022 的 C++ 工具链；
+macOS 构建需要 Xcode Command Line Tools。安装包默认输出到 `release/`。
+开发安装包未签名，不用于公开发布。
 
 ## 开发入口
 

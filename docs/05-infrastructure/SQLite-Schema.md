@@ -16,13 +16,17 @@ PRAGMA busy_timeout = 5000;
 ## 2. Schema 版本
 
 ```sql
-CREATE TABLE schema_migration (
+CREATE TABLE schema_migrations (
   version INTEGER PRIMARY KEY,
   name TEXT NOT NULL,
   checksum TEXT NOT NULL,
   applied_at TEXT NOT NULL
 );
 ```
+
+迁移文件使用 `NNNN_snake_case.sql` 命名并按版本升序执行。每个迁移在
+`BEGIN IMMEDIATE` 事务内执行；失败必须回滚。已经应用的迁移以 SHA-256
+校验和锁定，文件内容发生变化时拒绝继续，以新版本迁移代替修改历史。
 
 ## 3. 工作区与 Corporation
 
@@ -400,4 +404,3 @@ COMMIT;
 - 并发领取和乐观锁测试通过；
 - FTS 与 memory_item 一致；
 - 备份恢复后 Artifact 引用有效。
-

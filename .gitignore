@@ -10,6 +10,8 @@ target/
 # Electron packaging
 release/
 out/
+apps/desktop/build/
+apps/desktop/test-results/
 
 # Local configuration and secrets
 .env
