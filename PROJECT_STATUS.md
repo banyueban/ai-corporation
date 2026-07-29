@@ -122,6 +122,8 @@
 - Windows x64 unpacked 应用构建通过，主进程持续运行 5 秒未退出，`resources/native-core.exe` 存在；
 - Windows x64 NSIS 未签名安装包生成通过，大小 99,715,029 字节，SHA-256 为 `69378E7F536E7BA82902711A7DA7B5C4B77E6A84093A5D2EF6ED1D12C3C1A149`；
 - Electron 在 Codex 外层沙箱内复现 `0xC0000135` 子进程退出；在外层沙箱外、应用自身仍启用 Chromium sandbox 时启动与 E2E 通过，未采用 `--no-sandbox` 降级；
+- GitHub Actions CI #1（run `30411410625`）：Windows 因未覆盖 `.mjs`/`.css` 的 CRLF 格式检查失败，macOS 因干净环境不存在 `packages/protocols/dist` 而构建失败；
+- CI #1 的两个根因已分别通过全仓库 LF 规则和协议包源码导出修复；删除本地 `packages/protocols/dist` 后，`pnpm check` 与真实 Electron E2E 均通过；
 - Windows/macOS GitHub Actions 尚待推送后验证，因此本记录不宣称 Milestone 0 完成。
 
 ### 2026-07-29：低保真 UI/UX 设计基线
