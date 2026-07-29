@@ -77,10 +77,19 @@ try {
   throw error;
 } finally {
   await browser?.close().catch(() => undefined);
-  if (child.exitCode === null) {
-    child.kill();
+  await stopChild(child);
+  try {
+    rmSync(userDataDirectory, {
+      force: true,
+      maxRetries: 10,
+      recursive: true,
+      retryDelay: 200,
+    });
+  } catch (error) {
+    console.warn(
+      `Could not remove temporary profile; runner cleanup will remove it: ${error}`,
+    );
   }
-  rmSync(userDataDirectory, { force: true, recursive: true });
 }
 
 function recordDiagnostic(chunk) {
@@ -150,4 +159,37 @@ async function waitForApplicationPage(browser) {
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
   throw new Error("Packaged application window did not become observable");
+}
+
+async function stopChild(child) {
+  if (child.exitCode !== null) {
+    return;
+  }
+  child.kill();
+  if (!(await waitForExit(child, 5_000))) {
+    child.kill("SIGKILL");
+    await waitForExit(child, 5_000);
+  }
+}
+
+function waitForExit(child, timeoutMs) {
+  if (child.exitCode !== null) {
+    return Promise.resolve(true);
+  }
+  return new Promise((resolve) => {
+    const finish = (exited) => {
+      clearTimeout(timeout);
+      child.off("exit", onExit);
+      resolve(exited);
+    };
+    const onExit = () => finish(true);
+    const timeout = setTimeout(
+      () => finish(child.exitCode !== null),
+      timeoutMs,
+    );
+    child.once("exit", onExit);
+    if (child.exitCode !== null) {
+      finish(true);
+    }
+  });
 }

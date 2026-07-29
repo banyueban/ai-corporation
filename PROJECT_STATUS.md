@@ -1,13 +1,13 @@
 # AI Corporation Desktop 项目进度
 
-| 属性 | 当前值 |
-|---|---|
-| 当前产品版本 | v0.1 MVP |
-| 当前阶段 | Milestone 0 验收重新打开：打包产物启动尚未充分验证 |
-| 当前 Milestone | Milestone 0：工程基线 |
-| 总体状态 | 进行中 |
-| 最近更新 | 2026-07-29 |
-| 下一检查点 | Windows/macOS 打包产物真实启动与 health E2E |
+| 属性           | 当前值                                             |
+| -------------- | -------------------------------------------------- |
+| 当前产品版本   | v0.1 MVP                                           |
+| 当前阶段       | Milestone 0 验收重新打开：打包产物启动尚未充分验证 |
+| 当前 Milestone | Milestone 0：工程基线                              |
+| 总体状态       | 进行中                                             |
+| 最近更新       | 2026-07-29                                         |
+| 下一检查点     | Windows/macOS 打包产物真实启动与 health E2E        |
 
 ## 1. 当前结论
 
@@ -120,6 +120,10 @@
 - CI #2/#3 证明双平台检查、开发态 E2E、安装包构建和 artifact 上传通过，但没有在打包后启动产物；
 - 因证据层级不足，撤销“Milestone 0 全部适用验收项已通过”和“无未解决 P0/P1 缺陷”的结论；
 - 当前未确认存在 P0/P1，但打包产物可运行性属于未完成的 Milestone 必检项，完成状态恢复为验收中。
+- Windows 本地最终 unpacked 产物已由打包产物测试直接启动，真实窗口显示 `Native Core ready · v0.1.0`，截图位于 `release/packaged-health-win32-x64.png`；
+- GitHub Actions CI #4（run `30415144622`）：macOS 最终 `.app` 的窗口与 Rust health E2E 通过；Windows 同样读到 `Native Core ready · v0.1.0`，但测试在清理临时 profile 时因 `EPERM` 退出 1，因此 Windows job 仍记为失败且 artifact 上传被阻断；
+- Windows 清理时序已修正；修正后的本地打包产物测试退出 0，截图再次人工核对通过，测试退出后未发现残留应用进程；
+- Windows 清理失败不否定已观察到的窗口/health 结果，但在 CI job 整体重新通过前，Milestone 0 仍不标记完成。
 
 ### 2026-07-29：Milestone 0 实现与本地 Windows 验收
 
