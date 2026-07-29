@@ -3,15 +3,15 @@
 | 属性 | 当前值 |
 |---|---|
 | 当前产品版本 | v0.1 MVP |
-| 当前阶段 | Milestone 0 验收中：实现完成，等待双平台 CI 结果 |
-| 当前 Milestone | Milestone 0：工程基线 |
+| 当前阶段 | Milestone 0 已完成，准备进入 Milestone 1 |
+| 当前 Milestone | Milestone 1：本地项目骨架（尚未开始） |
 | 总体状态 | 进行中 |
 | 最近更新 | 2026-07-29 |
-| 下一检查点 | Windows/macOS CI 与安装包产物验收 |
+| 下一检查点 | Milestone 1 验收 |
 
 ## 1. 当前结论
 
-产品范围、总体架构、核心引擎、协议、数据、基础设施和低保真 UI/UX 已经形成开发基线。Milestone 0 的 Rust Sidecar、typed health RPC、SQLite migration runner、安全 Electron 壳、自动化测试、CI 和打包配置均已实现；本地 Windows 检查、真实 Electron → Rust E2E 与 NSIS 打包已通过。Windows/macOS CI 尚未产生远程验收结果，因此 Milestone 0 仍处于验收中，不能标记完成。当前 Renderer 是工程壳，不代表产品 UI 已实现；产品功能属于 Milestone 1 及后续里程碑。
+产品范围、总体架构、核心引擎、协议、数据、基础设施和低保真 UI/UX 已经形成开发基线。Milestone 0 的 Rust Sidecar、typed health RPC、SQLite migration runner、安全 Electron 壳、自动化测试、CI 和打包配置均已实现；本地 Windows 检查、真实 Electron → Rust E2E、NSIS 打包以及 GitHub Actions 的 Windows x64/macOS Apple Silicon 全流程均已通过，两个平台的未签名开发安装包 artifact 已生成，因此 Milestone 0 完成。当前 Renderer 是工程壳，不代表产品 UI 已实现；下一步按计划进入 Milestone 1。
 
 ## 2. 已完成内容
 
@@ -73,30 +73,34 @@
 - [x] Electron ↔ Rust 健康检查；
 - [x] SQLite migration runner；
 - [x] 自动化测试与 CI 配置；
-- [ ] Windows/macOS 构建；
+- [x] Windows/macOS 构建；
 
 ## 4. 下一步任务
 
-### Milestone 0：工程基线
+### Milestone 1：本地项目骨架
 
-目标：建立可重复构建、可测试、符合安全基线的空应用。
+目标：用户可创建并恢复 Corporation，不接真实模型。
 
-剩余验收顺序：
+任务顺序：
 
-1. 提交并推送 Milestone 0 实现；
-2. 验证 Windows x64 与 macOS Apple Silicon CI；
-3. 确认两个 CI job 均生成未签名开发安装包；
-4. 若全部必检项通过，关闭 Milestone 0 并将下一步切换到 Milestone 1。
+1. 实现 Workspace 选择与权限边界；
+2. 实现 Corporation CRUD（删除除外）；
+3. 实现 Goal Contract 手工录入与 Mock 生成；
+4. 建立 SQLite 核心表；
+5. 实现 Domain Event 与时间线；
+6. 实现暂停/恢复基础状态机；
+7. 按 `docs/07-ui/` 实现对应用户可见流程并执行 UI 专项验收。
 
-当前 Milestone 0 只需维持安全、可构建的工程壳；产品级 UI 从 Milestone 1 起按 `docs/07-ui/` 实现，不在 Milestone 0 提前扩张范围。
+Milestone 1 不接入真实模型，不实现后续 Milestone 的 Agent 执行、审批或验收闭环。
 
 验收依据：
 
-- [MVP 开发计划：Milestone 0](docs/06-engineering/MVP-Plan.md)
+- [MVP 开发计划：Milestone 1](docs/06-engineering/MVP-Plan.md)
 - [统一验收标准](docs/06-engineering/Acceptance-Standard.md)
 - [Electron、TypeScript 与 Rust 工程架构](docs/05-infrastructure/Desktop-and-Rust-Architecture.md)
 - [工程与编码规范](docs/06-engineering/Engineering-Standards.md)
 - [安全威胁模型](docs/06-engineering/Threat-Model.md)
+- [UI/UX 文档中心](docs/07-ui/README.md)
 
 ## 5. 当前阻塞项
 
@@ -105,7 +109,6 @@
 当前环境阻塞与外部条件：
 
 - 系统 PATH 未提供 Node.js；本次使用 Codex bundled Node.js 24.14.0 完成 pnpm 验证；
-- Windows/macOS 远程 CI 结果尚未产生；
 - Codex 的外层 Windows 沙箱与 Chromium 子进程沙箱存在嵌套冲突；应用自身保持 `sandbox: true`，Electron 启动与 E2E 需在外层沙箱之外验证；
 - 应用签名与 notarization 凭据不属于早期开发阻塞项，但属于公开发布前置条件。
 
@@ -124,7 +127,10 @@
 - Electron 在 Codex 外层沙箱内复现 `0xC0000135` 子进程退出；在外层沙箱外、应用自身仍启用 Chromium sandbox 时启动与 E2E 通过，未采用 `--no-sandbox` 降级；
 - GitHub Actions CI #1（run `30411410625`）：Windows 因未覆盖 `.mjs`/`.css` 的 CRLF 格式检查失败，macOS 因干净环境不存在 `packages/protocols/dist` 而构建失败；
 - CI #1 的两个根因已分别通过全仓库 LF 规则和协议包源码导出修复；删除本地 `packages/protocols/dist` 后，`pnpm check` 与真实 Electron E2E 均通过；
-- Windows/macOS GitHub Actions 尚待推送后验证，因此本记录不宣称 Milestone 0 完成。
+- GitHub Actions CI #2（run `30411656548`）：Windows x64 与 macOS Apple Silicon 的工程检查、真实 Electron E2E、未签名安装包构建和 artifact 上传全部通过；
+- Windows artifact `ai-corporation-windows-x64`：247,686,996 字节，SHA-256 `54025488ec33a3610be6e64d16b165cda63f6326f2012125660a16f49671ec10`；
+- macOS artifact `ai-corporation-macos-arm64`：488,860,737 字节，SHA-256 `24c39a430e95ff5a6d601110122db7c0f21d3bef7e666bc02a6f1afbd06e0372`；
+- Milestone 0 的全部适用验收项已通过，无未解决 P0/P1 缺陷。
 
 ### 2026-07-29：低保真 UI/UX 设计基线
 
