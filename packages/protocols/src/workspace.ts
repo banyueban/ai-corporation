@@ -3,6 +3,8 @@ import { z } from "zod";
 export const WORKSPACE_SCHEMA_VERSION = 1 as const;
 export const WORKSPACE_CANONICALIZE_RPC_METHOD =
   "workspace.canonicalize" as const;
+export const WORKSPACE_LIST_IPC_CHANNEL = "workspace:list" as const;
+export const WORKSPACE_REVALIDATE_IPC_CHANNEL = "workspace:revalidate" as const;
 
 export const workspacePermissionModeSchema = z.enum([
   "READ_ONLY",
@@ -61,6 +63,8 @@ export const workspacePathErrorReasonSchema = z.enum([
   "OUTSIDE_ROOT",
   "LINK_ESCAPE",
   "PATH_IDENTITY_UNAVAILABLE",
+  "PERMISSION_PROBE_FAILED",
+  "PERMISSION_PROBE_CLEANUP_FAILED",
 ]);
 
 const rpcIdSchema = z.union([z.string(), z.number(), z.null()]);
@@ -89,6 +93,7 @@ export const workspaceCanonicalizeResultSchema = z
     relativePath: z.string().max(32_767),
     targetExists: z.boolean(),
     pathIdentity: workspacePathIdentitySchema,
+    permissionMode: workspacePermissionModeSchema.optional(),
   })
   .strict();
 
@@ -121,9 +126,65 @@ export const workspaceCanonicalizeRpcResponseSchema = z
     }
   });
 
+export const workspaceIpcErrorCodeSchema = z.enum([
+  "WORKSPACE_NOT_FOUND",
+  "NATIVE_CORE_UNAVAILABLE",
+  "STORAGE_UNAVAILABLE",
+  "VERIFICATION_FAILED",
+  "IPC_UNAUTHORIZED",
+  "INVALID_REQUEST",
+]);
+
+export const workspaceIpcErrorSchema = z
+  .object({
+    code: workspaceIpcErrorCodeSchema,
+    message: z.literal("Workspace operation failed"),
+  })
+  .strict();
+
+export const workspaceRevalidateRequestSchema = z
+  .object({
+    workspaceId: z.uuidv7(),
+  })
+  .strict();
+
+export const workspaceListIpcResultSchema = z.discriminatedUnion("ok", [
+  z
+    .object({
+      ok: z.literal(true),
+      value: z.array(workspacePublicSchema),
+    })
+    .strict(),
+  z
+    .object({
+      ok: z.literal(false),
+      error: workspaceIpcErrorSchema,
+    })
+    .strict(),
+]);
+
+export const workspaceRevalidateIpcResultSchema = z.discriminatedUnion("ok", [
+  z
+    .object({
+      ok: z.literal(true),
+      value: workspacePublicSchema,
+    })
+    .strict(),
+  z
+    .object({
+      ok: z.literal(false),
+      error: workspaceIpcErrorSchema,
+    })
+    .strict(),
+]);
+
 export type WorkspaceAccessStatus = z.infer<typeof workspaceAccessStatusSchema>;
 export type WorkspaceCanonicalizeResult = z.infer<
   typeof workspaceCanonicalizeResultSchema
+>;
+export type WorkspaceIpcErrorCode = z.infer<typeof workspaceIpcErrorCodeSchema>;
+export type WorkspaceListIpcResult = z.infer<
+  typeof workspaceListIpcResultSchema
 >;
 export type WorkspacePathErrorReason = z.infer<
   typeof workspacePathErrorReasonSchema
@@ -133,6 +194,12 @@ export type WorkspacePermissionMode = z.infer<
   typeof workspacePermissionModeSchema
 >;
 export type WorkspacePublic = z.infer<typeof workspacePublicSchema>;
+export type WorkspaceRevalidateIpcResult = z.infer<
+  typeof workspaceRevalidateIpcResultSchema
+>;
+export type WorkspaceRevalidateRequest = z.infer<
+  typeof workspaceRevalidateRequestSchema
+>;
 export type WorkspaceTrustedRecord = z.infer<
   typeof workspaceTrustedRecordSchema
 >;

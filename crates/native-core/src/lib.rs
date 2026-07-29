@@ -409,7 +409,7 @@ mod tests {
                     "schemaVersion": SCHEMA_VERSION,
                     "sessionToken": TOKEN,
                     "rootPath": root.to_string_lossy(),
-                    "candidateRelativePath": "nested",
+                    "candidateRelativePath": "",
                 },
             })
             .to_string(),
@@ -417,8 +417,9 @@ mod tests {
         ));
 
         assert_eq!(response["result"]["schemaVersion"], SCHEMA_VERSION);
-        assert_eq!(response["result"]["relativePath"], "nested");
+        assert_eq!(response["result"]["relativePath"], "");
         assert_eq!(response["result"]["targetExists"], true);
+        assert_eq!(response["result"]["permissionMode"], "READ_WRITE");
         assert!(response["result"]["canonicalRootPath"].is_string());
         assert!(response["result"]["canonicalPath"].is_string());
         assert!(response["result"]["pathIdentity"]["platform"].is_string());

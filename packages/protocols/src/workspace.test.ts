@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   WORKSPACE_CANONICALIZE_RPC_METHOD,
+  WORKSPACE_LIST_IPC_CHANNEL,
+  WORKSPACE_REVALIDATE_IPC_CHANNEL,
   WORKSPACE_SCHEMA_VERSION,
   workspaceCanonicalizeRpcRequestSchema,
   workspaceCanonicalizeRpcResponseSchema,
+  workspaceListIpcResultSchema,
   workspacePublicSchema,
+  workspaceRevalidateIpcResultSchema,
+  workspaceRevalidateRequestSchema,
   workspaceTrustedRecordSchema,
 } from "./workspace";
 
@@ -80,6 +85,7 @@ describe("workspace protocol", () => {
           canonicalPath: "\\\\?\\E:\\projects\\example\\docs\\README.md",
           relativePath: "docs\\README.md",
           targetExists: true,
+          permissionMode: "READ_WRITE",
           pathIdentity: {
             platform: "windows",
             volumeRoot: "\\\\?\\E:",
@@ -102,6 +108,62 @@ describe("workspace protocol", () => {
         },
       }).success,
     ).toBe(true);
+  });
+
+  it("freezes narrow Workspace IPC channels and public-only results", () => {
+    expect(WORKSPACE_LIST_IPC_CHANNEL).toBe("workspace:list");
+    expect(WORKSPACE_REVALIDATE_IPC_CHANNEL).toBe("workspace:revalidate");
+    expect(
+      workspaceRevalidateRequestSchema.safeParse({
+        workspaceId,
+      }).success,
+    ).toBe(true);
+
+    expect(
+      workspaceListIpcResultSchema.safeParse({
+        ok: true,
+        value: [
+          {
+            workspaceId,
+            displayPath: "E:\\projects\\example",
+            permissionMode: "READ_WRITE",
+            accessStatus: "AVAILABLE",
+          },
+        ],
+      }).success,
+    ).toBe(true);
+
+    expect(
+      workspaceRevalidateIpcResultSchema.safeParse({
+        ok: true,
+        value: {
+          workspaceId,
+          displayPath: "E:\\projects\\example",
+          permissionMode: "READ_WRITE",
+          accessStatus: "AVAILABLE",
+          canonicalRootPath: "sensitive",
+        },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects unsafe Workspace IPC requests and errors", () => {
+    expect(
+      workspaceRevalidateRequestSchema.safeParse({
+        workspaceId: "not-a-uuid",
+        canonicalRootPath: "sensitive",
+      }).success,
+    ).toBe(false);
+
+    expect(
+      workspaceRevalidateIpcResultSchema.safeParse({
+        ok: false,
+        error: {
+          code: "VERIFICATION_FAILED",
+          message: "sensitive database error",
+        },
+      }).success,
+    ).toBe(false);
   });
 
   it("rejects absolute Renderer capabilities and unstructured errors", () => {

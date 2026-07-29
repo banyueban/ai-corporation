@@ -6,7 +6,13 @@ import {
   HEALTH_SCHEMA_VERSION,
   healthResultSchema,
   healthRpcResponseSchema,
+  WORKSPACE_CANONICALIZE_RPC_METHOD,
+  WORKSPACE_SCHEMA_VERSION,
+  workspaceCanonicalizeResultSchema,
+  workspaceCanonicalizeRpcResponseSchema,
   type HealthResult,
+  type WorkspaceCanonicalizeResult,
+  type WorkspacePathErrorReason,
 } from "@ai-corporation/protocols";
 
 const REQUEST_TIMEOUT_MS = 5_000;
@@ -14,8 +20,18 @@ const SESSION_TOKEN_ENV = "AI_CORPORATION_SESSION_TOKEN";
 
 interface PendingRequest {
   readonly reject: (error: Error) => void;
-  readonly resolve: (result: HealthResult) => void;
+  readonly receive: (response: unknown) => void;
   readonly timeout: NodeJS.Timeout;
+}
+
+export class WorkspaceNativeError extends Error {
+  readonly reason: WorkspacePathErrorReason;
+
+  constructor(reason: WorkspacePathErrorReason) {
+    super("Native Core rejected the Workspace request");
+    this.name = "WorkspaceNativeError";
+    this.reason = reason;
+  }
 }
 
 export class NativeCoreClient {
@@ -65,40 +81,56 @@ export class NativeCoreClient {
   }
 
   health(): Promise<HealthResult> {
-    const id = randomUUID();
+    return this.#request(
+      HEALTH_RPC_METHOD,
+      {
+        schemaVersion: HEALTH_SCHEMA_VERSION,
+        sessionToken: this.#sessionToken,
+      },
+      (response) => {
+        const parsed = healthRpcResponseSchema.safeParse(response);
+        if (!parsed.success || parsed.data.error !== undefined) {
+          throw new Error("Native Core rejected the request");
+        }
+        const result = healthResultSchema.safeParse(parsed.data.result);
+        if (!result.success) {
+          throw new Error("Native Core returned an invalid response");
+        }
+        return result.data;
+      },
+    );
+  }
 
-    return new Promise<HealthResult>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        this.#pending.delete(id);
-        reject(new Error("Native Core request timed out"));
-      }, REQUEST_TIMEOUT_MS);
-
-      this.#pending.set(id, { reject, resolve, timeout });
-
-      this.#process.stdin.write(
-        `${JSON.stringify({
-          jsonrpc: "2.0",
-          id,
-          method: HEALTH_RPC_METHOD,
-          params: {
-            schemaVersion: HEALTH_SCHEMA_VERSION,
-            sessionToken: this.#sessionToken,
-          },
-        })}\n`,
-        (error) => {
-          if (error !== null && error !== undefined) {
-            const pending = this.#pending.get(id);
-            if (pending !== undefined) {
-              clearTimeout(pending.timeout);
-              this.#pending.delete(id);
-              pending.reject(
-                new Error("Native Core request could not be sent"),
-              );
-            }
-          }
-        },
-      );
-    });
+  canonicalizeWorkspace(
+    rootPath: string,
+    candidateRelativePath = "",
+  ): Promise<WorkspaceCanonicalizeResult> {
+    return this.#request(
+      WORKSPACE_CANONICALIZE_RPC_METHOD,
+      {
+        schemaVersion: WORKSPACE_SCHEMA_VERSION,
+        sessionToken: this.#sessionToken,
+        rootPath,
+        candidateRelativePath,
+      },
+      (response) => {
+        const parsed =
+          workspaceCanonicalizeRpcResponseSchema.safeParse(response);
+        if (!parsed.success) {
+          throw new Error("Native Core returned an invalid response");
+        }
+        if (parsed.data.error !== undefined) {
+          throw new WorkspaceNativeError(parsed.data.error.data.reason);
+        }
+        const result = workspaceCanonicalizeResultSchema.safeParse(
+          parsed.data.result,
+        );
+        if (!result.success) {
+          throw new Error("Native Core returned an invalid response");
+        }
+        return result.data;
+      },
+    );
   }
 
   stop(): void {
@@ -111,31 +143,24 @@ export class NativeCoreClient {
   }
 
   #handleLine(line: string): void {
-    const parsed = healthRpcResponseSchema.safeParse(this.#safeParseJson(line));
-    if (!parsed.success || typeof parsed.data.id !== "string") {
+    const parsed = this.#safeParseJson(line);
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      !("id" in parsed) ||
+      typeof parsed.id !== "string"
+    ) {
       return;
     }
 
-    const pending = this.#pending.get(parsed.data.id);
+    const pending = this.#pending.get(parsed.id);
     if (pending === undefined) {
       return;
     }
 
     clearTimeout(pending.timeout);
-    this.#pending.delete(parsed.data.id);
-
-    if (parsed.data.error !== undefined) {
-      pending.reject(new Error("Native Core rejected the request"));
-      return;
-    }
-
-    const result = healthResultSchema.safeParse(parsed.data.result);
-    if (!result.success) {
-      pending.reject(new Error("Native Core returned an invalid response"));
-      return;
-    }
-
-    pending.resolve(result.data);
+    this.#pending.delete(parsed.id);
+    pending.receive(parsed);
   }
 
   #rejectAll(error: Error): void {
@@ -152,5 +177,53 @@ export class NativeCoreClient {
     } catch {
       return undefined;
     }
+  }
+
+  #request<T>(
+    method: string,
+    params: Readonly<Record<string, unknown>>,
+    parseResponse: (response: unknown) => T,
+  ): Promise<T> {
+    const id = randomUUID();
+
+    return new Promise<T>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        this.#pending.delete(id);
+        reject(new Error("Native Core request timed out"));
+      }, REQUEST_TIMEOUT_MS);
+      const receive = (response: unknown) => {
+        try {
+          resolve(parseResponse(response));
+        } catch (error) {
+          reject(
+            error instanceof Error
+              ? error
+              : new Error("Native Core returned an invalid response"),
+          );
+        }
+      };
+      this.#pending.set(id, { receive, reject, timeout });
+
+      this.#process.stdin.write(
+        `${JSON.stringify({
+          jsonrpc: "2.0",
+          id,
+          method,
+          params,
+        })}\n`,
+        (error) => {
+          if (error !== null && error !== undefined) {
+            const pending = this.#pending.get(id);
+            if (pending !== undefined) {
+              clearTimeout(pending.timeout);
+              this.#pending.delete(id);
+              pending.reject(
+                new Error("Native Core request could not be sent"),
+              );
+            }
+          }
+        },
+      );
+    });
   }
 }

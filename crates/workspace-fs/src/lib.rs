@@ -1,7 +1,7 @@
 //! Filesystem trust boundary for authorized workspaces.
 
 use std::fmt;
-use std::fs;
+use std::fs::{self, OpenOptions};
 use std::io;
 use std::path::{Component, Path, PathBuf};
 
@@ -16,6 +16,8 @@ pub enum WorkspacePathErrorCode {
     OutsideRoot,
     LinkEscape,
     PathIdentityUnavailable,
+    PermissionProbeFailed,
+    PermissionProbeCleanupFailed,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -45,6 +47,10 @@ impl fmt::Display for WorkspacePathError {
             WorkspacePathErrorCode::LinkEscape => "path link escapes workspace",
             WorkspacePathErrorCode::PathIdentityUnavailable => {
                 "workspace path identity unavailable"
+            }
+            WorkspacePathErrorCode::PermissionProbeFailed => "workspace permission probe failed",
+            WorkspacePathErrorCode::PermissionProbeCleanupFailed => {
+                "workspace permission probe cleanup failed"
             }
         })
     }
@@ -76,6 +82,13 @@ pub enum PathIdentity {
     },
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum PermissionMode {
+    ReadOnly,
+    ReadWrite,
+}
+
 #[derive(Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspacePathResolution {
@@ -84,6 +97,8 @@ pub struct WorkspacePathResolution {
     relative_path: PathBuf,
     target_exists: bool,
     path_identity: PathIdentity,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    permission_mode: Option<PermissionMode>,
 }
 
 impl WorkspacePathResolution {
@@ -111,6 +126,11 @@ impl WorkspacePathResolution {
     pub const fn path_identity(&self) -> &PathIdentity {
         &self.path_identity
     }
+
+    #[must_use]
+    pub const fn permission_mode(&self) -> Option<PermissionMode> {
+        self.permission_mode
+    }
 }
 
 pub fn resolve_workspace_path(
@@ -125,6 +145,11 @@ pub fn resolve_workspace_path(
 
     let relative_path = normalize_relative(candidate_relative_path)?;
     let path_identity = path_identity(&canonical_root, &root_metadata)?;
+    let permission_mode = if relative_path.as_os_str().is_empty() {
+        Some(probe_permission(&canonical_root)?)
+    } else {
+        None
+    };
     let (canonical_path, target_exists) = resolve_beneath_root(&canonical_root, &relative_path)?;
 
     Ok(WorkspacePathResolution {
@@ -133,7 +158,77 @@ pub fn resolve_workspace_path(
         relative_path,
         target_exists,
         path_identity,
+        permission_mode,
     })
+}
+
+const PERMISSION_PROBE_PREFIX: &str = ".ai-corporation-permission-probe-";
+
+fn probe_permission(canonical_root: &Path) -> Result<PermissionMode, WorkspacePathError> {
+    fs::read_dir(canonical_root).map_err(classify_candidate_error)?;
+
+    for _ in 0..4 {
+        let mut random = [0_u8; 16];
+        getrandom::fill(&mut random)
+            .map_err(|_| WorkspacePathError::new(WorkspacePathErrorCode::PermissionProbeFailed))?;
+        let mut name = String::with_capacity(PERMISSION_PROBE_PREFIX.len() + random.len() * 2);
+        name.push_str(PERMISSION_PROBE_PREFIX);
+        for byte in random {
+            use fmt::Write;
+            write!(&mut name, "{byte:02x}").map_err(|_| {
+                WorkspacePathError::new(WorkspacePathErrorCode::PermissionProbeFailed)
+            })?;
+        }
+        let probe_path = canonical_root.join(name);
+
+        match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&probe_path)
+        {
+            Ok(file) => {
+                drop(file);
+                return cleanup_probe(&probe_path);
+            }
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    io::ErrorKind::PermissionDenied | io::ErrorKind::ReadOnlyFilesystem
+                ) =>
+            {
+                return Ok(PermissionMode::ReadOnly);
+            }
+            Err(_) => {
+                return Err(WorkspacePathError::new(
+                    WorkspacePathErrorCode::PermissionProbeFailed,
+                ));
+            }
+        }
+    }
+
+    Err(WorkspacePathError::new(
+        WorkspacePathErrorCode::PermissionProbeFailed,
+    ))
+}
+
+fn cleanup_probe(probe_path: &Path) -> Result<PermissionMode, WorkspacePathError> {
+    cleanup_probe_with(probe_path, |path| fs::remove_file(path))
+}
+
+fn cleanup_probe_with<F>(probe_path: &Path, remove: F) -> Result<PermissionMode, WorkspacePathError>
+where
+    F: FnOnce(&Path) -> io::Result<()>,
+{
+    match remove(probe_path) {
+        Ok(()) => Ok(PermissionMode::ReadWrite),
+        Err(_) => {
+            let _ = fs::remove_file(probe_path);
+            Err(WorkspacePathError::new(
+                WorkspacePathErrorCode::PermissionProbeCleanupFailed,
+            ))
+        }
+    }
 }
 
 fn normalize_relative(path: &Path) -> Result<PathBuf, WorkspacePathError> {
@@ -263,8 +358,9 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use super::{
-        WorkspacePathError, WorkspacePathErrorCode, WorkspacePathResolution,
-        classify_candidate_error, resolve_workspace_path,
+        PERMISSION_PROBE_PREFIX, PermissionMode, WorkspacePathError, WorkspacePathErrorCode,
+        WorkspacePathResolution, classify_candidate_error, cleanup_probe_with,
+        resolve_workspace_path,
     };
 
     static FIXTURE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
@@ -339,6 +435,68 @@ mod tests {
                 .canonical_path()
                 .starts_with(missing.canonical_root_path())
         );
+
+        fixture.cleanup()
+    }
+
+    #[test]
+    fn probes_real_write_permission_without_leaving_files() -> io::Result<()> {
+        let fixture = Fixture::create()?;
+
+        let writable =
+            resolve_workspace_path(&fixture.root, Path::new("")).map_err(io::Error::other)?;
+        assert_eq!(writable.permission_mode(), Some(PermissionMode::ReadWrite));
+        assert!(!contains_probe(&fixture.root)?);
+
+        make_read_only(&fixture.root)?;
+        let readonly_result = resolve_workspace_path(&fixture.root, Path::new(""));
+        restore_writable(&fixture.root)?;
+        let readonly = readonly_result.map_err(io::Error::other)?;
+        assert_eq!(readonly.permission_mode(), Some(PermissionMode::ReadOnly));
+        assert!(!contains_probe(&fixture.root)?);
+
+        fixture.cleanup()
+    }
+
+    #[test]
+    fn reports_a_real_unreadable_root_as_permission_denied() -> io::Result<()> {
+        let fixture = Fixture::create()?;
+
+        make_inaccessible(&fixture.root)?;
+        let inaccessible_result = resolve_workspace_path(&fixture.root, Path::new(""));
+        restore_writable(&fixture.root)?;
+
+        let error = rejected(
+            inaccessible_result,
+            "an unreadable workspace root must be rejected",
+        );
+        assert_eq!(error.code(), WorkspacePathErrorCode::PermissionDenied);
+
+        fixture.cleanup()
+    }
+
+    #[test]
+    fn reports_cleanup_failure_separately_and_attempts_fallback_cleanup() -> io::Result<()> {
+        let fixture = Fixture::create()?;
+        let probe = fixture
+            .root
+            .join(format!("{PERMISSION_PROBE_PREFIX}cleanup"));
+        fs::write(&probe, b"")?;
+
+        let error = match cleanup_probe_with(&probe, |_| {
+            Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "simulated first cleanup failure",
+            ))
+        }) {
+            Ok(_) => panic!("cleanup failure must be reported"),
+            Err(error) => error,
+        };
+        assert_eq!(
+            error.code(),
+            WorkspacePathErrorCode::PermissionProbeCleanupFailed
+        );
+        assert!(!probe.exists());
 
         fixture.cleanup()
     }
@@ -451,5 +609,91 @@ mod tests {
     #[cfg(windows)]
     fn remove_directory_link(link: &Path) -> io::Result<()> {
         fs::remove_dir(link)
+    }
+
+    fn contains_probe(root: &Path) -> io::Result<bool> {
+        for entry in fs::read_dir(root)? {
+            if entry?
+                .file_name()
+                .to_string_lossy()
+                .starts_with(PERMISSION_PROBE_PREFIX)
+            {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    #[cfg(unix)]
+    fn make_read_only(root: &Path) -> io::Result<()> {
+        use std::os::unix::fs::PermissionsExt;
+
+        fs::set_permissions(root, fs::Permissions::from_mode(0o555))
+    }
+
+    #[cfg(unix)]
+    fn make_inaccessible(root: &Path) -> io::Result<()> {
+        use std::os::unix::fs::PermissionsExt;
+
+        fs::set_permissions(root, fs::Permissions::from_mode(0o000))
+    }
+
+    #[cfg(unix)]
+    fn restore_writable(root: &Path) -> io::Result<()> {
+        use std::os::unix::fs::PermissionsExt;
+
+        fs::set_permissions(root, fs::Permissions::from_mode(0o755))
+    }
+
+    #[cfg(windows)]
+    fn make_read_only(root: &Path) -> io::Result<()> {
+        let user = current_windows_principal()?;
+        run_icacls(root, &["/deny".to_owned(), format!("{user}:(WD,AD)")])
+    }
+
+    #[cfg(windows)]
+    fn make_inaccessible(root: &Path) -> io::Result<()> {
+        let user = current_windows_principal()?;
+        run_icacls(root, &["/deny".to_owned(), format!("{user}:(RX)")])
+    }
+
+    #[cfg(windows)]
+    fn restore_writable(root: &Path) -> io::Result<()> {
+        let user = current_windows_principal()?;
+        run_icacls(root, &["/remove:d".to_owned(), user])
+    }
+
+    #[cfg(windows)]
+    fn current_windows_principal() -> io::Result<String> {
+        use std::process::Command;
+
+        let output = Command::new("whoami.exe").output()?;
+        if !output.status.success() {
+            return Err(io::Error::other("test principal is unavailable"));
+        }
+        let principal = String::from_utf8(output.stdout)
+            .map_err(io::Error::other)?
+            .trim()
+            .to_owned();
+        if principal.is_empty() {
+            Err(io::Error::other("test principal is unavailable"))
+        } else {
+            Ok(principal)
+        }
+    }
+
+    #[cfg(windows)]
+    fn run_icacls(root: &Path, arguments: &[String]) -> io::Result<()> {
+        use std::process::Command;
+
+        let status = Command::new("icacls.exe")
+            .arg(root)
+            .args(arguments)
+            .status()?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err(io::Error::other("could not configure permission fixture"))
+        }
     }
 }

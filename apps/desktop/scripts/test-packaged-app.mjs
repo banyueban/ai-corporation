@@ -58,6 +58,18 @@ try {
   await page
     .getByText(/Native Core ready/u)
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  const workspaceList = await page.evaluate(() =>
+    window.desktop.workspace.list(),
+  );
+  if (
+    workspaceList.ok !== true ||
+    !Array.isArray(workspaceList.value) ||
+    workspaceList.value.length !== 0
+  ) {
+    throw new Error(
+      "Packaged Workspace IPC did not return an empty public list",
+    );
+  }
 
   const healthText = await page.getByText(/Native Core ready/u).innerText();
   const evidenceDirectory = path.join(repositoryDirectory, "release");
@@ -68,6 +80,7 @@ try {
   mkdirSync(evidenceDirectory, { recursive: true });
   await page.screenshot({ path: evidencePath });
   console.log(`Packaged application health verified: ${healthText}`);
+  console.log("Packaged Workspace IPC verified: empty public list");
   console.log(`Evidence screenshot: ${evidencePath}`);
 } catch (error) {
   const diagnostics = Buffer.concat(diagnosticChunks).toString("utf8").trim();

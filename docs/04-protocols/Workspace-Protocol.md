@@ -126,6 +126,8 @@ interface WorkspaceCanonicalizeResult {
 - `OUTSIDE_ROOT`
 - `LINK_ESCAPE`
 - `PATH_IDENTITY_UNAVAILABLE`
+- `PERMISSION_PROBE_FAILED`
+- `PERMISSION_PROBE_CLEANUP_FAILED`
 
 错误消息和 `data` 不得包含 canonical path、路径身份元数据或用户文件内容。认证失败、无效参数和不支持的 Schema 版本继续使用 Native RPC 通用错误，不得伪装为路径拒绝。
 
@@ -176,7 +178,9 @@ type WorkspaceIpcErrorCode =
   | "WORKSPACE_NOT_FOUND"
   | "NATIVE_CORE_UNAVAILABLE"
   | "STORAGE_UNAVAILABLE"
-  | "VERIFICATION_FAILED";
+  | "VERIFICATION_FAILED"
+  | "IPC_UNAUTHORIZED"
+  | "INVALID_REQUEST";
 
 type WorkspaceIpcResult<T> =
   | { ok: true; value: T }

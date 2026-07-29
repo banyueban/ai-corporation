@@ -23,6 +23,18 @@ mkdirSync(appDirectory, { recursive: true });
 cpSync(path.join(desktopDirectory, "dist"), path.join(appDirectory, "dist"), {
   recursive: true,
 });
+cpSync(
+  path.resolve(
+    desktopDirectory,
+    "..",
+    "..",
+    "packages",
+    "storage",
+    "migrations",
+  ),
+  path.join(appDirectory, "migrations"),
+  { recursive: true },
+);
 cpSync(sourceNativeCore, path.join(desktopDirectory, "build", nativeCoreName));
 writeFileSync(
   path.join(appDirectory, "package.json"),

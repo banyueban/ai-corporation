@@ -4,9 +4,12 @@
   "private": true,
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "default": "./dist/index.js"
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
     }
+  },
+  "dependencies": {
+    "@ai-corporation/protocols": "workspace:*"
   },
   "scripts": {
     "build": "tsc --project tsconfig.json",
