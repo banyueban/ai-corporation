@@ -3,12 +3,12 @@
 | 属性           | 当前值                                    |
 | -------------- | ----------------------------------------- |
 | 当前产品版本   | v0.1 MVP                                  |
-| 当前阶段       | Milestone 1 第三个任务单元合同建立前      |
+| 当前阶段       | Milestone 1 第三个任务单元合同审查中      |
 | 当前 Milestone | Milestone 1：本地项目骨架                 |
-| 当前任务单元   | M1-TU-02（完成）                          |
+| 当前任务单元   | M1-TU-03（未开始）                        |
 | 总体状态       | 进行中                                    |
 | 最近更新       | 2026-07-30                                |
-| 下一检查点     | M1-TU-03 合同范围与就绪审查               |
+| 下一检查点     | M1-TU-03 接口、隔离与就绪审查             |
 
 ## 1. 当前结论
 
@@ -54,7 +54,7 @@ Milestone 0 已通过全部适用验收；当前没有已知未解决的 P0/P1 �
 - 验收提交：`948e975a1a82977bf14ed3bc4eceb3ed1f8b1e8a`；
 - GitHub Actions：run `30472788800`，Windows x64 与 macOS Apple Silicon jobs 均成功。
 
-下一步只允许建立并审查 `M1-TU-03` 合同，重新核对原生目录选择 UI、Renderer 重载和跨平台 Electron E2E 的范围、接口、所有权、隔离及验收标准；合同达到“就绪”前不得实施。
+当前只允许审查 [M1-TU-03 原生 Workspace 选择与恢复 UI](docs/06-engineering/task-units/M1-TU-03-workspace-selection-ui.md) 的范围、接口、所有权、隔离及验收标准；合同达到“就绪”前不得实施。
 
 Milestone 1 任务覆盖地图：
 

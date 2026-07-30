@@ -164,12 +164,28 @@ interface WorkspaceCanonicalizeResult {
 
 Renderer 只通过 typed preload 使用以下 allowlisted channel：
 
-| Channel                | 请求                                                | 成功值                    |
-| ---------------------- | --------------------------------------------------- | ------------------------- |
-| `workspace:list`       | 无参数                                              | `WorkspacePublic[]`       |
-| `workspace:revalidate` | `{ workspaceId: string }`，strict UUID v7 runtime Schema | `WorkspacePublic`         |
+| Channel                | 请求                                                | 成功值               |
+| ---------------------- | --------------------------------------------------- | -------------------- |
+| `workspace:list`       | 无参数                                              | `WorkspacePublic[]`  |
+| `workspace:revalidate` | `{ workspaceId: string }`，strict UUID v7 runtime Schema | `WorkspacePublic`    |
+| `workspace:select`     | 无参数                                              | `WorkspaceSelection` |
 
 列表按 `created_at`、`id` 稳定排序。`workspace:revalidate` 只接受 Workspace ID，不接受 Renderer 提供路径、身份、权限或访问状态。
+
+`workspace:select` 只能由 Electron Main 调用系统原生单目录选择器取得授权路径。Renderer 不得提交路径、权限、身份或 Workspace ID。选择结果为 strict 联合：
+
+```ts
+type WorkspaceSelection =
+  | {
+      status: "SELECTED";
+      workspace: WorkspacePublic;
+    }
+  | {
+      status: "CANCELLED";
+    };
+```
+
+用户取消时不得生成 ID 或写入数据库。选择成功后 Main 使用所选目录调用 `workspace.canonicalize` 的空候选，要求返回 `permissionMode`，在可信边界生成 UUID v7 并持久化 `AVAILABLE` 记录。同一 canonical root 与身份重复选择时返回并重新验证已有记录；canonical root 相同但身份不一致时不得覆盖原授权。
 
 IPC 使用显式结果联合，避免把 Electron 异常字符串当作产品协议：
 
@@ -179,6 +195,7 @@ type WorkspaceIpcErrorCode =
   | "NATIVE_CORE_UNAVAILABLE"
   | "STORAGE_UNAVAILABLE"
   | "VERIFICATION_FAILED"
+  | "SELECTION_UNAVAILABLE"
   | "IPC_UNAUTHORIZED"
   | "INVALID_REQUEST";
 
@@ -194,3 +211,5 @@ type WorkspaceIpcResult<T> =
 ```
 
 Main 必须验证调用窗口来源、请求 Schema 和 channel allowlist；Preload 必须验证响应 Schema。失败结果不得包含 canonical path、路径身份、数据库错误、用户文件内容或 Native Core 原始错误。
+
+生产默认只能使用 Electron 原生目录选择器。跨平台 E2E 可以由 Main 在显式测试环境中消费一次性的可信目录 fixture，以验证 Renderer → Main → Native Core → SQLite → Renderer 重载链路；该 fixture 不通过 preload 暴露、不能由 Renderer 修改，且不能替代原生目录选择适配器的独立合同测试。
