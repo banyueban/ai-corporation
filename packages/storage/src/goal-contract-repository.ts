@@ -32,6 +32,7 @@ interface CorporationGoalState {
   readonly id: string;
   readonly status: string;
   readonly version: number;
+  readonly workspaceAccessStatus: string;
 }
 
 const timelineEventTypes = [
@@ -282,14 +283,22 @@ export class GoalContractRepository {
     if (corporation.version !== expectedCorporationVersion) {
       throw new GoalVersionConflictError();
     }
-    if (corporation.status !== "DRAFT") throw new GoalStateConflictError();
+    if (
+      corporation.status !== "DRAFT" ||
+      corporation.workspaceAccessStatus !== "AVAILABLE"
+    ) {
+      throw new GoalStateConflictError();
+    }
   }
 
   #requiredCorporation(corporationId: string): CorporationGoalState {
     const row = this.#database
       .prepare(
-        `SELECT id, status, version, active_goal_version
-        FROM corporation WHERE id = ?`,
+        `SELECT c.id, c.status, c.version, c.active_goal_version,
+          w.access_status AS workspace_access_status
+        FROM corporation c
+        INNER JOIN workspace w ON w.id = c.workspace_id
+        WHERE c.id = ?`,
       )
       .get(corporationId);
     if (row === undefined) throw new GoalCorporationNotFoundError();
@@ -297,6 +306,7 @@ export class GoalContractRepository {
       typeof row.id !== "string" ||
       typeof row.status !== "string" ||
       typeof row.version !== "number" ||
+      typeof row.workspace_access_status !== "string" ||
       (row.active_goal_version !== null &&
         typeof row.active_goal_version !== "number")
     ) {
@@ -308,6 +318,7 @@ export class GoalContractRepository {
       id: row.id,
       status: row.status,
       version: row.version,
+      workspaceAccessStatus: row.workspace_access_status,
     };
   }
 

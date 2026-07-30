@@ -13,6 +13,7 @@ import { CorporationRepository } from "./corporation-repository";
 import {
   GoalAssumptionConfirmationError,
   GoalCommandConflictError,
+  GoalCorporationNotFoundError,
   GoalContractRepository,
   GoalStateConflictError,
   GoalVersionConflictError,
@@ -84,6 +85,51 @@ describe("GoalContractRepository", () => {
         expectedGoalVersion: 1,
       }),
     ).toThrow(GoalStateConflictError);
+  });
+
+  it("rejects unavailable Workspace and archived Corporation without partial writes", () => {
+    const repository = new GoalContractRepository(database);
+    expect(() =>
+      repository.saveDraft({
+        ...saveInput(),
+        corporationId: "019fa9bb-4999-7d90-a4e3-a5b0eea2a9ef",
+      }),
+    ).toThrow(GoalCorporationNotFoundError);
+    expect(count("goal_contract_version")).toBe(0);
+    expect(count("goal_contract_command")).toBe(0);
+    expect(count("domain_event")).toBe(1);
+
+    database
+      .prepare("UPDATE workspace SET access_status = 'MISSING' WHERE id = ?")
+      .run(workspaceId);
+    expect(() => repository.saveDraft(saveInput())).toThrow(
+      GoalStateConflictError,
+    );
+    expect(count("goal_contract_version")).toBe(0);
+    expect(count("goal_contract_command")).toBe(0);
+    expect(count("domain_event")).toBe(1);
+    expect(corporation()).toMatchObject({
+      active_goal_version: null,
+      version: 1,
+    });
+
+    database
+      .prepare("UPDATE workspace SET access_status = 'AVAILABLE' WHERE id = ?")
+      .run(workspaceId);
+    database
+      .prepare(
+        "UPDATE corporation SET status = 'ARCHIVED', archived_at = ? WHERE id = ?",
+      )
+      .run(now, corporationId);
+    expect(() =>
+      repository.saveDraft({
+        ...saveInput(),
+        command: command("019fa9bb-4012-7d90-a4e3-a5b0eea2a9ef", "SAVE_DRAFT"),
+      }),
+    ).toThrow(GoalStateConflictError);
+    expect(count("goal_contract_version")).toBe(0);
+    expect(count("goal_contract_command")).toBe(0);
+    expect(count("domain_event")).toBe(1);
   });
 
   it.each(["GOAL", "CORPORATION", "EVENT", "RECEIPT"] as const)(
