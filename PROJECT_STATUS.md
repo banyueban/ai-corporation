@@ -3,18 +3,18 @@
 | 属性           | 当前值                                    |
 | -------------- | ----------------------------------------- |
 | 当前产品版本   | v0.1 MVP                                  |
-| 当前阶段       | Milestone 1 第六个任务单元合同建立        |
+| 当前阶段       | Milestone 1 第六个任务单元就绪            |
 | 当前 Milestone | Milestone 1：本地项目骨架                 |
-| 当前任务单元   | M1-TU-05（完成）                          |
+| 当前任务单元   | M1-TU-06（就绪）                          |
 | 总体状态       | 进行中                                    |
 | 最近更新       | 2026-07-30                                |
-| 下一检查点     | 建立并审查 M1-TU-06 任务合同              |
+| 下一检查点     | M1-TU-06 协议与迁移实现                   |
 
 ## 1. 当前结论
 
 Milestone 0 已通过全部适用验收；当前没有已知未解决的 P0/P1 缺陷。Milestone 1 的 `M1-TU-01` 至 `M1-TU-05` 已完成。`M1-TU-05` 在验收前审计中补齐不可用 Workspace 的事务内写入拒绝，验收提交 `0952ea9b2353e465aba14a6c6d368e46a494ffd0` 的协议、迁移、Repository、typed IPC、真实 UI 故障恢复/冲突恢复、可访问性、响应布局、开发态 E2E、Windows/macOS 最终包 E2E 和制品上传全部通过，合同 18 项关闭。
 
-该结论只关闭 Goal Contract 手工/本地 Mock、版本保存、确认和最小时间线切片，不代表暂停/恢复状态机、完整 UI-AC-02、`M1-TU-06` 或 Milestone 1 已完成。下一步必须先建立并审查 `M1-TU-06` 合同，再按就绪门禁实施。
+该结论只关闭 Goal Contract 手工/本地 Mock、版本保存、确认和最小时间线切片，不代表暂停/恢复状态机、完整 UI-AC-02、`M1-TU-06` 或 Milestone 1 已完成。`M1-TU-06` 的 Milestone 归属、状态语义、非范围、接口、所有权、隔离和 15 项验收合同已完成内容审查，基线为 `b31784c72e8876d294cd0d30b39e3e3c44dcec98`，当前状态为“就绪”。
 
 ## 2. 已完成基线
 
@@ -77,7 +77,7 @@ Milestone 0 已通过全部适用验收；当前没有已知未解决的 P0/P1 �
 - 关闭范围：Goal Contract 手工/本地确定性 Mock、版本/确认、最小时间线、真实 UI 故障与冲突恢复；
 - 非范围：真实 Provider、Task Graph、Plan、运行状态机、暂停/恢复和完整 Milestone 1 演示。
 
-当前只允许建立和审查 `M1-TU-06` 合同；合同达到“就绪”并记录基线前不得实施暂停/恢复或 Milestone 演示。
+当前只允许实施和验收 [M1-TU-06 暂停/继续、重启恢复与 Milestone 1 演示](docs/06-engineering/task-units/M1-TU-06-pause-resume-restart-milestone.md)，状态为“就绪”，基线为 `b31784c72e8876d294cd0d30b39e3e3c44dcec98`；不得同时启动 Milestone 2 或把基础状态恢复表述为 Task/Run/Tool 未知副作用恢复完成。
 
 Milestone 1 任务覆盖地图：
 
@@ -90,7 +90,7 @@ Milestone 1 任务覆盖地图：
 | `M1-TU-05`   | Goal Contract 手工/Mock、版本保存和最小时间线；不接真实模型 | Goal Contract 手工/Mock 与版本保存、Goal 表、最小时间线                           |
 | `M1-TU-06`   | 暂停/恢复状态机、应用重启恢复和 Milestone 演示              | 暂停/恢复、应用重启、不丢失已持久化状态和 Milestone 演示                          |
 
-该表只证明计划覆盖，不代表后续合同已经建立或功能已经实现。后续单元不在前置接口冻结前建立“就绪”合同；每个合同必须重新核对其内容属于 MVP Plan 的 Milestone 1，禁止遗漏或静默移动 Milestone 范围。
+该表只证明计划覆盖；`M1-TU-06` 合同已建立但功能尚未实现。每个合同必须重新核对其内容属于 MVP Plan 的 Milestone 1，禁止遗漏或静默移动 Milestone 范围。
 
 ## 5. 活跃阻塞与外部条件
 
