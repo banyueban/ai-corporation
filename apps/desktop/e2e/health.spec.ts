@@ -402,6 +402,14 @@ test("user authorizes and restores a Workspace through the visible window", asyn
         pausedFrom: "DRAFT",
       },
     });
+    await page.reload();
+    await expect(
+      page.getByRole("heading", { name: "Dashboard" }),
+    ).toBeVisible();
+    await expect(page.getByText("PAUSED", { exact: true })).toBeVisible();
+    expect(await readPersistedState(page, corporationId)).toEqual(
+      beforeRestart,
+    );
 
     await electronApp.close();
     electronApp = await launchApplication(
@@ -456,6 +464,30 @@ test("user authorizes and restores a Workspace through the visible window", asyn
       corporation: { status: "DRAFT", version: 9 },
     });
     expect(afterResume.eventCount).toBe(beforeRestart.eventCount + 1);
+    await page.reload();
+    await expect(
+      page.getByRole("heading", { name: "Dashboard" }),
+    ).toBeVisible();
+    await expect(page.getByText("DRAFT", { exact: true })).toBeVisible();
+    expect(await readPersistedState(page, corporationId)).toEqual(afterResume);
+
+    await electronApp.close();
+    electronApp = await launchApplication(
+      appDirectory,
+      userDataDirectory,
+      workspaceDirectory,
+    );
+    page = await electronApp.firstWindow();
+    page.on("request", (request) => {
+      if (/^https?:/u.test(request.url())) externalRequests.push(request.url());
+    });
+    await expect(
+      page.getByRole("heading", { name: "Dashboard" }),
+    ).toBeVisible();
+    await expect(page.getByText("DRAFT", { exact: true })).toBeVisible();
+    expect(await readPersistedState(page, corporationId)).toEqual(afterResume);
+    await page.getByRole("button", { name: "Open Goal Contract" }).click();
+    await expect(page.getByText("APPROVED", { exact: true })).toBeVisible();
     expect(externalRequests).toEqual([]);
   } finally {
     await electronApp.close();

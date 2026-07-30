@@ -232,6 +232,16 @@ try {
   ) {
     throw new Error("Packaged pause state was not persisted");
   }
+  await page.reload();
+  await page
+    .getByRole("heading", { name: "Dashboard" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  if (
+    JSON.stringify(await readPersistedState(page, stored.corporation.id)) !==
+    JSON.stringify(beforeRestart)
+  ) {
+    throw new Error("Packaged Renderer reload changed paused state");
+  }
 
   await browser.close();
   browser = undefined;
@@ -277,6 +287,40 @@ try {
   ) {
     throw new Error("Packaged resume did not restore the exact prior state");
   }
+  await page.reload();
+  await page
+    .getByRole("heading", { name: "Dashboard" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  if (
+    JSON.stringify(await readPersistedState(page, stored.corporation.id)) !==
+    JSON.stringify(afterResume)
+  ) {
+    throw new Error("Packaged Renderer reload changed resumed state");
+  }
+
+  await browser.close();
+  browser = undefined;
+  await stopChild(child);
+  ({ child, port } = await launchPackagedApplication());
+  await waitForDebugEndpoint(port, child);
+  browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
+  page = await waitForApplicationPage(browser);
+  page.on("request", (request) => {
+    if (/^https?:/u.test(request.url())) externalRequests.push(request.url());
+  });
+  await page
+    .getByRole("heading", { name: "Dashboard" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  if (
+    JSON.stringify(await readPersistedState(page, stored.corporation.id)) !==
+    JSON.stringify(afterResume)
+  ) {
+    throw new Error("Packaged process restart changed resumed state");
+  }
+  await page.getByRole("button", { name: "Open Goal Contract" }).click();
+  await page
+    .getByText("APPROVED", { exact: true })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
 
   const healthText = await page
     .getByRole("status", { name: /Native Core ready/u })
@@ -294,7 +338,7 @@ try {
     "Packaged Goal UI journey verified: create · injected save failure · retry · review · assumption gate · approve · timeline · reload · restore",
   );
   console.log(
-    "Packaged Corporation restart journey verified: pause · process restart · read-only restore · resume",
+    "Packaged Corporation restart journey verified: pause · reload · process restart · read-only restore · resume · reload · process restart",
   );
   console.log("Packaged local Mock external requests: 0");
   console.log(`Paused restart screenshot: ${pausedEvidencePath}`);
