@@ -59,6 +59,8 @@ Review 主操作使用“确认目标合同”，不得使用“确认并规划/
 - Event Protocol 继续定义 append-only 事实事件；
 - migration `0001`–`0003` 不可修改，只新增 `0004`；
 - Workspace 只使用公开 ID/display/permission/access；
+- Corporation create 与 Goal save 是两个独立事务；前者成功而后者失败时保留已创建的 DRAFT Corporation 与 Goal 表单输入，重新读取版本后重试，不执行隐式补偿删除或重复创建；
+
 ## 6. 交付物与所有权
 
 - 专属修改区：Goal 协议/Schema、`0004`、Goal Repository/service/tests、Goal UI 状态组件；
@@ -69,14 +71,14 @@ Review 主操作使用“确认目标合同”，不得使用“确认并规划/
 
 - [ ] 迁移：空库与 `0001`–`0003` 库均升级到 `0004`，checksum、FK、表/索引/trigger 与权威 Schema 一致；
 - [ ] Schema：Goal DTO/命令严格拒绝额外字段、非法 UUID/版本、控制字符、重复/超长列表和错误 approved 形状；
-- [ ] 创建旅程：AVAILABLE Workspace 上从真实 UI 创建 DRAFT Corporation 并保存 Goal v1；失败不冒充成功且保留可恢复输入；
+- [ ] 创建旅程：AVAILABLE Workspace 上从真实 UI 创建 DRAFT Corporation 并保存 Goal v1；Goal 保存失败时明确显示已创建 Corporation、保留可恢复输入且不重复创建；
 - [ ] 拒绝：不可用 Workspace、不存在/非 DRAFT/ARCHIVED Corporation 均无 Goal、事件或回执部分写入；
-- [ ] 版本：后续保存创建新不可变内容版本，旧 DRAFT 变 SUPERSEDED，active pointer、Corporation version 和排序一致；
+- [ ] 版本：后续保存创建新不可变内容版本，旧的当前 DRAFT 或 APPROVED 变 SUPERSEDED，active pointer、Corporation version 和排序一致；
 - [ ] Mock：本地确定性 Mock 不调用网络/Provider，不猜测隐藏事实，相同输入产生相同规范化内容；
 - [ ] 确认：仅当前 DRAFT 可 approve，所有 HIGH 假设必须确认；Corporation 保持 DRAFT 且版本递增；
 - [ ] 原子性：save/approve 的 Corporation、Goal、Event、receipt 全部提交或全部回滚，fault fixture 覆盖写入边界；
 - [ ] 幂等与并发：同 command 重放不重复版本/事件；冲突复用拒绝；双连接 barrier 下相同 expected version 仅一方成功；
-- [ ] 时间线：只返回目标 Corporation 的 allowlisted 脱敏事实，稳定分页无重复/遗漏，不泄露 payload/actor/correlation/内部字段；
+- [ ] 时间线：只返回目标 Corporation 的 allowlisted 脱敏事实，canonical cursor 稳定分页无重复/遗漏，非法/跨 Corporation cursor 拒绝且不泄露 payload/actor/correlation/内部字段；
 - [ ] IPC 安全：非法来源、未知 channel、额外/伪造字段和非法标识均固定拒绝；
 - [ ] UI 状态：clean/dirty/saving/error/conflict/assumption-required/restored 由真实状态驱动，重复提交与迟到响应受控；
 - [ ] UI 可访问性：纯键盘完成创建与确认，焦点/错误关联/对比度/reduced motion/axe 严重关键项通过；
