@@ -39,6 +39,10 @@ button {
 }
 
 button:focus-visible,
+[role="button"]:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
 [tabindex="-1"]:focus-visible {
   outline: 3px solid #8bb8ff;
   outline-offset: 3px;
@@ -400,6 +404,166 @@ h3 {
   margin-top: 1rem;
 }
 
+.selected-boundary {
+  margin: 1rem 0;
+  padding: 0.9rem 1rem;
+  border: 1px solid #284c43;
+  border-radius: 0.75rem;
+  color: #bce9d3;
+  background: #102820;
+  overflow-wrap: anywhere;
+}
+
+.goal-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+  padding: clamp(1.25rem, 3vw, 2rem);
+  border: 1px solid #27364b;
+  border-radius: 1rem;
+  background: rgb(15 23 37 / 88%);
+}
+
+.field {
+  display: grid;
+  min-width: 0;
+  gap: 0.5rem;
+  color: #d8e2f1;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.field > span {
+  color: #7f8da3;
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid #32435b;
+  border-radius: 0.6rem;
+  color: #eef3fa;
+  background: #0c1421;
+  font: inherit;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.field textarea {
+  resize: vertical;
+}
+
+.field--wide {
+  grid-column: 1 / -1;
+}
+
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding-top: 1rem;
+  border-top: 1px solid #27364b;
+}
+
+.form-actions p {
+  flex-basis: 100%;
+  margin-bottom: 0;
+  color: #8f9db2;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  text-align: right;
+}
+
+.review-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.review-block,
+.history-panel {
+  min-width: 0;
+  padding: 1.25rem;
+  border: 1px solid #27364b;
+  border-radius: 0.85rem;
+  background: #0f1725;
+}
+
+.review-block--wide {
+  grid-column: 1 / -1;
+}
+
+.review-block p,
+.review-block li,
+.history-panel li {
+  color: #aab7ca;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.review-block ul,
+.history-panel ol {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.assumption-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.85rem;
+  border: 1px solid #5b4826;
+  border-radius: 0.65rem;
+  color: #f1d39a;
+  background: #2b2214;
+}
+
+.assumption-row input {
+  width: 1.2rem;
+  height: 1.2rem;
+  margin-top: 0.1rem;
+}
+
+.review-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 1rem 0 2rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid #35527a;
+  border-radius: 0.85rem;
+  background: #11243e;
+}
+
+.review-actions p {
+  max-width: 42rem;
+  margin-bottom: 0;
+  color: #bdd6fc;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.history-grid {
+  display: grid;
+  grid-template-columns: minmax(15rem, 0.7fr) minmax(0, 1.3fr);
+  gap: 1rem;
+}
+
+.history-panel time {
+  display: block;
+  color: #74839a;
+  font-size: 0.72rem;
+}
+
 .selected-workspace dl {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -523,6 +687,22 @@ h3 {
 
   .selected-workspace dl {
     grid-template-columns: 1fr;
+  }
+
+  .goal-form,
+  .review-grid,
+  .history-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .field--wide,
+  .review-block--wide {
+    grid-column: auto;
+  }
+
+  .review-actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .page-header .primary-button {

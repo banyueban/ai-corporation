@@ -88,74 +88,97 @@ test("user authorizes and restores a Workspace through the visible window", asyn
     await selectButton.focus();
     await page.keyboard.press("Enter");
     await expect(
-      page.getByText("Workspace authorized and saved.", { exact: true }),
+      page
+        .getByRole("status")
+        .filter({ hasText: "Workspace authorized and saved." }),
     ).toBeVisible();
-    await expect(page.getByText(workspaceDirectory)).toBeVisible();
-    await expect(page.getByText("Read and write")).toBeVisible();
+    await expect(
+      page.getByText(workspaceDirectory, { exact: true }),
+    ).toBeVisible();
+    await expect(page.locator(".selected-boundary")).toContainText(
+      "Read and write",
+    );
     expect(readdirSync(workspaceDirectory)).toEqual([]);
 
-    const selected = await page.evaluate(() =>
-      (
-        globalThis as typeof globalThis & { desktop: DesktopApi }
-      ).desktop.workspace.list(),
-    );
-    expect(selected).toMatchObject({
-      ok: true,
-      value: [
-        {
-          displayPath: workspaceDirectory,
-          permissionMode: "READ_WRITE",
-          accessStatus: "AVAILABLE",
-        },
-      ],
+    await page.getByLabel("Corporation name *").fill("E2E Corporation");
+    await page
+      .getByLabel("Goal *")
+      .fill("Create a verified local Goal Contract");
+    await page
+      .getByLabel(/Success criteria/u)
+      .fill("Goal is persisted\nTimeline is visible");
+    await page.getByLabel(/Expected deliverables/u).fill("Goal report");
+    await page
+      .getByLabel("High-impact assumption")
+      .fill("The authorized workspace is the intended target");
+    const mockButton = page.getByRole("button", {
+      name: "Create local Mock draft",
     });
-    if (!selected.ok) {
-      throw new Error("Workspace API failed");
+    await mockButton.focus();
+    await page.keyboard.press("Enter");
+
+    await expect(
+      page.getByRole("heading", { name: "Confirm Goal Contract" }),
+    ).toBeFocused();
+    await expect(page.getByText("MOCK", { exact: false })).toBeVisible();
+    await expect(page.getByText("Goal Contract draft saved.")).toBeVisible();
+    const confirmButton = page.getByRole("button", {
+      name: "Confirm Goal Contract",
+    });
+    await confirmButton.focus();
+    await page.keyboard.press("Enter");
+    await expect(
+      page.getByText("ASSUMPTION_CONFIRMATION_REQUIRED"),
+    ).toBeVisible();
+
+    const assumption = page.getByRole("checkbox", {
+      name: /authorized workspace is the intended target/u,
+    });
+    await assumption.check();
+    await confirmButton.focus();
+    await page.keyboard.press("Enter");
+    await expect(
+      page.getByRole("status").filter({
+        hasText:
+          "Goal Contract approved. Planning and execution have not started.",
+      }),
+    ).toBeVisible();
+    await expect(page.getByText("APPROVED", { exact: true })).toBeVisible();
+    await expect(page.getByText("v2 · APPROVED · MOCK")).toBeVisible();
+    await expect(page.getByText("v1 · SUPERSEDED · MOCK")).toBeVisible();
+    await expect(
+      page.getByText("Goal Contract approved.", { exact: true }),
+    ).toBeVisible();
+
+    const selected = await page.evaluate(async () => {
+      const desktop = (
+        globalThis as typeof globalThis & { desktop: DesktopApi }
+      ).desktop;
+      const workspaces = await desktop.workspace.list();
+      if (!workspaces.ok) throw new Error(workspaces.error.code);
+      const workspace = workspaces.value[0];
+      if (workspace === undefined) throw new Error("Workspace missing");
+      const corporations = await desktop.corporation.list({
+        schemaVersion: "1.0",
+        workspaceId: workspace.workspaceId,
+      });
+      if (!corporations.ok || corporations.value.length !== 1) {
+        throw new Error("Corporation list failed");
+      }
+      return {
+        corporationId: corporations.value[0]?.id,
+        workspace,
+      };
+    });
+    expect(selected.workspace).toMatchObject({
+      displayPath: workspaceDirectory,
+      permissionMode: "READ_WRITE",
+      accessStatus: "AVAILABLE",
+    });
+    if (selected.corporationId === undefined) {
+      throw new Error("Corporation fixture was not returned");
     }
-    const workspaceId = selected.value[0]?.workspaceId;
-    if (workspaceId === undefined) {
-      throw new Error("Workspace fixture was not returned");
-    }
-    const corporationId = await page.evaluate(
-      async ({ workspaceId }) => {
-        const desktop = (
-          globalThis as typeof globalThis & { desktop: DesktopApi }
-        ).desktop;
-        const created = await desktop.corporation.create({
-          schemaVersion: "1.0",
-          commandId: "019fa9bb-3770-7d90-a4e3-a5b0eea2a9ef",
-          workspaceId,
-          name: "E2E Corporation",
-        });
-        if (!created.ok) throw new Error(created.error.code);
-        const listed = await desktop.corporation.list({
-          schemaVersion: "1.0",
-          workspaceId,
-        });
-        if (!listed.ok || listed.value.length !== 1) {
-          throw new Error("Corporation list failed");
-        }
-        const fetched = await desktop.corporation.get({
-          schemaVersion: "1.0",
-          corporationId: created.value.id,
-        });
-        if (!fetched.ok || fetched.value.version !== 1) {
-          throw new Error("Corporation get failed");
-        }
-        const updated = await desktop.corporation.updateName({
-          schemaVersion: "1.0",
-          commandId: "019fa9bb-3771-7d90-a4e3-a5b0eea2a9ef",
-          corporationId: created.value.id,
-          expectedVersion: created.value.version,
-          name: "E2E Corporation Renamed",
-        });
-        if (!updated.ok || updated.value.version !== 2) {
-          throw new Error("Corporation update failed");
-        }
-        return created.value.id;
-      },
-      { workspaceId },
-    );
+    const corporationId = selected.corporationId;
 
     await page.reload();
     await expect(
@@ -164,6 +187,7 @@ test("user authorizes and restores a Workspace through the visible window", asyn
     await expect(page.getByText(workspaceDirectory)).toBeVisible();
     await expect(page.getByText("Available")).toBeVisible();
     await expect(page.getByText("Verifying")).toHaveCount(0);
+    await expect(page.getByText("E2E Corporation")).toBeVisible();
     const restoredCorporation = await page.evaluate(async (corporationId) => {
       const desktop = (
         globalThis as typeof globalThis & { desktop: DesktopApi }
@@ -175,7 +199,7 @@ test("user authorizes and restores a Workspace through the visible window", asyn
     }, corporationId);
     expect(restoredCorporation).toMatchObject({
       ok: true,
-      value: { name: "E2E Corporation Renamed", version: 2 },
+      value: { name: "E2E Corporation", version: 4 },
     });
 
     const verifyButton = page.getByRole("button", { name: "Verify again" });
@@ -198,6 +222,15 @@ test("user authorizes and restores a Workspace through the visible window", asyn
           document.documentElement.clientWidth,
       ),
     ).toBe(true);
+    await page.getByRole("button", { name: "Open Goal Contract" }).focus();
+    await page.keyboard.press("Enter");
+    await expect(
+      page.getByRole("heading", { name: "Confirm Goal Contract" }),
+    ).toBeFocused();
+    await expect(page.getByText("APPROVED", { exact: true })).toBeVisible();
+    await expect(
+      page.getByText("Goal Contract approved.", { exact: true }),
+    ).toBeVisible();
     const zoomedScreenshot = await electronApp.evaluate(
       async ({ BrowserWindow }) => {
         const window = BrowserWindow.getAllWindows()[0];
@@ -212,7 +245,7 @@ test("user authorizes and restores a Workspace through the visible window", asyn
     writeFileSync(
       path.join(
         evidenceDirectory,
-        `m1-tu03-dev-${process.platform}-${process.arch}-200-percent.png`,
+        `m1-tu05-dev-${process.platform}-${process.arch}-200-percent.png`,
       ),
       Buffer.from(zoomedScreenshot, "base64"),
     );
@@ -221,11 +254,13 @@ test("user authorizes and restores a Workspace through the visible window", asyn
       BrowserWindow.getAllWindows()[0]?.webContents.setZoomFactor(1);
     });
     await setWindowSize(electronApp, 1024, 700);
-    await expect(page.getByText(workspaceDirectory)).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Confirm Goal Contract" }),
+    ).toBeVisible();
     await page.screenshot({
       path: path.join(
         evidenceDirectory,
-        `m1-tu03-dev-${process.platform}-${process.arch}-1024x700.png`,
+        `m1-tu05-dev-${process.platform}-${process.arch}-1024x700.png`,
       ),
     });
 
@@ -233,7 +268,7 @@ test("user authorizes and restores a Workspace through the visible window", asyn
     await page.screenshot({
       path: path.join(
         evidenceDirectory,
-        `m1-tu03-dev-${process.platform}-${process.arch}-1440x900.png`,
+        `m1-tu05-dev-${process.platform}-${process.arch}-1440x900.png`,
       ),
     });
   } finally {
