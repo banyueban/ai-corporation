@@ -3,7 +3,7 @@
 | 属性           | 值                                                                                   |
 | -------------- | ------------------------------------------------------------------------------------ |
 | 任务单元 ID    | M1-TU-04                                                                             |
-| 状态           | 进行中                                                                               |
+| 状态           | 完成                                                                                 |
 | 所属 Milestone | Milestone 1：本地项目骨架                                                            |
 | 主要结果       | Corporation 可通过窄 IPC 创建、读取、重命名和归档，且每次命令与 Domain Event 原子提交 |
 | 基线提交       | `5468ea9131f145026279bb95045124b8c6400295`                                           |
@@ -110,23 +110,23 @@
 
 ## 7. 验收合同
 
-- [ ] 迁移：空库和仅含 `0001`/`0002` 的数据库均成功升级到 `0003`，checksum 锁定、foreign key check、表/索引/trigger 与权威 Schema 一致；
-- [ ] 创建：AVAILABLE Workspace 上创建严格 DRAFT 记录，UUID v7、名称、版本与 UTC 时间正确，公开结果不含内部字段；
-- [ ] Workspace 拒绝：不存在、MISSING、PERMISSION_DENIED、UNVERIFIED 或验证服务不可用时不创建 Corporation、事件或回执；
-- [ ] 读取与列表：按 ID 读取和按 Workspace 的稳定排序、归档过滤正确，不跨 Workspace 返回记录；
-- [ ] 更新：非归档 Corporation 可用 expected version 重命名；旧版本、非法名称和归档后更新均无部分写入；
-- [ ] 归档：仅 COMPLETED/FAILED/CANCELLED 可归档，archivedAt/状态/版本一致；DRAFT 和其他非终态返回 `STATE_CONFLICT`；
-- [ ] 原子事件：create/update/archive 的 Corporation、Domain Event 和命令回执全部提交或全部回滚，事件 aggregateVersion 等于提交后版本；
-- [ ] 事件不可变：业务 API 与 SQLite trigger 均拒绝 Domain Event 更新/删除，失败不改变当前状态；
-- [ ] 幂等：同 command 同请求重放返回首次结果且只有一个状态变化/事件/回执；同 command 不同请求返回 `COMMAND_CONFLICT`；
-- [ ] 并发：两个相同 expected version 写入只有一个成功，失败方返回 `VERSION_CONFLICT` 且不覆盖成功结果；
-- [ ] IPC 安全：非法来源、未知 channel、额外字段、伪造状态/事件/actor/版本和非法 UUID v7 均被拒绝；
-- [ ] 字段边界：Renderer、DOM、错误、普通日志和公开 API 不含 canonical root、路径身份、SQL、命令 hash、回执或内部事件字段；
-- [ ] 恢复：关闭并重开 SQLite 后 Corporation、版本、归档、事件和回执一致，重复命令仍幂等；
-- [ ] E2E：开发态真实 Electron 窗口通过 typed API 完成 create → get/list → update → reload → restore；这只验收后端 API，不冒充尚未实现的 Corporation UI；
-- [ ] 打包应用：Windows x64 与 macOS Apple Silicon 最终包完成同一 API 旅程、Native Core health 和临时数据清理；
-- [ ] 回归：Workspace 选择/恢复、权限/路径攻击、Milestone 0 health、旧迁移和全部工程检查继续通过；
-- [ ] 跨平台：同一验收提交的双平台 jobs 完成工程检查、开发态 E2E、最终包 E2E 和制品上传。
+- [x] 迁移：空库和仅含 `0001`/`0002` 的数据库均成功升级到 `0003`，checksum 锁定、foreign key check、表/索引/trigger 与权威 Schema 一致；
+- [x] 创建：AVAILABLE Workspace 上创建严格 DRAFT 记录，UUID v7、名称、版本与 UTC 时间正确，公开结果不含内部字段；
+- [x] Workspace 拒绝：不存在、MISSING、PERMISSION_DENIED、UNVERIFIED 或验证服务不可用时不创建 Corporation、事件或回执；
+- [x] 读取与列表：按 ID 读取和按 Workspace 的稳定排序、归档过滤正确，不跨 Workspace 返回记录；
+- [x] 更新：非归档 Corporation 可用 expected version 重命名；旧版本、非法名称和归档后更新均无部分写入；
+- [x] 归档：仅 COMPLETED/FAILED/CANCELLED 可归档，archivedAt/状态/版本一致；DRAFT 和其他非终态返回 `STATE_CONFLICT`；
+- [x] 原子事件：create/update/archive 的 Corporation、Domain Event 和命令回执全部提交或全部回滚，事件 aggregateVersion 等于提交后版本；
+- [x] 事件不可变：业务 API 与 SQLite trigger 均拒绝 Domain Event 更新/删除，失败不改变当前状态；
+- [x] 幂等：同 command 同请求重放返回首次结果且只有一个状态变化/事件/回执；同 command 不同请求返回 `COMMAND_CONFLICT`；
+- [x] 并发：两个相同 expected version 写入只有一个成功，失败方返回 `VERSION_CONFLICT` 且不覆盖成功结果；
+- [x] IPC 安全：非法来源、未知 channel、额外字段、伪造状态/事件/actor/版本和非法 UUID v7 均被拒绝；
+- [x] 字段边界：Renderer、DOM、错误、普通日志和公开 API 不含 canonical root、路径身份、SQL、命令 hash、回执或内部事件字段；
+- [x] 恢复：关闭并重开 SQLite 后 Corporation、版本、归档、事件和回执一致，重复命令仍幂等；
+- [x] E2E：开发态真实 Electron 窗口通过 typed API 完成 create → get/list → update → reload → restore；这只验收后端 API，不冒充尚未实现的 Corporation UI；
+- [x] 打包应用：Windows x64 与 macOS Apple Silicon 最终包完成同一 API 旅程、Native Core health 和临时数据清理；
+- [x] 回归：Workspace 选择/恢复、权限/路径攻击、Milestone 0 health、旧迁移和全部工程检查继续通过；
+- [x] 跨平台：同一验收提交的双平台 jobs 完成工程检查、开发态 E2E、最终包 E2E 和制品上传。
 
 ## 8. 隔离与干扰控制
 
