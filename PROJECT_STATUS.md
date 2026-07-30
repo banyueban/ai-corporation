@@ -3,18 +3,18 @@
 | 属性           | 当前值                                    |
 | -------------- | ----------------------------------------- |
 | 当前产品版本   | v0.1 MVP                                  |
-| 当前阶段       | Milestone 1 第四个任务单元合同建立中      |
+| 当前阶段       | Milestone 1 第四个任务单元实施基线已冻结  |
 | 当前 Milestone | Milestone 1：本地项目骨架                 |
-| 当前任务单元   | M1-TU-04（未开始）                        |
+| 当前任务单元   | M1-TU-04（就绪）                          |
 | 总体状态       | 进行中                                    |
 | 最近更新       | 2026-07-30                                |
-| 下一检查点     | M1-TU-04 合同内容与就绪门禁审查           |
+| 下一检查点     | M1-TU-04 本地实现与合同验收               |
 
 ## 1. 当前结论
 
 Milestone 0 已通过全部适用验收；当前没有已知未解决的 P0/P1 缺陷。Milestone 1 已完成 `M1-TU-01`、`M1-TU-02` 与 `M1-TU-03`。`M1-TU-03` 已形成原生目录选择、可信授权、公开状态展示、Renderer 重载恢复和重新验证用户切片；验收提交 `20cc3b089424ab0405e64d5880609fbcaf011923` 的 Windows x64 与 macOS Apple Silicon 工程检查、开发态真实窗口 E2E、最终打包应用 E2E 和制品上传全部通过，合同 14 项全部关闭。
 
-该结论只关闭 Workspace 选择、授权、展示、重新验证与 Renderer 重载恢复任务单元，不代表 Corporation、Goal、Provider、完整 UI-AC-02 或 Milestone 1 已完成。当前正在建立 [M1-TU-04 Corporation CRUD 与事务事件](docs/06-engineering/task-units/M1-TU-04-corporation-crud-events.md) 合同，状态为“未开始”；合同未达到“就绪”不得实施 Corporation 功能。
+该结论只关闭 Workspace 选择、授权、展示、重新验证与 Renderer 重载恢复任务单元，不代表 Corporation、Goal、Provider、完整 UI-AC-02 或 Milestone 1 已完成。[M1-TU-04 Corporation CRUD 与事务事件](docs/06-engineering/task-units/M1-TU-04-corporation-crud-events.md) 已通过范围、接口、所有权、隔离和 17 项验收内容审查，实施基线已冻结，状态为“就绪”。
 
 ## 2. 已完成基线
 
@@ -56,14 +56,15 @@ Milestone 0 已通过全部适用验收；当前没有已知未解决的 P0/P1 �
 - 关闭范围：原生 Workspace 选择、可信授权、公开展示、重新验证和 Renderer 重载恢复；
 - 非范围：Goal 表单提交、Corporation CRUD、Provider 配置、文件操作和完整 Milestone 1 演示。
 
-当前只允许建立并审查 [M1-TU-04 Corporation CRUD 与事务事件](docs/06-engineering/task-units/M1-TU-04-corporation-crud-events.md) 合同：
+当前允许按 [M1-TU-04 Corporation CRUD 与事务事件](docs/06-engineering/task-units/M1-TU-04-corporation-crud-events.md) 合同实施：
 
-- 当前状态：未开始；
+- 当前状态：就绪；
+- 实施基线：`5468ea9131f145026279bb95045124b8c6400295`；
 - 主要结果：Corporation 通过窄 IPC 创建、读取、重命名和归档，每次命令与 Domain Event 原子提交；
 - 合同边界：不包含 UI、Goal、运行状态机、事件订阅、删除或工作区文件操作；
-- 下一门禁：冻结基线，确认协议、迁移编号、所有权、17 项验收和双平台环境后才可标记“就绪”。
+- 下一门禁：只实现合同范围，并以同一提交完成事务、幂等、并发、恢复、开发态/最终包和双平台验收。
 
-合同达到“就绪”前不得实施。
+合同外工作进入后续任务，不得静默扩大范围。
 
 Milestone 1 任务覆盖地图：
 
@@ -119,6 +120,7 @@ Milestone 1 任务覆盖地图：
 - Windows x64 job `90750204571`：工程检查、开发态真实窗口 Workspace 旅程、NSIS/最终包构建、最终包 `select · authorize · reload · restore` 旅程、Native Core health、截图与 artifact `8744713866` 上传全部成功；
 - macOS Apple Silicon job `90750204635`：工程检查、开发态真实窗口 Workspace 旅程、DMG/最终包构建、最终包 `select · authorize · reload · restore` 旅程、Native Core health、截图与 artifact `8744698135` 上传全部成功；
 - M1-TU-03 合同 14 项全部通过，P0/P1 为 0；未执行的合同必需验证为 0。该结论不代表 Corporation、Goal、完整 UI-AC-02 或 Milestone 1 完成；
+- M1-TU-04 Corporation Protocol 与任务合同的 Milestone 归属、CRUD/事务事件边界、命令幂等、乐观锁、归档状态、固定错误、所有权、隔离和 17 项验收内容审查：通过，实施基线 `5468ea9131f145026279bb95045124b8c6400295`；
 - 文档优化提交 `f1ae2096ed3fc96e86f2019e051f0c01b28d25eb` 已推送。
 
 本节只保留当前有效验证摘要，不记录被替代的过程结论。

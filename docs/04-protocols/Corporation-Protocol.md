@@ -138,11 +138,23 @@ type CorporationFailure = {
 };
 ```
 
-错误消息使用固定安全文案，不包含 SQL、数据库文件、Workspace 路径、事件 payload、命令 hash 或堆栈。
+错误消息使用下表固定安全文案，不包含 SQL、数据库文件、Workspace 路径、事件 payload、命令 hash 或堆栈：
+
+| code                    | message                                                      |
+| ----------------------- | ------------------------------------------------------------ |
+| `VALIDATION_FAILED`     | `Corporation request is invalid.`                            |
+| `UNAUTHORIZED_CALLER`   | `Corporation request is not allowed.`                        |
+| `WORKSPACE_UNAVAILABLE` | `Workspace is unavailable.`                                  |
+| `NOT_FOUND`             | `Corporation was not found.`                                 |
+| `VERSION_CONFLICT`      | `Corporation changed. Reload and retry.`                     |
+| `STATE_CONFLICT`        | `Corporation state does not allow this action.`              |
+| `COMMAND_CONFLICT`      | `Corporation command conflicts with an earlier request.`     |
+| `STORAGE_UNAVAILABLE`   | `Corporation storage is unavailable.`                        |
 
 ## 5. 命令与幂等语义
 
 - `create`、`update-name` 和 `archive` 必须携带 `commandId`；
+- `commandId` 是幂等标识而非授权能力；Renderer 可生成，但 Main 必须按 UUID v7 Schema 验证且不能据此扩大权限；
 - 首次命令在同一 SQLite 事务中写入状态、Domain Event 和命令回执；
 - 同一 `commandId` 与同一规范化请求重复提交时返回首次提交的严格公开结果，不重复状态变化或事件；
 - 同一 `commandId` 配合不同请求时返回 `COMMAND_CONFLICT`，不修改任何记录；
@@ -151,6 +163,8 @@ type CorporationFailure = {
 - `includeArchived` 默认 `false`。
 
 命令回执是内部恢复数据，只保存命令类型、规范化请求 SHA-256、严格公开结果、结果版本和时间。Renderer 不可读取回执。
+
+规范化请求 hash 使用 strict Schema 解析后的对象：名称先执行本协议规定的 NFC 与裁剪，字段按协议声明顺序序列化为无空白 UTF-8 JSON，再计算小写十六进制 SHA-256。命令类型单独存储并参与冲突比较；未知或额外字段在计算 hash 前已被拒绝。
 
 ## 6. Workspace 与归档规则
 
@@ -178,7 +192,7 @@ type CorporationFailure = {
 - `aggregateType === "CORPORATION"`；
 - `aggregateId` 与 `corporationId` 均为目标 Corporation ID；
 - `aggregateVersion` 等于同事务提交后的 Corporation `version`；
-- `correlationId` 使用命令 ID，`actor.kind === "USER"`；
+- `correlationId` 使用命令 ID，actor 固定为 `{ kind: "USER", id: "local-user" }`；v0.1 无账户系统，Renderer 不得提供 actor；
 - 事件 ID 由可信 Main 使用操作系统随机源生成 UUID v7；
 - payload 不包含 Workspace 路径、Goal 内容或数据库内部字段；
 - `domain_event` append-only，业务 API 不提供更新或删除。
