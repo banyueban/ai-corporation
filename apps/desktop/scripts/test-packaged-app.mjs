@@ -70,7 +70,7 @@ try {
     .getByRole("heading", { name: "Dashboard" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   await page
-    .getByText(/Native Core ready/u)
+    .getByRole("status", { name: /Native Core ready/u })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   await page
     .getByRole("heading", { name: "Create your first Corporation" })
@@ -81,7 +81,7 @@ try {
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   await page.getByRole("button", { name: "Select folder…" }).click();
   await page
-    .getByRole("status")
+    .getByText("Workspace authorized and saved.", { exact: true })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   await page
     .getByText(workspaceDirectory)
@@ -110,7 +110,9 @@ try {
     throw new Error("Packaged Workspace did not survive the Renderer reload");
   }
 
-  const healthText = await page.getByText(/Native Core ready/u).innerText();
+  const healthText = await page
+    .getByRole("status", { name: /Native Core ready/u })
+    .getAttribute("aria-label");
   const evidenceDirectory = path.join(repositoryDirectory, "release");
   const evidencePath = path.join(
     evidenceDirectory,

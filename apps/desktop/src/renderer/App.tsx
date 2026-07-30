@@ -169,7 +169,12 @@ export function App() {
             Settings
           </button>
         </nav>
-        <div className="runtime-summary" aria-live="polite">
+        <div
+          className="runtime-summary"
+          aria-label={nativeCoreStatusLabel(nativeCore)}
+          aria-live="polite"
+          role="status"
+        >
           <span
             className={`status-dot status-dot--${nativeCore.status}`}
             aria-hidden="true"
@@ -218,6 +223,15 @@ export function App() {
       </main>
     </div>
   );
+}
+
+function nativeCoreStatusLabel(state: NativeCoreState): string {
+  if (state.status === "ready") {
+    return `Native Core ready · v${state.result.version}`;
+  }
+  return state.status === "loading"
+    ? "Native Core starting"
+    : "Native Core unavailable";
 }
 
 function Dashboard(props: {

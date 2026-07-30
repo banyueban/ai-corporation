@@ -35,7 +35,9 @@ test("user authorizes and restores a Workspace through the visible window", asyn
 
   try {
     const page = await electronApp.firstWindow();
-    await expect(page.getByText(/Native Core ready/u)).toBeVisible();
+    await expect(
+      page.getByRole("status", { name: /Native Core ready/u }),
+    ).toBeVisible();
     await expect(
       page.getByRole("heading", { name: "Dashboard" }),
     ).toBeVisible();
@@ -85,9 +87,9 @@ test("user authorizes and restores a Workspace through the visible window", asyn
     });
     await selectButton.focus();
     await page.keyboard.press("Enter");
-    await expect(page.getByRole("status")).toHaveText(
-      "Workspace authorized and saved.",
-    );
+    await expect(
+      page.getByText("Workspace authorized and saved.", { exact: true }),
+    ).toBeVisible();
     await expect(page.getByText(workspaceDirectory)).toBeVisible();
     await expect(page.getByText("Read and write")).toBeVisible();
     expect(readdirSync(workspaceDirectory)).toEqual([]);
