@@ -68,6 +68,9 @@ CREATE TABLE corporation (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   archived_at TEXT,
+  active_goal_version INTEGER CHECK (
+    active_goal_version IS NULL OR active_goal_version >= 1
+  ),
   CHECK (
     (status = 'ARCHIVED' AND archived_at IS NOT NULL)
     OR (status <> 'ARCHIVED' AND archived_at IS NULL)
@@ -79,14 +82,24 @@ ON corporation(workspace_id, updated_at DESC, id ASC);
 
 CREATE TABLE goal_contract_version (
   corporation_id TEXT NOT NULL REFERENCES corporation(id) ON DELETE CASCADE,
-  version INTEGER NOT NULL,
-  original_goal TEXT NOT NULL,
-  structured_goal_json TEXT NOT NULL,
+  version INTEGER NOT NULL CHECK (version >= 1),
   status TEXT NOT NULL CHECK (status IN ('DRAFT','APPROVED','SUPERSEDED')),
-  created_by TEXT NOT NULL,
+  source TEXT NOT NULL CHECK (source IN ('MANUAL','MOCK')),
+  content_json TEXT NOT NULL CHECK (
+    json_valid(content_json) AND json_type(content_json) = 'object'
+  ),
+  created_by TEXT NOT NULL CHECK (created_by = 'local-user'),
   created_at TEXT NOT NULL,
-  PRIMARY KEY (corporation_id, version)
+  approved_at TEXT,
+  PRIMARY KEY (corporation_id, version),
+  CHECK (
+    (status = 'APPROVED' AND approved_at IS NOT NULL)
+    OR (status <> 'APPROVED' AND approved_at IS NULL)
+  )
 );
+
+CREATE INDEX idx_goal_contract_corporation_version
+ON goal_contract_version(corporation_id, version DESC);
 
 CREATE TABLE organization_version (
   corporation_id TEXT NOT NULL REFERENCES corporation(id) ON DELETE CASCADE,
@@ -98,6 +111,8 @@ CREATE TABLE organization_version (
   PRIMARY KEY (corporation_id, version)
 );
 ```
+
+`0004_goal_contract.sql` 用 trigger 强制 Goal 只能以 DRAFT 插入、内容列不可更新、只允许协议规定的状态迁移、禁止删除，并验证 `corporation.active_goal_version` 只能逐版指向本 Corporation 的当前 DRAFT。复合 pointer 约束使用 trigger，是因为 SQLite 不能通过 `ALTER TABLE ... ADD COLUMN` 给已有 Corporation 表增加复合外键；Repository 仍必须在同一短事务中写 Goal、pointer、事件与回执。
 
 ## 4. 计划与任务
 
@@ -350,7 +365,8 @@ CREATE TABLE domain_event (
   event_id TEXT PRIMARY KEY NOT NULL,
   schema_version TEXT NOT NULL CHECK (schema_version = '1.0'),
   event_type TEXT NOT NULL CHECK (event_type IN (
-    'corporation.created','corporation.name.updated','corporation.archived'
+    'corporation.created','corporation.name.updated','corporation.archived',
+    'goal.contract.drafted','goal.contract.approved'
   )),
   aggregate_type TEXT NOT NULL CHECK (aggregate_type = 'CORPORATION'),
   aggregate_id TEXT NOT NULL REFERENCES corporation(id),
@@ -391,6 +407,21 @@ CREATE TABLE corporation_command (
   created_at TEXT NOT NULL
 ) STRICT;
 
+CREATE TABLE goal_contract_command (
+  command_id TEXT PRIMARY KEY NOT NULL,
+  command_type TEXT NOT NULL CHECK (
+    command_type IN ('SAVE_DRAFT','APPROVE')
+  ),
+  corporation_id TEXT NOT NULL REFERENCES corporation(id),
+  request_hash TEXT NOT NULL CHECK (
+    length(request_hash) = 64
+    AND request_hash NOT GLOB '*[^0-9a-f]*'
+  ),
+  result_json TEXT NOT NULL CHECK (json_valid(result_json)),
+  result_version INTEGER NOT NULL CHECK (result_version >= 1),
+  created_at TEXT NOT NULL
+) STRICT;
+
 CREATE TABLE memory_item (
   id TEXT PRIMARY KEY,
   scope TEXT NOT NULL CHECK (scope IN ('CORPORATION','APPLICATION')),
@@ -414,7 +445,7 @@ CREATE VIRTUAL TABLE memory_fts USING fts5(
 );
 ```
 
-`0003_corporation_events.sql` 只建立 M1-TU-04 已冻结的 Corporation CRUD、事件与命令回执字段。active Goal/Plan/Organization、Policy 与事件分发游标由后续迁移增加；分发状态不得通过更新 append-only `domain_event` 实现。
+`0003_corporation_events.sql` 只建立 M1-TU-04 已冻结的 Corporation CRUD、事件与命令回执字段。`0004_goal_contract.sql` 增加 active Goal pointer、不可变 Goal 版本、Goal 命令回执和两种 Goal 事实事件；active Plan/Organization、Policy 与事件分发游标仍由后续迁移增加。分发状态不得通过更新 append-only `domain_event` 实现。
 
 FTS 同步由事务内 repository 维护并用一致性测试覆盖。
 

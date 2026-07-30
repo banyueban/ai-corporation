@@ -184,14 +184,14 @@ describe("migration runner", () => {
     database.close();
   });
 
-  it("creates the Corporation, event, and command schema as migration 0003", () => {
+  it("creates the Corporation, Goal, event, and command schema through migration 0004", () => {
     const database = new DatabaseSync(":memory:");
     const migrations = loadMigrations(migrationDirectory);
     applyMigrations(database, migrations);
 
     expect(
       readAppliedMigrations(database).map(({ version }) => version),
-    ).toEqual([1, 2, 3]);
+    ).toEqual([1, 2, 3, 4]);
     expect(
       database
         .prepare(
@@ -201,10 +201,16 @@ describe("migration runner", () => {
               'corporation',
               'domain_event',
               'corporation_command',
+              'goal_contract_version',
+              'goal_contract_command',
               'idx_corporation_workspace_updated',
+              'idx_goal_contract_corporation_version',
               'idx_event_corporation_timeline',
               'domain_event_reject_update',
-              'domain_event_reject_delete'
+              'domain_event_reject_delete',
+              'goal_contract_reject_content_update',
+              'goal_contract_reject_delete',
+              'corporation_validate_active_goal'
             )
           ORDER BY name`,
         )
@@ -213,12 +219,126 @@ describe("migration runner", () => {
     ).toEqual([
       "corporation",
       "corporation_command",
+      "corporation_validate_active_goal",
       "domain_event",
       "domain_event_reject_delete",
       "domain_event_reject_update",
+      "goal_contract_command",
+      "goal_contract_reject_content_update",
+      "goal_contract_reject_delete",
+      "goal_contract_version",
       "idx_corporation_workspace_updated",
       "idx_event_corporation_timeline",
+      "idx_goal_contract_corporation_version",
     ]);
+    expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+    database.close();
+  });
+
+  it("upgrades a populated 0003 database and enforces Goal version boundaries", () => {
+    const database = new DatabaseSync(":memory:");
+    const migrations = loadMigrations(migrationDirectory);
+    applyMigrations(database, migrations.slice(0, 3));
+
+    const workspaceId = "019fa9bb-375e-7d90-a4e3-a5b0eea2a901";
+    const corporationId = "019fa9bb-375e-7d90-a4e3-a5b0eea2a902";
+    const eventId = "019fa9bb-375e-7d90-a4e3-a5b0eea2a903";
+    const createdAt = "2026-07-30T00:00:00.000Z";
+    database
+      .prepare(
+        `INSERT INTO workspace (
+          id, name, display_path, canonical_root_path, platform,
+          permission_mode, access_status, path_identity_json,
+          created_at, updated_at
+        ) VALUES (?, 'Workspace', 'display', 'canonical', 'windows',
+          'READ_WRITE', 'AVAILABLE', '{}', ?, ?)`,
+      )
+      .run(workspaceId, createdAt, createdAt);
+    database
+      .prepare(
+        `INSERT INTO corporation (
+          id, workspace_id, name, status, version, created_at, updated_at
+        ) VALUES (?, ?, 'Corporation', 'DRAFT', 1, ?, ?)`,
+      )
+      .run(corporationId, workspaceId, createdAt, createdAt);
+    database
+      .prepare(
+        `INSERT INTO domain_event (
+          event_id, schema_version, event_type, aggregate_type, aggregate_id,
+          aggregate_version, corporation_id, correlation_id, actor_json,
+          payload_json, sensitivity, occurred_at
+        ) VALUES (?, '1.0', 'corporation.created', 'CORPORATION', ?, 1, ?,
+          ?, '{"kind":"USER","id":"local-user"}', '{}', 'NORMAL', ?)`,
+      )
+      .run(eventId, corporationId, corporationId, eventId, createdAt);
+
+    applyMigrations(database, migrations);
+
+    expect(
+      database
+        .prepare("SELECT event_type FROM domain_event WHERE event_id = ?")
+        .get(eventId),
+    ).toEqual({ event_type: "corporation.created" });
+    expect(
+      database.prepare("PRAGMA table_info(corporation)").all().at(-1),
+    ).toMatchObject({ name: "active_goal_version" });
+
+    const content = JSON.stringify({
+      schemaVersion: "1.0",
+      source: "MANUAL",
+      originalGoal: "Ship safely",
+      statement: "Ship safely",
+      successCriteria: ["All checks pass"],
+      inScope: [],
+      outOfScope: [],
+      constraints: [],
+      assumptions: [],
+      deliverables: [],
+      riskLevel: "LOW",
+      budget: {},
+      stopConditions: [],
+    });
+    database
+      .prepare(
+        `INSERT INTO goal_contract_version (
+          corporation_id, version, status, source, content_json,
+          created_by, created_at
+        ) VALUES (?, 1, 'DRAFT', 'MANUAL', ?, 'local-user', ?)`,
+      )
+      .run(corporationId, content, createdAt);
+    database
+      .prepare(
+        `UPDATE corporation
+        SET active_goal_version = 1, version = 2, updated_at = ?
+        WHERE id = ?`,
+      )
+      .run(createdAt, corporationId);
+
+    expect(() =>
+      database
+        .prepare(
+          `UPDATE goal_contract_version
+          SET content_json = '{"changed":true}'
+          WHERE corporation_id = ? AND version = 1`,
+        )
+        .run(corporationId),
+    ).toThrow("goal contract content is immutable");
+    expect(() =>
+      database
+        .prepare(`UPDATE corporation SET active_goal_version = 3 WHERE id = ?`)
+        .run(corporationId),
+    ).toThrow("invalid active goal version");
+    expect(() =>
+      database
+        .prepare(
+          `INSERT INTO goal_contract_version (
+            corporation_id, version, status, source, content_json,
+            created_by, created_at, approved_at
+          ) VALUES (?, 2, 'APPROVED', 'MANUAL', ?, 'local-user', ?, ?)`,
+        )
+        .run(corporationId, content, createdAt, createdAt),
+    ).toThrow("goal contract must be inserted as draft");
+
     expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
     database.close();
   });
