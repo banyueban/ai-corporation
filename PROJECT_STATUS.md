@@ -3,12 +3,12 @@
 | 属性           | 当前值                                    |
 | -------------- | ----------------------------------------- |
 | 当前产品版本   | v0.1 MVP                                  |
-| 当前阶段       | Milestone 1 第三个任务单元合同审查中      |
+| 当前阶段       | Milestone 1 第三个任务单元实施基线已冻结  |
 | 当前 Milestone | Milestone 1：本地项目骨架                 |
-| 当前任务单元   | M1-TU-03（未开始）                        |
+| 当前任务单元   | M1-TU-03（就绪）                          |
 | 总体状态       | 进行中                                    |
 | 最近更新       | 2026-07-30                                |
-| 下一检查点     | M1-TU-03 接口、隔离与就绪审查             |
+| 下一检查点     | M1-TU-03 本地实现与合同验收               |
 
 ## 1. 当前结论
 
@@ -54,7 +54,14 @@ Milestone 0 已通过全部适用验收；当前没有已知未解决的 P0/P1 �
 - 验收提交：`948e975a1a82977bf14ed3bc4eceb3ed1f8b1e8a`；
 - GitHub Actions：run `30472788800`，Windows x64 与 macOS Apple Silicon jobs 均成功。
 
-当前只允许审查 [M1-TU-03 原生 Workspace 选择与恢复 UI](docs/06-engineering/task-units/M1-TU-03-workspace-selection-ui.md) 的范围、接口、所有权、隔离及验收标准；合同达到“就绪”前不得实施。
+当前允许按 [M1-TU-03 原生 Workspace 选择与恢复 UI](docs/06-engineering/task-units/M1-TU-03-workspace-selection-ui.md) 实施：
+
+- 当前状态：就绪；
+- 实施基线：`3ced71a5e3273fd9270193c7ed94309e8123e6b7`；
+- 主要结果：用户通过原生目录选择器授权并查看 Workspace，Renderer 重载后恢复和重新验证公开状态；
+- 非范围：Goal 表单提交、Corporation CRUD、Provider 配置、文件操作和完整 Milestone 1 演示。
+
+当前只允许按该合同实施和验收；合同外工作进入后续任务，不得静默扩大范围。
 
 Milestone 1 任务覆盖地图：
 
@@ -102,6 +109,7 @@ Milestone 1 任务覆盖地图：
 - Windows x64 job `90646928059`：真实 ACL 可写/只读/不可读权限 fixture、工程检查、开发态窗口 E2E、最终打包应用 health 与 Workspace IPC E2E、制品上传均成功；
 - macOS Apple Silicon job `90646928030`：真实权限位可写/只读/不可读 fixture、工程检查、开发态窗口 E2E、最终打包应用 health 与 Workspace IPC E2E、制品上传均成功；
 - M1-TU-02 合同 12 项全部通过，P0/P1 为 0；该结论不代表 `M1-TU-03`、完整 Workspace 用户流程或 Milestone 1 完成；
+- M1-TU-03 合同范围、接口、所有权、隔离和 14 项验收内容审查：通过，实施基线 `3ced71a5e3273fd9270193c7ed94309e8123e6b7`；
 - 文档优化提交 `f1ae2096ed3fc96e86f2019e051f0c01b28d25eb` 已推送。
 
 本节只保留当前有效验证摘要，不记录被替代的过程结论。
