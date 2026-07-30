@@ -109,6 +109,53 @@ test("user authorizes and restores a Workspace through the visible window", asyn
         },
       ],
     });
+    if (!selected.ok) {
+      throw new Error("Workspace API failed");
+    }
+    const workspaceId = selected.value[0]?.workspaceId;
+    if (workspaceId === undefined) {
+      throw new Error("Workspace fixture was not returned");
+    }
+    const corporationId = await page.evaluate(
+      async ({ workspaceId }) => {
+        const desktop = (
+          globalThis as typeof globalThis & { desktop: DesktopApi }
+        ).desktop;
+        const created = await desktop.corporation.create({
+          schemaVersion: "1.0",
+          commandId: "019fa9bb-3770-7d90-a4e3-a5b0eea2a9ef",
+          workspaceId,
+          name: "E2E Corporation",
+        });
+        if (!created.ok) throw new Error(created.error.code);
+        const listed = await desktop.corporation.list({
+          schemaVersion: "1.0",
+          workspaceId,
+        });
+        if (!listed.ok || listed.value.length !== 1) {
+          throw new Error("Corporation list failed");
+        }
+        const fetched = await desktop.corporation.get({
+          schemaVersion: "1.0",
+          corporationId: created.value.id,
+        });
+        if (!fetched.ok || fetched.value.version !== 1) {
+          throw new Error("Corporation get failed");
+        }
+        const updated = await desktop.corporation.updateName({
+          schemaVersion: "1.0",
+          commandId: "019fa9bb-3771-7d90-a4e3-a5b0eea2a9ef",
+          corporationId: created.value.id,
+          expectedVersion: created.value.version,
+          name: "E2E Corporation Renamed",
+        });
+        if (!updated.ok || updated.value.version !== 2) {
+          throw new Error("Corporation update failed");
+        }
+        return created.value.id;
+      },
+      { workspaceId },
+    );
 
     await page.reload();
     await expect(
@@ -117,6 +164,19 @@ test("user authorizes and restores a Workspace through the visible window", asyn
     await expect(page.getByText(workspaceDirectory)).toBeVisible();
     await expect(page.getByText("Available")).toBeVisible();
     await expect(page.getByText("Verifying")).toHaveCount(0);
+    const restoredCorporation = await page.evaluate(async (corporationId) => {
+      const desktop = (
+        globalThis as typeof globalThis & { desktop: DesktopApi }
+      ).desktop;
+      return desktop.corporation.get({
+        schemaVersion: "1.0",
+        corporationId,
+      });
+    }, corporationId);
+    expect(restoredCorporation).toMatchObject({
+      ok: true,
+      value: { name: "E2E Corporation Renamed", version: 2 },
+    });
 
     const verifyButton = page.getByRole("button", { name: "Verify again" });
     await verifyButton.evaluate((element) =>

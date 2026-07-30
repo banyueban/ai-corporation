@@ -109,6 +109,50 @@ try {
   ) {
     throw new Error("Packaged Workspace did not survive the Renderer reload");
   }
+  const workspaceId = workspaceList.value[0].workspaceId;
+  const corporationId = await page.evaluate(async (workspaceId) => {
+    const created = await window.desktop.corporation.create({
+      schemaVersion: "1.0",
+      commandId: "019fa9bb-3780-7d90-a4e3-a5b0eea2a9ef",
+      workspaceId,
+      name: "Packaged Corporation",
+    });
+    if (!created.ok) throw new Error(created.error.code);
+    const listed = await window.desktop.corporation.list({
+      schemaVersion: "1.0",
+      workspaceId,
+    });
+    if (!listed.ok || listed.value.length !== 1) {
+      throw new Error("Packaged Corporation list failed");
+    }
+    const updated = await window.desktop.corporation.updateName({
+      schemaVersion: "1.0",
+      commandId: "019fa9bb-3781-7d90-a4e3-a5b0eea2a9ef",
+      corporationId: created.value.id,
+      expectedVersion: 1,
+      name: "Packaged Corporation Renamed",
+    });
+    if (!updated.ok || updated.value.version !== 2) {
+      throw new Error("Packaged Corporation update failed");
+    }
+    return created.value.id;
+  }, workspaceId);
+  await page.reload();
+  const restoredCorporation = await page.evaluate(
+    (corporationId) =>
+      window.desktop.corporation.get({
+        schemaVersion: "1.0",
+        corporationId,
+      }),
+    corporationId,
+  );
+  if (
+    !restoredCorporation.ok ||
+    restoredCorporation.value.name !== "Packaged Corporation Renamed" ||
+    restoredCorporation.value.version !== 2
+  ) {
+    throw new Error("Packaged Corporation did not survive Renderer reload");
+  }
 
   const healthText = await page
     .getByRole("status", { name: /Native Core ready/u })
@@ -123,6 +167,9 @@ try {
   console.log(`Packaged application health verified: ${healthText}`);
   console.log(
     "Packaged Workspace journey verified: select · authorize · reload · restore",
+  );
+  console.log(
+    "Packaged Corporation API journey verified: create · get/list · update · reload · restore",
   );
   console.log(`Evidence screenshot: ${evidencePath}`);
 } catch (error) {

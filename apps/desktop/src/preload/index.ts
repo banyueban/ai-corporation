@@ -1,4 +1,21 @@
 import {
+  CORPORATION_ARCHIVE_IPC_CHANNEL,
+  CORPORATION_CREATE_IPC_CHANNEL,
+  CORPORATION_GET_IPC_CHANNEL,
+  CORPORATION_LIST_IPC_CHANNEL,
+  CORPORATION_UPDATE_NAME_IPC_CHANNEL,
+  corporationArchiveRequestSchema,
+  corporationCreateRequestSchema,
+  corporationGetRequestSchema,
+  corporationItemResultSchema,
+  corporationListRequestSchema,
+  corporationListResultSchema,
+  corporationUpdateNameRequestSchema,
+  type CorporationArchiveRequest,
+  type CorporationCreateRequest,
+  type CorporationGetRequest,
+  type CorporationListRequest,
+  type CorporationUpdateNameRequest,
   healthResultSchema,
   NATIVE_HEALTH_IPC_CHANNEL,
   WORKSPACE_LIST_IPC_CHANNEL,
@@ -13,6 +30,43 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { DesktopApi } from "../shared/desktop-api";
 
 const desktopApi: DesktopApi = Object.freeze({
+  corporation: Object.freeze({
+    archive: async (request: CorporationArchiveRequest) =>
+      corporationItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          CORPORATION_ARCHIVE_IPC_CHANNEL,
+          corporationArchiveRequestSchema.parse(request),
+        ),
+      ),
+    create: async (request: CorporationCreateRequest) =>
+      corporationItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          CORPORATION_CREATE_IPC_CHANNEL,
+          corporationCreateRequestSchema.parse(request),
+        ),
+      ),
+    get: async (request: CorporationGetRequest) =>
+      corporationItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          CORPORATION_GET_IPC_CHANNEL,
+          corporationGetRequestSchema.parse(request),
+        ),
+      ),
+    list: async (request: CorporationListRequest) =>
+      corporationListResultSchema.parse(
+        await ipcRenderer.invoke(
+          CORPORATION_LIST_IPC_CHANNEL,
+          corporationListRequestSchema.parse(request),
+        ),
+      ),
+    updateName: async (request: CorporationUpdateNameRequest) =>
+      corporationItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          CORPORATION_UPDATE_NAME_IPC_CHANNEL,
+          corporationUpdateNameRequestSchema.parse(request),
+        ),
+      ),
+  }),
   health: async () =>
     healthResultSchema.parse(
       await ipcRenderer.invoke(NATIVE_HEALTH_IPC_CHANNEL),

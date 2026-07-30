@@ -183,4 +183,43 @@ describe("migration runner", () => {
 
     database.close();
   });
+
+  it("creates the Corporation, event, and command schema as migration 0003", () => {
+    const database = new DatabaseSync(":memory:");
+    const migrations = loadMigrations(migrationDirectory);
+    applyMigrations(database, migrations);
+
+    expect(
+      readAppliedMigrations(database).map(({ version }) => version),
+    ).toEqual([1, 2, 3]);
+    expect(
+      database
+        .prepare(
+          `SELECT name FROM sqlite_master
+          WHERE type IN ('table', 'index', 'trigger')
+            AND name IN (
+              'corporation',
+              'domain_event',
+              'corporation_command',
+              'idx_corporation_workspace_updated',
+              'idx_event_corporation_timeline',
+              'domain_event_reject_update',
+              'domain_event_reject_delete'
+            )
+          ORDER BY name`,
+        )
+        .all()
+        .map(({ name }) => name),
+    ).toEqual([
+      "corporation",
+      "corporation_command",
+      "domain_event",
+      "domain_event_reject_delete",
+      "domain_event_reject_update",
+      "idx_corporation_workspace_updated",
+      "idx_event_corporation_timeline",
+    ]);
+    expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+    database.close();
+  });
 });

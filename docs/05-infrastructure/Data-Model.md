@@ -14,11 +14,12 @@
 | Workspace | `workspace_permission` | `workspace.permission_mode`、`access_status`、`last_verified_at` |
 | Workspace | `workspace_snapshot` | `workspace.path_identity_json`；只保存平台身份校验的最小元数据 |
 | Corporation | `corporation` | `corporation` 表 |
-| Corporation | `goal_contract` | `corporation.active_goal_version` 指向当前版本，不设可变主表 |
+| Corporation | `goal_contract` | 后续迁移增加 `corporation.active_goal_version` 并指向当前版本，不设可变主表 |
 | Corporation | `goal_contract_version` | `goal_contract_version` 表，不可变 |
-| Corporation | `corporation_policy` | v0.1 使用内置、版本化 Policy Bundle；`corporation.policy_version` 保存版本 |
-| Corporation | `organization` | `corporation.active_organization_version` 指向当前版本 |
+| Corporation | `corporation_policy` | v0.1 使用内置、版本化 Policy Bundle；后续迁移增加 `corporation.policy_version` |
+| Corporation | `organization` | 后续迁移增加 `corporation.active_organization_version` 并指向当前版本 |
 | Corporation | `organization_version` | `organization_version` 表，不可变 |
+| Corporation | 命令幂等回执 | 内部 `corporation_command` 表；Renderer 不可读取 |
 | Task | `task_plan` | `task_plan` 表 |
 | Task | `task` | `task` 表 |
 | Task | `task_dependency` | `task_dependency` 表 |
@@ -89,6 +90,8 @@ erDiagram
 - 未知值可在迁移时明确处理。
 
 状态表保存当前值，`domain_event` 保存变化历史。
+
+Corporation 的 create、update-name 与 archive 在同一个 `BEGIN IMMEDIATE` 短事务中提交当前状态、一个同版本 Domain Event 和一个命令回执。`domain_event` 由 SQLite trigger 拒绝更新和删除；未来事件分发游标使用独立投影，不修改事实事件。
 
 ## 5. JSON 使用边界
 

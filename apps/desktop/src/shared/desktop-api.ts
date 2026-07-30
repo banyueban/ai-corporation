@@ -1,4 +1,11 @@
 import type {
+  CorporationArchiveRequest,
+  CorporationCreateRequest,
+  CorporationGetRequest,
+  CorporationItemResult,
+  CorporationListRequest,
+  CorporationListResult,
+  CorporationUpdateNameRequest,
   HealthResult,
   WorkspaceListIpcResult,
   WorkspaceRevalidateIpcResult,
@@ -6,6 +13,15 @@ import type {
 } from "@ai-corporation/protocols";
 
 export interface DesktopApi {
+  readonly corporation: Readonly<{
+    archive(request: CorporationArchiveRequest): Promise<CorporationItemResult>;
+    create(request: CorporationCreateRequest): Promise<CorporationItemResult>;
+    get(request: CorporationGetRequest): Promise<CorporationItemResult>;
+    list(request: CorporationListRequest): Promise<CorporationListResult>;
+    updateName(
+      request: CorporationUpdateNameRequest,
+    ): Promise<CorporationItemResult>;
+  }>;
   health(): Promise<HealthResult>;
   readonly workspace: Readonly<{
     list(): Promise<WorkspaceListIpcResult>;

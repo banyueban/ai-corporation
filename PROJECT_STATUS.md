@@ -3,18 +3,18 @@
 | 属性           | 当前值                                    |
 | -------------- | ----------------------------------------- |
 | 当前产品版本   | v0.1 MVP                                  |
-| 当前阶段       | Milestone 1 第四个任务单元实施基线已冻结  |
+| 当前阶段       | Milestone 1 第四个任务单元跨平台验收中    |
 | 当前 Milestone | Milestone 1：本地项目骨架                 |
-| 当前任务单元   | M1-TU-04（就绪）                          |
+| 当前任务单元   | M1-TU-04（进行中）                        |
 | 总体状态       | 进行中                                    |
 | 最近更新       | 2026-07-30                                |
-| 下一检查点     | M1-TU-04 本地实现与合同验收               |
+| 下一检查点     | M1-TU-04 同提交双平台 CI 与最终包验收     |
 
 ## 1. 当前结论
 
 Milestone 0 已通过全部适用验收；当前没有已知未解决的 P0/P1 缺陷。Milestone 1 已完成 `M1-TU-01`、`M1-TU-02` 与 `M1-TU-03`。`M1-TU-03` 已形成原生目录选择、可信授权、公开状态展示、Renderer 重载恢复和重新验证用户切片；验收提交 `20cc3b089424ab0405e64d5880609fbcaf011923` 的 Windows x64 与 macOS Apple Silicon 工程检查、开发态真实窗口 E2E、最终打包应用 E2E 和制品上传全部通过，合同 14 项全部关闭。
 
-该结论只关闭 Workspace 选择、授权、展示、重新验证与 Renderer 重载恢复任务单元，不代表 Corporation、Goal、Provider、完整 UI-AC-02 或 Milestone 1 已完成。[M1-TU-04 Corporation CRUD 与事务事件](docs/06-engineering/task-units/M1-TU-04-corporation-crud-events.md) 已通过范围、接口、所有权、隔离和 17 项验收内容审查，实施基线已冻结，状态为“就绪”。
+该结论只关闭 Workspace 选择、授权、展示、重新验证与 Renderer 重载恢复任务单元，不代表 Corporation、Goal、Provider、完整 UI-AC-02 或 Milestone 1 已完成。[M1-TU-04 Corporation CRUD 与事务事件](docs/06-engineering/task-units/M1-TU-04-corporation-crud-events.md) 已完成本地实现、单元/集成测试、开发态真实窗口 E2E 和 Windows x64 最终目录包 E2E，状态仍为“进行中”；同一验收提交的 Windows x64 与 macOS Apple Silicon CI 尚未执行，因此不得标记完成。
 
 ## 2. 已完成基线
 
@@ -58,7 +58,7 @@ Milestone 0 已通过全部适用验收；当前没有已知未解决的 P0/P1 �
 
 当前允许按 [M1-TU-04 Corporation CRUD 与事务事件](docs/06-engineering/task-units/M1-TU-04-corporation-crud-events.md) 合同实施：
 
-- 当前状态：就绪；
+- 当前状态：进行中；
 - 实施基线：`5468ea9131f145026279bb95045124b8c6400295`；
 - 主要结果：Corporation 通过窄 IPC 创建、读取、重命名和归档，每次命令与 Domain Event 原子提交；
 - 合同边界：不包含 UI、Goal、运行状态机、事件订阅、删除或工作区文件操作；
@@ -82,6 +82,8 @@ Milestone 1 任务覆盖地图：
 ## 5. 活跃阻塞与外部条件
 
 当前无产品或架构决策阻塞。
+
+M1-TU-04 的外部验收条件是同一提交的 Windows x64 与 macOS Apple Silicon CI；该条件尚未取得结果，不是功能完成证据。
 
 已知环境与发布条件：
 
@@ -121,6 +123,10 @@ Milestone 1 任务覆盖地图：
 - macOS Apple Silicon job `90750204635`：工程检查、开发态真实窗口 Workspace 旅程、DMG/最终包构建、最终包 `select · authorize · reload · restore` 旅程、Native Core health、截图与 artifact `8744698135` 上传全部成功；
 - M1-TU-03 合同 14 项全部通过，P0/P1 为 0；未执行的合同必需验证为 0。该结论不代表 Corporation、Goal、完整 UI-AC-02 或 Milestone 1 完成；
 - M1-TU-04 Corporation Protocol 与任务合同的 Milestone 归属、CRUD/事务事件边界、命令幂等、乐观锁、归档状态、固定错误、所有权、隔离和 17 项验收内容审查：通过，实施基线 `5468ea9131f145026279bb95045124b8c6400295`；
+- M1-TU-04 本地协议/存储/Desktop 测试：Corporation Protocol 4 项、Storage 12 项新增覆盖、Desktop service/IPC 8 项新增覆盖通过；包含 `0003`、Workspace 拒绝、稳定列表、事务 fault rollback、append-only、幂等、乐观锁、归档与 SQLite 重开恢复；
+- M1-TU-04 本地开发态真实 Electron 窗口：typed API `create → get/list → update → Renderer reload → restore` 通过，并继续通过 Native Core health、Workspace 选择/恢复、200% 缩放和 axe 严重/关键违规为 0 的既有旅程；
+- M1-TU-04 本地 Windows x64 最终目录包：Native Core health、Workspace `select → authorize → reload → restore` 与 Corporation API `create → get/list → update → reload → restore` 全部通过，临时 user data 与 Workspace 已清理；
+- M1-TU-04 尚未执行：同一验收提交的 Windows x64/macOS Apple Silicon CI、最终安装包 E2E 和 artifact 上传；因此合同保持“进行中”，验收项不得全部关闭；
 - 文档优化提交 `f1ae2096ed3fc96e86f2019e051f0c01b28d25eb` 已推送。
 
 本节只保留当前有效验证摘要，不记录被替代的过程结论。

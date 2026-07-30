@@ -47,7 +47,7 @@ Domain Service
       → metrics projection
 ```
 
-v0.1 可将事件表本身作为 outbox。Dispatcher 维护投递游标，UI 重连时按 cursor 补发。
+v0.1 可将事件表本身作为 outbox。Dispatcher 在独立投影中维护投递游标，禁止更新 append-only 事实事件；UI 重连时按 cursor 补发。
 
 ## 5. 事件命名
 
@@ -98,4 +98,3 @@ Main 返回脱敏事件。Renderer 不可订阅其他未打开工作区的敏感
 - 重复投递不产生重复副作用；
 - 敏感内容被脱敏；
 - 事件可关联完整运行链路。
-

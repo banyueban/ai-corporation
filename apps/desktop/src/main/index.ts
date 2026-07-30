@@ -1,5 +1,10 @@
 import path from "node:path";
 import {
+  CORPORATION_ARCHIVE_IPC_CHANNEL,
+  CORPORATION_CREATE_IPC_CHANNEL,
+  CORPORATION_GET_IPC_CHANNEL,
+  CORPORATION_LIST_IPC_CHANNEL,
+  CORPORATION_UPDATE_NAME_IPC_CHANNEL,
   NATIVE_HEALTH_IPC_CHANNEL,
   WORKSPACE_LIST_IPC_CHANNEL,
   WORKSPACE_REVALIDATE_IPC_CHANNEL,
@@ -7,6 +12,7 @@ import {
   type HealthResult,
 } from "@ai-corporation/protocols";
 import {
+  CorporationRepository,
   openWorkspaceDatabase,
   WorkspaceRepository,
 } from "@ai-corporation/storage";
@@ -19,6 +25,14 @@ import {
 } from "electron";
 import type { DatabaseSync } from "node:sqlite";
 import { NativeCoreClient } from "./native-core-client";
+import {
+  handleCorporationArchive,
+  handleCorporationCreate,
+  handleCorporationGet,
+  handleCorporationList,
+  handleCorporationUpdateName,
+} from "./corporation-ipc";
+import { CorporationService } from "./corporation-service";
 import { resolveNativeCorePath } from "./native-core-path";
 import { createWindowOptions } from "./window-options";
 import {
@@ -38,6 +52,7 @@ const rendererEntryPath = path.join(__dirname, "../../renderer/index.html");
 const preloadPath = path.join(__dirname, "../preload/index.js");
 
 let mainWindow: BrowserWindow | undefined;
+let corporationService: CorporationService | undefined;
 let nativeCoreClient: NativeCoreClient | undefined;
 let workspaceDatabase: DatabaseSync | undefined;
 let workspaceDirectorySelector: WorkspaceDirectorySelector | undefined;
@@ -102,6 +117,51 @@ void app.whenReady().then(async () => {
       handleWorkspaceList(isTrustedRenderer(event), request, workspaceService),
   );
   ipcMain.handle(
+    CORPORATION_CREATE_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleCorporationCreate(
+        isTrustedRenderer(event),
+        request,
+        corporationService,
+      ),
+  );
+  ipcMain.handle(
+    CORPORATION_GET_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleCorporationGet(
+        isTrustedRenderer(event),
+        request,
+        corporationService,
+      ),
+  );
+  ipcMain.handle(
+    CORPORATION_LIST_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleCorporationList(
+        isTrustedRenderer(event),
+        request,
+        corporationService,
+      ),
+  );
+  ipcMain.handle(
+    CORPORATION_UPDATE_NAME_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleCorporationUpdateName(
+        isTrustedRenderer(event),
+        request,
+        corporationService,
+      ),
+  );
+  ipcMain.handle(
+    CORPORATION_ARCHIVE_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleCorporationArchive(
+        isTrustedRenderer(event),
+        request,
+        corporationService,
+      ),
+  );
+  ipcMain.handle(
     WORKSPACE_REVALIDATE_IPC_CHANNEL,
     (event: IpcMainInvokeEvent, request: unknown) =>
       handleWorkspaceRevalidate(
@@ -148,6 +208,18 @@ void app.whenReady().then(async () => {
       nativeClient: () => nativeCoreClient,
       repository: new WorkspaceRepository(workspaceDatabase),
     });
+    corporationService = new CorporationService({
+      repository: new CorporationRepository(workspaceDatabase),
+      revalidateWorkspace: (workspaceId) =>
+        workspaceService?.revalidate(workspaceId) ??
+        Promise.resolve({
+          ok: false,
+          error: {
+            code: "STORAGE_UNAVAILABLE",
+            message: "Workspace operation failed",
+          },
+        }),
+    });
     const e2eFixturePath = resolveWorkspaceE2eFixturePath(process.env);
     workspaceDirectorySelector = createWorkspaceDirectorySelector({
       ...(e2eFixturePath === undefined ? {} : { e2eFixturePath }),
@@ -160,6 +232,7 @@ void app.whenReady().then(async () => {
     });
   } catch {
     workspaceDatabase = undefined;
+    corporationService = undefined;
     workspaceDirectorySelector = undefined;
     workspaceService = undefined;
   }
@@ -184,6 +257,12 @@ app.on("before-quit", () => {
   ipcMain.removeHandler(WORKSPACE_LIST_IPC_CHANNEL);
   ipcMain.removeHandler(WORKSPACE_REVALIDATE_IPC_CHANNEL);
   ipcMain.removeHandler(WORKSPACE_SELECT_IPC_CHANNEL);
+  ipcMain.removeHandler(CORPORATION_CREATE_IPC_CHANNEL);
+  ipcMain.removeHandler(CORPORATION_GET_IPC_CHANNEL);
+  ipcMain.removeHandler(CORPORATION_LIST_IPC_CHANNEL);
+  ipcMain.removeHandler(CORPORATION_UPDATE_NAME_IPC_CHANNEL);
+  ipcMain.removeHandler(CORPORATION_ARCHIVE_IPC_CHANNEL);
+  corporationService = undefined;
   workspaceDirectorySelector = undefined;
   workspaceService = undefined;
   workspaceDatabase?.close();
