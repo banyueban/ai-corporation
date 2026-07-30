@@ -68,6 +68,10 @@ describe("WorkspaceRepository", () => {
     repository.saveAuthorized("First", first, "2026-07-29T00:00:00.000Z");
 
     expect(repository.getTrusted(first.workspaceId)).toEqual(first);
+    expect(
+      repository.getTrustedByCanonicalRoot(first.canonicalRootPath),
+    ).toEqual(first);
+    expect(repository.getTrustedByCanonicalRoot("E:\\missing")).toBeUndefined();
     expect(repository.listPublic()).toEqual([
       {
         workspaceId: first.workspaceId,

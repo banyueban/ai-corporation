@@ -5,6 +5,7 @@ export const WORKSPACE_CANONICALIZE_RPC_METHOD =
   "workspace.canonicalize" as const;
 export const WORKSPACE_LIST_IPC_CHANNEL = "workspace:list" as const;
 export const WORKSPACE_REVALIDATE_IPC_CHANNEL = "workspace:revalidate" as const;
+export const WORKSPACE_SELECT_IPC_CHANNEL = "workspace:select" as const;
 
 export const workspacePermissionModeSchema = z.enum([
   "READ_ONLY",
@@ -131,6 +132,7 @@ export const workspaceIpcErrorCodeSchema = z.enum([
   "NATIVE_CORE_UNAVAILABLE",
   "STORAGE_UNAVAILABLE",
   "VERIFICATION_FAILED",
+  "SELECTION_UNAVAILABLE",
   "IPC_UNAUTHORIZED",
   "INVALID_REQUEST",
 ]);
@@ -178,6 +180,35 @@ export const workspaceRevalidateIpcResultSchema = z.discriminatedUnion("ok", [
     .strict(),
 ]);
 
+export const workspaceSelectionSchema = z.discriminatedUnion("status", [
+  z
+    .object({
+      status: z.literal("SELECTED"),
+      workspace: workspacePublicSchema,
+    })
+    .strict(),
+  z
+    .object({
+      status: z.literal("CANCELLED"),
+    })
+    .strict(),
+]);
+
+export const workspaceSelectIpcResultSchema = z.discriminatedUnion("ok", [
+  z
+    .object({
+      ok: z.literal(true),
+      value: workspaceSelectionSchema,
+    })
+    .strict(),
+  z
+    .object({
+      ok: z.literal(false),
+      error: workspaceIpcErrorSchema,
+    })
+    .strict(),
+]);
+
 export type WorkspaceAccessStatus = z.infer<typeof workspaceAccessStatusSchema>;
 export type WorkspaceCanonicalizeResult = z.infer<
   typeof workspaceCanonicalizeResultSchema
@@ -199,6 +230,10 @@ export type WorkspaceRevalidateIpcResult = z.infer<
 >;
 export type WorkspaceRevalidateRequest = z.infer<
   typeof workspaceRevalidateRequestSchema
+>;
+export type WorkspaceSelection = z.infer<typeof workspaceSelectionSchema>;
+export type WorkspaceSelectIpcResult = z.infer<
+  typeof workspaceSelectIpcResultSchema
 >;
 export type WorkspaceTrustedRecord = z.infer<
   typeof workspaceTrustedRecordSchema

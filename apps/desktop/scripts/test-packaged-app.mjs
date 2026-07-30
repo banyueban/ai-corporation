@@ -1,5 +1,11 @@
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+} from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -28,7 +34,10 @@ if (!existsSync(executablePath)) {
 }
 
 const userDataDirectory = mkdtempSync(
-  path.join(os.tmpdir(), "ai-corporation-packaged-e2e-"),
+  path.join(os.tmpdir(), "M1-TU-03-packaged-user-data-"),
+);
+const workspaceDirectory = mkdtempSync(
+  path.join(os.tmpdir(), "M1-TU-03-packaged-workspace-"),
 );
 const port = await reservePort();
 const diagnosticChunks = [];
@@ -36,7 +45,12 @@ const child = spawn(
   executablePath,
   [`--remote-debugging-port=${port}`, `--user-data-dir=${userDataDirectory}`],
   {
-    env: process.env,
+    env: {
+      ...process.env,
+      AI_CORPORATION_E2E: "1",
+      AI_CORPORATION_E2E_WORKSPACE_PATH: workspaceDirectory,
+      CI: "true",
+    },
     shell: false,
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
@@ -53,10 +67,35 @@ try {
   const page = await waitForApplicationPage(browser);
 
   await page
-    .getByText("AI Corporation Desktop", { exact: true })
+    .getByRole("heading", { name: "Dashboard" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   await page
     .getByText(/Native Core ready/u)
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page
+    .getByRole("heading", { name: "Create your first Corporation" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page.getByRole("button", { name: "Select a workspace" }).click();
+  await page
+    .getByRole("heading", { name: "Choose a workspace" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page.getByRole("button", { name: "Select folder…" }).click();
+  await page
+    .getByRole("status")
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page
+    .getByText(workspaceDirectory)
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  if (readdirSync(workspaceDirectory).length !== 0) {
+    throw new Error("Packaged Workspace permission probe left residue");
+  }
+
+  await page.reload();
+  await page
+    .getByText(workspaceDirectory)
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page
+    .getByText("Available")
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   const workspaceList = await page.evaluate(() =>
     window.desktop.workspace.list(),
@@ -64,23 +103,25 @@ try {
   if (
     workspaceList.ok !== true ||
     !Array.isArray(workspaceList.value) ||
-    workspaceList.value.length !== 0
+    workspaceList.value.length !== 1 ||
+    workspaceList.value[0]?.displayPath !== workspaceDirectory ||
+    workspaceList.value[0]?.accessStatus !== "AVAILABLE"
   ) {
-    throw new Error(
-      "Packaged Workspace IPC did not return an empty public list",
-    );
+    throw new Error("Packaged Workspace did not survive the Renderer reload");
   }
 
   const healthText = await page.getByText(/Native Core ready/u).innerText();
   const evidenceDirectory = path.join(repositoryDirectory, "release");
   const evidencePath = path.join(
     evidenceDirectory,
-    `packaged-health-${process.platform}-${process.arch}.png`,
+    `packaged-workspace-${process.platform}-${process.arch}.png`,
   );
   mkdirSync(evidenceDirectory, { recursive: true });
   await page.screenshot({ path: evidencePath });
   console.log(`Packaged application health verified: ${healthText}`);
-  console.log("Packaged Workspace IPC verified: empty public list");
+  console.log(
+    "Packaged Workspace journey verified: select · authorize · reload · restore",
+  );
   console.log(`Evidence screenshot: ${evidencePath}`);
 } catch (error) {
   const diagnostics = Buffer.concat(diagnosticChunks).toString("utf8").trim();
@@ -101,6 +142,18 @@ try {
   } catch (error) {
     console.warn(
       `Could not remove temporary profile; runner cleanup will remove it: ${error}`,
+    );
+  }
+  try {
+    rmSync(workspaceDirectory, {
+      force: true,
+      maxRetries: 10,
+      recursive: true,
+      retryDelay: 200,
+    });
+  } catch (error) {
+    console.warn(
+      `Could not remove temporary workspace; runner cleanup will remove it: ${error}`,
     );
   }
 }
@@ -164,7 +217,9 @@ async function waitForApplicationPage(browser) {
   while (Date.now() < deadline) {
     for (const context of browser.contexts()) {
       for (const page of context.pages()) {
-        if ((await page.getByText("AI Corporation Desktop").count()) > 0) {
+        if (
+          (await page.getByRole("heading", { name: "Dashboard" }).count()) > 0
+        ) {
           return page;
         }
       }

@@ -21,11 +21,12 @@
   "devDependencies": {
     "@ai-corporation/protocols": "workspace:*",
     "@ai-corporation/storage": "workspace:*",
+    "@playwright/test": "1.62.0",
     "@types/node": "26.1.2",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.4",
-    "@playwright/test": "1.62.0",
+    "axe-core": "4.12.1",
     "electron": "43.2.0",
     "electron-builder": "26.15.3",
     "esbuild": "0.28.1",

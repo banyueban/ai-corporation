@@ -39,6 +39,11 @@ BrowserWindow 基线：
 
 ```ts
 type DesktopApi = {
+  workspace: {
+    list(): Promise<WorkspaceListIpcResult>;
+    revalidate(workspaceId: string): Promise<WorkspaceRevalidateIpcResult>;
+    select(): Promise<WorkspaceSelectIpcResult>;
+  };
   corporations: {
     list(): Promise<CorporationSummary[]>;
     create(command: CreateCorporationCommand): Promise<CorporationSummary>;
@@ -59,6 +64,8 @@ type DesktopApi = {
 ```
 
 Preload 不暴露原始 `ipcRenderer`。
+
+Workspace 选择是特殊的授权入口：Renderer 只能发起无参数 `workspace:select`，Electron Main 调用系统原生单目录选择器并把结果交给 Rust canonicalize。路径、身份和原生句柄不经过 preload；公开 DTO、取消和固定错误以 [Workspace Protocol](../04-protocols/Workspace-Protocol.md) 为唯一来源。
 
 ## 4. IPC
 

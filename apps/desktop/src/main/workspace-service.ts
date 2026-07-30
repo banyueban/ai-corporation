@@ -5,6 +5,7 @@ import {
   type WorkspaceIpcErrorCode,
   type WorkspaceListIpcResult,
   type WorkspaceRevalidateIpcResult,
+  type WorkspaceSelectIpcResult,
   type WorkspaceTrustedRecord,
 } from "@ai-corporation/protocols";
 import {
@@ -15,10 +16,15 @@ import {
   WorkspaceNativeError,
   type NativeCoreClient,
 } from "./native-core-client";
+import { createUuidV7 } from "./uuid-v7";
 
 type Repository = Pick<
   WorkspaceRepository,
-  "getTrusted" | "listPublic" | "saveAuthorized" | "updateVerification"
+  | "getTrusted"
+  | "getTrustedByCanonicalRoot"
+  | "listPublic"
+  | "saveAuthorized"
+  | "updateVerification"
 >;
 type NativeClient = Pick<NativeCoreClient, "canonicalizeWorkspace">;
 
@@ -26,15 +32,18 @@ export class WorkspaceService {
   readonly #clock: () => string;
   readonly #nativeClient: () => NativeClient | undefined;
   readonly #repository: Repository;
+  readonly #uuid: () => string;
 
   constructor(options: {
     readonly clock?: () => string;
     readonly nativeClient: () => NativeClient | undefined;
     readonly repository: Repository;
+    readonly uuid?: () => string;
   }) {
     this.#clock = options.clock ?? (() => new Date().toISOString());
     this.#nativeClient = options.nativeClient;
     this.#repository = options.repository;
+    this.#uuid = options.uuid ?? createUuidV7;
   }
 
   list(): WorkspaceListIpcResult {
@@ -51,6 +60,66 @@ export class WorkspaceService {
     now = this.#clock(),
   ): void {
     this.#repository.saveAuthorized(name, record, now);
+  }
+
+  async authorizeSelectedRoot(
+    displayPath: string,
+  ): Promise<WorkspaceSelectIpcResult> {
+    const client = this.#nativeClient();
+    if (client === undefined) {
+      return failure("NATIVE_CORE_UNAVAILABLE");
+    }
+
+    let result: WorkspaceCanonicalizeResult;
+    try {
+      result = await client.canonicalizeWorkspace(displayPath, "");
+    } catch {
+      return failure("VERIFICATION_FAILED");
+    }
+    if (result.permissionMode === undefined) {
+      return failure("VERIFICATION_FAILED");
+    }
+
+    const verifiedAt = this.#clock();
+    try {
+      const existing = this.#repository.getTrustedByCanonicalRoot(
+        result.canonicalRootPath,
+      );
+      if (existing !== undefined) {
+        if (!sameIdentity(existing.pathIdentity, result.pathIdentity)) {
+          return failure("VERIFICATION_FAILED");
+        }
+        const updated = this.#repository.updateVerification(
+          existing.workspaceId,
+          {
+            accessStatus: "AVAILABLE",
+            lastVerifiedAt: verifiedAt,
+            permissionMode: result.permissionMode,
+          },
+        );
+        return selected(updated);
+      }
+
+      let workspaceId: string;
+      try {
+        workspaceId = this.#uuid();
+      } catch {
+        return failure("SELECTION_UNAVAILABLE");
+      }
+      const trusted: WorkspaceTrustedRecord = {
+        workspaceId,
+        displayPath,
+        canonicalRootPath: result.canonicalRootPath,
+        permissionMode: result.permissionMode,
+        accessStatus: "AVAILABLE",
+        pathIdentity: result.pathIdentity,
+        lastVerifiedAt: verifiedAt,
+      };
+      this.#repository.saveAuthorized(displayPath, trusted, verifiedAt);
+      return selected(trusted);
+    } catch {
+      return failure("STORAGE_UNAVAILABLE");
+    }
   }
 
   async revalidate(workspaceId: string): Promise<WorkspaceRevalidateIpcResult> {
@@ -175,4 +244,26 @@ export function failure(
       message: "Workspace operation failed",
     },
   };
+}
+
+function selected(record: WorkspaceTrustedRecord): WorkspaceSelectIpcResult {
+  return {
+    ok: true,
+    value: {
+      status: "SELECTED",
+      workspace: workspacePublicSchema.parse({
+        workspaceId: record.workspaceId,
+        displayPath: record.displayPath,
+        permissionMode: record.permissionMode,
+        accessStatus: record.accessStatus,
+      }),
+    },
+  };
+}
+
+function sameIdentity(
+  left: WorkspaceTrustedRecord["pathIdentity"],
+  right: WorkspaceTrustedRecord["pathIdentity"],
+): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
 }

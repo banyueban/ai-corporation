@@ -4,12 +4,15 @@ import {
   WORKSPACE_LIST_IPC_CHANNEL,
   WORKSPACE_REVALIDATE_IPC_CHANNEL,
   WORKSPACE_SCHEMA_VERSION,
+  WORKSPACE_SELECT_IPC_CHANNEL,
   workspaceCanonicalizeRpcRequestSchema,
   workspaceCanonicalizeRpcResponseSchema,
   workspaceListIpcResultSchema,
   workspacePublicSchema,
   workspaceRevalidateIpcResultSchema,
   workspaceRevalidateRequestSchema,
+  workspaceSelectionSchema,
+  workspaceSelectIpcResultSchema,
   workspaceTrustedRecordSchema,
 } from "./workspace";
 
@@ -113,6 +116,7 @@ describe("workspace protocol", () => {
   it("freezes narrow Workspace IPC channels and public-only results", () => {
     expect(WORKSPACE_LIST_IPC_CHANNEL).toBe("workspace:list");
     expect(WORKSPACE_REVALIDATE_IPC_CHANNEL).toBe("workspace:revalidate");
+    expect(WORKSPACE_SELECT_IPC_CHANNEL).toBe("workspace:select");
     expect(
       workspaceRevalidateRequestSchema.safeParse({
         workspaceId,
@@ -142,6 +146,49 @@ describe("workspace protocol", () => {
           permissionMode: "READ_WRITE",
           accessStatus: "AVAILABLE",
           canonicalRootPath: "sensitive",
+        },
+      }).success,
+    ).toBe(false);
+  });
+
+  it("accepts only strict public directory selection results", () => {
+    const publicWorkspace = {
+      workspaceId,
+      displayPath: "E:\\projects\\example",
+      permissionMode: "READ_WRITE" as const,
+      accessStatus: "AVAILABLE" as const,
+    };
+
+    expect(
+      workspaceSelectionSchema.parse({
+        status: "SELECTED",
+        workspace: publicWorkspace,
+      }),
+    ).toEqual({
+      status: "SELECTED",
+      workspace: publicWorkspace,
+    });
+    expect(
+      workspaceSelectIpcResultSchema.parse({
+        ok: true,
+        value: { status: "CANCELLED" },
+      }),
+    ).toEqual({
+      ok: true,
+      value: { status: "CANCELLED" },
+    });
+    expect(
+      workspaceSelectionSchema.safeParse({
+        status: "CANCELLED",
+        canonicalRootPath: "E:\\sensitive",
+      }).success,
+    ).toBe(false);
+    expect(
+      workspaceSelectionSchema.safeParse({
+        status: "SELECTED",
+        workspace: {
+          ...publicWorkspace,
+          pathIdentity: { platform: "windows" },
         },
       }).success,
     ).toBe(false);

@@ -44,6 +44,9 @@ importers:
       '@vitejs/plugin-react':
         specifier: 6.0.4
         version: 6.0.4(vite@8.1.5(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0))
+      axe-core:
+        specifier: 4.12.1
+        version: 4.12.1
       electron:
         specifier: 43.2.0
         version: 43.2.0
@@ -761,6 +764,10 @@ packages:
 
   aws4@1.13.2:
     resolution: {integrity: sha512-lHe62zvbTB5eEABUVi/AwVh0ZKY9rMMDhmm+eeyuuUQbQ3+J+fONVQOZyj+DdrvD4BY33uYniyRJ4UJIaSKAfw==}
+
+  axe-core@4.12.1:
+    resolution: {integrity: sha512-s7iGf5GaVMxEG0ENN9x+xTr7GFZCb1ZP/1uATUpCEK2X78nDB3RwbtFCo9pGAf9ru+VwoQ464DkaLEeRM08wJA==}
+    engines: {node: '>=4'}
 
   balanced-match@1.0.2:
     resolution: {integrity: sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw==}
@@ -2714,6 +2721,8 @@ snapshots:
   at-least-node@1.0.0: {}
 
   aws4@1.13.2: {}
+
+  axe-core@4.12.1: {}
 
   balanced-match@1.0.2: {}
 

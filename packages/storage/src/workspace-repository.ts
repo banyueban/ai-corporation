@@ -91,6 +91,27 @@ export class WorkspaceRepository {
     return row === undefined ? undefined : parseTrustedRow(row);
   }
 
+  getTrustedByCanonicalRoot(
+    canonicalRootPath: string,
+  ): WorkspaceTrustedRecord | undefined {
+    const row = this.#database
+      .prepare(
+        `SELECT
+          id,
+          display_path,
+          canonical_root_path,
+          permission_mode,
+          access_status,
+          path_identity_json,
+          last_verified_at
+        FROM workspace
+        WHERE canonical_root_path = ?`,
+      )
+      .get(canonicalRootPath);
+
+    return row === undefined ? undefined : parseTrustedRow(row);
+  }
+
   listPublic(): readonly WorkspacePublic[] {
     return this.#database
       .prepare(

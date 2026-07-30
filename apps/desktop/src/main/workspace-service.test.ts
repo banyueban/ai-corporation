@@ -67,6 +67,98 @@ function successfulResult(
 }
 
 describe("WorkspaceService", () => {
+  it("authorizes a selected root and exposes only its public projection", async () => {
+    const database = openWorkspaceDatabase(":memory:", migrationDirectory);
+    databases.push(database);
+    const repository = new WorkspaceRepository(database);
+    const service = new WorkspaceService({
+      clock: () => "2026-07-30T00:00:00.000Z",
+      nativeClient: () => ({
+        canonicalizeWorkspace: async () => successfulResult(),
+      }),
+      repository,
+      uuid: () => workspaceId,
+    });
+
+    await expect(service.authorizeSelectedRoot("E:\\example")).resolves.toEqual(
+      {
+        ok: true,
+        value: {
+          status: "SELECTED",
+          workspace: {
+            workspaceId,
+            displayPath: "E:\\example",
+            permissionMode: "READ_WRITE",
+            accessStatus: "AVAILABLE",
+          },
+        },
+      },
+    );
+    expect(repository.getTrusted(workspaceId)).toMatchObject({
+      canonicalRootPath: "\\\\?\\E:\\example",
+      pathIdentity: identity,
+      lastVerifiedAt: "2026-07-30T00:00:00.000Z",
+    });
+  });
+
+  it("returns the original ID for the same trusted root without duplicating it", async () => {
+    const fixture = createFixture(async () =>
+      successfulResult({ permissionMode: "READ_ONLY" }),
+    );
+
+    await expect(
+      fixture.service.authorizeSelectedRoot("E:\\EXAMPLE"),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: {
+        status: "SELECTED",
+        workspace: {
+          workspaceId,
+          displayPath: "E:\\example",
+          permissionMode: "READ_ONLY",
+        },
+      },
+    });
+    expect(fixture.repository.listPublic()).toHaveLength(1);
+  });
+
+  it("does not replace an existing authorization when its identity changed", async () => {
+    const fixture = createFixture(async () =>
+      successfulResult({
+        pathIdentity: {
+          ...identity,
+          rootCreationTime: "133982208000000001",
+        },
+      }),
+    );
+
+    await expect(
+      fixture.service.authorizeSelectedRoot("E:\\replacement"),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: "VERIFICATION_FAILED" },
+    });
+    expect(fixture.repository.getTrusted(workspaceId)).toMatchObject({
+      displayPath: "E:\\example",
+      pathIdentity: identity,
+    });
+  });
+
+  it("rejects incomplete selected-root verification", async () => {
+    const fixture = createFixture(async () => {
+      const incomplete = successfulResult();
+      delete incomplete.permissionMode;
+      return incomplete;
+    });
+
+    await expect(
+      fixture.service.authorizeSelectedRoot("E:\\example"),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: "VERIFICATION_FAILED" },
+    });
+  });
+
   it("lists only public records and persists successful revalidation", async () => {
     const fixture = createFixture(async () =>
       successfulResult({ permissionMode: "READ_ONLY" }),
