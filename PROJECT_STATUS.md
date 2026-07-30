@@ -8,7 +8,7 @@
 | 当前任务单元   | M1-TU-05（进行中）                        |
 | 总体状态       | 进行中                                    |
 | 最近更新       | 2026-07-30                                |
-| 下一检查点     | M1-TU-05 Repository 事务、幂等与并发测试  |
+| 下一检查点     | M1-TU-05 Desktop service 与窄 IPC         |
 
 ## 1. 当前结论
 
@@ -132,7 +132,7 @@ Milestone 1 任务覆盖地图：
 - macOS Apple Silicon job `90756640490`：工程检查（含双连接 barrier 并发）、开发态真实窗口 API 旅程、DMG/最终包构建、最终包 Corporation API `create · get/list · update · reload · restore`、Native Core health、临时数据清理与 artifact `8745462304` 上传全部成功；
 - M1-TU-04 合同 17 项全部通过，P0/P1 为 0，未执行的合同必需验证为 0；该结论不代表 Corporation UI、Goal、状态机、时间线或 Milestone 1 完成；
 - M1-TU-05 合同的 Milestone 归属、请求/响应 DTO、版本/事务/幂等、确定性 Mock、canonical timeline cursor、跨服务失败边界、所有权、隔离和 18 项验收内容审查通过，实施基线为 `ebda8cf5b028c35f1d85a190c59ded14b5011637`；
-- M1-TU-05 当前实现验证：Goal Contract strict runtime Schema 与固定公开错误测试 5 项通过；存储测试 23 项通过，覆盖空库/已填充 `0003` 升级到 `0004`、旧事件保留、Goal 内容不可变、DRAFT 插入和 active pointer 约束；`pnpm check` 全量通过。该证据只对应协议与迁移阶段，不关闭合同验收项；
+- M1-TU-05 当前实现验证：Goal Contract strict runtime Schema 与固定公开错误测试 5 项通过；存储测试 38 项通过，覆盖空库/已填充 `0003` 升级到 `0004`、旧事件保留、Goal 内容不可变、save/approve 四个写入边界回滚、命令重放/冲突、HIGH 假设门禁、版本取代、canonical cursor 脱敏分页、双连接同版本竞争和 SQLite 重开恢复；`pnpm check` 全量通过。该证据只对应协议、迁移和 Repository 阶段，不关闭合同验收项；
 - 文档优化提交 `f1ae2096ed3fc96e86f2019e051f0c01b28d25eb` 已推送。
 
 本节只保留当前有效验证摘要，不记录被替代的过程结论。
