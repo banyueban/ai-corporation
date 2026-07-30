@@ -19,6 +19,7 @@ import {
 import {
   CorporationRepository,
   GoalContractRepository,
+  type GoalFaultStage,
   openWorkspaceDatabase,
   WorkspaceRepository,
 } from "@ai-corporation/storage";
@@ -72,6 +73,28 @@ let nativeCoreClient: NativeCoreClient | undefined;
 let workspaceDatabase: DatabaseSync | undefined;
 let workspaceDirectorySelector: WorkspaceDirectorySelector | undefined;
 let workspaceService: WorkspaceService | undefined;
+
+function createGoalContractRepository(
+  database: DatabaseSync,
+  environment: NodeJS.ProcessEnv,
+): GoalContractRepository {
+  if (
+    environment.AI_CORPORATION_E2E !== "1" ||
+    environment.AI_CORPORATION_E2E_GOAL_SAVE_FAIL_ONCE !== "1"
+  ) {
+    return new GoalContractRepository(database);
+  }
+
+  let injected = false;
+  return new GoalContractRepository(database, {
+    fault: (stage: GoalFaultStage) => {
+      if (!injected && stage === "GOAL") {
+        injected = true;
+        throw new Error("M1-TU-05 injected Goal save failure");
+      }
+    },
+  });
+}
 
 function createMainWindow(): BrowserWindow {
   const window = new BrowserWindow(createWindowOptions(preloadPath));
@@ -281,7 +304,7 @@ void app.whenReady().then(async () => {
         }),
     });
     goalContractService = new GoalContractService({
-      repository: new GoalContractRepository(workspaceDatabase),
+      repository: createGoalContractRepository(workspaceDatabase, process.env),
     });
     const e2eFixturePath = resolveWorkspaceE2eFixturePath(process.env);
     workspaceDirectorySelector = createWorkspaceDirectorySelector({

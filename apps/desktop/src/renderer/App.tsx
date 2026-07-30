@@ -393,7 +393,9 @@ export function App() {
     <div className="app-shell">
       <Sidebar
         nativeCore={nativeCore}
-        onDashboard={() => setRoute("dashboard")}
+        onDashboard={
+          route === "create" ? leaveCreate : () => setRoute("dashboard")
+        }
         route={route}
         versions={versions}
       />

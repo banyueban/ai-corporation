@@ -55,7 +55,7 @@ async function assertSafeE2eFixture(candidate: string): Promise<void> {
     !path.isAbsolute(candidate) ||
     path.isAbsolute(relativeToTemporaryRoot) ||
     relativeToTemporaryRoot.startsWith("..") ||
-    !path.basename(resolved).startsWith("M1-TU-03-")
+    !path.basename(resolved).startsWith("M1-TU-05-")
   ) {
     throw new Error("Workspace selection fixture is invalid");
   }

@@ -34,10 +34,10 @@ if (!existsSync(executablePath)) {
 }
 
 const userDataDirectory = mkdtempSync(
-  path.join(os.tmpdir(), "M1-TU-03-packaged-user-data-"),
+  path.join(os.tmpdir(), "M1-TU-05-packaged-user-data-"),
 );
 const workspaceDirectory = mkdtempSync(
-  path.join(os.tmpdir(), "M1-TU-03-packaged-workspace-"),
+  path.join(os.tmpdir(), "M1-TU-05-packaged-workspace-"),
 );
 const port = await reservePort();
 const diagnosticChunks = [];
@@ -48,6 +48,7 @@ const child = spawn(
     env: {
       ...process.env,
       AI_CORPORATION_E2E: "1",
+      AI_CORPORATION_E2E_GOAL_SAVE_FAIL_ONCE: "1",
       AI_CORPORATION_E2E_WORKSPACE_PATH: workspaceDirectory,
       CI: "true",
     },
@@ -65,6 +66,10 @@ try {
   await waitForDebugEndpoint(port, child);
   browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
   const page = await waitForApplicationPage(browser);
+  const externalRequests = [];
+  page.on("request", (request) => {
+    if (/^https?:/u.test(request.url())) externalRequests.push(request.url());
+  });
 
   await page
     .getByRole("heading", { name: "Dashboard" })
@@ -81,10 +86,12 @@ try {
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   await page.getByRole("button", { name: "Select folder…" }).click();
   await page
-    .getByText("Workspace authorized and saved.", { exact: true })
+    .getByRole("status")
+    .filter({ hasText: "Workspace authorized and saved." })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   await page
-    .getByText(workspaceDirectory)
+    .locator(".selected-boundary")
+    .getByText(workspaceDirectory, { exact: true })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   if (readdirSync(workspaceDirectory).length !== 0) {
     throw new Error("Packaged Workspace permission probe left residue");
@@ -92,67 +99,136 @@ try {
 
   await page.reload();
   await page
-    .getByText(workspaceDirectory)
+    .getByText(workspaceDirectory, { exact: true })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   await page
     .getByText("Available")
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
-  const workspaceList = await page.evaluate(() =>
-    window.desktop.workspace.list(),
-  );
-  if (
-    workspaceList.ok !== true ||
-    !Array.isArray(workspaceList.value) ||
-    workspaceList.value.length !== 1 ||
-    workspaceList.value[0]?.displayPath !== workspaceDirectory ||
-    workspaceList.value[0]?.accessStatus !== "AVAILABLE"
-  ) {
-    throw new Error("Packaged Workspace did not survive the Renderer reload");
+  await page.getByRole("button", { name: "New Corporation" }).click();
+  await page
+    .getByRole("heading", { name: "Choose a workspace" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page.getByLabel("Corporation name *").fill("Packaged Corporation");
+  await page
+    .getByLabel("Goal *")
+    .fill("Create a verified packaged Goal Contract");
+  await page
+    .getByLabel(/Success criteria/u)
+    .fill("Goal is persisted\nTimeline is visible");
+  await page.getByLabel(/Expected deliverables/u).fill("Packaged Goal report");
+  await page
+    .getByLabel("High-impact assumption")
+    .fill("The packaged workspace is the intended target");
+
+  const mockButton = page.getByRole("button", {
+    name: "Create local Mock draft",
+  });
+  await mockButton.click();
+  await page
+    .getByRole("status")
+    .filter({ hasText: "Corporation was created, but its Goal Contract" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page
+    .getByText("STORAGE_UNAVAILABLE")
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  const countAfterFailure = await page.evaluate(async () => {
+    const workspaces = await window.desktop.workspace.list();
+    if (!workspaces.ok || workspaces.value[0] === undefined) {
+      throw new Error("Packaged Workspace list failed");
+    }
+    const corporations = await window.desktop.corporation.list({
+      schemaVersion: "1.0",
+      workspaceId: workspaces.value[0].workspaceId,
+    });
+    if (!corporations.ok) throw new Error(corporations.error.code);
+    return corporations.value.length;
+  });
+  if (countAfterFailure !== 1) {
+    throw new Error("Goal retry boundary created an unexpected Corporation");
   }
-  const workspaceId = workspaceList.value[0].workspaceId;
-  const corporationId = await page.evaluate(async (workspaceId) => {
-    const created = await window.desktop.corporation.create({
-      schemaVersion: "1.0",
-      commandId: "019fa9bb-3780-7d90-a4e3-a5b0eea2a9ef",
-      workspaceId,
-      name: "Packaged Corporation",
-    });
-    if (!created.ok) throw new Error(created.error.code);
-    const listed = await window.desktop.corporation.list({
-      schemaVersion: "1.0",
-      workspaceId,
-    });
-    if (!listed.ok || listed.value.length !== 1) {
-      throw new Error("Packaged Corporation list failed");
+
+  await mockButton.click();
+  await page
+    .getByRole("heading", { name: "Confirm Goal Contract" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  const confirmButton = page.getByRole("button", {
+    name: "Confirm Goal Contract",
+  });
+  await confirmButton.click();
+  await page
+    .getByText("ASSUMPTION_CONFIRMATION_REQUIRED")
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page
+    .getByRole("checkbox", {
+      name: /packaged workspace is the intended target/u,
+    })
+    .check();
+  await confirmButton.click();
+  await page
+    .getByRole("status")
+    .filter({
+      hasText:
+        "Goal Contract approved. Planning and execution have not started.",
+    })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page
+    .getByText("v2 · APPROVED · MOCK")
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page
+    .getByText("v1 · SUPERSEDED · MOCK")
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page
+    .getByText("Goal Contract approved.", { exact: true })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+
+  const stored = await page.evaluate(async () => {
+    const workspaces = await window.desktop.workspace.list();
+    if (!workspaces.ok || workspaces.value[0] === undefined) {
+      throw new Error("Packaged Workspace restore failed");
     }
-    const updated = await window.desktop.corporation.updateName({
+    const corporations = await window.desktop.corporation.list({
       schemaVersion: "1.0",
-      commandId: "019fa9bb-3781-7d90-a4e3-a5b0eea2a9ef",
-      corporationId: created.value.id,
-      expectedVersion: 1,
-      name: "Packaged Corporation Renamed",
+      workspaceId: workspaces.value[0].workspaceId,
     });
-    if (!updated.ok || updated.value.version !== 2) {
-      throw new Error("Packaged Corporation update failed");
+    if (!corporations.ok || corporations.value.length !== 1) {
+      throw new Error("Packaged Corporation restore failed");
     }
-    return created.value.id;
-  }, workspaceId);
+    const corporation = corporations.value[0];
+    const goal = await window.desktop.goalContract.getCurrent({
+      schemaVersion: "1.0",
+      corporationId: corporation.id,
+    });
+    if (!goal.ok) throw new Error(goal.error.code);
+    return { corporation, goal: goal.value };
+  });
+  if (
+    stored.corporation.name !== "Packaged Corporation" ||
+    stored.corporation.version !== 4 ||
+    stored.goal?.version !== 2 ||
+    stored.goal?.status !== "APPROVED"
+  ) {
+    throw new Error("Packaged Goal state did not match the completed journey");
+  }
+  if (externalRequests.length !== 0) {
+    throw new Error(
+      `Local Mock made external requests: ${externalRequests.join(", ")}`,
+    );
+  }
+
   await page.reload();
-  const restoredCorporation = await page.evaluate(
-    (corporationId) =>
-      window.desktop.corporation.get({
-        schemaVersion: "1.0",
-        corporationId,
-      }),
-    corporationId,
-  );
-  if (
-    !restoredCorporation.ok ||
-    restoredCorporation.value.name !== "Packaged Corporation Renamed" ||
-    restoredCorporation.value.version !== 2
-  ) {
-    throw new Error("Packaged Corporation did not survive Renderer reload");
-  }
+  await page
+    .getByRole("heading", { name: "Dashboard" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page
+    .getByText("Packaged Corporation", { exact: true })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page.getByRole("button", { name: "Open Goal Contract" }).click();
+  await page
+    .getByText("APPROVED", { exact: true })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page
+    .getByText("Goal Contract approved.", { exact: true })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
 
   const healthText = await page
     .getByRole("status", { name: /Native Core ready/u })
@@ -160,7 +236,7 @@ try {
   const evidenceDirectory = path.join(repositoryDirectory, "release");
   const evidencePath = path.join(
     evidenceDirectory,
-    `packaged-workspace-${process.platform}-${process.arch}.png`,
+    `m1-tu05-packaged-${process.platform}-${process.arch}.png`,
   );
   mkdirSync(evidenceDirectory, { recursive: true });
   await page.screenshot({ path: evidencePath });
@@ -169,8 +245,9 @@ try {
     "Packaged Workspace journey verified: select · authorize · reload · restore",
   );
   console.log(
-    "Packaged Corporation API journey verified: create · get/list · update · reload · restore",
+    "Packaged Goal UI journey verified: create · injected save failure · retry · review · assumption gate · approve · timeline · reload · restore",
   );
+  console.log("Packaged local Mock external requests: 0");
   console.log(`Evidence screenshot: ${evidencePath}`);
 } catch (error) {
   const diagnostics = Buffer.concat(diagnosticChunks).toString("utf8").trim();

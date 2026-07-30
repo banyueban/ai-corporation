@@ -7,7 +7,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import axe from "axe-core";
 import { _electron as electron } from "playwright";
 import type { DesktopApi } from "../src/shared/desktop-api";
@@ -15,10 +15,10 @@ import type { DesktopApi } from "../src/shared/desktop-api";
 test("user authorizes and restores a Workspace through the visible window", async () => {
   const appDirectory = path.resolve(__dirname, "..");
   const userDataDirectory = mkdtempSync(
-    path.join(tmpdir(), "M1-TU-03-electron-user-data-"),
+    path.join(tmpdir(), "M1-TU-05-electron-user-data-"),
   );
   const workspaceDirectory = mkdtempSync(
-    path.join(tmpdir(), "M1-TU-03-workspace-"),
+    path.join(tmpdir(), "M1-TU-05-workspace-"),
   );
   const evidenceDirectory = path.resolve(appDirectory, "../../release");
   mkdirSync(evidenceDirectory, { recursive: true });
@@ -28,6 +28,7 @@ test("user authorizes and restores a Workspace through the visible window", asyn
     env: {
       ...process.env,
       AI_CORPORATION_E2E: "1",
+      AI_CORPORATION_E2E_GOAL_SAVE_FAIL_ONCE: "1",
       AI_CORPORATION_E2E_WORKSPACE_PATH: workspaceDirectory,
       CI: "true",
     },
@@ -35,6 +36,10 @@ test("user authorizes and restores a Workspace through the visible window", asyn
 
   try {
     const page = await electronApp.firstWindow();
+    const externalRequests: string[] = [];
+    page.on("request", (request) => {
+      if (/^https?:/u.test(request.url())) externalRequests.push(request.url());
+    });
     await expect(
       page.getByRole("status", { name: /Native Core ready/u }),
     ).toBeVisible();
@@ -59,28 +64,7 @@ test("user authorizes and restores a Workspace through the visible window", asyn
     });
     await expect(createHeading).toBeFocused();
 
-    await page.evaluate(axe.source);
-    const accessibility = await page.evaluate(async () => {
-      const accessibilityEngine = (
-        globalThis as typeof globalThis & {
-          axe: {
-            run(root: Document): Promise<{
-              violations: {
-                impact: string | null;
-                id: string;
-                nodes: unknown[];
-              }[];
-            }>;
-          };
-        }
-      ).axe;
-      return accessibilityEngine.run(document);
-    });
-    expect(
-      accessibility.violations.filter((violation) =>
-        ["critical", "serious"].includes(violation.impact ?? ""),
-      ),
-    ).toEqual([]);
+    await expectNoSeriousAxeViolations(page);
 
     const selectButton = page.getByRole("button", {
       name: "Select folder…",
@@ -118,8 +102,37 @@ test("user authorizes and restores a Workspace through the visible window", asyn
     await page.keyboard.press("Enter");
 
     await expect(
+      page
+        .getByRole("status")
+        .filter({ hasText: "Corporation was created, but its Goal Contract" }),
+    ).toBeVisible();
+    await expect(page.getByText("STORAGE_UNAVAILABLE")).toBeVisible();
+    await expect(page.getByLabel("Corporation name *")).toHaveValue(
+      "E2E Corporation",
+    );
+    const corporationCountAfterFailure = await page.evaluate(async () => {
+      const desktop = (
+        globalThis as typeof globalThis & { desktop: DesktopApi }
+      ).desktop;
+      const workspaces = await desktop.workspace.list();
+      if (!workspaces.ok || workspaces.value[0] === undefined) {
+        throw new Error("Workspace list failed after injected Goal failure");
+      }
+      const corporations = await desktop.corporation.list({
+        schemaVersion: "1.0",
+        workspaceId: workspaces.value[0].workspaceId,
+      });
+      if (!corporations.ok) throw new Error(corporations.error.code);
+      return corporations.value.length;
+    });
+    expect(corporationCountAfterFailure).toBe(1);
+    await mockButton.focus();
+    await page.keyboard.press("Enter");
+
+    await expect(
       page.getByRole("heading", { name: "Confirm Goal Contract" }),
     ).toBeFocused();
+    await expectNoSeriousAxeViolations(page);
     await expect(page.getByText("MOCK", { exact: false })).toBeVisible();
     await expect(page.getByText("Goal Contract draft saved.")).toBeVisible();
     const confirmButton = page.getByRole("button", {
@@ -131,11 +144,82 @@ test("user authorizes and restores a Workspace through the visible window", asyn
       page.getByText("ASSUMPTION_CONFIRMATION_REQUIRED"),
     ).toBeVisible();
 
+    const competingVersion = await page.evaluate(async () => {
+      const desktop = (
+        globalThis as typeof globalThis & { desktop: DesktopApi }
+      ).desktop;
+      const workspaces = await desktop.workspace.list();
+      if (!workspaces.ok || workspaces.value[0] === undefined) {
+        throw new Error("Workspace missing for conflict fixture");
+      }
+      const corporations = await desktop.corporation.list({
+        schemaVersion: "1.0",
+        workspaceId: workspaces.value[0].workspaceId,
+      });
+      const corporation = corporations.ok ? corporations.value[0] : undefined;
+      if (corporation === undefined) {
+        throw new Error("Corporation missing for conflict fixture");
+      }
+      const current = await desktop.goalContract.getCurrent({
+        schemaVersion: "1.0",
+        corporationId: corporation.id,
+      });
+      if (!current.ok || current.value === null) {
+        throw new Error("Goal missing for conflict fixture");
+      }
+      const goal = current.value;
+      return desktop.goalContract.saveDraft({
+        schemaVersion: "1.0",
+        commandId: "019fa9bb-5000-7d90-a4e3-a5b0eea2a9ef",
+        corporationId: corporation.id,
+        expectedCorporationVersion: corporation.version,
+        expectedGoalVersion: goal.version,
+        content: {
+          source: goal.source,
+          originalGoal: goal.originalGoal,
+          statement: goal.statement,
+          successCriteria: goal.successCriteria,
+          inScope: goal.inScope,
+          outOfScope: goal.outOfScope,
+          constraints: goal.constraints,
+          assumptions: goal.assumptions,
+          deliverables: goal.deliverables,
+          riskLevel: goal.riskLevel,
+          budget: goal.budget,
+          stopConditions: goal.stopConditions,
+        },
+      });
+    });
+    expect(competingVersion).toMatchObject({
+      ok: true,
+      value: { version: 2 },
+    });
+
     const assumption = page.getByRole("checkbox", {
       name: /authorized workspace is the intended target/u,
     });
     await assumption.check();
     await confirmButton.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByText("VERSION_CONFLICT")).toBeVisible();
+
+    await page.reload();
+    await expect(
+      page.getByRole("heading", { name: "Dashboard" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Open Goal Contract" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Confirm Goal Contract" }),
+    ).toBeFocused();
+    await page
+      .getByRole("checkbox", {
+        name: /authorized workspace is the intended target/u,
+      })
+      .check();
+    const recoveredConfirmButton = page.getByRole("button", {
+      name: "Confirm Goal Contract",
+    });
+    await recoveredConfirmButton.focus();
     await page.keyboard.press("Enter");
     await expect(
       page.getByRole("status").filter({
@@ -144,11 +228,13 @@ test("user authorizes and restores a Workspace through the visible window", asyn
       }),
     ).toBeVisible();
     await expect(page.getByText("APPROVED", { exact: true })).toBeVisible();
-    await expect(page.getByText("v2 · APPROVED · MOCK")).toBeVisible();
+    await expect(page.getByText("v3 · APPROVED · MOCK")).toBeVisible();
+    await expect(page.getByText("v2 · SUPERSEDED · MOCK")).toBeVisible();
     await expect(page.getByText("v1 · SUPERSEDED · MOCK")).toBeVisible();
     await expect(
       page.getByText("Goal Contract approved.", { exact: true }),
     ).toBeVisible();
+    expect(externalRequests).toEqual([]);
 
     const selected = await page.evaluate(async () => {
       const desktop = (
@@ -199,7 +285,7 @@ test("user authorizes and restores a Workspace through the visible window", asyn
     }, corporationId);
     expect(restoredCorporation).toMatchObject({
       ok: true,
-      value: { name: "E2E Corporation", version: 4 },
+      value: { name: "E2E Corporation", version: 5 },
     });
 
     const verifyButton = page.getByRole("button", { name: "Verify again" });
@@ -298,4 +384,29 @@ function cleanupDirectory(directory: string) {
     recursive: true,
     retryDelay: 200,
   });
+}
+
+async function expectNoSeriousAxeViolations(page: Page) {
+  await page.evaluate(axe.source);
+  const accessibility = await page.evaluate(async () => {
+    const accessibilityEngine = (
+      globalThis as typeof globalThis & {
+        axe: {
+          run(root: Document): Promise<{
+            violations: {
+              impact: string | null;
+              id: string;
+              nodes: unknown[];
+            }[];
+          }>;
+        };
+      }
+    ).axe;
+    return accessibilityEngine.run(document);
+  });
+  expect(
+    accessibility.violations.filter((violation) =>
+      ["critical", "serious"].includes(violation.impact ?? ""),
+    ),
+  ).toEqual([]);
 }

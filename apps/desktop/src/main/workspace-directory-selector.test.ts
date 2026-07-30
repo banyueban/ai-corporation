@@ -58,7 +58,7 @@ describe("Workspace directory selector", () => {
   });
 
   it("consumes only an empty task-owned E2E fixture once", async () => {
-    const fixture = await mkdtemp(path.join(os.tmpdir(), "M1-TU-03-select-"));
+    const fixture = await mkdtemp(path.join(os.tmpdir(), "M1-TU-05-select-"));
     temporaryDirectories.push(fixture);
     const showDialog = vi.fn(async () => ({
       canceled: true,
@@ -77,7 +77,7 @@ describe("Workspace directory selector", () => {
 
   it("rejects non-empty or non-task fixture directories", async () => {
     const nonEmpty = await mkdtemp(
-      path.join(os.tmpdir(), "M1-TU-03-non-empty-"),
+      path.join(os.tmpdir(), "M1-TU-05-non-empty-"),
     );
     temporaryDirectories.push(nonEmpty);
     await writeFile(path.join(nonEmpty, "existing.txt"), "existing");
