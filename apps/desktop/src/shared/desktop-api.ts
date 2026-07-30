@@ -6,7 +6,16 @@ import type {
   CorporationListRequest,
   CorporationListResult,
   CorporationUpdateNameRequest,
+  GoalContractApproveRequest,
+  GoalContractGetCurrentRequest,
+  GoalContractItemResult,
+  GoalContractListResult,
+  GoalContractListVersionsRequest,
+  GoalContractNullableItemResult,
+  GoalContractSaveDraftRequest,
   HealthResult,
+  TimelineListRequest,
+  TimelineListResult,
   WorkspaceListIpcResult,
   WorkspaceRevalidateIpcResult,
   WorkspaceSelectIpcResult,
@@ -22,7 +31,24 @@ export interface DesktopApi {
       request: CorporationUpdateNameRequest,
     ): Promise<CorporationItemResult>;
   }>;
+  readonly goalContract: Readonly<{
+    approve(
+      request: GoalContractApproveRequest,
+    ): Promise<GoalContractItemResult>;
+    getCurrent(
+      request: GoalContractGetCurrentRequest,
+    ): Promise<GoalContractNullableItemResult>;
+    listVersions(
+      request: GoalContractListVersionsRequest,
+    ): Promise<GoalContractListResult>;
+    saveDraft(
+      request: GoalContractSaveDraftRequest,
+    ): Promise<GoalContractItemResult>;
+  }>;
   health(): Promise<HealthResult>;
+  readonly timeline: Readonly<{
+    list(request: TimelineListRequest): Promise<TimelineListResult>;
+  }>;
   readonly workspace: Readonly<{
     list(): Promise<WorkspaceListIpcResult>;
     revalidate(workspaceId: string): Promise<WorkspaceRevalidateIpcResult>;

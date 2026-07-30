@@ -11,6 +11,21 @@ import {
   corporationListRequestSchema,
   corporationListResultSchema,
   corporationUpdateNameRequestSchema,
+  GOAL_CONTRACT_APPROVE_IPC_CHANNEL,
+  GOAL_CONTRACT_GET_CURRENT_IPC_CHANNEL,
+  GOAL_CONTRACT_LIST_VERSIONS_IPC_CHANNEL,
+  GOAL_CONTRACT_SAVE_DRAFT_IPC_CHANNEL,
+  goalContractApproveRequestSchema,
+  goalContractGetCurrentRequestSchema,
+  goalContractItemResultSchema,
+  goalContractListResultSchema,
+  goalContractListVersionsRequestSchema,
+  goalContractNullableItemResultSchema,
+  goalContractSaveDraftRequestSchema,
+  type GoalContractApproveRequest,
+  type GoalContractGetCurrentRequest,
+  type GoalContractListVersionsRequest,
+  type GoalContractSaveDraftRequest,
   type CorporationArchiveRequest,
   type CorporationCreateRequest,
   type CorporationGetRequest,
@@ -18,6 +33,10 @@ import {
   type CorporationUpdateNameRequest,
   healthResultSchema,
   NATIVE_HEALTH_IPC_CHANNEL,
+  TIMELINE_LIST_IPC_CHANNEL,
+  timelineListRequestSchema,
+  timelineListResultSchema,
+  type TimelineListRequest,
   WORKSPACE_LIST_IPC_CHANNEL,
   WORKSPACE_REVALIDATE_IPC_CHANNEL,
   WORKSPACE_SELECT_IPC_CHANNEL,
@@ -67,10 +86,49 @@ const desktopApi: DesktopApi = Object.freeze({
         ),
       ),
   }),
+  goalContract: Object.freeze({
+    approve: async (request: GoalContractApproveRequest) =>
+      goalContractItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          GOAL_CONTRACT_APPROVE_IPC_CHANNEL,
+          goalContractApproveRequestSchema.parse(request),
+        ),
+      ),
+    getCurrent: async (request: GoalContractGetCurrentRequest) =>
+      goalContractNullableItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          GOAL_CONTRACT_GET_CURRENT_IPC_CHANNEL,
+          goalContractGetCurrentRequestSchema.parse(request),
+        ),
+      ),
+    listVersions: async (request: GoalContractListVersionsRequest) =>
+      goalContractListResultSchema.parse(
+        await ipcRenderer.invoke(
+          GOAL_CONTRACT_LIST_VERSIONS_IPC_CHANNEL,
+          goalContractListVersionsRequestSchema.parse(request),
+        ),
+      ),
+    saveDraft: async (request: GoalContractSaveDraftRequest) =>
+      goalContractItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          GOAL_CONTRACT_SAVE_DRAFT_IPC_CHANNEL,
+          goalContractSaveDraftRequestSchema.parse(request),
+        ),
+      ),
+  }),
   health: async () =>
     healthResultSchema.parse(
       await ipcRenderer.invoke(NATIVE_HEALTH_IPC_CHANNEL),
     ),
+  timeline: Object.freeze({
+    list: async (request: TimelineListRequest) =>
+      timelineListResultSchema.parse(
+        await ipcRenderer.invoke(
+          TIMELINE_LIST_IPC_CHANNEL,
+          timelineListRequestSchema.parse(request),
+        ),
+      ),
+  }),
   workspace: Object.freeze({
     list: async () =>
       workspaceListIpcResultSchema.parse(

@@ -8,11 +8,11 @@
 | 当前任务单元   | M1-TU-05（进行中）                        |
 | 总体状态       | 进行中                                    |
 | 最近更新       | 2026-07-30                                |
-| 下一检查点     | M1-TU-05 Desktop service 与窄 IPC         |
+| 下一检查点     | M1-TU-05 Create/Review UI 状态与用户旅程   |
 
 ## 1. 当前结论
 
-Milestone 0 已通过全部适用验收；当前没有已知未解决的 P0/P1 缺陷。Milestone 1 已完成 `M1-TU-01`、`M1-TU-02` 与 `M1-TU-03`。`M1-TU-03` 已形成原生目录选择、可信授权、公开状态展示、Renderer 重载恢复和重新验证用户切片；验收提交 `20cc3b089424ab0405e64d5880609fbcaf011923` 的 Windows x64 与 macOS Apple Silicon 工程检查、开发态真实窗口 E2E、最终打包应用 E2E 和制品上传全部通过，合同 14 项全部关闭。`M1-TU-05` 的范围、协议、接口、跨事务失败边界、所有权、隔离和 18 项验收合同已完成内容审查，实施基线为 `ebda8cf5b028c35f1d85a190c59ded14b5011637`；当前仅表示“就绪”，不表示 Goal 功能已实现或验收。
+Milestone 0 已通过全部适用验收；当前没有已知未解决的 P0/P1 缺陷。Milestone 1 已完成 `M1-TU-01`、`M1-TU-02` 与 `M1-TU-03`。`M1-TU-03` 已形成原生目录选择、可信授权、公开状态展示、Renderer 重载恢复和重新验证用户切片；验收提交 `20cc3b089424ab0405e64d5880609fbcaf011923` 的 Windows x64 与 macOS Apple Silicon 工程检查、开发态真实窗口 E2E、最终打包应用 E2E 和制品上传全部通过，合同 14 项全部关闭。`M1-TU-05` 的范围、协议、接口、跨事务失败边界、所有权、隔离和 18 项验收合同已完成内容审查，实施基线为 `ebda8cf5b028c35f1d85a190c59ded14b5011637`；当前正在实现，协议、迁移、Repository 和 typed Main/Preload API 已形成阶段性结果，但不表示 Goal 用户旅程或任务验收完成。
 
 该结论关闭 Workspace 选择/恢复和 Corporation CRUD 事务事件两个解耦切片，不代表 Goal、Corporation UI、状态机、事件时间线、Provider、完整 UI-AC-02 或 Milestone 1 已完成。[M1-TU-04 Corporation CRUD 与事务事件](docs/06-engineering/task-units/M1-TU-04-corporation-crud-events.md) 的 17 项验收均已通过；验收提交 `aaff4f5e20579869738655206e784029b8ab1cbd` 的 Windows x64 与 macOS Apple Silicon 工程检查、开发态真实窗口 E2E、最终打包应用 API E2E 和制品上传全部成功。
 
@@ -133,6 +133,7 @@ Milestone 1 任务覆盖地图：
 - M1-TU-04 合同 17 项全部通过，P0/P1 为 0，未执行的合同必需验证为 0；该结论不代表 Corporation UI、Goal、状态机、时间线或 Milestone 1 完成；
 - M1-TU-05 合同的 Milestone 归属、请求/响应 DTO、版本/事务/幂等、确定性 Mock、canonical timeline cursor、跨服务失败边界、所有权、隔离和 18 项验收内容审查通过，实施基线为 `ebda8cf5b028c35f1d85a190c59ded14b5011637`；
 - M1-TU-05 当前实现验证：Goal Contract strict runtime Schema 与固定公开错误测试 5 项通过；存储测试 38 项通过，覆盖空库/已填充 `0003` 升级到 `0004`、旧事件保留、Goal 内容不可变、save/approve 四个写入边界回滚、命令重放/冲突、HIGH 假设门禁、版本取代、canonical cursor 脱敏分页、双连接同版本竞争和 SQLite 重开恢复；`pnpm check` 全量通过。该证据只对应协议、迁移和 Repository 阶段，不关闭合同验收项；
+- M1-TU-05 Desktop service/IPC 验证：Desktop 测试 47 项通过，覆盖规范化请求 hash、可信 Clock/UUID、固定错误映射、非法来源/额外字段拒绝和五个 allowlisted Goal/Timeline channel；Main、Preload 与 `DesktopApi` 类型检查及 `pnpm check` 全量通过。尚未执行真实窗口和 UI 用户旅程，不关闭合同验收项；
 - 文档优化提交 `f1ae2096ed3fc96e86f2019e051f0c01b28d25eb` 已推送。
 
 本节只保留当前有效验证摘要，不记录被替代的过程结论。
