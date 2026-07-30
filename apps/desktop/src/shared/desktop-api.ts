@@ -5,6 +5,8 @@ import type {
   CorporationItemResult,
   CorporationListRequest,
   CorporationListResult,
+  CorporationPauseRequest,
+  CorporationResumeRequest,
   CorporationUpdateNameRequest,
   GoalContractApproveRequest,
   GoalContractGetCurrentRequest,
@@ -27,6 +29,8 @@ export interface DesktopApi {
     create(request: CorporationCreateRequest): Promise<CorporationItemResult>;
     get(request: CorporationGetRequest): Promise<CorporationItemResult>;
     list(request: CorporationListRequest): Promise<CorporationListResult>;
+    pause(request: CorporationPauseRequest): Promise<CorporationItemResult>;
+    resume(request: CorporationResumeRequest): Promise<CorporationItemResult>;
     updateName(
       request: CorporationUpdateNameRequest,
     ): Promise<CorporationItemResult>;

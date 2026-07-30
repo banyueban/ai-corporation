@@ -34,39 +34,22 @@ if (!existsSync(executablePath)) {
 }
 
 const userDataDirectory = mkdtempSync(
-  path.join(os.tmpdir(), "M1-TU-05-packaged-user-data-"),
+  path.join(os.tmpdir(), "M1-TU-06-packaged-user-data-"),
 );
 const workspaceDirectory = mkdtempSync(
-  path.join(os.tmpdir(), "M1-TU-05-packaged-workspace-"),
+  path.join(os.tmpdir(), "M1-TU-06-packaged-workspace-"),
 );
-const port = await reservePort();
 const diagnosticChunks = [];
-const child = spawn(
-  executablePath,
-  [`--remote-debugging-port=${port}`, `--user-data-dir=${userDataDirectory}`],
-  {
-    env: {
-      ...process.env,
-      AI_CORPORATION_E2E: "1",
-      AI_CORPORATION_E2E_GOAL_SAVE_FAIL_ONCE: "1",
-      AI_CORPORATION_E2E_WORKSPACE_PATH: workspaceDirectory,
-      CI: "true",
-    },
-    shell: false,
-    stdio: ["ignore", "pipe", "pipe"],
-    windowsHide: true,
-  },
-);
-
-child.stdout.on("data", recordDiagnostic);
-child.stderr.on("data", recordDiagnostic);
+let { child, port } = await launchPackagedApplication();
 
 let browser;
 try {
   await waitForDebugEndpoint(port, child);
   browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
-  const page = await waitForApplicationPage(browser);
+  let page = await waitForApplicationPage(browser);
   const externalRequests = [];
+  const evidenceDirectory = path.join(repositoryDirectory, "release");
+  mkdirSync(evidenceDirectory, { recursive: true });
   page.on("request", (request) => {
     if (/^https?:/u.test(request.url())) externalRequests.push(request.url());
   });
@@ -230,15 +213,78 @@ try {
     .getByText("Goal Contract approved.", { exact: true })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
 
+  await page.getByRole("button", { name: "Pause Corporation" }).focus();
+  await page.keyboard.press("Enter");
+  await page
+    .getByRole("status")
+    .filter({
+      hasText: "Corporation paused. No Plan, Task, or execution has started.",
+    })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page
+    .getByText("PAUSED", { exact: true })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  const beforeRestart = await readPersistedState(page, stored.corporation.id);
+  if (
+    beforeRestart.corporation.status !== "PAUSED" ||
+    beforeRestart.corporation.version !== 5 ||
+    beforeRestart.corporation.pausedFrom !== "DRAFT"
+  ) {
+    throw new Error("Packaged pause state was not persisted");
+  }
+
+  await browser.close();
+  browser = undefined;
+  await stopChild(child);
+  ({ child, port } = await launchPackagedApplication());
+  await waitForDebugEndpoint(port, child);
+  browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
+  page = await waitForApplicationPage(browser);
+  page.on("request", (request) => {
+    if (/^https?:/u.test(request.url())) externalRequests.push(request.url());
+  });
+  await page
+    .getByRole("heading", { name: "Dashboard" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page
+    .getByText("PAUSED", { exact: true })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  const afterRestart = await readPersistedState(page, stored.corporation.id);
+  if (JSON.stringify(afterRestart) !== JSON.stringify(beforeRestart)) {
+    throw new Error("Packaged startup changed persisted state");
+  }
+  const pausedEvidencePath = path.join(
+    evidenceDirectory,
+    `m1-tu06-packaged-${process.platform}-${process.arch}-paused-restored.png`,
+  );
+  await page.screenshot({ path: pausedEvidencePath });
+
+  await page.getByRole("button", { name: "Open Goal Contract" }).click();
+  await page.getByRole("button", { name: "Resume Corporation" }).focus();
+  await page.keyboard.press("Enter");
+  await page
+    .getByRole("status")
+    .filter({
+      hasText:
+        "Corporation resumed to DRAFT. No command or event was replayed.",
+    })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  const afterResume = await readPersistedState(page, stored.corporation.id);
+  if (
+    afterResume.corporation.status !== "DRAFT" ||
+    afterResume.corporation.version !== 6 ||
+    afterResume.eventCount !== beforeRestart.eventCount + 1
+  ) {
+    throw new Error("Packaged resume did not restore the exact prior state");
+  }
+
   const healthText = await page
     .getByRole("status", { name: /Native Core ready/u })
     .getAttribute("aria-label");
-  const evidenceDirectory = path.join(repositoryDirectory, "release");
   const evidencePath = path.join(
     evidenceDirectory,
-    `m1-tu05-packaged-${process.platform}-${process.arch}.png`,
+    `m1-tu06-packaged-${process.platform}-${process.arch}-resumed.png`,
   );
-  mkdirSync(evidenceDirectory, { recursive: true });
   await page.screenshot({ path: evidencePath });
   console.log(`Packaged application health verified: ${healthText}`);
   console.log(
@@ -247,7 +293,11 @@ try {
   console.log(
     "Packaged Goal UI journey verified: create · injected save failure · retry · review · assumption gate · approve · timeline · reload · restore",
   );
+  console.log(
+    "Packaged Corporation restart journey verified: pause · process restart · read-only restore · resume",
+  );
   console.log("Packaged local Mock external requests: 0");
+  console.log(`Paused restart screenshot: ${pausedEvidencePath}`);
   console.log(`Evidence screenshot: ${evidencePath}`);
 } catch (error) {
   const diagnostics = Buffer.concat(diagnosticChunks).toString("utf8").trim();
@@ -292,6 +342,49 @@ function recordDiagnostic(chunk) {
   if (currentLength < 32 * 1024) {
     diagnosticChunks.push(Buffer.from(chunk));
   }
+}
+
+async function launchPackagedApplication() {
+  const port = await reservePort();
+  const child = spawn(
+    executablePath,
+    [`--remote-debugging-port=${port}`, `--user-data-dir=${userDataDirectory}`],
+    {
+      env: {
+        ...process.env,
+        AI_CORPORATION_E2E: "1",
+        AI_CORPORATION_E2E_GOAL_SAVE_FAIL_ONCE: "1",
+        AI_CORPORATION_E2E_WORKSPACE_PATH: workspaceDirectory,
+        CI: "true",
+      },
+      shell: false,
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
+    },
+  );
+  child.stdout.on("data", recordDiagnostic);
+  child.stderr.on("data", recordDiagnostic);
+  return { child, port };
+}
+
+async function readPersistedState(page, corporationId) {
+  return page.evaluate(async (id) => {
+    const corporation = await window.desktop.corporation.get({
+      schemaVersion: "1.0",
+      corporationId: id,
+    });
+    const timeline = await window.desktop.timeline.list({
+      schemaVersion: "1.0",
+      corporationId: id,
+      limit: 100,
+    });
+    if (!corporation.ok) throw new Error(corporation.error.code);
+    if (!timeline.ok) throw new Error(timeline.error.code);
+    return {
+      corporation: corporation.value,
+      eventCount: timeline.value.items.length,
+    };
+  }, corporationId);
 }
 
 async function reservePort() {

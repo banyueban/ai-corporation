@@ -63,6 +63,18 @@ v0.1 可将事件表本身作为 outbox。Dispatcher 在独立投影中维护投
 - `artifact.version.committed`
 - `evaluation.completed`
 
+Milestone 1 当前持久化 allowlist 为：
+
+- `corporation.created`
+- `corporation.name.updated`
+- `corporation.archived`
+- `goal.contract.drafted`
+- `goal.contract.approved`
+- `corporation.paused`
+- `corporation.resumed`
+
+新增状态事件必须先更新对应领域协议、SQLite CHECK、时间线脱敏投影和测试，不得把任意 Renderer 字符串写入事件类型。
+
 ## 6. UI 订阅
 
 Renderer 请求：

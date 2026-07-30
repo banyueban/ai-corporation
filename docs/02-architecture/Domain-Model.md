@@ -37,6 +37,8 @@ COMPLETED / FAILED / CANCELLED → ARCHIVED
 
 `ARCHIVED` 是持久化的只读生命周期状态。`PAUSING`、`Start pending` 等仅表示命令尚未完成的 UI 过渡状态，不进入 Corporation 领域状态或 SQLite 枚举。
 
+Milestone 1 的暂停基础允许 `DRAFT` 以及上图中的非终态活动状态进入 `PAUSED`；`PAUSED` 必须持久化暂停来源，继续时只能精确返回该来源状态。该基础不表示 Plan、Task、Run 或 Tool 已存在，也不替代后续未知副作用恢复。
+
 ### 2.2 Goal Contract
 
 用户意图的可执行合同，是后续规划与验收的上位依据。

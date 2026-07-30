@@ -3,6 +3,8 @@ import {
   CORPORATION_CREATE_IPC_CHANNEL,
   CORPORATION_GET_IPC_CHANNEL,
   CORPORATION_LIST_IPC_CHANNEL,
+  CORPORATION_PAUSE_IPC_CHANNEL,
+  CORPORATION_RESUME_IPC_CHANNEL,
   CORPORATION_UPDATE_NAME_IPC_CHANNEL,
   corporationArchiveRequestSchema,
   corporationCreateRequestSchema,
@@ -10,6 +12,8 @@ import {
   corporationItemResultSchema,
   corporationListRequestSchema,
   corporationListResultSchema,
+  corporationPauseRequestSchema,
+  corporationResumeRequestSchema,
   corporationUpdateNameRequestSchema,
   GOAL_CONTRACT_APPROVE_IPC_CHANNEL,
   GOAL_CONTRACT_GET_CURRENT_IPC_CHANNEL,
@@ -30,6 +34,8 @@ import {
   type CorporationCreateRequest,
   type CorporationGetRequest,
   type CorporationListRequest,
+  type CorporationPauseRequest,
+  type CorporationResumeRequest,
   type CorporationUpdateNameRequest,
   healthResultSchema,
   NATIVE_HEALTH_IPC_CHANNEL,
@@ -76,6 +82,20 @@ const desktopApi: DesktopApi = Object.freeze({
         await ipcRenderer.invoke(
           CORPORATION_LIST_IPC_CHANNEL,
           corporationListRequestSchema.parse(request),
+        ),
+      ),
+    pause: async (request: CorporationPauseRequest) =>
+      corporationItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          CORPORATION_PAUSE_IPC_CHANNEL,
+          corporationPauseRequestSchema.parse(request),
+        ),
+      ),
+    resume: async (request: CorporationResumeRequest) =>
+      corporationItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          CORPORATION_RESUME_IPC_CHANNEL,
+          corporationResumeRequestSchema.parse(request),
         ),
       ),
     updateName: async (request: CorporationUpdateNameRequest) =>

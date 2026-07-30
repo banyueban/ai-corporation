@@ -3,7 +3,9 @@ import {
   corporationCreateRequestSchema,
   corporationFailureSchema,
   corporationNameSchema,
+  corporationPauseRequestSchema,
   corporationPublicSchema,
+  corporationResumeRequestSchema,
 } from "./corporation";
 
 const id = "019fa9bb-375e-7d90-a4e3-a5b0eea2a9ef";
@@ -60,6 +62,60 @@ describe("Corporation Protocol", () => {
         ...common,
         status: "DRAFT",
         archivedAt: common.updatedAt,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("enforces strict pause commands and paired paused projection metadata", () => {
+    const common = {
+      schemaVersion: "1.0",
+      id,
+      workspaceId: id,
+      name: "Example",
+      version: 2,
+      createdAt: "2026-07-30T00:00:00.000Z",
+      updatedAt: "2026-07-30T01:00:00.000Z",
+    } as const;
+    expect(
+      corporationPauseRequestSchema.safeParse({
+        schemaVersion: "1.0",
+        commandId: id,
+        corporationId: id,
+        expectedVersion: 1,
+        targetStatus: "PAUSED",
+      }).success,
+    ).toBe(false);
+    expect(
+      corporationResumeRequestSchema.safeParse({
+        schemaVersion: "1.0",
+        commandId: id,
+        corporationId: id,
+        expectedVersion: 0,
+        targetStatus: "DRAFT",
+        reason: "USER",
+        resumedAt: common.updatedAt,
+      }).success,
+    ).toBe(false);
+    expect(
+      corporationPublicSchema.safeParse({
+        ...common,
+        status: "PAUSED",
+      }).success,
+    ).toBe(false);
+    expect(
+      corporationPublicSchema.safeParse({
+        ...common,
+        status: "PAUSED",
+        pausedFrom: "DRAFT",
+        pausedAt: common.updatedAt,
+      }).success,
+    ).toBe(true);
+    expect(
+      corporationPublicSchema.safeParse({
+        ...common,
+        status: "DRAFT",
+        pausedFrom: "DRAFT",
+        pausedAt: common.updatedAt,
       }).success,
     ).toBe(false);
   });

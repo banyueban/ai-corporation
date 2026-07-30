@@ -184,14 +184,14 @@ describe("migration runner", () => {
     database.close();
   });
 
-  it("creates the Corporation, Goal, event, and command schema through migration 0004", () => {
+  it("creates the Corporation, Goal, event, and state command schema through migration 0005", () => {
     const database = new DatabaseSync(":memory:");
     const migrations = loadMigrations(migrationDirectory);
     applyMigrations(database, migrations);
 
     expect(
       readAppliedMigrations(database).map(({ version }) => version),
-    ).toEqual([1, 2, 3, 4]);
+    ).toEqual([1, 2, 3, 4, 5]);
     expect(
       database
         .prepare(
@@ -203,6 +203,7 @@ describe("migration runner", () => {
               'corporation_command',
               'goal_contract_version',
               'goal_contract_command',
+              'corporation_state_command',
               'idx_corporation_workspace_updated',
               'idx_goal_contract_corporation_version',
               'idx_event_corporation_timeline',
@@ -210,7 +211,9 @@ describe("migration runner", () => {
               'domain_event_reject_delete',
               'goal_contract_reject_content_update',
               'goal_contract_reject_delete',
-              'corporation_validate_active_goal'
+              'corporation_validate_active_goal',
+              'corporation_validate_pause_metadata_insert',
+              'corporation_validate_pause_metadata_update'
             )
           ORDER BY name`,
         )
@@ -219,7 +222,10 @@ describe("migration runner", () => {
     ).toEqual([
       "corporation",
       "corporation_command",
+      "corporation_state_command",
       "corporation_validate_active_goal",
+      "corporation_validate_pause_metadata_insert",
+      "corporation_validate_pause_metadata_update",
       "domain_event",
       "domain_event_reject_delete",
       "domain_event_reject_update",
@@ -280,8 +286,17 @@ describe("migration runner", () => {
         .get(eventId),
     ).toEqual({ event_type: "corporation.created" });
     expect(
-      database.prepare("PRAGMA table_info(corporation)").all().at(-1),
-    ).toMatchObject({ name: "active_goal_version" });
+      database
+        .prepare("PRAGMA table_info(corporation)")
+        .all()
+        .map(({ name }) => name),
+    ).toEqual(
+      expect.arrayContaining([
+        "active_goal_version",
+        "paused_from",
+        "paused_at",
+      ]),
+    );
 
     const content = JSON.stringify({
       schemaVersion: "1.0",
@@ -339,6 +354,117 @@ describe("migration runner", () => {
         .run(corporationId, content, createdAt, createdAt),
     ).toThrow("goal contract must be inserted as draft");
 
+    expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+    database.close();
+  });
+
+  it("upgrades a populated 0004 database without changing existing Corporation, Goal, or Event facts", () => {
+    const database = new DatabaseSync(":memory:");
+    const migrations = loadMigrations(migrationDirectory);
+    applyMigrations(database, migrations.slice(0, 4));
+    const workspaceId = "019fa9bb-375e-7d90-a4e3-a5b0eea2a911";
+    const corporationId = "019fa9bb-375e-7d90-a4e3-a5b0eea2a912";
+    const eventId = "019fa9bb-375e-7d90-a4e3-a5b0eea2a913";
+    const createdAt = "2026-07-30T00:00:00.000Z";
+    const content = JSON.stringify({
+      schemaVersion: "1.0",
+      source: "MANUAL",
+      originalGoal: "Preserve facts",
+      statement: "Preserve facts",
+      successCriteria: ["Rows remain unchanged"],
+      inScope: [],
+      outOfScope: [],
+      constraints: [],
+      assumptions: [],
+      deliverables: [],
+      riskLevel: "LOW",
+      budget: {},
+      stopConditions: [],
+    });
+    database
+      .prepare(
+        `INSERT INTO workspace (
+          id, name, display_path, canonical_root_path, platform,
+          permission_mode, access_status, path_identity_json,
+          created_at, updated_at
+        ) VALUES (?, 'Workspace', 'display', 'canonical', 'windows',
+          'READ_WRITE', 'AVAILABLE', '{}', ?, ?)`,
+      )
+      .run(workspaceId, createdAt, createdAt);
+    database
+      .prepare(
+        `INSERT INTO corporation (
+          id, workspace_id, name, status, version, active_goal_version,
+          created_at, updated_at
+        ) VALUES (?, ?, 'Corporation', 'DRAFT', 1, NULL, ?, ?)`,
+      )
+      .run(corporationId, workspaceId, createdAt, createdAt);
+    database
+      .prepare(
+        `INSERT INTO goal_contract_version (
+          corporation_id, version, status, source, content_json,
+          created_by, created_at
+        ) VALUES (?, 1, 'DRAFT', 'MANUAL', ?, 'local-user', ?)`,
+      )
+      .run(corporationId, content, createdAt);
+    database
+      .prepare(
+        `UPDATE corporation
+        SET version = 2, active_goal_version = 1, updated_at = ?
+        WHERE id = ?`,
+      )
+      .run(createdAt, corporationId);
+    database
+      .prepare(
+        `INSERT INTO domain_event (
+          event_id, schema_version, event_type, aggregate_type, aggregate_id,
+          aggregate_version, corporation_id, correlation_id, actor_json,
+          payload_json, sensitivity, occurred_at
+        ) VALUES (?, '1.0', 'goal.contract.drafted', 'CORPORATION', ?, 2, ?,
+          ?, '{"kind":"USER","id":"local-user"}', '{}', 'NORMAL', ?)`,
+      )
+      .run(eventId, corporationId, corporationId, eventId, createdAt);
+
+    const before = {
+      corporation: database
+        .prepare(
+          "SELECT id, name, status, version, active_goal_version FROM corporation",
+        )
+        .get(),
+      event: database
+        .prepare(
+          "SELECT event_id, event_type, aggregate_version FROM domain_event",
+        )
+        .get(),
+      goal: database
+        .prepare(
+          "SELECT corporation_id, version, status, content_json FROM goal_contract_version",
+        )
+        .get(),
+    };
+    applyMigrations(database, migrations);
+
+    expect(
+      database
+        .prepare(
+          "SELECT id, name, status, version, active_goal_version FROM corporation",
+        )
+        .get(),
+    ).toEqual(before.corporation);
+    expect(
+      database
+        .prepare(
+          "SELECT event_id, event_type, aggregate_version FROM domain_event",
+        )
+        .get(),
+    ).toEqual(before.event);
+    expect(
+      database
+        .prepare(
+          "SELECT corporation_id, version, status, content_json FROM goal_contract_version",
+        )
+        .get(),
+    ).toEqual(before.goal);
     expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
     database.close();
   });

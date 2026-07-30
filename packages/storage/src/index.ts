@@ -1,4 +1,5 @@
 export * from "./corporation-repository";
+export * from "./corporation-state-repository";
 export * from "./goal-contract-repository";
 export * from "./migrations";
 export * from "./workspace-database";

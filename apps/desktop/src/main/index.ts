@@ -4,6 +4,8 @@ import {
   CORPORATION_CREATE_IPC_CHANNEL,
   CORPORATION_GET_IPC_CHANNEL,
   CORPORATION_LIST_IPC_CHANNEL,
+  CORPORATION_PAUSE_IPC_CHANNEL,
+  CORPORATION_RESUME_IPC_CHANNEL,
   CORPORATION_UPDATE_NAME_IPC_CHANNEL,
   GOAL_CONTRACT_APPROVE_IPC_CHANNEL,
   GOAL_CONTRACT_GET_CURRENT_IPC_CHANNEL,
@@ -18,6 +20,7 @@ import {
 } from "@ai-corporation/protocols";
 import {
   CorporationRepository,
+  CorporationStateRepository,
   GoalContractRepository,
   type GoalFaultStage,
   openWorkspaceDatabase,
@@ -40,6 +43,11 @@ import {
   handleCorporationUpdateName,
 } from "./corporation-ipc";
 import { CorporationService } from "./corporation-service";
+import {
+  handleCorporationPause,
+  handleCorporationResume,
+} from "./corporation-state-ipc";
+import { CorporationStateService } from "./corporation-state-service";
 import {
   handleGoalContractApprove,
   handleGoalContractGetCurrent,
@@ -68,6 +76,7 @@ const preloadPath = path.join(__dirname, "../preload/index.js");
 
 let mainWindow: BrowserWindow | undefined;
 let corporationService: CorporationService | undefined;
+let corporationStateService: CorporationStateService | undefined;
 let goalContractService: GoalContractService | undefined;
 let nativeCoreClient: NativeCoreClient | undefined;
 let workspaceDatabase: DatabaseSync | undefined;
@@ -200,6 +209,24 @@ void app.whenReady().then(async () => {
       ),
   );
   ipcMain.handle(
+    CORPORATION_PAUSE_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleCorporationPause(
+        isTrustedRenderer(event),
+        request,
+        corporationStateService,
+      ),
+  );
+  ipcMain.handle(
+    CORPORATION_RESUME_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleCorporationResume(
+        isTrustedRenderer(event),
+        request,
+        corporationStateService,
+      ),
+  );
+  ipcMain.handle(
     CORPORATION_CREATE_IPC_CHANNEL,
     (event: IpcMainInvokeEvent, request: unknown) =>
       handleCorporationCreate(
@@ -303,6 +330,21 @@ void app.whenReady().then(async () => {
           },
         }),
     });
+    const corporationRepository = new CorporationRepository(workspaceDatabase);
+    corporationStateService = new CorporationStateService({
+      repository: new CorporationStateRepository(workspaceDatabase),
+      revalidateWorkspace: (workspaceId) =>
+        workspaceService?.revalidate(workspaceId) ??
+        Promise.resolve({
+          ok: false,
+          error: {
+            code: "STORAGE_UNAVAILABLE",
+            message: "Workspace operation failed",
+          },
+        }),
+      resolveWorkspaceId: (corporationId) =>
+        corporationRepository.get(corporationId)?.workspaceId,
+    });
     goalContractService = new GoalContractService({
       repository: createGoalContractRepository(workspaceDatabase, process.env),
     });
@@ -319,6 +361,7 @@ void app.whenReady().then(async () => {
   } catch {
     workspaceDatabase = undefined;
     corporationService = undefined;
+    corporationStateService = undefined;
     goalContractService = undefined;
     workspaceDirectorySelector = undefined;
     workspaceService = undefined;
@@ -349,6 +392,8 @@ app.on("before-quit", () => {
   ipcMain.removeHandler(CORPORATION_LIST_IPC_CHANNEL);
   ipcMain.removeHandler(CORPORATION_UPDATE_NAME_IPC_CHANNEL);
   ipcMain.removeHandler(CORPORATION_ARCHIVE_IPC_CHANNEL);
+  ipcMain.removeHandler(CORPORATION_PAUSE_IPC_CHANNEL);
+  ipcMain.removeHandler(CORPORATION_RESUME_IPC_CHANNEL);
   ipcMain.removeHandler(GOAL_CONTRACT_SAVE_DRAFT_IPC_CHANNEL);
   ipcMain.removeHandler(GOAL_CONTRACT_GET_CURRENT_IPC_CHANNEL);
   ipcMain.removeHandler(GOAL_CONTRACT_LIST_VERSIONS_IPC_CHANNEL);

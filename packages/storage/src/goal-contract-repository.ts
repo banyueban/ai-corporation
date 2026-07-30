@@ -41,6 +41,8 @@ const timelineEventTypes = [
   "corporation.archived",
   "goal.contract.drafted",
   "goal.contract.approved",
+  "corporation.paused",
+  "corporation.resumed",
 ] as const;
 
 export class GoalContractRepository {

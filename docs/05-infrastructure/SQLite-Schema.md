@@ -66,9 +66,15 @@ CREATE TABLE corporation (
   )),
   version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
   created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  archived_at TEXT,
-  active_goal_version INTEGER CHECK (
+    updated_at TEXT NOT NULL,
+    archived_at TEXT,
+    paused_from TEXT CHECK (
+      paused_from IS NULL OR paused_from IN (
+        'DRAFT','PLANNING','ORGANIZING','EXECUTING','VERIFYING','WAITING_HUMAN'
+      )
+    ),
+    paused_at TEXT,
+    active_goal_version INTEGER CHECK (
     active_goal_version IS NULL OR active_goal_version >= 1
   ),
   CHECK (
@@ -366,7 +372,8 @@ CREATE TABLE domain_event (
   schema_version TEXT NOT NULL CHECK (schema_version = '1.0'),
   event_type TEXT NOT NULL CHECK (event_type IN (
     'corporation.created','corporation.name.updated','corporation.archived',
-    'goal.contract.drafted','goal.contract.approved'
+      'goal.contract.drafted','goal.contract.approved',
+      'corporation.paused','corporation.resumed'
   )),
   aggregate_type TEXT NOT NULL CHECK (aggregate_type = 'CORPORATION'),
   aggregate_id TEXT NOT NULL REFERENCES corporation(id),
@@ -407,7 +414,7 @@ CREATE TABLE corporation_command (
   created_at TEXT NOT NULL
 ) STRICT;
 
-CREATE TABLE goal_contract_command (
+  CREATE TABLE goal_contract_command (
   command_id TEXT PRIMARY KEY NOT NULL,
   command_type TEXT NOT NULL CHECK (
     command_type IN ('SAVE_DRAFT','APPROVE')
@@ -420,7 +427,20 @@ CREATE TABLE goal_contract_command (
   result_json TEXT NOT NULL CHECK (json_valid(result_json)),
   result_version INTEGER NOT NULL CHECK (result_version >= 1),
   created_at TEXT NOT NULL
-) STRICT;
+  ) STRICT;
+
+  CREATE TABLE corporation_state_command (
+    command_id TEXT PRIMARY KEY NOT NULL,
+    command_type TEXT NOT NULL CHECK (command_type IN ('PAUSE','RESUME')),
+    corporation_id TEXT NOT NULL REFERENCES corporation(id),
+    request_hash TEXT NOT NULL CHECK (
+      length(request_hash) = 64
+      AND request_hash NOT GLOB '*[^0-9a-f]*'
+    ),
+    result_json TEXT NOT NULL CHECK (json_valid(result_json)),
+    result_version INTEGER NOT NULL CHECK (result_version >= 1),
+    created_at TEXT NOT NULL
+  ) STRICT;
 
 CREATE TABLE memory_item (
   id TEXT PRIMARY KEY,
@@ -445,7 +465,7 @@ CREATE VIRTUAL TABLE memory_fts USING fts5(
 );
 ```
 
-`0003_corporation_events.sql` 只建立 M1-TU-04 已冻结的 Corporation CRUD、事件与命令回执字段。`0004_goal_contract.sql` 增加 active Goal pointer、不可变 Goal 版本、Goal 命令回执和两种 Goal 事实事件；active Plan/Organization、Policy 与事件分发游标仍由后续迁移增加。分发状态不得通过更新 append-only `domain_event` 实现。
+`0003_corporation_events.sql` 只建立 M1-TU-04 已冻结的 Corporation CRUD、事件与命令回执字段。`0004_goal_contract.sql` 增加 active Goal pointer、不可变 Goal 版本、Goal 命令回执和两种 Goal 事实事件。`0005_corporation_pause_resume.sql` 增加成对暂停元数据、pause/resume 独立命令回执、两种状态事实事件和物理一致性 trigger；active Plan/Organization、Policy 与事件分发游标仍由后续迁移增加。分发状态不得通过更新 append-only `domain_event` 实现。
 
 FTS 同步由事务内 repository 维护并用一致性测试覆盖。
 

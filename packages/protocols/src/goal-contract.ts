@@ -209,6 +209,8 @@ export const timelineEventTypeSchema = z.enum([
   "corporation.archived",
   "goal.contract.drafted",
   "goal.contract.approved",
+  "corporation.paused",
+  "corporation.resumed",
 ]);
 
 export const timelineSummaryByEventType = {
@@ -217,6 +219,8 @@ export const timelineSummaryByEventType = {
   "corporation.archived": "Corporation archived.",
   "goal.contract.drafted": "Goal Contract draft saved.",
   "goal.contract.approved": "Goal Contract approved.",
+  "corporation.paused": "Corporation paused.",
+  "corporation.resumed": "Corporation resumed.",
 } as const satisfies Record<z.infer<typeof timelineEventTypeSchema>, string>;
 
 export const timelineEventPublicSchema = z

@@ -141,6 +141,8 @@ type TimelineEventPublic = {
     | "corporation.created"
     | "corporation.name.updated"
     | "corporation.archived"
+    | "corporation.paused"
+    | "corporation.resumed"
     | "goal.contract.drafted"
     | "goal.contract.approved";
   corporationId: string;
@@ -165,7 +167,7 @@ type TimelineListResult = {
 
 最小时间线按 `(occurredAt, eventId)` 升序返回目标 Corporation 的 allowlist 事件：
 
-- `corporation.created`、`corporation.name.updated`、`corporation.archived`；
+- `corporation.created`、`corporation.name.updated`、`corporation.archived`、`corporation.paused`、`corporation.resumed`；
 - `goal.contract.drafted`、`goal.contract.approved`。
 
 固定安全摘要为：
@@ -175,6 +177,8 @@ type TimelineListResult = {
 | `corporation.created` | `Corporation created.` |
 | `corporation.name.updated` | `Corporation name updated.` |
 | `corporation.archived` | `Corporation archived.` |
+| `corporation.paused` | `Corporation paused.` |
+| `corporation.resumed` | `Corporation resumed.` |
 | `goal.contract.drafted` | `Goal Contract draft saved.` |
 | `goal.contract.approved` | `Goal Contract approved.` |
 

@@ -3,18 +3,18 @@
 | 属性           | 当前值                                    |
 | -------------- | ----------------------------------------- |
 | 当前产品版本   | v0.1 MVP                                  |
-| 当前阶段       | Milestone 1 第六个任务单元就绪            |
+| 当前阶段       | Milestone 1 第六个任务单元实施与验收      |
 | 当前 Milestone | Milestone 1：本地项目骨架                 |
-| 当前任务单元   | M1-TU-06（就绪）                          |
+| 当前任务单元   | M1-TU-06（进行中）                        |
 | 总体状态       | 进行中                                    |
 | 最近更新       | 2026-07-30                                |
-| 下一检查点     | M1-TU-06 协议与迁移实现                   |
+| 下一检查点     | M1-TU-06 全量检查与最终包验收             |
 
 ## 1. 当前结论
 
 Milestone 0 已通过全部适用验收；当前没有已知未解决的 P0/P1 缺陷。Milestone 1 的 `M1-TU-01` 至 `M1-TU-05` 已完成。`M1-TU-05` 在验收前审计中补齐不可用 Workspace 的事务内写入拒绝，验收提交 `0952ea9b2353e465aba14a6c6d368e46a494ffd0` 的协议、迁移、Repository、typed IPC、真实 UI 故障恢复/冲突恢复、可访问性、响应布局、开发态 E2E、Windows/macOS 最终包 E2E 和制品上传全部通过，合同 18 项关闭。
 
-该结论只关闭 Goal Contract 手工/本地 Mock、版本保存、确认和最小时间线切片，不代表暂停/恢复状态机、完整 UI-AC-02、`M1-TU-06` 或 Milestone 1 已完成。`M1-TU-06` 的 Milestone 归属、状态语义、非范围、接口、所有权、隔离和 15 项验收合同已完成内容审查，基线为 `b31784c72e8876d294cd0d30b39e3e3c44dcec98`，当前状态为“就绪”。
+该结论只关闭 Goal Contract 手工/本地 Mock、版本保存、确认和最小时间线切片，不代表 `M1-TU-06` 或 Milestone 1 已完成。`M1-TU-06` 的 Milestone 归属、状态语义、非范围、接口、所有权、隔离和 15 项验收合同已完成内容审查，基线为 `b31784c72e8876d294cd0d30b39e3e3c44dcec98`，当前状态为“进行中”；协议、`0005`、状态事务、Main/Preload、Dashboard/Review 与应用进程重启旅程已进入验证，尚未取得双平台同提交最终包证据。
 
 ## 2. 已完成基线
 
@@ -77,7 +77,7 @@ Milestone 0 已通过全部适用验收；当前没有已知未解决的 P0/P1 �
 - 关闭范围：Goal Contract 手工/本地确定性 Mock、版本/确认、最小时间线、真实 UI 故障与冲突恢复；
 - 非范围：真实 Provider、Task Graph、Plan、运行状态机、暂停/恢复和完整 Milestone 1 演示。
 
-当前只允许实施和验收 [M1-TU-06 暂停/继续、重启恢复与 Milestone 1 演示](docs/06-engineering/task-units/M1-TU-06-pause-resume-restart-milestone.md)，状态为“就绪”，基线为 `b31784c72e8876d294cd0d30b39e3e3c44dcec98`；不得同时启动 Milestone 2 或把基础状态恢复表述为 Task/Run/Tool 未知副作用恢复完成。
+当前只允许实施和验收 [M1-TU-06 暂停/继续、重启恢复与 Milestone 1 演示](docs/06-engineering/task-units/M1-TU-06-pause-resume-restart-milestone.md)，状态为“进行中”，基线为 `b31784c72e8876d294cd0d30b39e3e3c44dcec98`；不得同时启动 Milestone 2 或把基础状态恢复表述为 Task/Run/Tool 未知副作用恢复完成。
 
 Milestone 1 任务覆盖地图：
 
@@ -90,7 +90,7 @@ Milestone 1 任务覆盖地图：
 | `M1-TU-05`   | Goal Contract 手工/Mock、版本保存和最小时间线；不接真实模型 | Goal Contract 手工/Mock 与版本保存、Goal 表、最小时间线                           |
 | `M1-TU-06`   | 暂停/恢复状态机、应用重启恢复和 Milestone 演示              | 暂停/恢复、应用重启、不丢失已持久化状态和 Milestone 演示                          |
 
-该表只证明计划覆盖；`M1-TU-06` 合同已建立但功能尚未实现。每个合同必须重新核对其内容属于 MVP Plan 的 Milestone 1，禁止遗漏或静默移动 Milestone 范围。
+该表只证明计划覆盖；`M1-TU-06` 正在实施和验收，尚未关闭。每个合同必须重新核对其内容属于 MVP Plan 的 Milestone 1，禁止遗漏或静默移动 Milestone 范围。
 
 ## 5. 活跃阻塞与外部条件
 
@@ -147,6 +147,7 @@ Milestone 1 任务覆盖地图：
 - M1-TU-05 Windows 开发态真实窗口：纯键盘完成 Workspace 授权、Corporation 创建、一次性 Goal 事务失败、保留输入且不重复创建 Corporation 的重试、本地确定性 Mock Goal v1、未确认 HIGH 假设拒绝、真实竞争版本触发 `VERSION_CONFLICT`、reload 恢复后确认 Goal v3、approve、版本/时间线与 SQLite 恢复；Create/Review 页 axe 严重/关键违规为 0，Mock 外部网络请求为 0，1024 × 700、1440 × 900 与 200% 截图已人工检查，临时 Workspace/user data 清理通过；
 - M1-TU-05 本地 Windows x64 最终目录包：Native Core health、Workspace 授权/重载恢复、一次性 Goal 保存故障/恢复重试、Review/假设门禁、approve、版本/时间线与 Renderer reload/SQLite 恢复的真实 UI 旅程通过；最终包截图已人工检查，Mock 外部网络请求为 0，临时 Workspace/user data 清理通过。该证据不代替同一提交的 macOS 或双平台 CI 验收；
 - M1-TU-05 验收提交：`0952ea9b2353e465aba14a6c6d368e46a494ffd0`；GitHub Actions run `30513008388`；Windows x64 job `90776878422` 与 macOS Apple Silicon job `90776878406` 的工程检查、开发态真实窗口、最终包 Goal UI E2E、清理和 artifact 上传均成功；artifacts 为 `8747866273` 与 `8747850786`；合同 18 项全部通过，P0/P1 为 0，未执行的合同必检项为 0；
+- M1-TU-06 当前实现验证：Corporation pause/resume 协议测试 20 项、Storage 测试 61 项、Desktop service/IPC 测试 59 项及 `pnpm check` 全量通过；覆盖六种允许来源、精确恢复、Workspace 全不可用状态、三写入边界 fault rollback、命令重放/冲突、双连接 barrier、已填充 `0004` 不变升级、损坏暂停元数据拒绝、脱敏时间线、SQLite 重开和启动零写入。Windows 开发态真实 Electron 窗口已通过纯键盘冲突恢复及 `pause → 应用进程关闭 → 复用同一 user data 重启 → PAUSED 恢复且事件数不变 → resume 到 DRAFT`，Goal APPROVED、Workspace 与版本保留，严重/关键 axe 违规为 0；最新 Windows x64 最终目录包同一旅程、Native Core health、Mock 网络请求 0、独立暂停恢复/继续截图人工检查和临时资源清理通过。该本地证据不代表 macOS、合同或 Milestone 已通过；
 - 文档优化提交 `f1ae2096ed3fc96e86f2019e051f0c01b28d25eb` 已推送。
 
 本节只保留当前有效验证摘要，不记录被替代的过程结论。

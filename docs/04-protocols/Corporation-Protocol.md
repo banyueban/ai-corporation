@@ -44,12 +44,15 @@ type CorporationPublic = {
   createdAt: string;
   updatedAt: string;
   archivedAt?: string;
+  pausedFrom?: "DRAFT" | "PLANNING" | "ORGANIZING" | "EXECUTING" | "VERIFYING" | "WAITING_HUMAN";
+  pausedAt?: string;
 };
 ```
 
 约束：
 
 - `archivedAt` 仅在 `status === "ARCHIVED"` 时存在；
+- `pausedFrom` 与 `pausedAt` 必须同时存在且仅在 `status === "PAUSED"` 时存在；暂停/继续语义由 [Corporation State Protocol](Corporation-State-Protocol.md) 定义；
 - 公开 DTO 不包含 active Goal/Plan/Organization、Policy 内部值、路径或事件 payload；
 - 所有查询和命令响应都必须经过 strict runtime Schema，拒绝额外字段。
 
@@ -214,7 +217,7 @@ BEGIN IMMEDIATE
 
 - v1 minor 版本只允许新增可选字段、错误或 channel，不改变已有语义；
 - 未知 major、未知枚举和额外字段必须拒绝；
-- Goal Contract、Task、预算、Policy 编辑、暂停/恢复/取消状态迁移、事件订阅、时间线 UI、Corporation 删除和跨设备同步均不在本协议当前任务范围。
+- Goal Contract、Task、预算、Policy 编辑、取消状态迁移、事件订阅、时间线 UI、Corporation 删除和跨设备同步均不在本协议当前任务范围；暂停/继续由独立 [Corporation State Protocol](Corporation-State-Protocol.md) 定义。
 
 ## 10. 验收
 

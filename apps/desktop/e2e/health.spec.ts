@@ -15,27 +15,22 @@ import type { DesktopApi } from "../src/shared/desktop-api";
 test("user authorizes and restores a Workspace through the visible window", async () => {
   const appDirectory = path.resolve(__dirname, "..");
   const userDataDirectory = mkdtempSync(
-    path.join(tmpdir(), "M1-TU-05-electron-user-data-"),
+    path.join(tmpdir(), "M1-TU-06-electron-user-data-"),
   );
   const workspaceDirectory = mkdtempSync(
-    path.join(tmpdir(), "M1-TU-05-workspace-"),
+    path.join(tmpdir(), "M1-TU-06-workspace-"),
   );
   const evidenceDirectory = path.resolve(appDirectory, "../../release");
   mkdirSync(evidenceDirectory, { recursive: true });
 
-  const electronApp = await electron.launch({
-    args: [appDirectory, `--user-data-dir=${userDataDirectory}`],
-    env: {
-      ...process.env,
-      AI_CORPORATION_E2E: "1",
-      AI_CORPORATION_E2E_GOAL_SAVE_FAIL_ONCE: "1",
-      AI_CORPORATION_E2E_WORKSPACE_PATH: workspaceDirectory,
-      CI: "true",
-    },
-  });
+  let electronApp = await launchApplication(
+    appDirectory,
+    userDataDirectory,
+    workspaceDirectory,
+  );
 
   try {
-    const page = await electronApp.firstWindow();
+    let page = await electronApp.firstWindow();
     const externalRequests: string[] = [];
     page.on("request", (request) => {
       if (/^https?:/u.test(request.url())) externalRequests.push(request.url());
@@ -357,12 +352,156 @@ test("user authorizes and restores a Workspace through the visible window", asyn
         `m1-tu05-dev-${process.platform}-${process.arch}-1440x900.png`,
       ),
     });
+
+    const competingPause = await page.evaluate(async (id) => {
+      const desktop = (
+        globalThis as typeof globalThis & { desktop: DesktopApi }
+      ).desktop;
+      return desktop.corporation.pause({
+        schemaVersion: "1.0",
+        commandId: "019fa9bb-5001-7d90-a4e3-a5b0eea2a9ef",
+        corporationId: id,
+        expectedVersion: 5,
+      });
+    }, corporationId);
+    expect(competingPause).toMatchObject({
+      ok: true,
+      value: { status: "PAUSED", version: 6, pausedFrom: "DRAFT" },
+    });
+    await page.getByRole("button", { name: "Pause Corporation" }).click();
+    await expect(page.getByText("VERSION_CONFLICT")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Resume Corporation" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Resume Corporation" }).click();
+    await expect(
+      page.getByRole("status").filter({
+        hasText:
+          "Corporation resumed to DRAFT. No command or event was replayed.",
+      }),
+    ).toBeVisible();
+
+    const pauseButton = page.getByRole("button", {
+      name: "Pause Corporation",
+    });
+    await pauseButton.focus();
+    await page.keyboard.press("Enter");
+    await expect(
+      page.getByRole("status").filter({
+        hasText: "Corporation paused. No Plan, Task, or execution has started.",
+      }),
+    ).toBeVisible();
+    await expect(page.getByText("PAUSED", { exact: true })).toBeVisible();
+    await expect(page.getByText(/Paused from DRAFT at/u)).toBeVisible();
+    await expectNoSeriousAxeViolations(page);
+    const beforeRestart = await readPersistedState(page, corporationId);
+    expect(beforeRestart).toMatchObject({
+      corporation: {
+        status: "PAUSED",
+        version: 8,
+        pausedFrom: "DRAFT",
+      },
+    });
+
+    await electronApp.close();
+    electronApp = await launchApplication(
+      appDirectory,
+      userDataDirectory,
+      workspaceDirectory,
+    );
+    page = await electronApp.firstWindow();
+    page.on("request", (request) => {
+      if (/^https?:/u.test(request.url())) externalRequests.push(request.url());
+    });
+    await setWindowSize(electronApp, 1024, 700);
+    await expect(
+      page.getByRole("heading", { name: "Dashboard" }),
+    ).toBeVisible();
+    await expect(page.getByText("PAUSED", { exact: true })).toBeVisible();
+    await expect(page.getByText(/Paused from DRAFT at/u)).toBeVisible();
+    await expectNoSeriousAxeViolations(page);
+    await page.screenshot({
+      path: path.join(
+        evidenceDirectory,
+        `m1-tu06-dev-${process.platform}-${process.arch}-paused-restored-1024x700.png`,
+      ),
+    });
+    await setWindowSize(electronApp, 1440, 900);
+    await page.screenshot({
+      path: path.join(
+        evidenceDirectory,
+        `m1-tu06-dev-${process.platform}-${process.arch}-paused-restored-1440x900.png`,
+      ),
+    });
+    const afterRestart = await readPersistedState(page, corporationId);
+    expect(afterRestart).toEqual(beforeRestart);
+
+    await page.getByRole("button", { name: "Open Goal Contract" }).click();
+    const resumeButton = page.getByRole("button", {
+      name: "Resume Corporation",
+    });
+    await resumeButton.focus();
+    await page.keyboard.press("Enter");
+    await expect(
+      page.getByRole("status").filter({
+        hasText:
+          "Corporation resumed to DRAFT. No command or event was replayed.",
+      }),
+    ).toBeVisible();
+    await expect(page.getByText("DRAFT", { exact: true })).toBeVisible();
+    await expect(page.getByText("APPROVED", { exact: true })).toBeVisible();
+    await expectNoSeriousAxeViolations(page);
+    const afterResume = await readPersistedState(page, corporationId);
+    expect(afterResume).toMatchObject({
+      corporation: { status: "DRAFT", version: 9 },
+    });
+    expect(afterResume.eventCount).toBe(beforeRestart.eventCount + 1);
+    expect(externalRequests).toEqual([]);
   } finally {
     await electronApp.close();
     cleanupDirectory(workspaceDirectory);
     cleanupDirectory(userDataDirectory);
   }
 });
+
+async function launchApplication(
+  appDirectory: string,
+  userDataDirectory: string,
+  workspaceDirectory: string,
+) {
+  return electron.launch({
+    args: [appDirectory, `--user-data-dir=${userDataDirectory}`],
+    env: {
+      ...process.env,
+      AI_CORPORATION_E2E: "1",
+      AI_CORPORATION_E2E_GOAL_SAVE_FAIL_ONCE: "1",
+      AI_CORPORATION_E2E_WORKSPACE_PATH: workspaceDirectory,
+      CI: "true",
+    },
+  });
+}
+
+async function readPersistedState(page: Page, corporationId: string) {
+  return page.evaluate(async (id) => {
+    const desktop = (globalThis as typeof globalThis & { desktop: DesktopApi })
+      .desktop;
+    const corporation = await desktop.corporation.get({
+      schemaVersion: "1.0",
+      corporationId: id,
+    });
+    const timeline = await desktop.timeline.list({
+      schemaVersion: "1.0",
+      corporationId: id,
+      limit: 100,
+    });
+    if (!corporation.ok) throw new Error(corporation.error.code);
+    if (!timeline.ok) throw new Error(timeline.error.code);
+    return {
+      corporation: corporation.value,
+      eventCount: timeline.value.items.length,
+    };
+  }, corporationId);
+}
 
 async function setWindowSize(
   electronApp: Awaited<ReturnType<typeof electron.launch>>,

@@ -47,7 +47,7 @@ export class CorporationRepository {
     const row = this.#database
       .prepare(
         `SELECT id, workspace_id, name, status, version, created_at,
-          updated_at, archived_at
+          updated_at, archived_at, paused_from, paused_at
         FROM corporation WHERE id = ?`,
       )
       .get(corporationId);
@@ -61,7 +61,7 @@ export class CorporationRepository {
     return this.#database
       .prepare(
         `SELECT id, workspace_id, name, status, version, created_at,
-          updated_at, archived_at
+          updated_at, archived_at, paused_from, paused_at
         FROM corporation
         WHERE workspace_id = ? AND (? = 1 OR status <> 'ARCHIVED')
         ORDER BY updated_at DESC, id ASC`,
@@ -81,8 +81,8 @@ export class CorporationRepository {
         .prepare(
           `INSERT INTO corporation (
             id, workspace_id, name, status, version, created_at, updated_at,
-            archived_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            archived_at, paused_from, paused_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           corporation.id,
@@ -93,6 +93,8 @@ export class CorporationRepository {
           corporation.createdAt,
           corporation.updatedAt,
           corporation.archivedAt ?? null,
+          corporation.pausedFrom ?? null,
+          corporation.pausedAt ?? null,
         );
       this.#fault?.("STATE");
       this.#insertEvent(input.event, input.command.commandId);
@@ -306,6 +308,8 @@ function parseCorporation(row: Record<string, unknown>): CorporationPublic {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     ...(row.archived_at === null ? {} : { archivedAt: row.archived_at }),
+    ...(row.paused_from === null ? {} : { pausedFrom: row.paused_from }),
+    ...(row.paused_at === null ? {} : { pausedAt: row.paused_at }),
   });
   if (!parsed.success) {
     throw new CorporationDataError();

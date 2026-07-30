@@ -345,6 +345,13 @@ h3 {
   font-weight: 800;
 }
 
+.status-badge-group {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
 .status-badge--positive {
   color: #93e8b6;
   background: #123523;

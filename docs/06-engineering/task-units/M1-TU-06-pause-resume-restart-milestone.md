@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 任务单元 ID | M1-TU-06 |
-| 状态 | 就绪 |
+| 状态 | 进行中 |
 | 所属 Milestone | Milestone 1：本地项目骨架 |
 | 主要结果 | 用户可暂停并继续本地 Corporation，重启应用后从持久化状态恢复，且不重复已提交状态、事件或命令副作用 |
 | 基线提交 | `b31784c72e8876d294cd0d30b39e3e3c44dcec98` |
@@ -14,6 +14,7 @@
 - [PRD FR-003、FR-013 与 AC-01](../../01-product/PRD.md)
 - [Domain Model：Corporation 生命周期与 Event](../../02-architecture/Domain-Model.md)
 - [Corporation Protocol](../../04-protocols/Corporation-Protocol.md)
+- [Corporation State Protocol](../../04-protocols/Corporation-State-Protocol.md)
 - [Goal Contract Protocol](../../04-protocols/Goal-Contract-Protocol.md)
 - [Event Protocol](../../04-protocols/Event-Protocol.md)
 - [Data Model](../../05-infrastructure/Data-Model.md)与[SQLite Schema](../../05-infrastructure/SQLite-Schema.md)

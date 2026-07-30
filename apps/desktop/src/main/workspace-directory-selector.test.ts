@@ -58,7 +58,7 @@ describe("Workspace directory selector", () => {
   });
 
   it("consumes only an empty task-owned E2E fixture once", async () => {
-    const fixture = await mkdtemp(path.join(os.tmpdir(), "M1-TU-05-select-"));
+    const fixture = await mkdtemp(path.join(os.tmpdir(), "M1-TU-06-select-"));
     temporaryDirectories.push(fixture);
     const showDialog = vi.fn(async () => ({
       canceled: true,

@@ -1,5 +1,6 @@
 import type {
   CorporationPublic,
+  CorporationErrorCode,
   GoalContractContentInput,
   GoalContractErrorCode,
   GoalContractPublic,
@@ -62,6 +63,8 @@ export function App() {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [goalError, setGoalError] = useState<GoalContractErrorCode>();
+  const [stateError, setStateError] = useState<CorporationErrorCode>();
+  const [statePending, setStatePending] = useState(false);
   const [draftCorporation, setDraftCorporation] = useState<CorporationPublic>();
   const [reviewCorporation, setReviewCorporation] =
     useState<CorporationPublic>();
@@ -311,8 +314,80 @@ export function App() {
     setReviewGoal(summary.goal);
     setReviewAssumptions(summary.goal.assumptions);
     setGoalError(undefined);
+    setStateError(undefined);
     await refreshReview(summary.corporation.id);
     setRoute("review");
+  };
+
+  const changeCorporationState = async (corporation: CorporationPublic) => {
+    const requestId = ++requestSequence.current;
+    setStatePending(true);
+    setStateError(undefined);
+    setStatusMessage(
+      corporation.status === "PAUSED"
+        ? "Restoring the persisted pre-pause state."
+        : "Pausing at the current local checkpoint.",
+    );
+    try {
+      const request = {
+        schemaVersion: "1.0" as const,
+        commandId: createUuidV7(),
+        corporationId: corporation.id,
+        expectedVersion: corporation.version,
+      };
+      const result =
+        corporation.status === "PAUSED"
+          ? await window.desktop.corporation.resume(request)
+          : await window.desktop.corporation.pause(request);
+      if (requestId !== requestSequence.current) return;
+      if (!result.ok) {
+        setStateError(result.error.code);
+        setStatusMessage("");
+        if (result.error.code === "VERSION_CONFLICT") {
+          const latest = await window.desktop.corporation.get({
+            schemaVersion: "1.0",
+            corporationId: corporation.id,
+          });
+          if (requestId !== requestSequence.current) return;
+          if (latest.ok) {
+            setCorporations((current) =>
+              current.map((summary) =>
+                summary.corporation.id === latest.value.id
+                  ? { ...summary, corporation: latest.value }
+                  : summary,
+              ),
+            );
+            if (reviewCorporation?.id === latest.value.id) {
+              setReviewCorporation(latest.value);
+            }
+          }
+        }
+        return;
+      }
+      setCorporations((current) =>
+        current.map((summary) =>
+          summary.corporation.id === result.value.id
+            ? { ...summary, corporation: result.value }
+            : summary,
+        ),
+      );
+      if (reviewCorporation?.id === result.value.id) {
+        setReviewCorporation(result.value);
+        await refreshReview(result.value.id);
+      }
+      setStatusMessage(
+        result.value.status === "PAUSED"
+          ? "Corporation paused. No Plan, Task, or execution has started."
+          : `Corporation resumed to ${result.value.status}. No command or event was replayed.`,
+      );
+    } catch {
+      if (requestId === requestSequence.current) {
+        setStateError("STORAGE_UNAVAILABLE");
+        setStatusMessage("");
+      }
+    } finally {
+      if (requestId === requestSequence.current) setStatePending(false);
+    }
   };
 
   const approveGoal = async () => {
@@ -408,8 +483,12 @@ export function App() {
             onCreate={openCreate}
             onOpen={openReview}
             onRevalidate={revalidateWorkspace}
+            onStateChange={changeCorporationState}
             operationError={operationError}
             refreshingIds={refreshingIds}
+            stateError={stateError}
+            statePending={statePending}
+            statusMessage={statusMessage}
             workspaces={workspaces}
           />
         )}
@@ -438,12 +517,15 @@ export function App() {
               assumptions={reviewAssumptions}
               corporation={reviewCorporation}
               error={goalError}
+              stateError={stateError}
               goal={reviewGoal}
               headingRef={reviewHeading}
               onApprove={approveGoal}
               onBack={() => setRoute("dashboard")}
               onChangeAssumption={setReviewAssumptions}
+              onStateChange={() => changeCorporationState(reviewCorporation)}
               saving={saving}
+              statePending={statePending}
               statusMessage={statusMessage}
               timeline={timeline}
               versions={versionsList}
@@ -516,8 +598,12 @@ function Dashboard(props: {
   readonly onCreate: () => void;
   readonly onOpen: (summary: CorporationSummary) => Promise<void>;
   readonly onRevalidate: (workspaceId: string) => Promise<void>;
+  readonly onStateChange: (corporation: CorporationPublic) => Promise<void>;
   readonly operationError: WorkspaceIpcErrorCode | undefined;
   readonly refreshingIds: readonly string[];
+  readonly stateError: CorporationErrorCode | undefined;
+  readonly statePending: boolean;
+  readonly statusMessage: string;
   readonly workspaces: readonly WorkspacePublic[];
 }) {
   return (
@@ -550,6 +636,14 @@ function Dashboard(props: {
           code={props.operationError}
           title="Workspace verification needs attention"
         />
+      )}
+      {props.stateError !== undefined && (
+        <CorporationStateError code={props.stateError} />
+      )}
+      {props.statusMessage.length > 0 && (
+        <p className="inline-status" role="status">
+          {props.statusMessage}
+        </p>
       )}
       {props.loading ? (
         <section aria-busy="true" aria-label="Loading workspaces">
@@ -590,7 +684,7 @@ function Dashboard(props: {
                   >
                     <div className="workspace-card__top">
                       <span className="status-badge status-badge--neutral">
-                        {summary.goal?.status ?? "NO GOAL"}
+                        {summary.corporation.status}
                       </span>
                       <span className="permission-label">
                         Corporation v{summary.corporation.version}
@@ -602,6 +696,28 @@ function Dashboard(props: {
                         ? "Corporation exists; its Goal Contract still needs to be saved."
                         : `Goal v${summary.goal.version}: ${summary.goal.statement}`}
                     </p>
+                    {summary.corporation.status === "PAUSED" && (
+                      <p>
+                        Paused from {summary.corporation.pausedFrom} at{" "}
+                        {summary.corporation.pausedAt}.
+                      </p>
+                    )}
+                    <button
+                      className="secondary-button"
+                      disabled={props.statePending}
+                      onClick={() =>
+                        void props.onStateChange(summary.corporation)
+                      }
+                      type="button"
+                    >
+                      {props.statePending
+                        ? summary.corporation.status === "PAUSED"
+                          ? "Resuming…"
+                          : "Pausing…"
+                        : summary.corporation.status === "PAUSED"
+                          ? "Resume Corporation"
+                          : "Pause Corporation"}
+                    </button>
                     <button
                       className="secondary-button"
                       disabled={summary.goal === null}
@@ -870,6 +986,7 @@ function GoalReview(props: {
   readonly assumptions: GoalContractContentInput["assumptions"];
   readonly corporation: CorporationPublic;
   readonly error: GoalContractErrorCode | undefined;
+  readonly stateError: CorporationErrorCode | undefined;
   readonly goal: GoalContractPublic;
   readonly headingRef: RefObject<HTMLHeadingElement | null>;
   readonly onApprove: () => Promise<void>;
@@ -877,7 +994,9 @@ function GoalReview(props: {
   readonly onChangeAssumption: (
     assumptions: GoalContractContentInput["assumptions"],
   ) => void;
+  readonly onStateChange: () => Promise<void>;
   readonly saving: boolean;
+  readonly statePending: boolean;
   readonly statusMessage: string;
   readonly timeline: readonly TimelineEventPublic[];
   readonly versions: readonly GoalContractPublic[];
@@ -900,14 +1019,34 @@ function GoalReview(props: {
             remain outside this action.
           </p>
         </div>
-        <span className="status-badge status-badge--neutral">
-          {props.goal.status}
-        </span>
+        <div className="status-badge-group">
+          <span
+            aria-label="Corporation status"
+            className="status-badge status-badge--neutral"
+          >
+            {props.corporation.status}
+          </span>
+          <span
+            aria-label="Goal Contract status"
+            className="status-badge status-badge--neutral"
+          >
+            {props.goal.status}
+          </span>
+        </div>
       </header>
       {props.error !== undefined && <GoalError code={props.error} />}
+      {props.stateError !== undefined && (
+        <CorporationStateError code={props.stateError} />
+      )}
       {props.statusMessage.length > 0 && (
         <p className="inline-status" role="status">
           {props.statusMessage}
+        </p>
+      )}
+      {props.corporation.status === "PAUSED" && (
+        <p className="inline-status">
+          Paused from {props.corporation.pausedFrom} at{" "}
+          {props.corporation.pausedAt}. No Plan, Task, or execution has started.
         </p>
       )}
       <div className="review-grid">
@@ -985,8 +1124,26 @@ function GoalReview(props: {
           or modify workspace files.
         </p>
         <button
+          className="secondary-button"
+          disabled={props.statePending}
+          onClick={() => void props.onStateChange()}
+          type="button"
+        >
+          {props.statePending
+            ? props.corporation.status === "PAUSED"
+              ? "Resuming…"
+              : "Pausing…"
+            : props.corporation.status === "PAUSED"
+              ? "Resume Corporation"
+              : "Pause Corporation"}
+        </button>
+        <button
           className="primary-button"
-          disabled={props.saving || props.goal.status === "APPROVED"}
+          disabled={
+            props.saving ||
+            props.goal.status === "APPROVED" ||
+            props.corporation.status === "PAUSED"
+          }
           onClick={() => void props.onApprove()}
           type="button"
         >
@@ -1079,6 +1236,38 @@ function GoalError({ code }: { readonly code: GoalContractErrorCode }) {
       <div>
         <p className="eyebrow">Goal Contract not changed</p>
         <h2>Action needs attention</h2>
+        <p>{messages[code]}</p>
+      </div>
+      <code>{code}</code>
+    </section>
+  );
+}
+
+function CorporationStateError({
+  code,
+}: {
+  readonly code: CorporationErrorCode;
+}) {
+  const messages: Record<CorporationErrorCode, string> = {
+    VALIDATION_FAILED: "The pause or resume request was invalid.",
+    UNAUTHORIZED_CALLER:
+      "The request did not come from the trusted app window.",
+    WORKSPACE_UNAVAILABLE:
+      "The Workspace is unavailable. Revalidate it before retrying.",
+    NOT_FOUND: "The Corporation no longer exists. Return to Dashboard.",
+    VERSION_CONFLICT:
+      "The Corporation changed. Reload its current state before retrying.",
+    STATE_CONFLICT: "The current Corporation state cannot perform this action.",
+    COMMAND_CONFLICT:
+      "This command identity was already used for different input.",
+    STORAGE_UNAVAILABLE:
+      "Local state storage is unavailable. No pause or resume was confirmed.",
+  };
+  return (
+    <section className="error-state" role="alert">
+      <div>
+        <p className="eyebrow">Corporation state not changed</p>
+        <h2>Pause or resume failed</h2>
         <p>{messages[code]}</p>
       </div>
       <code>{code}</code>

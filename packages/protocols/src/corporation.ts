@@ -7,6 +7,8 @@ export const CORPORATION_LIST_IPC_CHANNEL = "corporation:list" as const;
 export const CORPORATION_UPDATE_NAME_IPC_CHANNEL =
   "corporation:update-name" as const;
 export const CORPORATION_ARCHIVE_IPC_CHANNEL = "corporation:archive" as const;
+export const CORPORATION_PAUSE_IPC_CHANNEL = "corporation:pause" as const;
+export const CORPORATION_RESUME_IPC_CHANNEL = "corporation:resume" as const;
 
 export const corporationStatusSchema = z.enum([
   "DRAFT",
@@ -20,6 +22,15 @@ export const corporationStatusSchema = z.enum([
   "FAILED",
   "CANCELLED",
   "ARCHIVED",
+]);
+
+export const corporationPausableStatusSchema = z.enum([
+  "DRAFT",
+  "PLANNING",
+  "ORGANIZING",
+  "EXECUTING",
+  "VERIFYING",
+  "WAITING_HUMAN",
 ]);
 
 export const corporationNameSchema = z
@@ -49,6 +60,8 @@ export const corporationPublicSchema = z
     createdAt: utcTimestamp,
     updatedAt: utcTimestamp,
     archivedAt: utcTimestamp.optional(),
+    pausedFrom: corporationPausableStatusSchema.optional(),
+    pausedAt: utcTimestamp.optional(),
   })
   .strict()
   .superRefine((value, context) => {
@@ -56,6 +69,21 @@ export const corporationPublicSchema = z
       context.addIssue({
         code: "custom",
         message: "archivedAt must exist only for archived corporations",
+      });
+    }
+    const hasPauseMetadata =
+      value.pausedFrom !== undefined && value.pausedAt !== undefined;
+    if ((value.status === "PAUSED") !== hasPauseMetadata) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "pausedFrom and pausedAt must exist only for paused corporations",
+      });
+    }
+    if ((value.pausedFrom === undefined) !== (value.pausedAt === undefined)) {
+      context.addIssue({
+        code: "custom",
+        message: "pausedFrom and pausedAt must be provided together",
       });
     }
   });
@@ -102,6 +130,9 @@ export const corporationArchiveRequestSchema = z
     expectedVersion: version,
   })
   .strict();
+
+export const corporationPauseRequestSchema = corporationArchiveRequestSchema;
+export const corporationResumeRequestSchema = corporationArchiveRequestSchema;
 
 export const corporationErrorCodeSchema = z.enum([
   "VALIDATION_FAILED",
@@ -169,6 +200,15 @@ export type CorporationListRequest = z.infer<
 >;
 export type CorporationListResult = z.infer<typeof corporationListResultSchema>;
 export type CorporationPublic = z.infer<typeof corporationPublicSchema>;
+export type CorporationPausableStatus = z.infer<
+  typeof corporationPausableStatusSchema
+>;
+export type CorporationPauseRequest = z.infer<
+  typeof corporationPauseRequestSchema
+>;
+export type CorporationResumeRequest = z.infer<
+  typeof corporationResumeRequestSchema
+>;
 export type CorporationStatus = z.infer<typeof corporationStatusSchema>;
 export type CorporationUpdateNameRequest = z.infer<
   typeof corporationUpdateNameRequestSchema
