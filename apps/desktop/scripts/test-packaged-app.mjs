@@ -270,8 +270,7 @@ try {
   await page.screenshot({ path: pausedEvidencePath });
 
   await page.getByRole("button", { name: "Open Goal Contract" }).click();
-  await page.getByRole("button", { name: "Resume Corporation" }).focus();
-  await page.keyboard.press("Enter");
+  await page.getByRole("button", { name: "Resume Corporation" }).click();
   await page
     .getByRole("status")
     .filter({
