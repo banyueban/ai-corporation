@@ -1,4 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
+import { Worker } from "node:worker_threads";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -279,6 +280,32 @@ describe("CorporationRepository", () => {
     reopened.close();
     rmSync(directory, { force: true, recursive: true });
   });
+
+  it("allows only one simultaneous write for the same expected version", async () => {
+    const directory = mkdtempSync(path.join(tmpdir(), "M1-TU-04-concurrency-"));
+    const databasePath = path.join(directory, "workspace.sqlite");
+    const persistent = new DatabaseSync(databasePath);
+    applyMigrations(persistent, loadMigrations(migrationDirectory));
+    seedWorkspace(persistent);
+    new CorporationRepository(persistent).create(createInput());
+    persistent.close();
+
+    const gate = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * 2);
+    const results = await Promise.all([
+      concurrentUpdate(databasePath, gate, "Concurrent A"),
+      concurrentUpdate(databasePath, gate, "Concurrent B"),
+    ]);
+    expect(results.sort()).toEqual([0, 1]);
+
+    const reopened = new DatabaseSync(databasePath);
+    expect(
+      reopened
+        .prepare("SELECT version FROM corporation WHERE id = ?")
+        .get(corporationId),
+    ).toEqual({ version: 2 });
+    reopened.close();
+    rmSync(directory, { force: true, recursive: true });
+  });
 });
 
 function createInput(
@@ -345,4 +372,60 @@ function faultAt(expected: CorporationFaultStage) {
   return (actual: CorporationFaultStage) => {
     if (actual === expected) throw new Error("injected");
   };
+}
+
+function concurrentUpdate(
+  databasePath: string,
+  gate: SharedArrayBuffer,
+  name: string,
+): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(
+      `
+        const { DatabaseSync } = require("node:sqlite");
+        const { parentPort, workerData } = require("node:worker_threads");
+        const gate = new Int32Array(workerData.gate);
+        parentPort.postMessage({ ready: true });
+        Atomics.wait(gate, 1, 0);
+        const database = new DatabaseSync(workerData.databasePath, {
+          timeout: 5000,
+        });
+        database.exec("BEGIN IMMEDIATE");
+        const result = database.prepare(
+          "UPDATE corporation SET name = ?, version = 2, updated_at = ? " +
+          "WHERE id = ? AND version = 1"
+        ).run(workerData.name, workerData.now, workerData.corporationId);
+        database.exec(result.changes === 1 ? "COMMIT" : "ROLLBACK");
+        database.close();
+        parentPort.postMessage({ changes: Number(result.changes) });
+      `,
+      {
+        eval: true,
+        workerData: { corporationId, databasePath, gate, name, now },
+      },
+    );
+    worker.once("error", reject);
+    worker.on("message", (message: unknown) => {
+      if (
+        typeof message === "object" &&
+        message !== null &&
+        "ready" in message
+      ) {
+        const view = new Int32Array(gate);
+        if (Atomics.add(view, 0, 1) === 1) {
+          Atomics.store(view, 1, 1);
+          Atomics.notify(view, 1, 2);
+        }
+        return;
+      }
+      if (
+        typeof message === "object" &&
+        message !== null &&
+        "changes" in message &&
+        typeof message.changes === "number"
+      ) {
+        resolve(message.changes);
+      }
+    });
+  });
 }

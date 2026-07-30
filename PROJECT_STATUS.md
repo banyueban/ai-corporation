@@ -123,7 +123,7 @@ M1-TU-04 的外部验收条件是同一提交的 Windows x64 与 macOS Apple Sil
 - macOS Apple Silicon job `90750204635`：工程检查、开发态真实窗口 Workspace 旅程、DMG/最终包构建、最终包 `select · authorize · reload · restore` 旅程、Native Core health、截图与 artifact `8744698135` 上传全部成功；
 - M1-TU-03 合同 14 项全部通过，P0/P1 为 0；未执行的合同必需验证为 0。该结论不代表 Corporation、Goal、完整 UI-AC-02 或 Milestone 1 完成；
 - M1-TU-04 Corporation Protocol 与任务合同的 Milestone 归属、CRUD/事务事件边界、命令幂等、乐观锁、归档状态、固定错误、所有权、隔离和 17 项验收内容审查：通过，实施基线 `5468ea9131f145026279bb95045124b8c6400295`；
-- M1-TU-04 本地协议/存储/Desktop 测试：Corporation Protocol 4 项、Storage 12 项新增覆盖、Desktop service/IPC 8 项新增覆盖通过；包含 `0003`、Workspace 拒绝、稳定列表、事务 fault rollback、append-only、幂等、乐观锁、归档与 SQLite 重开恢复；
+- M1-TU-04 本地协议/存储/Desktop 测试：Corporation Protocol 4 项、Storage 13 项新增覆盖、Desktop service/IPC 8 项新增覆盖通过；包含 `0003`、Workspace 拒绝、稳定列表、事务 fault rollback、append-only、幂等、双连接 barrier 乐观锁并发、归档与 SQLite 重开恢复；
 - M1-TU-04 本地开发态真实 Electron 窗口：typed API `create → get/list → update → Renderer reload → restore` 通过，并继续通过 Native Core health、Workspace 选择/恢复、200% 缩放和 axe 严重/关键违规为 0 的既有旅程；
 - M1-TU-04 本地 Windows x64 最终目录包：Native Core health、Workspace `select → authorize → reload → restore` 与 Corporation API `create → get/list → update → reload → restore` 全部通过，临时 user data 与 Workspace 已清理；
 - M1-TU-04 尚未执行：同一验收提交的 Windows x64/macOS Apple Silicon CI、最终安装包 E2E 和 artifact 上传；因此合同保持“进行中”，验收项不得全部关闭；
