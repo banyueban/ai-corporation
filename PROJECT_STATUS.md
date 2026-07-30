@@ -3,16 +3,16 @@
 | 属性           | 当前值                                    |
 | -------------- | ----------------------------------------- |
 | 当前产品版本   | v0.1 MVP                                  |
-| 当前阶段       | Milestone 1 第五个任务单元合同建立中      |
+| 当前阶段       | Milestone 1 第五个任务单元实施就绪        |
 | 当前 Milestone | Milestone 1：本地项目骨架                 |
-| 当前任务单元   | M1-TU-05（未开始）                        |
+| 当前任务单元   | M1-TU-05（就绪）                          |
 | 总体状态       | 进行中                                    |
 | 最近更新       | 2026-07-30                                |
-| 下一检查点     | M1-TU-05 合同内容与就绪门禁审查           |
+| 下一检查点     | M1-TU-05 协议 Schema 与迁移实现           |
 
 ## 1. 当前结论
 
-Milestone 0 已通过全部适用验收；当前没有已知未解决的 P0/P1 缺陷。Milestone 1 已完成 `M1-TU-01`、`M1-TU-02` 与 `M1-TU-03`。`M1-TU-03` 已形成原生目录选择、可信授权、公开状态展示、Renderer 重载恢复和重新验证用户切片；验收提交 `20cc3b089424ab0405e64d5880609fbcaf011923` 的 Windows x64 与 macOS Apple Silicon 工程检查、开发态真实窗口 E2E、最终打包应用 E2E 和制品上传全部通过，合同 14 项全部关闭。
+Milestone 0 已通过全部适用验收；当前没有已知未解决的 P0/P1 缺陷。Milestone 1 已完成 `M1-TU-01`、`M1-TU-02` 与 `M1-TU-03`。`M1-TU-03` 已形成原生目录选择、可信授权、公开状态展示、Renderer 重载恢复和重新验证用户切片；验收提交 `20cc3b089424ab0405e64d5880609fbcaf011923` 的 Windows x64 与 macOS Apple Silicon 工程检查、开发态真实窗口 E2E、最终打包应用 E2E 和制品上传全部通过，合同 14 项全部关闭。`M1-TU-05` 的范围、协议、接口、跨事务失败边界、所有权、隔离和 18 项验收合同已完成内容审查，实施基线为 `ebda8cf5b028c35f1d85a190c59ded14b5011637`；当前仅表示“就绪”，不表示 Goal 功能已实现或验收。
 
 该结论关闭 Workspace 选择/恢复和 Corporation CRUD 事务事件两个解耦切片，不代表 Goal、Corporation UI、状态机、事件时间线、Provider、完整 UI-AC-02 或 Milestone 1 已完成。[M1-TU-04 Corporation CRUD 与事务事件](docs/06-engineering/task-units/M1-TU-04-corporation-crud-events.md) 的 17 项验收均已通过；验收提交 `aaff4f5e20579869738655206e784029b8ab1cbd` 的 Windows x64 与 macOS Apple Silicon 工程检查、开发态真实窗口 E2E、最终打包应用 API E2E 和制品上传全部成功。
 
@@ -67,7 +67,7 @@ Milestone 0 已通过全部适用验收；当前没有已知未解决的 P0/P1 �
 - 关闭范围：Corporation CRUD 后端、事务事件、命令幂等、乐观锁、恢复和 typed API；
 - 非范围：Corporation UI、Goal、运行状态机、事件订阅、删除和工作区文件操作。
 
-当前只允许建立和审查 [M1-TU-05 Goal Contract 版本与最小时间线 UI](docs/06-engineering/task-units/M1-TU-05-goal-contract-timeline-ui.md) 合同，状态为“未开始”；合同达到“就绪”前不得实施 Goal 或时间线功能。
+当前只允许实施和验收 [M1-TU-05 Goal Contract 版本与最小时间线 UI](docs/06-engineering/task-units/M1-TU-05-goal-contract-timeline-ui.md)，状态为“就绪”，实施基线为 `ebda8cf5b028c35f1d85a190c59ded14b5011637`；不得同时启动相邻任务或把 Goal 合同就绪表述为功能完成。
 
 Milestone 1 任务覆盖地图：
 
@@ -131,6 +131,7 @@ Milestone 1 任务覆盖地图：
 - Windows x64 job `90756640497`：工程检查（含双连接 barrier 并发）、开发态真实窗口 API 旅程、NSIS/最终包构建、最终包 Corporation API `create · get/list · update · reload · restore`、Native Core health、临时数据清理与 artifact `8745505379` 上传全部成功；
 - macOS Apple Silicon job `90756640490`：工程检查（含双连接 barrier 并发）、开发态真实窗口 API 旅程、DMG/最终包构建、最终包 Corporation API `create · get/list · update · reload · restore`、Native Core health、临时数据清理与 artifact `8745462304` 上传全部成功；
 - M1-TU-04 合同 17 项全部通过，P0/P1 为 0，未执行的合同必需验证为 0；该结论不代表 Corporation UI、Goal、状态机、时间线或 Milestone 1 完成；
+- M1-TU-05 合同的 Milestone 归属、请求/响应 DTO、版本/事务/幂等、确定性 Mock、canonical timeline cursor、跨服务失败边界、所有权、隔离和 18 项验收内容审查通过，实施基线为 `ebda8cf5b028c35f1d85a190c59ded14b5011637`；
 - 文档优化提交 `f1ae2096ed3fc96e86f2019e051f0c01b28d25eb` 已推送。
 
 本节只保留当前有效验证摘要，不记录被替代的过程结论。
