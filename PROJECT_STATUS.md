@@ -3,18 +3,18 @@
 | 属性           | 当前值                                    |
 | -------------- | ----------------------------------------- |
 | 当前产品版本   | v0.1 MVP                                  |
-| 当前阶段       | Milestone 1 第五个任务单元实施中          |
+| 当前阶段       | Milestone 1 第六个任务单元合同建立        |
 | 当前 Milestone | Milestone 1：本地项目骨架                 |
-| 当前任务单元   | M1-TU-05（进行中）                        |
+| 当前任务单元   | M1-TU-05（完成）                          |
 | 总体状态       | 进行中                                    |
 | 最近更新       | 2026-07-30                                |
-| 下一检查点     | M1-TU-05 最终包 UI 旅程与双平台验收       |
+| 下一检查点     | 建立并审查 M1-TU-06 任务合同              |
 
 ## 1. 当前结论
 
-Milestone 0 已通过全部适用验收；当前没有已知未解决的 P0/P1 缺陷。Milestone 1 已完成 `M1-TU-01`、`M1-TU-02` 与 `M1-TU-03`。`M1-TU-03` 已形成原生目录选择、可信授权、公开状态展示、Renderer 重载恢复和重新验证用户切片；验收提交 `20cc3b089424ab0405e64d5880609fbcaf011923` 的 Windows x64 与 macOS Apple Silicon 工程检查、开发态真实窗口 E2E、最终打包应用 E2E 和制品上传全部通过，合同 14 项全部关闭。`M1-TU-05` 的范围、协议、接口、跨事务失败边界、所有权、隔离和 18 项验收合同已完成内容审查，实施基线为 `ebda8cf5b028c35f1d85a190c59ded14b5011637`；当前正在实现，协议、迁移、Repository 和 typed Main/Preload API 已形成阶段性结果，但不表示 Goal 用户旅程或任务验收完成。
+Milestone 0 已通过全部适用验收；当前没有已知未解决的 P0/P1 缺陷。Milestone 1 的 `M1-TU-01` 至 `M1-TU-05` 已完成。`M1-TU-05` 在验收前审计中补齐不可用 Workspace 的事务内写入拒绝，验收提交 `0952ea9b2353e465aba14a6c6d368e46a494ffd0` 的协议、迁移、Repository、typed IPC、真实 UI 故障恢复/冲突恢复、可访问性、响应布局、开发态 E2E、Windows/macOS 最终包 E2E 和制品上传全部通过，合同 18 项关闭。
 
-该结论关闭 Workspace 选择/恢复和 Corporation CRUD 事务事件两个解耦切片，不代表 Goal、Corporation UI、状态机、事件时间线、Provider、完整 UI-AC-02 或 Milestone 1 已完成。[M1-TU-04 Corporation CRUD 与事务事件](docs/06-engineering/task-units/M1-TU-04-corporation-crud-events.md) 的 17 项验收均已通过；验收提交 `aaff4f5e20579869738655206e784029b8ab1cbd` 的 Windows x64 与 macOS Apple Silicon 工程检查、开发态真实窗口 E2E、最终打包应用 API E2E 和制品上传全部成功。
+该结论只关闭 Goal Contract 手工/本地 Mock、版本保存、确认和最小时间线切片，不代表暂停/恢复状态机、完整 UI-AC-02、`M1-TU-06` 或 Milestone 1 已完成。下一步必须先建立并审查 `M1-TU-06` 合同，再按就绪门禁实施。
 
 ## 2. 已完成基线
 
@@ -67,7 +67,17 @@ Milestone 0 已通过全部适用验收；当前没有已知未解决的 P0/P1 �
 - 关闭范围：Corporation CRUD 后端、事务事件、命令幂等、乐观锁、恢复和 typed API；
 - 非范围：Corporation UI、Goal、运行状态机、事件订阅、删除和工作区文件操作。
 
-当前只允许实施和验收 [M1-TU-05 Goal Contract 版本与最小时间线 UI](docs/06-engineering/task-units/M1-TU-05-goal-contract-timeline-ui.md)，状态为“进行中”，实施基线为 `ebda8cf5b028c35f1d85a190c59ded14b5011637`；不得同时启动相邻任务或把阶段性实现表述为功能完成。
+当前已关闭 [M1-TU-05 Goal Contract 版本与最小时间线 UI](docs/06-engineering/task-units/M1-TU-05-goal-contract-timeline-ui.md)：
+
+- 当前状态：完成；
+- 实施基线：`ebda8cf5b028c35f1d85a190c59ded14b5011637`；
+- 验收提交：`0952ea9b2353e465aba14a6c6d368e46a494ffd0`；
+- GitHub Actions：run `30513008388`，Windows x64 job `90776878422` 与 macOS Apple Silicon job `90776878406` 均成功；
+- artifacts：Windows x64 `8747866273`，macOS Apple Silicon `8747850786`；
+- 关闭范围：Goal Contract 手工/本地确定性 Mock、版本/确认、最小时间线、真实 UI 故障与冲突恢复；
+- 非范围：真实 Provider、Task Graph、Plan、运行状态机、暂停/恢复和完整 Milestone 1 演示。
+
+当前只允许建立和审查 `M1-TU-06` 合同；合同达到“就绪”并记录基线前不得实施暂停/恢复或 Milestone 演示。
 
 Milestone 1 任务覆盖地图：
 
@@ -134,8 +144,9 @@ Milestone 1 任务覆盖地图：
 - M1-TU-05 合同的 Milestone 归属、请求/响应 DTO、版本/事务/幂等、确定性 Mock、canonical timeline cursor、跨服务失败边界、所有权、隔离和 18 项验收内容审查通过，实施基线为 `ebda8cf5b028c35f1d85a190c59ded14b5011637`；
 - M1-TU-05 当前实现验证：Goal Contract strict runtime Schema 与固定公开错误测试 5 项通过；存储测试 39 项通过，覆盖空库/已填充 `0003` 升级到 `0004`、旧事件保留、Goal 内容不可变、不可用 Workspace/不存在或非 DRAFT/ARCHIVED Corporation 的无部分写入拒绝、save/approve 四个写入边界回滚、命令重放/冲突、HIGH 假设门禁、版本取代、canonical cursor 脱敏分页、双连接同版本竞争和 SQLite 重开恢复；`pnpm check` 全量通过；
 - M1-TU-05 Desktop service/IPC 验证：Desktop 测试 47 项通过，覆盖规范化请求 hash、可信 Clock/UUID、固定错误映射、非法来源/额外字段拒绝和五个 allowlisted Goal/Timeline channel；Main、Preload 与 `DesktopApi` 类型检查及 `pnpm check` 全量通过；
-- M1-TU-05 Windows 开发态真实窗口：纯键盘完成 Workspace 授权、Corporation 创建、一次性 Goal 事务失败、保留输入且不重复创建 Corporation 的重试、本地确定性 Mock Goal v1、未确认 HIGH 假设拒绝、确认后 Goal v2、approve、版本/时间线、Renderer reload 与 SQLite 恢复；Create/Review 页 axe 严重/关键违规为 0，Mock 外部网络请求为 0，1024 × 700、1440 × 900 与 200% 截图已人工检查，临时 Workspace/user data 清理通过；
+- M1-TU-05 Windows 开发态真实窗口：纯键盘完成 Workspace 授权、Corporation 创建、一次性 Goal 事务失败、保留输入且不重复创建 Corporation 的重试、本地确定性 Mock Goal v1、未确认 HIGH 假设拒绝、真实竞争版本触发 `VERSION_CONFLICT`、reload 恢复后确认 Goal v3、approve、版本/时间线与 SQLite 恢复；Create/Review 页 axe 严重/关键违规为 0，Mock 外部网络请求为 0，1024 × 700、1440 × 900 与 200% 截图已人工检查，临时 Workspace/user data 清理通过；
 - M1-TU-05 本地 Windows x64 最终目录包：Native Core health、Workspace 授权/重载恢复、一次性 Goal 保存故障/恢复重试、Review/假设门禁、approve、版本/时间线与 Renderer reload/SQLite 恢复的真实 UI 旅程通过；最终包截图已人工检查，Mock 外部网络请求为 0，临时 Workspace/user data 清理通过。该证据不代替同一提交的 macOS 或双平台 CI 验收；
+- M1-TU-05 验收提交：`0952ea9b2353e465aba14a6c6d368e46a494ffd0`；GitHub Actions run `30513008388`；Windows x64 job `90776878422` 与 macOS Apple Silicon job `90776878406` 的工程检查、开发态真实窗口、最终包 Goal UI E2E、清理和 artifact 上传均成功；artifacts 为 `8747866273` 与 `8747850786`；合同 18 项全部通过，P0/P1 为 0，未执行的合同必检项为 0；
 - 文档优化提交 `f1ae2096ed3fc96e86f2019e051f0c01b28d25eb` 已推送。
 
 本节只保留当前有效验证摘要，不记录被替代的过程结论。

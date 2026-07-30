@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 任务单元 ID | M1-TU-05 |
-| 状态 | 进行中 |
+| 状态 | 完成 |
 | 所属 Milestone | Milestone 1：本地项目骨架 |
 | 主要结果 | 用户可创建 DRAFT Corporation，手工或 Mock 保存/确认版本化 Goal Contract，并查看最小真实时间线 |
 | 基线提交 | `ebda8cf5b028c35f1d85a190c59ded14b5011637` |
@@ -69,24 +69,24 @@ Review 主操作使用“确认目标合同”，不得使用“确认并规划/
 
 ## 7. 验收合同
 
-- [ ] 迁移：空库与 `0001`–`0003` 库均升级到 `0004`，checksum、FK、表/索引/trigger 与权威 Schema 一致；
-- [ ] Schema：Goal DTO/命令严格拒绝额外字段、非法 UUID/版本、控制字符、重复/超长列表和错误 approved 形状；
-- [ ] 创建旅程：AVAILABLE Workspace 上从真实 UI 创建 DRAFT Corporation 并保存 Goal v1；Goal 保存失败时明确显示已创建 Corporation、保留可恢复输入且不重复创建；
-- [ ] 拒绝：不可用 Workspace、不存在/非 DRAFT/ARCHIVED Corporation 均无 Goal、事件或回执部分写入；
-- [ ] 版本：后续保存创建新不可变内容版本，旧的当前 DRAFT 或 APPROVED 变 SUPERSEDED，active pointer、Corporation version 和排序一致；
-- [ ] Mock：本地确定性 Mock 不调用网络/Provider，不猜测隐藏事实，相同输入产生相同规范化内容；
-- [ ] 确认：仅当前 DRAFT 可 approve，所有 HIGH 假设必须确认；Corporation 保持 DRAFT 且版本递增；
-- [ ] 原子性：save/approve 的 Corporation、Goal、Event、receipt 全部提交或全部回滚，fault fixture 覆盖写入边界；
-- [ ] 幂等与并发：同 command 重放不重复版本/事件；冲突复用拒绝；双连接 barrier 下相同 expected version 仅一方成功；
-- [ ] 时间线：只返回目标 Corporation 的 allowlisted 脱敏事实，canonical cursor 稳定分页无重复/遗漏，非法/跨 Corporation cursor 拒绝且不泄露 payload/actor/correlation/内部字段；
-- [ ] IPC 安全：非法来源、未知 channel、额外/伪造字段和非法标识均固定拒绝；
-- [ ] UI 状态：clean/dirty/saving/error/conflict/assumption-required/restored 由真实状态驱动，重复提交与迟到响应受控；
-- [ ] UI 可访问性：纯键盘完成创建与确认，焦点/错误关联/对比度/reduced motion/axe 严重关键项通过；
-- [ ] 响应布局：200% 缩放、1024 × 700、1440 × 900 可完成核心旅程，长内容不隐藏主操作；
-- [ ] 恢复：Renderer reload 与 SQLite 重开后 Corporation、Goal 当前/历史版本、确认、事件和回执一致；
-- [ ] 开发态 E2E：真实 Electron 窗口完成 Workspace → Corporation/Goal → Review/approve → timeline → reload/restore；
-- [ ] 最终包与跨平台：同一提交的 Windows/macOS 工程检查、开发态 E2E、最终包 E2E、清理和 artifact 上传通过；
-- [ ] 回归：M1-TU-01 至 M1-TU-04、安全路径、旧迁移、Native Core health 和全部工程检查继续通过。
+- [x] 迁移：空库与 `0001`–`0003` 库均升级到 `0004`，checksum、FK、表/索引/trigger 与权威 Schema 一致；
+- [x] Schema：Goal DTO/命令严格拒绝额外字段、非法 UUID/版本、控制字符、重复/超长列表和错误 approved 形状；
+- [x] 创建旅程：AVAILABLE Workspace 上从真实 UI 创建 DRAFT Corporation 并保存 Goal v1；Goal 保存失败时明确显示已创建 Corporation、保留可恢复输入且不重复创建；
+- [x] 拒绝：不可用 Workspace、不存在/非 DRAFT/ARCHIVED Corporation 均无 Goal、事件或回执部分写入；
+- [x] 版本：后续保存创建新不可变内容版本，旧的当前 DRAFT 或 APPROVED 变 SUPERSEDED，active pointer、Corporation version 和排序一致；
+- [x] Mock：本地确定性 Mock 不调用网络/Provider，不猜测隐藏事实，相同输入产生相同规范化内容；
+- [x] 确认：仅当前 DRAFT 可 approve，所有 HIGH 假设必须确认；Corporation 保持 DRAFT 且版本递增；
+- [x] 原子性：save/approve 的 Corporation、Goal、Event、receipt 全部提交或全部回滚，fault fixture 覆盖写入边界；
+- [x] 幂等与并发：同 command 重放不重复版本/事件；冲突复用拒绝；双连接 barrier 下相同 expected version 仅一方成功；
+- [x] 时间线：只返回目标 Corporation 的 allowlisted 脱敏事实，canonical cursor 稳定分页无重复/遗漏，非法/跨 Corporation cursor 拒绝且不泄露 payload/actor/correlation/内部字段；
+- [x] IPC 安全：非法来源、未知 channel、额外/伪造字段和非法标识均固定拒绝；
+- [x] UI 状态：clean/dirty/saving/error/conflict/assumption-required/restored 由真实状态驱动，重复提交与迟到响应受控；
+- [x] UI 可访问性：纯键盘完成创建与确认，焦点/错误关联/对比度/reduced motion/axe 严重关键项通过；
+- [x] 响应布局：200% 缩放、1024 × 700、1440 × 900 可完成核心旅程，长内容不隐藏主操作；
+- [x] 恢复：Renderer reload 与 SQLite 重开后 Corporation、Goal 当前/历史版本、确认、事件和回执一致；
+- [x] 开发态 E2E：真实 Electron 窗口完成 Workspace → Corporation/Goal → Review/approve → timeline → reload/restore；
+- [x] 最终包与跨平台：同一提交的 Windows/macOS 工程检查、开发态 E2E、最终包 E2E、清理和 artifact 上传通过；
+- [x] 回归：M1-TU-01 至 M1-TU-04、安全路径、旧迁移、Native Core health 和全部工程检查继续通过。
 
 ## 8. 隔离与干扰控制
 
