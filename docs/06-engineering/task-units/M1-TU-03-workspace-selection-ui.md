@@ -3,7 +3,7 @@
 | 属性           | 值                                                                                       |
 | -------------- | ---------------------------------------------------------------------------------------- |
 | 任务单元 ID    | M1-TU-03                                                                                 |
-| 状态           | 进行中                                                                                   |
+| 状态           | 完成                                                                                     |
 | 所属 Milestone | Milestone 1：本地项目骨架                                                                |
 | 主要结果       | 用户可通过原生目录选择器授权并查看 Workspace，Renderer 重载后仍能恢复和重新验证公开状态 |
 | 基线提交       | `3ced71a5e3273fd9270193c7ed94309e8123e6b7`                                               |
@@ -121,20 +121,20 @@
 
 ## 7. 验收合同
 
-- [ ] 原生选择：生产适配器只调用单目录 `openDirectory` 原生对话框；Renderer 请求不包含路径，取消后无持久化副作用；
-- [ ] 授权正常：选择真实可写/只读空目录后，经 Main → Native Core 验证并持久化，UI 只显示公开路径、权限和 `AVAILABLE`；
-- [ ] 重复与身份：重复选择同一身份幂等返回原 ID；相同 canonical root 的身份变化不覆盖原授权；
-- [ ] 恢复：Renderer 重载后列表从 SQLite 恢复并重新验证，Workspace ID、显示路径和当前状态一致；
-- [ ] 异常状态：缺失、权限拒绝、身份变化、Native Core/存储/选择不可用均显示准确影响与恢复动作，不显示成功或自动扩权；
-- [ ] IPC 安全：非法来源、额外参数、伪造路径/权限/ID、未知 channel 和额外响应字段均被拒绝；
-- [ ] 字段边界：Renderer、DOM、截图、错误和普通日志不包含 canonical root、路径身份、SQL、探针路径或用户文件内容；
-- [ ] UI 状态：Dashboard/Create Workspace 的 Loading、Empty、Ready、Cancelled、Error、Refreshing/Degraded 状态可区分且由真实结果驱动；
-- [ ] 可访问性：主流程可纯键盘完成，焦点可见且顺序正确，状态不只用颜色表达，错误与控件关联，自动扫描无适用严重违规；
-- [ ] 桌面适配：1024 × 700、1440 × 900 和 200% 缩放下可完成选择并查看权限，内容不遮挡系统窗口控制区；
-- [ ] E2E：开发态真实 Electron 窗口完成空状态 → 进入创建 → 选择 → 展示 → Renderer 重载 → 恢复，功能与 fixture 清理分别通过；
-- [ ] 打包应用：Windows x64 与 macOS Apple Silicon 最终打包应用完成同一 Workspace 用户旅程、窗口截图和 Native Core health；
-- [ ] 回归：M1-TU-01 路径攻击、M1-TU-02 Repository/权限/IPC、Milestone 0 health、迁移和全部工程检查继续通过；
-- [ ] 跨平台：同一验收提交的 Windows x64 与 macOS Apple Silicon CI jobs 均完成工程检查、开发态 E2E、打包应用 E2E 和制品上传。
+- [x] 原生选择：生产适配器只调用单目录 `openDirectory` 原生对话框；Renderer 请求不包含路径，取消后无持久化副作用；
+- [x] 授权正常：选择真实可写/只读空目录后，经 Main → Native Core 验证并持久化，UI 只显示公开路径、权限和 `AVAILABLE`；
+- [x] 重复与身份：重复选择同一身份幂等返回原 ID；相同 canonical root 的身份变化不覆盖原授权；
+- [x] 恢复：Renderer 重载后列表从 SQLite 恢复并重新验证，Workspace ID、显示路径和当前状态一致；
+- [x] 异常状态：缺失、权限拒绝、身份变化、Native Core/存储/选择不可用均显示准确影响与恢复动作，不显示成功或自动扩权；
+- [x] IPC 安全：非法来源、额外参数、伪造路径/权限/ID、未知 channel 和额外响应字段均被拒绝；
+- [x] 字段边界：Renderer、DOM、截图、错误和普通日志不包含 canonical root、路径身份、SQL、探针路径或用户文件内容；
+- [x] UI 状态：Dashboard/Create Workspace 的 Loading、Empty、Ready、Cancelled、Error、Refreshing/Degraded 状态可区分且由真实结果驱动；
+- [x] 可访问性：主流程可纯键盘完成，焦点可见且顺序正确，状态不只用颜色表达，错误与控件关联，自动扫描无适用严重违规；
+- [x] 桌面适配：1024 × 700、1440 × 900 和 200% 缩放下可完成选择并查看权限，内容不遮挡系统窗口控制区；
+- [x] E2E：开发态真实 Electron 窗口完成空状态 → 进入创建 → 选择 → 展示 → Renderer 重载 → 恢复，功能与 fixture 清理分别通过；
+- [x] 打包应用：Windows x64 与 macOS Apple Silicon 最终打包应用完成同一 Workspace 用户旅程、窗口截图和 Native Core health；
+- [x] 回归：M1-TU-01 路径攻击、M1-TU-02 Repository/权限/IPC、Milestone 0 health、迁移和全部工程检查继续通过；
+- [x] 跨平台：同一验收提交的 Windows x64 与 macOS Apple Silicon CI jobs 均完成工程检查、开发态 E2E、打包应用 E2E 和制品上传。
 
 ## 8. 隔离与干扰控制
 

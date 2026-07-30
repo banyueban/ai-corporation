@@ -3,18 +3,18 @@
 | 属性           | 当前值                                    |
 | -------------- | ----------------------------------------- |
 | 当前产品版本   | v0.1 MVP                                  |
-| 当前阶段       | Milestone 1 第三个任务单元实施与验收中    |
+| 当前阶段       | Milestone 1 第三个任务单元已完成          |
 | 当前 Milestone | Milestone 1：本地项目骨架                 |
-| 当前任务单元   | M1-TU-03（进行中）                        |
+| 当前任务单元   | M1-TU-03（完成）                          |
 | 总体状态       | 进行中                                    |
 | 最近更新       | 2026-07-30                                |
-| 下一检查点     | M1-TU-03 同一提交的双平台 CI 合同验收      |
+| 下一检查点     | 建立并审查 M1-TU-04 任务合同              |
 
 ## 1. 当前结论
 
-Milestone 0 已通过全部适用验收；当前没有已知未解决的 P0/P1 缺陷。Milestone 1 已完成 `M1-TU-01` 与 `M1-TU-02`。`M1-TU-03` 已在本地形成原生目录选择、可信授权、公开状态展示、Renderer 重载恢复和重新验证用户切片，并通过开发态真实窗口与 Windows x64 最终目录包的用户旅程；同一实现提交的 Windows x64/macOS Apple Silicon CI 尚未验收，因此任务仍为“进行中”，Milestone 1 也未完成。
+Milestone 0 已通过全部适用验收；当前没有已知未解决的 P0/P1 缺陷。Milestone 1 已完成 `M1-TU-01`、`M1-TU-02` 与 `M1-TU-03`。`M1-TU-03` 已形成原生目录选择、可信授权、公开状态展示、Renderer 重载恢复和重新验证用户切片；验收提交 `20cc3b089424ab0405e64d5880609fbcaf011923` 的 Windows x64 与 macOS Apple Silicon 工程检查、开发态真实窗口 E2E、最终打包应用 E2E 和制品上传全部通过，合同 14 项全部关闭。
 
-本地结果不能替代另一平台或同一提交的 CI 证据。`M1-TU-03` 的 14 项合同保持未勾选，直至验收提交在两个目标平台完成工程检查、开发态真实窗口 E2E、最终打包应用 E2E 与制品上传。当前结果只覆盖 Workspace 选择切片；Corporation、Goal、Provider 和其他 Milestone 1 功能仍未实现。
+该结论只关闭 Workspace 选择、授权、展示、重新验证与 Renderer 重载恢复任务单元，不代表 Corporation、Goal、Provider、完整 UI-AC-02 或 Milestone 1 已完成。下一步只能先建立和审查 `M1-TU-04` 任务合同；合同未达到“就绪”不得实施 Corporation 功能。
 
 ## 2. 已完成基线
 
@@ -47,21 +47,16 @@ Milestone 0 已通过全部适用验收；当前没有已知未解决的 P0/P1 �
 
 ## 4. 下一步任务
 
-当前已关闭：
+当前已关闭 [M1-TU-03 原生 Workspace 选择与恢复 UI](docs/06-engineering/task-units/M1-TU-03-workspace-selection-ui.md)：
 
-- [M1-TU-02 Workspace Repository、IPC 与权限重新验证](docs/06-engineering/task-units/M1-TU-02-workspace-repository-ipc.md)；
 - 当前状态：完成；
-- 验收提交：`948e975a1a82977bf14ed3bc4eceb3ed1f8b1e8a`；
-- GitHub Actions：run `30472788800`，Windows x64 与 macOS Apple Silicon jobs 均成功。
-
-当前允许按 [M1-TU-03 原生 Workspace 选择与恢复 UI](docs/06-engineering/task-units/M1-TU-03-workspace-selection-ui.md) 实施：
-
-- 当前状态：进行中；
 - 实施基线：`3ced71a5e3273fd9270193c7ed94309e8123e6b7`；
-- 主要结果：用户通过原生目录选择器授权并查看 Workspace，Renderer 重载后恢复和重新验证公开状态；
+- 验收提交：`20cc3b089424ab0405e64d5880609fbcaf011923`；
+- GitHub Actions：run `30504173197`，Windows x64 job `90750204571` 与 macOS Apple Silicon job `90750204635` 均成功；
+- 关闭范围：原生 Workspace 选择、可信授权、公开展示、重新验证和 Renderer 重载恢复；
 - 非范围：Goal 表单提交、Corporation CRUD、Provider 配置、文件操作和完整 Milestone 1 演示。
 
-当前只允许按该合同实施和验收；合同外工作进入后续任务，不得静默扩大范围。
+下一步只允许建立并审查 `M1-TU-04` 任务合同，核对 Corporation 核心表、CRUD、状态和 Domain Event 同事务写入属于 Milestone 1 且边界解耦；合同达到“就绪”前不得实施。
 
 Milestone 1 任务覆盖地图：
 
@@ -113,7 +108,10 @@ Milestone 1 任务覆盖地图：
 - M1-TU-03 本地工程检查：`pnpm check` 通过；治理测试 15 项、Workspace 协议 10 项、Storage 9 项、Desktop 30 项、Native Core 7 项与 Workspace Rust 7 项通过，Rust fmt/clippy、TypeScript、lint、格式与 secret scan 通过；
 - M1-TU-03 本地开发态真实窗口 E2E：在 200% 缩放下以纯键盘完成空状态 → 创建入口 → Workspace 选择 → 授权展示 → Renderer 重载 → SQLite 恢复与重新验证；1024 × 700、1440 × 900 和 200% 原生窗口截图已人工检查，严重/关键 axe 违规为 0，临时 Workspace 无探针残留；
 - M1-TU-03 本地 Windows x64 最终目录包：release Native Core health 与 Workspace 选择 → 授权 → Renderer 重载 → 恢复旅程通过，窗口截图已人工检查，临时 user data 与 Workspace 已清理；
-- M1-TU-03 未执行验证：同一实现提交的 Windows x64 与 macOS Apple Silicon GitHub Actions 尚未运行，因此合同仍为“进行中”，14 项验收不得勾选；
+- M1-TU-03 验收提交：`20cc3b089424ab0405e64d5880609fbcaf011923`；GitHub Actions run `30504173197`；
+- Windows x64 job `90750204571`：工程检查、开发态真实窗口 Workspace 旅程、NSIS/最终包构建、最终包 `select · authorize · reload · restore` 旅程、Native Core health、截图与 artifact `8744713866` 上传全部成功；
+- macOS Apple Silicon job `90750204635`：工程检查、开发态真实窗口 Workspace 旅程、DMG/最终包构建、最终包 `select · authorize · reload · restore` 旅程、Native Core health、截图与 artifact `8744698135` 上传全部成功；
+- M1-TU-03 合同 14 项全部通过，P0/P1 为 0；未执行的合同必需验证为 0。该结论不代表 Corporation、Goal、完整 UI-AC-02 或 Milestone 1 完成；
 - 文档优化提交 `f1ae2096ed3fc96e86f2019e051f0c01b28d25eb` 已推送。
 
 本节只保留当前有效验证摘要，不记录被替代的过程结论。
