@@ -3,18 +3,18 @@
 | 属性 | 当前值 |
 |---|---|
 | 当前产品版本 | v0.1 MVP |
-| 当前阶段 | M2-TU-03 Provider 连接测试实施 |
+| 当前阶段 | M2-TU-03 Provider 连接测试已完成，等待下一任务边界决策 |
 | 当前 Milestone | Milestone 2：Provider 与 Goal/Plan |
-| 当前任务单元 | M2-TU-03（进行中） |
+| 当前任务单元 | M2-TU-03（完成） |
 | 总体状态 | 进行中 |
 | 最近更新 | 2026-08-02 |
-| 下一检查点 | M2-TU-03 实现候选通过本地合同矩阵后提交双平台 CI |
+| 下一检查点 | 明确 M2-TU-04 真实模型生成与 usage 的任务边界并建立就绪合同 |
 
 ## 1. 当前结论
 
-Milestone 1 已完成并经用户人工安装验收；当前没有已知未解决 P0/P1。[M2-TU-02 应用自管 Provider Key Vault](docs/06-engineering/task-units/M2-TU-02-application-key-vault.md) 已完成。[M2-TU-03 Provider 连接测试](docs/06-engineering/task-units/M2-TU-03-provider-connection-test.md) 已根据用户确认的范围 A、`1A + 2A + 3A + 4A` 和固定 15 秒超时决策进入实施，尚未完成或通过验收。
+Milestone 1 已完成并经用户人工安装验收；当前没有已知未解决 P0/P1。[M2-TU-02 应用自管 Provider Key Vault](docs/06-engineering/task-units/M2-TU-02-application-key-vault.md) 与 [M2-TU-03 Provider 连接测试](docs/06-engineering/task-units/M2-TU-03-provider-connection-test.md) 均已完成。M2-TU-03 根据用户确认的范围 A、`1A + 2A + 3A + 4A` 和固定 15 秒超时决策交付，并由同一提交的 Windows/macOS 工程检查、开发态真实窗口、最终包真实应用 E2E 和制品门禁直接验收。
 
-M2-TU-03 只承诺 OpenAI-compatible/测试专用 Mock Adapter、非生成连接测试、固定错误归一化、持久化测试结果/模型列表和 Settings 测试交互。真实模型生成、usage、运行时健康/熔断、完整 Onboarding、Goal Engine、Planner、Task Graph 和 Plan Review 不属于本任务，Milestone 2 尚未完成。
+M2-TU-03 只关闭 OpenAI-compatible/测试专用 Mock Adapter、非生成连接测试、固定错误归一化、持久化测试结果/模型列表和 Settings 测试交互。真实模型生成、usage、运行时健康/熔断、完整 Onboarding、Goal Engine、Planner、Task Graph 和 Plan Review 不属于本任务，Milestone 2 尚未完成；下一任务必须先消解边界歧义并形成就绪合同。
 
 ## 2. 已完成基线
 
@@ -35,11 +35,11 @@ M2-TU-03 只承诺 OpenAI-compatible/测试专用 Mock Adapter、非生成连接
 - [ ] Plan Review 编辑与批准 UI；
 - [ ] Windows/macOS Milestone 级真实窗口与最终包验收。
 
-这些是 Milestone 范围，不是一个任务单元的完成清单。M2-TU-01 只关闭 OS 安全存储；相邻能力必须另建合同并达到“就绪”。
+这些是 Milestone 范围，不是一个任务单元的完成清单。M2-TU-01 只关闭“不得依赖 OS 安全存储”的边界决策，应用自管 Key Vault 由 M2-TU-02 交付；相邻能力必须另建合同并达到“就绪”。
 
-## 4. 当前任务边界
+## 4. 最近完成任务边界
 
-M2-TU-03 就绪合同包含：
+M2-TU-03 已关闭且只包含：
 
 - OpenAI-compatible `GET <base>/models` 与同接口 Deterministic Mock Adapter；
 - 远程 HTTPS、loopback HTTP、禁止 redirect/URL 凭据/query/fragment、15 秒截止和可取消；
@@ -51,7 +51,7 @@ M2-TU-03 就绪合同包含：
 
 ## 5. 活跃阻塞与外部条件
 
-M2-TU-03 当前无产品、架构、验收或仓库阻塞。任务范围、连接方式、Mock 形态、Endpoint 安全、结果持久化和超时策略均已由用户明确决策；合同就绪不表示功能已实现或通过验收。
+当前无产品、架构、验收或仓库阻塞。M2-TU-04 尚未建立任务合同；真实模型生成 API、stream/取消、结构化输出和 usage 口径必须先完成边界决策，这属于下一任务的正常就绪门禁，不视为 M2-TU-03 阻塞。
 
 已知条件：
 
@@ -61,17 +61,16 @@ M2-TU-03 当前无产品、架构、验收或仓库阻塞。任务范围、连�
 
 ## 6. 当前验证摘要
 
-- M1-TU-01 至 M1-TU-06、M2-TU-02 合同均为“完成”；M2-TU-02 的 16 项验收断言全部通过；
-- 最新 `pnpm check` 全量通过：状态/任务合同、format、lint、typecheck、协议 24 项、Storage 67 项、Desktop 77 项、Native Core 7 项、Workspace Rust 7 项、Rust fmt/clippy 与 secret scan 均成功；
-- 本地 Windows 开发态真实窗口 E2E 2/2 通过；Key Vault 旅程覆盖保存、默认遮挡、主动显示/隐藏、SQLite/WAL/SHM 明文扫描、Renderer reload、进程重启、替换、再次显示、删除与无障碍检查，既有 Workspace/Goal/暂停恢复旅程同步通过；
-- 最新本地 Windows NSIS 安装包 SHA-256 为 `B1DA707528526A23E181263AEA22501D4A7B366A288B097182F2D00ED70B1AA1`，包内 Native Core SHA-256 为 `ACDBD55FF932A593D2796E670C77F8423E35BB093C83F9624139DF79B2F186AF`；最终包真实窗口完成 Key Vault、Workspace、Goal 故障重试、暂停/继续和两次进程重启恢复旅程；
-- 活跃产品源码与 Windows 最终包的 legacy `secure_store.*`/`secure-store` 定向扫描通过，打包诊断与 SQLite/WAL/SHM 定向 Key 泄漏扫描通过；P0/P1 为 0；
-- GitHub Actions run `30710176795` 在验收提交 `b85670dd3a65159729390dc019a3971fe014176c` 上完整成功；Windows job `91396134173`、macOS job `91396134182` 的工程检查、开发态 E2E、最终包构建、最终包 E2E 和上传步骤全部成功；
-- Artifacts `ai-corporation-windows-x64`（ID `8821644524`，SHA-256 `9c4d49519f570310692d49367dd84bf2bc578728a6614dbe6ddb65deaa506d96`）与 `ai-corporation-macos-arm64`（ID `8821630948`，SHA-256 `93bec8cb0a61a9766dee99cb9b045a080d3d41dd4c6683afa9252bbdc872acd2`）可用；P0/P1 为 0，未执行必检项为 0。
+- M1-TU-01 至 M1-TU-06、M2-TU-02、M2-TU-03 合同均为“完成”；M2-TU-03 的 16 项验收断言全部通过；
+- 最新 `pnpm check` 全量通过：状态/任务合同、format、lint、typecheck、Protocol 27 项、Provider 23 项、Storage 70 项、Desktop 81 项、Native Core 7 项、workspace Rust 7 项、Rust fmt/clippy 与 secret scan 均成功；
+- 本地 Windows 开发态真实窗口 E2E 3/3 通过；连接测试覆盖成功、认证失败、取消、10 秒诊断、15 秒超时、Renderer reload、进程重启、配置变化重置、模型列表、键盘/缩放/无障碍和 SQLite/WAL/SHM 泄密扫描，既有 Workspace/Goal/Key Vault 旅程同步通过；
+- 最新本地 Windows NSIS 安装包 SHA-256 为 `90BBB52BBD4AF594426AC624F2A8DF477869F7131888AEB020DE39ECC51CE318`，包内 Native Core SHA-256 为 `ACDBD55FF932A593D2796E670C77F8423E35BB093C83F9624139DF79B2F186AF`；同源最终包真实窗口完成连接成功、认证失败、诊断、超时、取消、重启恢复与配置变化重置；
+- GitHub Actions run `30714081834` 在验收提交 `a785a483bc150a44bc1be837fc357eb59e376263` 上完整成功；Windows job `91406552961`、macOS job `91406552943` 的工程检查、开发态 E2E、最终包构建、最终包 E2E 和上传步骤全部成功；
+- Artifacts `ai-corporation-windows-x64`（ID `8822822844`，SHA-256 `e82c8fe8aa9389354e9f9081d63463ec69a72e64b8f16ce2e55deb0a0ec7450d`）与 `ai-corporation-macos-arm64`（ID `8822808350`，SHA-256 `bb095e11b3db0735ce9a2bc6a2785f75d3caebf68f5de5ed68ebc5f2c4d021b1`）可用；P0/P1 为 0，未执行必检项为 0。
 
 ## 7. 下一步
 
-按 M2-TU-03 就绪合同串行实施协议、migration、Adapter、Service/IPC、Settings UI 和隔离测试；只有当前提交的本地合同矩阵通过后才提交双平台 CI。
+在不把 M2-TU-03 的完成扩张为 Milestone 完成的前提下，先明确 M2-TU-04 的真实模型生成 API、stream/取消、结构化输出、usage 口径、错误边界和验收矩阵；存在歧义时向用户列出方案并由用户决策，合同达到“就绪”后才实施。
 
 ## 8. 更新规则
 

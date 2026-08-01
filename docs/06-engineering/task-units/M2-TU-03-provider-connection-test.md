@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 任务单元 ID | M2-TU-03 |
-| 状态 | 进行中 |
+| 状态 | 完成 |
 | 所属 Milestone | Milestone 2：Provider 与 Goal/Plan |
 | 主要结果 | 用户可在 Settings 对已保存的 OpenAI-compatible Provider 执行可取消、可恢复结果的非生成连接测试，并获得不泄密的标准错误与模型列表 |
 | 基线提交 | `01c8567fb90b8d863f2385d822981f0755df8f22` |
@@ -76,22 +76,22 @@
 
 ## 7. 验收合同
 
-- [ ] 协议：test/cancel v1 Schema 严格拒绝额外字段、错误版本、非法 UUID/版本和未授权调用；既有 Provider DTO/command receipt 兼容，公开错误不含输入或原始正文；
-- [ ] Endpoint 安全：远程 HTTPS 与三种 loopback HTTP 允许；其他 scheme、远程 HTTP、URL 凭据/query/fragment、混淆 loopback 和 redirect 全部在发送 Authorization 前拒绝；
-- [ ] Adapter 成功：OpenAI-compatible 与 Deterministic Mock 对合法 2xx `data[].id` 返回去重、受限、稳定模型 DTO；请求准确命中 `<base>/models` 且不执行生成调用；
-- [ ] 错误归一化：401、403、两类 429、其他 4xx、5xx、非法 2xx、DNS/TLS/socket、15 秒截止和用户取消逐类得到固定 reason/retryable/backoff；原始正文不外泄；
-- [ ] 资源边界：redirect 不跟随，响应超过 1 MiB、模型超过 1,000、ID 空/超 512 bytes 或 JSON 结构错误均安全失败，连接、timer、Abort listener 和本地 Server 无残留；
-- [ ] 迁移：空库和 `0001`–`0006` 升级到 `0007` 成功；表、STRICT/CHECK/FK/JSON 约束、级联和 foreign key check 与权威 Schema 一致，中断可重试；
-- [ ] 持久化生命周期：Unverified → Verified/Failed 可在 SQLite 重开、Renderer reload 和应用重启恢复；模型/时间/失败字段准确；取消不覆盖，配置/Key 变化重置；
-- [ ] 并发与迟到：相同 requestId 不重复发起；两个 Provider 隔离；取消只影响目标请求；测试中 Provider 版本变化时迟到结果返回冲突且不覆盖新配置或旧有效结果；
-- [ ] Key 边界：测试只使用已保存 Vault Key；缺 Key/Vault 故障固定失败且不发网络；Authorization、Key、密文、原始正文不进入协议普通结果、SQLite/WAL/SHM、日志、错误、HTML、截图、trace 或诊断；
-- [ ] IPC 安全：未注册 channel、非法 payload、伪造 URL/Header/Key、错误窗口、重复/未知取消和底层异常固定拒绝；Renderer 无通用 fetch、数据库、文件、Vault 或 Native RPC 能力；
-- [ ] 用户界面：用户可从 Settings 对已保存 Provider 测试、取消、重试并查看模型；pending 防双击，10 秒后诊断，15 秒超时；成功/失败/取消不被错误标成运行时健康；
-- [ ] UI 状态与恢复：Unverified、Testing、Verified、Failed、Cancelled、Conflict、Missing Key、Vault unavailable、Network、Timeout、Authentication、Permission、Rate/Quota 和 Invalid response 显示发生事项、影响与可执行修复；重启展示持久化事实；
-- [ ] UI 适配：键盘/焦点/live region/label/错误关联通过；1024 × 700、1440 × 900、200% 缩放下测试、取消、诊断、错误和模型列表可完成且窗口控制区不遮挡；
-- [ ] 开发态与最终包：Windows/macOS 同一提交的真实窗口分别完成成功、认证失败、取消、超时、重启恢复和配置变化重置；功能断言、Server/端口/进程与 fixture 清理独立通过；
-- [ ] Mock 与隔离：Mock Adapter 不出现在生产 Provider Schema/SQLite/Settings/最终包用户入口；每例动态 loopback 端口、自建数据且不访问外网、真实应用数据或其他任务残留；
-- [ ] 回归与治理：`pnpm check`、`pnpm check:status`、`pnpm check:task-units`、`git diff --check`、Rust fmt/clippy、既有 Workspace/Corporation/Goal/pause/restart/Key Vault E2E 全部通过；P0/P1 为 0，未执行必检项为 0。
+- [x] 协议：test/cancel v1 Schema 严格拒绝额外字段、错误版本、非法 UUID/版本和未授权调用；既有 Provider DTO/command receipt 兼容，公开错误不含输入或原始正文；
+- [x] Endpoint 安全：远程 HTTPS 与三种 loopback HTTP 允许；其他 scheme、远程 HTTP、URL 凭据/query/fragment、混淆 loopback 和 redirect 全部在发送 Authorization 前拒绝；
+- [x] Adapter 成功：OpenAI-compatible 与 Deterministic Mock 对合法 2xx `data[].id` 返回去重、受限、稳定模型 DTO；请求准确命中 `<base>/models` 且不执行生成调用；
+- [x] 错误归一化：401、403、两类 429、其他 4xx、5xx、非法 2xx、DNS/TLS/socket、15 秒截止和用户取消逐类得到固定 reason/retryable/backoff；原始正文不外泄；
+- [x] 资源边界：redirect 不跟随，响应超过 1 MiB、模型超过 1,000、ID 空/超 512 bytes 或 JSON 结构错误均安全失败，连接、timer、Abort listener 和本地 Server 无残留；
+- [x] 迁移：空库和 `0001`–`0006` 升级到 `0007` 成功；表、STRICT/CHECK/FK/JSON 约束、级联和 foreign key check 与权威 Schema 一致，中断可重试；
+- [x] 持久化生命周期：Unverified → Verified/Failed 可在 SQLite 重开、Renderer reload 和应用重启恢复；模型/时间/失败字段准确；取消不覆盖，配置/Key 变化重置；
+- [x] 并发与迟到：相同 requestId 不重复发起；两个 Provider 隔离；取消只影响目标请求；测试中 Provider 版本变化时迟到结果返回冲突且不覆盖新配置或旧有效结果；
+- [x] Key 边界：测试只使用已保存 Vault Key；缺 Key/Vault 故障固定失败且不发网络；Authorization、Key、密文、原始正文不进入协议普通结果、SQLite/WAL/SHM、日志、错误、HTML、截图、trace 或诊断；
+- [x] IPC 安全：未注册 channel、非法 payload、伪造 URL/Header/Key、错误窗口、重复/未知取消和底层异常固定拒绝；Renderer 无通用 fetch、数据库、文件、Vault 或 Native RPC 能力；
+- [x] 用户界面：用户可从 Settings 对已保存 Provider 测试、取消、重试并查看模型；pending 防双击，10 秒后诊断，15 秒超时；成功/失败/取消不被错误标成运行时健康；
+- [x] UI 状态与恢复：Unverified、Testing、Verified、Failed、Cancelled、Conflict、Missing Key、Vault unavailable、Network、Timeout、Authentication、Permission、Rate/Quota 和 Invalid response 显示发生事项、影响与可执行修复；重启展示持久化事实；
+- [x] UI 适配：键盘/焦点/live region/label/错误关联通过；1024 × 700、1440 × 900、200% 缩放下测试、取消、诊断、错误和模型列表可完成且窗口控制区不遮挡；
+- [x] 开发态与最终包：Windows/macOS 同一提交的真实窗口分别完成成功、认证失败、取消、超时、重启恢复和配置变化重置；功能断言、Server/端口/进程与 fixture 清理独立通过；
+- [x] Mock 与隔离：Mock Adapter 不出现在生产 Provider Schema/SQLite/Settings/最终包用户入口；每例动态 loopback 端口、自建数据且不访问外网、真实应用数据或其他任务残留；
+- [x] 回归与治理：`pnpm check`、`pnpm check:status`、`pnpm check:task-units`、`git diff --check`、Rust fmt/clippy、既有 Workspace/Corporation/Goal/pause/restart/Key Vault E2E 全部通过；P0/P1 为 0，未执行必检项为 0。
 
 ## 8. 隔离与干扰控制
 
@@ -113,6 +113,15 @@
 - SQLite/WAL/SHM、日志、错误、Renderer bundle、HTML、截图、trace、stdout/stderr 和最终 artifact 定向 Secret/原始正文扫描；
 - 同一验收提交的 GitHub Actions run、Windows/macOS job、最终包 artifact ID、哈希和步骤级结果。
 
-## 10. 完成规则
+## 10. 验收证据
+
+- 实现与验收提交：`a785a483bc150a44bc1be837fc357eb59e376263`；本地 `pnpm check` 全量通过，包含 Protocol 27 项、Provider 23 项、Storage 70 项、Desktop 81 项、Native Core 7 项、workspace Rust 7 项、Rust fmt/clippy 与 secret scan；
+- 本地 Windows 开发态 Electron 真实窗口 E2E 3/3 通过；同源 NSIS 最终包真实窗口旅程通过成功、认证失败、10 秒诊断、15 秒超时、取消、重启恢复、配置变化重置和既有 Workspace/Goal/Key Vault 回归；
+- 本地 Windows NSIS 安装包 SHA-256：`90BBB52BBD4AF594426AC624F2A8DF477869F7131888AEB020DE39ECC51CE318`；包内 Native Core SHA-256：`ACDBD55FF932A593D2796E670C77F8423E35BB093C83F9624139DF79B2F186AF`；连接测试截图 SHA-256：`D3B04D3C199EDC6257C18F4C3439B33AC016198A5B7C7FF76162BBE323900514`；
+- GitHub Actions run `30714081834` 在同一提交上完成且结论为 success；Windows x64 job `91406552961` 与 macOS Apple Silicon job `91406552943` 的工程检查、开发态 Electron E2E、安装包构建、最终包真实应用 E2E 和制品上传步骤全部成功；
+- Windows artifact `ai-corporation-windows-x64`（ID `8822822844`，SHA-256 `e82c8fe8aa9389354e9f9081d63463ec69a72e64b8f16ce2e55deb0a0ec7450d`）与 macOS artifact `ai-corporation-macos-arm64`（ID `8822808350`，SHA-256 `bb095e11b3db0735ce9a2bc6a2785f75d3caebf68f5de5ed68ebc5f2c4d021b1`）均可用且未过期；
+- P0/P1 为 0，未执行必检项为 0。上述证据只关闭 M2-TU-03，不证明真实模型生成、usage、完整 Onboarding、Goal/Plan 或 Milestone 2 完成。
+
+## 11. 完成规则
 
 只有 16 项验收断言按错误类别 × Provider 实现 × 配置版本/取消/重启生命周期 × 开发态/最终包 × Windows/macOS 展开后全部取得当前提交直接证据，动态 Server、端口、timer、进程和 fixture 清理通过，P0/P1 为 0、未执行必检项为 0，方可标记完成。本任务只关闭 Provider 连接/列模垂直切片，不代表真实生成、usage、完整 Onboarding、Goal/Plan、Milestone 2 或发布完成。
