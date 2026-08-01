@@ -14,7 +14,7 @@
     "package:dir": "pnpm --workspace-root build:rust:release && pnpm run build && node scripts/prepare-package.mjs && electron-builder --dir --publish never",
     "start": "pnpm --workspace-root build:rust && pnpm run build && electron .",
     "test": "vitest run",
-    "test:e2e": "pnpm --workspace-root build:rust && pnpm run build && playwright test",
+    "test:e2e": "pnpm --workspace-root build:rust && pnpm run build && node scripts/test-native-secure-store.mjs && playwright test",
     "test:packaged": "node scripts/test-packaged-app.mjs",
     "typecheck": "tsc --project tsconfig.electron.json --noEmit && tsc --project tsconfig.json --noEmit && tsc --project tsconfig.test.json --noEmit"
   },

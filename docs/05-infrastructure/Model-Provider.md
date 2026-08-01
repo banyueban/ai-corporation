@@ -102,6 +102,8 @@ type NormalizedUsage = {
 - Key 存 OS 安全存储；
 - SQLite 只保存 `secret_ref`；
 - Renderer 永远拿不到 Key；
+- 受信 Main 只能通过版本化的 [Secure Store RPC](../04-protocols/Secure-Store-RPC.md) 调用
+  Native Core；安全存储不可用时失败关闭，不得写入文件、SQLite 或环境变量；
 - 请求日志不记录 Authorization；
 - Endpoint 变更后重新连接测试；
 - 导出配置不含 Key。

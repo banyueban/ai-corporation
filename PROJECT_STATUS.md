@@ -3,16 +3,16 @@
 | 属性 | 当前值 |
 |---|---|
 | 当前产品版本 | v0.1 MVP |
-| 当前阶段 | Milestone 2 首个任务单元合同就绪 |
+| 当前阶段 | Milestone 2 首个任务单元实施与验收 |
 | 当前 Milestone | Milestone 2：Provider 与 Goal/Plan |
-| 当前任务单元 | M2-TU-01（就绪） |
+| 当前任务单元 | M2-TU-01（进行中） |
 | 总体状态 | 进行中 |
 | 最近更新 | 2026-08-01 |
-| 下一检查点 | M2-TU-01 OS 安全存储边界实施与验收 |
+| 下一检查点 | M2-TU-01 同源 Windows/macOS CI 与最终包验收 |
 
 ## 1. 当前结论
 
-Milestone 1 已完成并经用户人工安装验收；当前没有已知未解决 P0/P1。Milestone 2 已进入首个解耦任务单元：[M2-TU-01 OS 安全存储边界](docs/06-engineering/task-units/M2-TU-01-os-secure-store-boundary.md)。合同范围、依赖、接口、所有权、隔离和 14 项验收断言已明确，基线为 `926c1a5d5d9664a901e79b6b0035f7bc43e76583`，当前状态为“就绪”。
+Milestone 1 已完成并经用户人工安装验收；当前没有已知未解决 P0/P1。Milestone 2 已进入首个解耦任务单元：[M2-TU-01 OS 安全存储边界](docs/06-engineering/task-units/M2-TU-01-os-secure-store-boundary.md)。合同范围、依赖、接口、所有权、隔离和 14 项验收断言已明确，就绪合同提交为 `57cb9f6c94611ade1f21a6a1bb54fd7cb2326f14`，当前状态为“进行中”。
 
 本任务只建立 Windows Credential Manager/macOS Keychain → Native Core → Electron Main 的密钥边界。Provider 配置、连接测试、模型调用、Renderer Key 表单、Goal Engine、Planner、Task Graph 和 Plan Review 不属于当前任务，Milestone 2 尚未完成。
 
@@ -61,14 +61,15 @@ M2-TU-01 交付：
 
 ## 6. 当前验证摘要
 
-- `main` 与 `origin/main` 位于 `926c1a5d5d9664a901e79b6b0035f7bc43e76583`，建立合同时工作区无源代码改动；
-- M1-TU-01 至 M1-TU-06 合同均为“完成”；
-- M2-TU-01 合同已展开平台、进程生命周期、产物形态和机密性证据维度；
-- 当前尚未产生 M2-TU-01 实现或验收证据，不得把合同就绪表述为 OS 安全存储已完成。
+- M1-TU-01 至 M1-TU-06 合同均为“完成”；M2-TU-01 就绪合同提交为 `57cb9f6c94611ade1f21a6a1bb54fd7cb2326f14`；
+- `pnpm check`、Rust fmt/clippy、secret scan、协议/Native/Main 单元与故障测试通过；协议 28 项、Desktop 67 项、Native Core 10 项、Workspace Rust 7 项通过；
+- 本地 Windows Credential Manager 真实 lifecycle 与引用隔离测试通过；开发态及最终包均通过 status → set → get → rotate → 进程重启 → get → delete → 进程重启 → NOT_FOUND，并确认测试凭据无残留；
+- 最新本地 Windows NSIS 安装包 SHA-256 为 `63B5B0901641AD1E6A437CB7BC811F7F9384E9B9E6BE9282FB6B91BEB2FD042F`，包内 Native Core SHA-256 为 `CD11F54ABEAF10FC5011EFB85B224058C3C0AE1261DB237C382937D778C400BE`；真实窗口、Workspace、Goal、暂停/继续与重启恢复回归通过；
+- Renderer bundle 定向暴露扫描与 Credential Manager 残留扫描通过；macOS Keychain、macOS 最终包及同源双平台 CI 尚未取得，因此 M2-TU-01 仍为“进行中”。
 
 ## 7. 下一步
 
-运行合同结构和项目状态门禁；通过后提交合同基线。随后将 M2-TU-01 标记为“进行中”，按合同实现并取得 Windows/macOS 真实 OS 安全存储及最终包证据。
+提交并推送当前实现，取得同一提交的 Windows/macOS CI、真实 OS 安全存储和最终包证据；全部通过后才关闭 M2-TU-01，并为下一解耦任务建立就绪合同。
 
 ## 8. 更新规则
 

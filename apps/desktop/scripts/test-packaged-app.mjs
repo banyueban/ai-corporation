@@ -11,6 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
+import { verifyNativeSecureStoreJourney } from "./native-secure-store-journey.mjs";
 
 const STARTUP_TIMEOUT_MS = 30_000;
 const desktopDirectory = path.resolve(
@@ -32,6 +33,21 @@ const executablePath = path.resolve(repositoryDirectory, executableArgument);
 if (!existsSync(executablePath)) {
   throw new Error(`Packaged executable does not exist: ${executablePath}`);
 }
+
+const nativeCoreExecutablePath =
+  process.platform === "win32"
+    ? path.join(path.dirname(executablePath), "resources", "native-core.exe")
+    : path.resolve(
+        path.dirname(executablePath),
+        "..",
+        "Resources",
+        "native-core",
+      );
+if (!existsSync(nativeCoreExecutablePath)) {
+  throw new Error("Packaged Native Core executable does not exist");
+}
+
+await verifyNativeSecureStoreJourney(nativeCoreExecutablePath);
 
 const userDataDirectory = mkdtempSync(
   path.join(os.tmpdir(), "M1-TU-06-packaged-user-data-"),
@@ -330,6 +346,9 @@ try {
   );
   await page.screenshot({ path: evidencePath });
   console.log(`Packaged application health verified: ${healthText}`);
+  console.log(
+    "Packaged Native secure store verified: status · set · get · rotate · process restart · delete · process restart · not found · cleanup",
+  );
   console.log(
     "Packaged Workspace journey verified: select · authorize · reload · restore",
   );

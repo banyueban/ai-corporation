@@ -85,8 +85,9 @@ flowchart LR
 
 控制：
 
-- OS 安全存储；
-- Renderer 不可访问；
+- OS 安全存储，固定应用 namespace，仅保存由 UUID 标识的 Provider secret；
+- 只有受信 Main 可通过版本化、鉴权的 Secure Store RPC 读写；Preload/Renderer 不可访问；
+- 安全存储不可用时失败关闭，不允许文件、SQLite、环境变量或可逆加密降级；
 - 日志落盘前脱敏；
 - Tool 环境不默认继承 Key；
 - Artifact/Prompt Secret Scan；
@@ -124,7 +125,8 @@ flowchart LR
 - 窗口来源检查；
 - Sidecar 随机会话令牌；
 - Sidecar 不监听公网；
-- 方法级验证。
+- 方法 allowlist、严格 Schema、请求大小上限与方法级验证；
+- Secure Store RPC 使用固定脱敏错误，除受信 `get` 成功结果外不返回 secret。
 
 ### T-08 插件供应链
 
@@ -213,4 +215,3 @@ v0.1 不提供完整 OS 容器隔离。因此：
 - Electron/Rust 依赖大版本升级。
 
 上述变更必须更新本文档并补攻击测试。
-

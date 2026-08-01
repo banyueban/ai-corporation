@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 任务单元 ID | M2-TU-01 |
-| 状态 | 就绪 |
+| 状态 | 进行中 |
 | 所属 Milestone | Milestone 2：Provider 与 Goal/Plan |
 | 主要结果 | Native Core 可在 Windows Credential Manager 与 macOS Keychain 中安全保存、读取、轮换和删除 Provider 密钥，密钥不进入 SQLite、Renderer、日志或错误 |
 | 基线提交 | `926c1a5d5d9664a901e79b6b0035f7bc43e76583` |

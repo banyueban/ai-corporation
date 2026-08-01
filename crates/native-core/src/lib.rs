@@ -2,13 +2,16 @@
 
 use std::io::{self, BufRead, Read, Write};
 
+use secure_store::{OsSecureStore, SecureStore, SecureStoreError};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use uuid::Uuid;
 use workspace_fs::{WorkspacePathError, resolve_workspace_path};
 
 pub const CRATE_NAME: &str = "native-core";
 pub const SCHEMA_VERSION: u32 = 1;
 pub const MAX_REQUEST_BYTES: usize = 64 * 1024;
+pub const MAX_SECRET_BYTES: usize = 2_048;
 
 const JSON_RPC_VERSION: &str = "2.0";
 
@@ -35,6 +38,30 @@ struct WorkspaceCanonicalizeParams {
     session_token: String,
     root_path: String,
     candidate_relative_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SecureStoreStatusParams {
+    schema_version: u32,
+    session_token: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SecureStoreReferenceParams {
+    schema_version: u32,
+    session_token: String,
+    secret_ref: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SecureStoreSetParams {
+    schema_version: u32,
+    session_token: String,
+    secret_ref: String,
+    secret: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -90,6 +117,28 @@ impl RpcResponse {
             }),
         }
     }
+
+    fn secure_store_error(id: Value, error: SecureStoreError) -> Self {
+        Self {
+            jsonrpc: JSON_RPC_VERSION,
+            id,
+            result: None,
+            error: Some(RpcError {
+                code: -32020,
+                message: "Secure store operation failed",
+                data: Some(json!({ "reason": secure_store_error_reason(error) })),
+            }),
+        }
+    }
+}
+
+fn secure_store_error_reason(error: SecureStoreError) -> &'static str {
+    match error {
+        SecureStoreError::Unavailable => "UNAVAILABLE",
+        SecureStoreError::NotFound => "NOT_FOUND",
+        SecureStoreError::Rejected => "REJECTED",
+        SecureStoreError::Internal => "INTERNAL",
+    }
 }
 
 fn valid_id(id: &Value) -> bool {
@@ -110,7 +159,11 @@ fn constant_time_eq(left: &str, right: &str) -> bool {
         == 0
 }
 
-fn process_value(value: Value, expected_session_token: &str) -> RpcResponse {
+fn process_value<S: SecureStore + ?Sized>(
+    value: Value,
+    expected_session_token: &str,
+    secure_store: &S,
+) -> RpcResponse {
     let request = match serde_json::from_value::<RpcRequest>(value) {
         Ok(request) => request,
         Err(_) => return RpcResponse::error(Value::Null, -32600, "Invalid request"),
@@ -125,6 +178,30 @@ fn process_value(value: Value, expected_session_token: &str) -> RpcResponse {
         "workspace.canonicalize" => {
             process_workspace_canonicalize(request.id, request.params, expected_session_token)
         }
+        "secure_store.status" => process_secure_store_status(
+            request.id,
+            request.params,
+            expected_session_token,
+            secure_store,
+        ),
+        "secure_store.set" => process_secure_store_set(
+            request.id,
+            request.params,
+            expected_session_token,
+            secure_store,
+        ),
+        "secure_store.get" => process_secure_store_get(
+            request.id,
+            request.params,
+            expected_session_token,
+            secure_store,
+        ),
+        "secure_store.delete" => process_secure_store_delete(
+            request.id,
+            request.params,
+            expected_session_token,
+            secure_store,
+        ),
         _ => RpcResponse::error(request.id, -32601, "Method not found"),
     }
 }
@@ -189,6 +266,157 @@ fn process_workspace_canonicalize(
     }
 }
 
+fn process_secure_store_status<S: SecureStore + ?Sized>(
+    id: Value,
+    params: Value,
+    expected_session_token: &str,
+    secure_store: &S,
+) -> RpcResponse {
+    let params = match serde_json::from_value::<SecureStoreStatusParams>(params) {
+        Ok(params) => params,
+        Err(_) => return RpcResponse::error(id, -32602, "Invalid params"),
+    };
+    if let Some(error) = validate_secure_store_context(
+        &id,
+        params.schema_version,
+        &params.session_token,
+        expected_session_token,
+    ) {
+        return error;
+    }
+
+    match secure_store.ensure_available() {
+        Ok(()) => RpcResponse::success(
+            id,
+            json!({ "schemaVersion": SCHEMA_VERSION, "available": true }),
+        ),
+        Err(error) => RpcResponse::secure_store_error(id, error),
+    }
+}
+
+fn process_secure_store_set<S: SecureStore + ?Sized>(
+    id: Value,
+    params: Value,
+    expected_session_token: &str,
+    secure_store: &S,
+) -> RpcResponse {
+    let params = match serde_json::from_value::<SecureStoreSetParams>(params) {
+        Ok(params) => params,
+        Err(_) => return RpcResponse::error(id, -32602, "Invalid params"),
+    };
+    if let Some(error) = validate_secure_store_context(
+        &id,
+        params.schema_version,
+        &params.session_token,
+        expected_session_token,
+    ) {
+        return error;
+    }
+    if !valid_secret_ref(&params.secret_ref) || !valid_secret(&params.secret) {
+        return RpcResponse::error(id, -32602, "Invalid params");
+    }
+
+    match secure_store.set(&params.secret_ref, params.secret.as_bytes()) {
+        Ok(()) => RpcResponse::success(
+            id,
+            json!({ "schemaVersion": SCHEMA_VERSION, "stored": true }),
+        ),
+        Err(error) => RpcResponse::secure_store_error(id, error),
+    }
+}
+
+fn process_secure_store_get<S: SecureStore + ?Sized>(
+    id: Value,
+    params: Value,
+    expected_session_token: &str,
+    secure_store: &S,
+) -> RpcResponse {
+    let params = match serde_json::from_value::<SecureStoreReferenceParams>(params) {
+        Ok(params) => params,
+        Err(_) => return RpcResponse::error(id, -32602, "Invalid params"),
+    };
+    if let Some(error) = validate_secure_store_context(
+        &id,
+        params.schema_version,
+        &params.session_token,
+        expected_session_token,
+    ) {
+        return error;
+    }
+    if !valid_secret_ref(&params.secret_ref) {
+        return RpcResponse::error(id, -32602, "Invalid params");
+    }
+
+    match secure_store.get(&params.secret_ref) {
+        Ok(secret) => match String::from_utf8(secret) {
+            Ok(secret) if valid_secret(&secret) => RpcResponse::success(
+                id,
+                json!({ "schemaVersion": SCHEMA_VERSION, "secret": secret }),
+            ),
+            Ok(_) | Err(_) => RpcResponse::secure_store_error(id, SecureStoreError::Internal),
+        },
+        Err(error) => RpcResponse::secure_store_error(id, error),
+    }
+}
+
+fn process_secure_store_delete<S: SecureStore + ?Sized>(
+    id: Value,
+    params: Value,
+    expected_session_token: &str,
+    secure_store: &S,
+) -> RpcResponse {
+    let params = match serde_json::from_value::<SecureStoreReferenceParams>(params) {
+        Ok(params) => params,
+        Err(_) => return RpcResponse::error(id, -32602, "Invalid params"),
+    };
+    if let Some(error) = validate_secure_store_context(
+        &id,
+        params.schema_version,
+        &params.session_token,
+        expected_session_token,
+    ) {
+        return error;
+    }
+    if !valid_secret_ref(&params.secret_ref) {
+        return RpcResponse::error(id, -32602, "Invalid params");
+    }
+
+    match secure_store.delete(&params.secret_ref) {
+        Ok(()) => RpcResponse::success(
+            id,
+            json!({ "schemaVersion": SCHEMA_VERSION, "deleted": true }),
+        ),
+        Err(error) => RpcResponse::secure_store_error(id, error),
+    }
+}
+
+fn validate_secure_store_context(
+    id: &Value,
+    schema_version: u32,
+    session_token: &str,
+    expected_session_token: &str,
+) -> Option<RpcResponse> {
+    if schema_version != SCHEMA_VERSION {
+        return Some(RpcResponse::error(
+            id.clone(),
+            -32602,
+            "Unsupported schema version",
+        ));
+    }
+    if !constant_time_eq(session_token, expected_session_token) {
+        return Some(RpcResponse::error(id.clone(), -32001, "Unauthorized"));
+    }
+    None
+}
+
+fn valid_secret_ref(secret_ref: &str) -> bool {
+    Uuid::parse_str(secret_ref).is_ok()
+}
+
+fn valid_secret(secret: &str) -> bool {
+    !secret.is_empty() && secret.len() <= MAX_SECRET_BYTES && !secret.chars().any(char::is_control)
+}
+
 fn serialize_response(response: &RpcResponse) -> String {
     match serde_json::to_string(response) {
         Ok(serialized) => serialized,
@@ -200,6 +428,15 @@ fn serialize_response(response: &RpcResponse) -> String {
 }
 
 pub fn handle_line(line: &str, expected_session_token: &str) -> String {
+    let secure_store = OsSecureStore;
+    handle_line_with_store(line, expected_session_token, &secure_store)
+}
+
+fn handle_line_with_store<S: SecureStore + ?Sized>(
+    line: &str,
+    expected_session_token: &str,
+    secure_store: &S,
+) -> String {
     let value = match serde_json::from_str::<Value>(line) {
         Ok(value) => value,
         Err(_) => {
@@ -207,7 +444,7 @@ pub fn handle_line(line: &str, expected_session_token: &str) -> String {
         }
     };
 
-    serialize_response(&process_value(value, expected_session_token))
+    serialize_response(&process_value(value, expected_session_token, secure_store))
 }
 
 pub fn run<R: BufRead, W: Write>(
@@ -215,6 +452,7 @@ pub fn run<R: BufRead, W: Write>(
     mut writer: W,
     expected_session_token: &str,
 ) -> io::Result<()> {
+    let secure_store = OsSecureStore;
     loop {
         let mut request_bytes = Vec::new();
         let bytes_read = reader
@@ -237,9 +475,10 @@ pub fn run<R: BufRead, W: Write>(
             ))
         } else {
             let request = String::from_utf8_lossy(&request_bytes);
-            handle_line(
+            handle_line_with_store(
                 request.trim_end_matches(['\r', '\n']),
                 expected_session_token,
+                &secure_store,
             )
         };
 
@@ -270,18 +509,79 @@ fn drain_until_newline<R: BufRead>(reader: &mut R) -> io::Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::fs;
     use std::io;
     use std::path::PathBuf;
+    use std::sync::Mutex;
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    use secure_store::{SecureStore, SecureStoreError};
     use serde_json::{Value, json};
 
-    use super::{MAX_REQUEST_BYTES, SCHEMA_VERSION, handle_line, run};
+    use super::{
+        MAX_REQUEST_BYTES, MAX_SECRET_BYTES, SCHEMA_VERSION, handle_line, handle_line_with_store,
+        run,
+    };
 
     const TOKEN: &str = "0123456789abcdef";
     static FIXTURE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+    const SECRET_REF: &str = "019fa9bb-375e-7d90-a4e3-a5b0eea2a9ef";
+
+    #[derive(Default)]
+    struct FakeSecureStore {
+        available: bool,
+        entries: Mutex<HashMap<String, Vec<u8>>>,
+    }
+
+    impl FakeSecureStore {
+        fn available() -> Self {
+            Self {
+                available: true,
+                entries: Mutex::new(HashMap::new()),
+            }
+        }
+
+        fn entries(
+            &self,
+        ) -> Result<std::sync::MutexGuard<'_, HashMap<String, Vec<u8>>>, SecureStoreError> {
+            self.entries.lock().map_err(|_| SecureStoreError::Internal)
+        }
+    }
+
+    impl SecureStore for FakeSecureStore {
+        fn ensure_available(&self) -> Result<(), SecureStoreError> {
+            if self.available {
+                Ok(())
+            } else {
+                Err(SecureStoreError::Unavailable)
+            }
+        }
+
+        fn set(&self, secret_ref: &str, secret: &[u8]) -> Result<(), SecureStoreError> {
+            self.ensure_available()?;
+            self.entries()?
+                .insert(secret_ref.to_owned(), secret.to_vec());
+            Ok(())
+        }
+
+        fn get(&self, secret_ref: &str) -> Result<Vec<u8>, SecureStoreError> {
+            self.ensure_available()?;
+            self.entries()?
+                .get(secret_ref)
+                .cloned()
+                .ok_or(SecureStoreError::NotFound)
+        }
+
+        fn delete(&self, secret_ref: &str) -> Result<(), SecureStoreError> {
+            self.ensure_available()?;
+            self.entries()?
+                .remove(secret_ref)
+                .map(|_| ())
+                .ok_or(SecureStoreError::NotFound)
+        }
+    }
 
     fn parse_response(response: &str) -> Value {
         match serde_json::from_str(response) {
@@ -454,5 +754,139 @@ mod tests {
         assert!(!response_text.contains(&root.to_string_lossy().to_string()));
 
         fs::remove_dir_all(root)
+    }
+
+    #[test]
+    fn secure_store_lifecycle_is_authenticated_and_rotates_without_leaking() {
+        let store = FakeSecureStore::available();
+        let first_secret = "M2-TU-01-test-first";
+        let rotated_secret = "M2-TU-01-test-rotated";
+
+        let status = parse_response(&handle_line_with_store(
+            &secure_store_request("status", json!({})),
+            TOKEN,
+            &store,
+        ));
+        assert_eq!(status["result"]["available"], true);
+
+        let first_set = handle_line_with_store(
+            &secure_store_request(
+                "set",
+                json!({ "secretRef": SECRET_REF, "secret": first_secret }),
+            ),
+            TOKEN,
+            &store,
+        );
+        assert_eq!(parse_response(&first_set)["result"]["stored"], true);
+        assert!(!first_set.contains(first_secret));
+
+        let first_get = handle_line_with_store(
+            &secure_store_request("get", json!({ "secretRef": SECRET_REF })),
+            TOKEN,
+            &store,
+        );
+        assert_eq!(parse_response(&first_get)["result"]["secret"], first_secret);
+
+        let rotated_set = handle_line_with_store(
+            &secure_store_request(
+                "set",
+                json!({ "secretRef": SECRET_REF, "secret": rotated_secret }),
+            ),
+            TOKEN,
+            &store,
+        );
+        assert!(!rotated_set.contains(rotated_secret));
+        let rotated_get = parse_response(&handle_line_with_store(
+            &secure_store_request("get", json!({ "secretRef": SECRET_REF })),
+            TOKEN,
+            &store,
+        ));
+        assert_eq!(rotated_get["result"]["secret"], rotated_secret);
+
+        let deleted = parse_response(&handle_line_with_store(
+            &secure_store_request("delete", json!({ "secretRef": SECRET_REF })),
+            TOKEN,
+            &store,
+        ));
+        assert_eq!(deleted["result"]["deleted"], true);
+        let missing = parse_response(&handle_line_with_store(
+            &secure_store_request("get", json!({ "secretRef": SECRET_REF })),
+            TOKEN,
+            &store,
+        ));
+        assert_eq!(missing["error"]["data"]["reason"], "NOT_FOUND");
+    }
+
+    #[test]
+    fn secure_store_rejects_invalid_or_unauthorized_secrets_without_echoing() {
+        let store = FakeSecureStore::available();
+        let invalid_secret = "do-not-echo\nsecret";
+        let invalid = handle_line_with_store(
+            &secure_store_request(
+                "set",
+                json!({ "secretRef": SECRET_REF, "secret": invalid_secret }),
+            ),
+            TOKEN,
+            &store,
+        );
+        assert_eq!(parse_response(&invalid)["error"]["code"], -32602);
+        assert!(!invalid.contains(invalid_secret));
+
+        let oversized_secret = "s".repeat(MAX_SECRET_BYTES + 1);
+        let oversized = handle_line_with_store(
+            &secure_store_request(
+                "set",
+                json!({ "secretRef": SECRET_REF, "secret": oversized_secret }),
+            ),
+            TOKEN,
+            &store,
+        );
+        assert_eq!(parse_response(&oversized)["error"]["code"], -32602);
+        assert!(!oversized.contains(&oversized_secret));
+
+        let unauthorized_request = json!({
+            "jsonrpc": "2.0",
+            "id": "secure-store-unauthorized",
+            "method": "secure_store.set",
+            "params": {
+                "schemaVersion": SCHEMA_VERSION,
+                "sessionToken": "b".repeat(64),
+                "secretRef": SECRET_REF,
+                "secret": "do-not-store-or-echo"
+            }
+        })
+        .to_string();
+        let unauthorized = handle_line_with_store(&unauthorized_request, TOKEN, &store);
+        assert_eq!(parse_response(&unauthorized)["error"]["code"], -32001);
+        assert!(!unauthorized.contains("do-not-store-or-echo"));
+        assert_eq!(store.get(SECRET_REF), Err(SecureStoreError::NotFound));
+    }
+
+    #[test]
+    fn secure_store_unavailable_has_a_fixed_safe_error() {
+        let store = FakeSecureStore::default();
+        let response =
+            handle_line_with_store(&secure_store_request("status", json!({})), TOKEN, &store);
+        let parsed = parse_response(&response);
+        assert_eq!(parsed["error"]["code"], -32020);
+        assert_eq!(parsed["error"]["message"], "Secure store operation failed");
+        assert_eq!(parsed["error"]["data"]["reason"], "UNAVAILABLE");
+    }
+
+    fn secure_store_request(operation: &str, extra_params: Value) -> String {
+        let mut params = json!({
+            "schemaVersion": SCHEMA_VERSION,
+            "sessionToken": TOKEN,
+        });
+        if let (Value::Object(params), Value::Object(extra)) = (&mut params, extra_params) {
+            params.extend(extra);
+        }
+        json!({
+            "jsonrpc": "2.0",
+            "id": format!("secure-store-{operation}"),
+            "method": format!("secure_store.{operation}"),
+            "params": params,
+        })
+        .to_string()
     }
 }

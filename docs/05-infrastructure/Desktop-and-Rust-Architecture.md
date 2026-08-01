@@ -110,10 +110,12 @@ Workspace 选择是特殊的授权入口：Renderer 只能发起无参数 `works
 - `process.start`
 - `process.cancel`
 - `process.status`
-- `secure_store.set/get/delete`
+- `secure_store.status/set/get/delete`（协议见
+  [Secure Store RPC](../04-protocols/Secure-Store-RPC.md)）
 - `hash.file`
 
-每个 RPC 在 Rust 侧再次校验会话、路径和参数。
+每个 RPC 在 Rust 侧再次校验会话、路径和参数。安全存储 RPC 只允许受信 Main 调用，不映射到
+Preload/Renderer；不可用时固定失败，不允许明文持久化回退。
 
 ## 6. 包与 Crate 边界
 

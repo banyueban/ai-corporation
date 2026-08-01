@@ -6,6 +6,21 @@ import {
   HEALTH_SCHEMA_VERSION,
   healthResultSchema,
   healthRpcResponseSchema,
+  SECURE_STORE_DELETE_RPC_METHOD,
+  SECURE_STORE_GET_RPC_METHOD,
+  SECURE_STORE_SCHEMA_VERSION,
+  SECURE_STORE_SET_RPC_METHOD,
+  SECURE_STORE_STATUS_RPC_METHOD,
+  secureStoreDeleteRpcResponseSchema,
+  type SecureStoreErrorReason,
+  secureStoreGetRpcResponseSchema,
+  type SecureStoreGetResult,
+  type SecureStoreMutationResult,
+  secureStoreSecretRefSchema,
+  secureStoreSecretSchema,
+  secureStoreSetRpcResponseSchema,
+  secureStoreStatusRpcResponseSchema,
+  type SecureStoreStatusResult,
   WORKSPACE_CANONICALIZE_RPC_METHOD,
   WORKSPACE_SCHEMA_VERSION,
   workspaceCanonicalizeResultSchema,
@@ -32,6 +47,80 @@ export class WorkspaceNativeError extends Error {
     this.name = "WorkspaceNativeError";
     this.reason = reason;
   }
+}
+
+export class SecureStoreNativeError extends Error {
+  readonly reason: SecureStoreErrorReason;
+
+  constructor(reason: SecureStoreErrorReason) {
+    super("Native Core secure store operation failed");
+    this.name = "SecureStoreNativeError";
+    this.reason = reason;
+  }
+}
+
+export function parseSecureStoreStatusResponse(
+  response: unknown,
+): SecureStoreStatusResult {
+  const parsed = secureStoreStatusRpcResponseSchema.safeParse(response);
+  if (!parsed.success) {
+    throw new Error("Native Core returned an invalid response");
+  }
+  if (parsed.data.error !== undefined) {
+    throw new SecureStoreNativeError(parsed.data.error.data.reason);
+  }
+  if (parsed.data.result === undefined) {
+    throw new Error("Native Core returned an invalid response");
+  }
+  return parsed.data.result;
+}
+
+export function parseSecureStoreSetResponse(
+  response: unknown,
+): SecureStoreMutationResult {
+  const parsed = secureStoreSetRpcResponseSchema.safeParse(response);
+  if (!parsed.success) {
+    throw new Error("Native Core returned an invalid response");
+  }
+  if (parsed.data.error !== undefined) {
+    throw new SecureStoreNativeError(parsed.data.error.data.reason);
+  }
+  if (parsed.data.result === undefined) {
+    throw new Error("Native Core returned an invalid response");
+  }
+  return parsed.data.result;
+}
+
+export function parseSecureStoreGetResponse(
+  response: unknown,
+): SecureStoreGetResult {
+  const parsed = secureStoreGetRpcResponseSchema.safeParse(response);
+  if (!parsed.success) {
+    throw new Error("Native Core returned an invalid response");
+  }
+  if (parsed.data.error !== undefined) {
+    throw new SecureStoreNativeError(parsed.data.error.data.reason);
+  }
+  if (parsed.data.result === undefined) {
+    throw new Error("Native Core returned an invalid response");
+  }
+  return parsed.data.result;
+}
+
+export function parseSecureStoreDeleteResponse(
+  response: unknown,
+): SecureStoreMutationResult {
+  const parsed = secureStoreDeleteRpcResponseSchema.safeParse(response);
+  if (!parsed.success) {
+    throw new Error("Native Core returned an invalid response");
+  }
+  if (parsed.data.error !== undefined) {
+    throw new SecureStoreNativeError(parsed.data.error.data.reason);
+  }
+  if (parsed.data.result === undefined) {
+    throw new Error("Native Core returned an invalid response");
+  }
+  return parsed.data.result;
 }
 
 export class NativeCoreClient {
@@ -98,6 +187,70 @@ export class NativeCoreClient {
         }
         return result.data;
       },
+    );
+  }
+
+  secureStoreStatus(): Promise<SecureStoreStatusResult> {
+    return this.#request(
+      SECURE_STORE_STATUS_RPC_METHOD,
+      {
+        schemaVersion: SECURE_STORE_SCHEMA_VERSION,
+        sessionToken: this.#sessionToken,
+      },
+      parseSecureStoreStatusResponse,
+    );
+  }
+
+  secureStoreSet(
+    secretRef: string,
+    secret: string,
+  ): Promise<SecureStoreMutationResult> {
+    const parsedRef = secureStoreSecretRefSchema.safeParse(secretRef);
+    const parsedSecret = secureStoreSecretSchema.safeParse(secret);
+    if (!parsedRef.success || !parsedSecret.success) {
+      return Promise.reject(new Error("Secure store request is invalid"));
+    }
+    return this.#request(
+      SECURE_STORE_SET_RPC_METHOD,
+      {
+        schemaVersion: SECURE_STORE_SCHEMA_VERSION,
+        sessionToken: this.#sessionToken,
+        secretRef: parsedRef.data,
+        secret: parsedSecret.data,
+      },
+      parseSecureStoreSetResponse,
+    );
+  }
+
+  secureStoreGet(secretRef: string): Promise<SecureStoreGetResult> {
+    const parsedRef = secureStoreSecretRefSchema.safeParse(secretRef);
+    if (!parsedRef.success) {
+      return Promise.reject(new Error("Secure store request is invalid"));
+    }
+    return this.#request(
+      SECURE_STORE_GET_RPC_METHOD,
+      {
+        schemaVersion: SECURE_STORE_SCHEMA_VERSION,
+        sessionToken: this.#sessionToken,
+        secretRef: parsedRef.data,
+      },
+      parseSecureStoreGetResponse,
+    );
+  }
+
+  secureStoreDelete(secretRef: string): Promise<SecureStoreMutationResult> {
+    const parsedRef = secureStoreSecretRefSchema.safeParse(secretRef);
+    if (!parsedRef.success) {
+      return Promise.reject(new Error("Secure store request is invalid"));
+    }
+    return this.#request(
+      SECURE_STORE_DELETE_RPC_METHOD,
+      {
+        schemaVersion: SECURE_STORE_SCHEMA_VERSION,
+        sessionToken: this.#sessionToken,
+        secretRef: parsedRef.data,
+      },
+      parseSecureStoreDeleteResponse,
     );
   }
 
