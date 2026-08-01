@@ -191,7 +191,7 @@ v0.1 可先支持手动检查更新，但架构要求：
 
 ## 11. 测试重点
 
-- Renderer 无 Node/密钥权限；
+- Renderer 无 Node 权限且无已存密钥读取能力；只允许专用密码输入框经 typed IPC 单向提交本次 Key，提交后清除；
 - 非法 IPC channel 和 payload；
 - Sidecar 会话令牌；
 - Sidecar 被替换；

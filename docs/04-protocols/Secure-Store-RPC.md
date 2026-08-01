@@ -59,8 +59,8 @@ OS 安全存储操作失败使用固定错误代码 `-32020`：
 ## 5. 暴露与持久化限制
 
 - Main 的 typed `NativeCoreClient` 是唯一 TypeScript 调用边界；
-- Preload、`DesktopApi`、Renderer bundle 和公开 DTO 不暴露 secure-store 方法、`secretRef`
-  或 secret；
+- Preload、`DesktopApi`、Renderer bundle 和公开 DTO 不暴露原始 secure-store 方法、`secretRef`
+  或已存 secret；后续 Provider 提交协议可单向携带用户在专用密码输入框中的本次输入，但不得提供读取或回填路径；
 - SQLite 未来只能保存 `secret_ref`，本协议不写数据库；
 - Native Core 不通过 shell 或系统 CLI 调用凭据存储；
 - 安全存储不可用时必须失败关闭，不得回退到文件、SQLite、环境变量或自定义可逆加密。

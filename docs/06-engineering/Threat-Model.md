@@ -86,7 +86,8 @@ flowchart LR
 控制：
 
 - OS 安全存储，固定应用 namespace，仅保存由 UUID 标识的 Provider secret；
-- 只有受信 Main 可通过版本化、鉴权的 Secure Store RPC 读写；Preload/Renderer 不可访问；
+- 用户可在专用密码输入框录入 Key；Renderer 只短暂持有本次输入，并通过单向 typed Provider IPC 提交到受信 Main，提交后立即清除；
+- 已存 Key 只有受信 Main 可通过版本化、鉴权的 Secure Store RPC 读取；Preload/Renderer 不得读取、列举或恢复已存 Key，也不得访问原始 secure-store RPC；
 - 安全存储不可用时失败关闭，不允许文件、SQLite、环境变量或可逆加密降级；
 - 日志落盘前脱敏；
 - Tool 环境不默认继承 Key；

@@ -5,7 +5,7 @@
 | 任务单元 ID | M2-TU-01 |
 | 状态 | 完成 |
 | 所属 Milestone | Milestone 2：Provider 与 Goal/Plan |
-| 主要结果 | Native Core 可在 Windows Credential Manager 与 macOS Keychain 中安全保存、读取、轮换和删除 Provider 密钥，密钥不进入 SQLite、Renderer、日志或错误 |
+| 主要结果 | Native Core 可在 Windows Credential Manager 与 macOS Keychain 中安全保存、读取、轮换和删除 Provider 密钥，已存密钥不进入 SQLite、Renderer、日志或错误 |
 | 基线提交 | `926c1a5d5d9664a901e79b6b0035f7bc43e76583` |
 
 ## 1. 需求与设计引用
@@ -19,7 +19,7 @@
 - [Threat Model T-04、T-07](../Threat-Model.md)；
 - [Core User Flow 01](../../07-ui/Core-User-Flows.md)与[UI Acceptance UI-AC-01](../../07-ui/UI-Acceptance.md)。
 
-安全硬限制高于线框表达。UI 文档中的 Key 输入框只表达用户需要提供凭据，不授权把 Key 交给不可信 Renderer；本任务先冻结 Native Core 安全边界，受信录入 UI 由后续合同设计和验收。
+本任务只冻结 Native Core 原始安全存储边界，不实现凭据录入 UI。后续用户已确认 Key 由专用密码输入框录入：Renderer 可在本次输入至提交完成期间短暂持有该值并通过 typed Provider IPC 单向提交，但已存 Key 不得回传，且不得暴露原始 secure-store IPC；该后续边界由新的任务合同实现和验收。
 
 ## 2. 前置条件
 
@@ -78,7 +78,7 @@
 - [x] 引用隔离：两个随机 `secretRef` 互不读取/覆盖/删除，固定应用 namespace 之外不可访问；
 - [x] 机密性：除受信 `get` 成功结果外，stdout/stderr、错误、测试报告、截图和诊断文本均不出现 secret；
 - [x] Main 边界：`NativeCoreClient` 可 typed set/get/delete/status，超时、Sidecar 退出、非法响应和固定 Native 错误安全映射；
-- [x] Renderer 边界：Preload、`DesktopApi`、Renderer bundle 和公开 DTO 无 secret getter/setter、原始 RPC 或 Key 值；
+- [x] Renderer 边界：本任务交付时 Preload、`DesktopApi`、Renderer bundle 和公开 DTO 无 secure-store getter/setter、原始 RPC 或已存 Key 值；后续专用 Provider 单向提交接口不属于本任务；
 - [x] 持久化边界：全部 SQLite migration/Schema/数据库内容不含 secret，且本任务不新增 migration；
 - [x] 并发与生命周期：不同引用并发操作隔离；Sidecar/应用重启后可读取已保存 secret，删除后重启仍为 NOT_FOUND；
 - [x] 最终包：Windows/macOS 同一提交的最终包包含相应 Native Core，health 与安全存储生命周期通过并完成清理；

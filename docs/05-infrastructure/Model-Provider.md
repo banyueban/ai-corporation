@@ -101,7 +101,9 @@ type NormalizedUsage = {
 
 - Key 存 OS 安全存储；
 - SQLite 只保存 `secret_ref`；
-- Renderer 永远拿不到 Key；
+- 用户在专用密码输入框录入 Key；Renderer 只在本次输入至提交完成期间短暂持有该值，必须默认遮挡，提交后立即清除；
+- 已存 Key 永不回传 Renderer；列表、详情、错误、事件和恢复状态只返回 `hasCredential` 等非敏感状态，不返回 `secret_ref` 或 Key；
+- Key 只通过专用 typed Provider IPC 单向提交到 Main；不得暴露通用 secure-store IPC、读取接口或原始 RPC；
 - 受信 Main 只能通过版本化的 [Secure Store RPC](../04-protocols/Secure-Store-RPC.md) 调用
   Native Core；安全存储不可用时失败关闭，不得写入文件、SQLite 或环境变量；
 - 请求日志不记录 Authorization；

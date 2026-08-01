@@ -70,7 +70,7 @@ M2-TU-01 已交付：
 
 ## 7. 下一步
 
-按任务单元规范定义 M2-TU-02 Provider 配置边界，先冻结 Provider DTO、SQLite `secret_ref` 映射、凭据写入顺序、失败补偿和 Renderer 不接触 Key 的信任边界；合同达到“就绪”并单独提交后再实施。
+按用户确认的设计定义 M2-TU-02 Provider 配置边界：Key 由用户在专用密码输入框录入，Renderer 仅短暂持有本次输入并通过 typed IPC 单向提交，提交后清空且已存 Key 永不回传；同时冻结 Provider DTO、SQLite `secret_ref` 映射、凭据写入顺序与失败补偿。合同达到“就绪”并单独提交后再实施。
 
 ## 8. 更新规则
 

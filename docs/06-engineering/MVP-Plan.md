@@ -83,7 +83,7 @@
 
 验收：
 
-- Key 不进入 SQLite/日志/Renderer；
+- Key 不进入 SQLite 或日志；Renderer 只在用户主动录入到专用密码输入框至提交完成期间短暂持有本次输入，已存 Key 永不回传 Renderer；
 - 非法 JSON 自动修复最多一次；
 - 循环依赖和无验收 Task 被拒绝；
 - 用户可修改并批准计划。
