@@ -61,6 +61,16 @@ v0.1：
 - 错误码一致；
 - 模型名称可跨 Provider 使用。
 
+M2-TU-03 的连接测试采用以下固定边界：
+
+- OpenAI-compatible Adapter 将用户保存的 Endpoint 视为 API base URL，并请求其相对路径 `models`；
+- 请求使用已保存 Key 的 Bearer Authorization，不执行生成请求，因此不产生模型生成用量；
+- 远程 Endpoint 只允许 HTTPS；HTTP 只允许 `localhost`、`127.0.0.1` 和 `::1`；禁止 URL 用户名、密码、query、fragment 和 HTTP redirect；
+- 连接测试固定 15 秒超时，用户可随时取消；超过 10 秒 UI 显示诊断提示；
+- 成功要求 2xx 和可验证的 `data[].id` 模型列表；结果、测试时间、标准失败原因和模型列表持久化，Endpoint 或 Key 变化后重置为未验证；
+- 持久化的连接测试状态不是 Scheduler 维护的 `ProviderHealthStatus`，不得据此推断熔断或运行时健康；
+- Deterministic Mock Provider 是实现同一接口的测试适配器，不进入生产 SQLite 或正式 Settings UI。
+
 ## 5. 标准请求
 
 ```ts
@@ -134,6 +144,8 @@ Provider 状态分成三个相互独立的维度：
 - `CANCELLED`
 
 每类带 `retryable` 和建议退避。认证错误不重试。
+
+连接测试的固定映射为：HTTP 401 → `AUTHENTICATION`，403 → `PERMISSION`，429 且响应错误码为 `insufficient_quota` → `QUOTA_EXHAUSTED`，其他 429 → `RATE_LIMIT`，其他 4xx → `INVALID_REQUEST`，5xx → `PROVIDER_INTERNAL`，15 秒截止 → `TIMEOUT`，传输失败 → `NETWORK`，用户取消 → `CANCELLED`。成功响应不是合法模型列表时按不可重试的 `PROVIDER_INTERNAL` 处理。错误正文只在 Adapter 内用于受限解析，不进入 Renderer、日志或持久化结果。
 
 ## 9. 流式与取消
 

@@ -3,18 +3,18 @@
 | 属性 | 当前值 |
 |---|---|
 | 当前产品版本 | v0.1 MVP |
-| 当前阶段 | Milestone 2 下一任务边界决策 |
+| 当前阶段 | M2-TU-03 Provider 连接测试实施 |
 | 当前 Milestone | Milestone 2：Provider 与 Goal/Plan |
-| 当前任务单元 | M2-TU-02（完成） |
+| 当前任务单元 | M2-TU-03（就绪） |
 | 总体状态 | 进行中 |
 | 最近更新 | 2026-08-02 |
-| 下一检查点 | 用户确认 M2-TU-03 Provider 运行切片边界后建立就绪合同 |
+| 下一检查点 | M2-TU-03 实现候选通过本地合同矩阵后提交双平台 CI |
 
 ## 1. 当前结论
 
-Milestone 1 已完成并经用户人工安装验收；当前没有已知未解决 P0/P1。[M2-TU-02 应用自管 Provider Key Vault](docs/06-engineering/task-units/M2-TU-02-application-key-vault.md) 已基于用户确认的 `1B + 2B + 3A` 设计完成，验收提交 `b85670dd3a65159729390dc019a3971fe014176c` 的 16 项合同断言、Windows/macOS 开发态与最终包真实窗口、双平台 artifacts 和回归门禁全部通过。
+Milestone 1 已完成并经用户人工安装验收；当前没有已知未解决 P0/P1。[M2-TU-02 应用自管 Provider Key Vault](docs/06-engineering/task-units/M2-TU-02-application-key-vault.md) 已完成。[M2-TU-03 Provider 连接测试](docs/06-engineering/task-units/M2-TU-03-provider-connection-test.md) 已根据用户确认的范围 A、`1A + 2A + 3A + 4A` 和固定 15 秒超时决策建立就绪合同，尚未开始功能实现或验收。
 
-本任务只交付应用自管 SQLite Provider Key Vault、应用本地加密密钥和 Settings / Providers 管理界面。Provider 网络连接、模型调用、Goal Engine、Planner、Task Graph 和 Plan Review 不属于当前任务，Milestone 2 尚未完成。
+M2-TU-03 只承诺 OpenAI-compatible/测试专用 Mock Adapter、非生成连接测试、固定错误归一化、持久化测试结果/模型列表和 Settings 测试交互。真实模型生成、usage、运行时健康/熔断、完整 Onboarding、Goal Engine、Planner、Task Graph 和 Plan Review 不属于本任务，Milestone 2 尚未完成。
 
 ## 2. 已完成基线
 
@@ -37,21 +37,21 @@ Milestone 1 已完成并经用户人工安装验收；当前没有已知未解�
 
 这些是 Milestone 范围，不是一个任务单元的完成清单。M2-TU-01 只关闭 OS 安全存储；相邻能力必须另建合同并达到“就绪”。
 
-## 4. 最近完成任务边界
+## 4. 当前任务边界
 
-M2-TU-02 已交付应用自管 Provider 配置/Key Vault 垂直切片：
+M2-TU-03 就绪合同包含：
 
-- `0006` Provider/Vault/command Schema、AES-256-GCM 应用自管密文和原子本地主密钥；
-- `provider.list/save/revealKey/deleteKey` typed IPC、事务、幂等、乐观并发和失败关闭；
-- Settings / Providers 的新增、保存、替换、删除、默认遮挡和用户主动显示；
-- Renderer reload、应用重启与 SQLite 恢复，Windows/macOS 开发态和最终包真实窗口证据；
-- legacy OS secure-store 产品运行路径、平台依赖与最终包内容移除。
+- OpenAI-compatible `GET <base>/models` 与同接口 Deterministic Mock Adapter；
+- 远程 HTTPS、loopback HTTP、禁止 redirect/URL 凭据/query/fragment、15 秒截止和可取消；
+- 固定错误归一化、`0007` 持久化测试结果/模型列表及配置版本失效保护；
+- `provider.testConnection/cancelConnectionTest` typed IPC 和 Settings 真实状态；
+- Windows/macOS 开发态与最终包的成功、失败、取消、超时、重启恢复和泄密矩阵。
 
-非范围：Provider HTTP/连接测试、错误归一化、用量、Goal/Plan 和真实模型调用。
+非范围：真实模型生成、usage/费用、Provider runtime health/熔断/回退、正式 Mock 类型、完整 Onboarding、Goal/Plan。
 
 ## 5. 活跃阻塞与外部条件
 
-M2-TU-02 当前无产品、架构、验收或仓库阻塞。下一任务存在需要用户决策的范围歧义：MVP Plan 将“OpenAI 风格 Provider + Mock Provider”与“连接测试、错误归一化和用量”列为相邻交付，但没有规定它们应合并为一个任务单元还是拆分为两个可独立验收切片；未决策前不建立 M2-TU-03 就绪合同。
+M2-TU-03 当前无产品、架构、验收或仓库阻塞。任务范围、连接方式、Mock 形态、Endpoint 安全、结果持久化和超时策略均已由用户明确决策；合同就绪不表示功能已实现或通过验收。
 
 已知条件：
 
@@ -71,7 +71,7 @@ M2-TU-02 当前无产品、架构、验收或仓库阻塞。下一任务存在�
 
 ## 7. 下一步
 
-向用户说明 M2-TU-03 范围歧义与拆分方案；仅在用户确认后建立对应任务合同并推进到“就绪”。
+按 M2-TU-03 就绪合同串行实施协议、migration、Adapter、Service/IPC、Settings UI 和隔离测试；只有当前提交的本地合同矩阵通过后才提交双平台 CI。
 
 ## 8. 更新规则
 

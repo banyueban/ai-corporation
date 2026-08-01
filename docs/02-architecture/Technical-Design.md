@@ -147,8 +147,9 @@ Renderer 的页面、导航、交互状态、安全审批和组件实现必须�
 - 原子读写；
 - 文件哈希与乐观锁；
 - 子进程执行、输出流和取消；
-- 凭据安全存取；
 - 平台差异适配。
+
+Provider Key Vault 与 Provider 网络请求属于 TypeScript Application/Infrastructure，不进入 Native Core。
 
 ### 3.6 Storage
 

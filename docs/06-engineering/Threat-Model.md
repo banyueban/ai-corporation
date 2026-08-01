@@ -29,8 +29,8 @@ flowchart LR
   M -->|domain calls| O["Orchestration"]
   O -->|normalized HTTPS| P["Remote Provider"]
   O -->|authenticated local RPC| N["Rust Native Core"]
+  O --> K["Application-managed Key Vault"]
   N --> W["Authorized Workspace"]
-  N --> K["OS Secure Store"]
   N --> X["Child Processes"]
 ```
 
@@ -184,6 +184,20 @@ flowchart LR
 - 工作区文件默认保留；
 - 备份保留说明；
 - 导出/删除测试。
+
+### T-13 Provider Endpoint 与凭据转发
+
+场景：恶意或错误 Endpoint 通过明文传输、redirect、URL 凭据或异常响应诱导应用泄漏 Key、访问非预期目标或耗尽内存。
+
+控制：
+
+- Provider 网络请求只由 Electron Main/Application Service 发起，Renderer 不直接读取 Key 或调用 Provider 网络；
+- 远程 Endpoint 必须为 HTTPS；HTTP 只允许 loopback，且只接受 `localhost`、`127.0.0.1`、`::1`；
+- Endpoint 禁止 URL 用户名、密码、query 和 fragment；连接测试只在保存的 API base URL 下解析固定相对路径 `models`；
+- 禁止 HTTP redirect，Authorization 不向第二目标转发；
+- 固定 15 秒截止、可取消、限制响应体和模型条目数量，异常成功响应固定归一化；
+- Key、Authorization、Provider 原始错误正文和响应正文不得进入日志、SQLite 测试结果、事件、错误或 Renderer；
+- 连接测试结果通过 Provider ID 与配置版本绑定；Endpoint 或 Key 变化后旧结果失效，迟到结果不得覆盖新版本。
 
 ## 4. 风险接受
 

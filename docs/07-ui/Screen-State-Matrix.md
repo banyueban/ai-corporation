@@ -180,6 +180,18 @@
 
 ## 13. Provider 状态
 
+Provider 连接测试状态独立于配置状态和运行时健康：
+
+| 测试状态 | UI |
+|---|---|
+| UNVERIFIED | 显示需测试；Endpoint 或 Key 变化后立即回到此状态 |
+| TESTING | 禁止重复测试，提供取消；超过 10 秒显示诊断提示 |
+| VERIFIED | 显示测试时间和发现的模型数量，可展开模型 ID |
+| FAILED | 显示标准失败类别、影响和修复动作，不显示原始响应正文 |
+| CANCELLED | 保留测试前已持久化结果并说明本次已取消 |
+
+连接测试固定 15 秒截止。应用重启恢复最近的 `VERIFIED`/`FAILED` 结果；该结果不得显示为 `HEALTHY`、`DEGRADED`、`OPEN` 或 `HALF_OPEN`。
+
 Provider 配置状态：
 
 | 配置状态 | UI |

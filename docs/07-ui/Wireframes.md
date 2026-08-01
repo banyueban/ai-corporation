@@ -269,7 +269,7 @@
 │ Models           │ ┌─────────────────────────────────────────────────────┐ │
 │ Security         │ │ OpenAI-compatible        Active ✓                  │ │
 │ Data             │ │ Endpoint: https://...    Key: 已安全保存           │ │
-│ Appearance       │ │ Models: 4                [测试] [编辑] [禁用]      │ │
+│ Appearance       │ │ Test: Verified · Models: 4  [测试] [编辑] [禁用] │ │
 │ About            │ └─────────────────────────────────────────────────────┘ │
 │                  │                                                         │
 │                  │ Planner    Balanced route                               │

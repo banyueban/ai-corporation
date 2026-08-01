@@ -154,6 +154,7 @@ Corporation 的 create、update-name 与 archive 在同一个 `BEGIN IMMEDIATE` 
 | API Key / Token | AI Corporation Desktop 应用自管 Key Vault；SQLite 只保存认证加密后的密文、nonce、认证标签和加密版本 |
 | Key Vault 本地加密密钥 | 应用数据目录中的应用自管文件；不进入 SQLite、OS Keychain/Credential Manager 或 Native Core |
 | Provider Endpoint | SQLite |
+| Provider 连接测试 | SQLite；仅保存配置版本、标准状态/错误、测试时间和受限模型列表，不保存原始响应、Authorization 或 Key |
 | 完整 Prompt/响应 | 默认不长期保存；调试模式脱敏 |
 | 文件绝对路径 | SQLite，可视为敏感 |
 | Artifact 内容 | Managed Store / Workspace |

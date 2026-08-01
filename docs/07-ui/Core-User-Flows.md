@@ -25,6 +25,7 @@ flowchart TD
 - 提交期间禁用重复提交；重新打开页面默认显示遮挡值，用户主动选择“查看”后可以显示已存 Key 明文；
 - 保存前说明存储位置；
 - 连接测试显示步骤，不输出 Authorization；
+- 连接测试固定 15 秒超时，测试期间可取消；超过 10 秒显示安全诊断提示，不显示原始 Provider 正文；
 - Provider 返回模型列表时可选择；失败时允许手工模型 ID；
 - 用户可跳过非必需个性化，但不能跳过至少一个可用 Provider。
 
@@ -34,6 +35,8 @@ flowchart TD
 - 网络不可用：允许保存未验证配置，但 Dashboard 显示“需验证”，不能启动 Corporation；
 - 认证失败：不盲目重试；
 - Endpoint 格式错误：字段级提示。
+- 远程 Endpoint 只允许 HTTPS；HTTP 仅用于本机 loopback；不允许 redirect、URL 凭据、query 或 fragment；
+- Endpoint 或 Key 变化后显示“未验证”，成功/失败结果与模型列表在重启后恢复；该结果不冒充运行时健康或熔断状态。
 
 ## 2. Flow 02：创建 Corporation 与 Goal Contract
 
