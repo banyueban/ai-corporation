@@ -75,6 +75,17 @@ describe("Workspace directory selector", () => {
     expect(showDialog).toHaveBeenCalledOnce();
   });
 
+  it("accepts a future well-formed task ID without hard-coding the prior task", async () => {
+    const fixture = await mkdtemp(path.join(os.tmpdir(), "M2-TU-01-select-"));
+    temporaryDirectories.push(fixture);
+    const selector = createWorkspaceDirectorySelector({
+      e2eFixturePath: fixture,
+      showDialog: async () => ({ canceled: true, filePaths: [] }),
+    });
+
+    await expect(selector.select()).resolves.toBe(fixture);
+  });
+
   it("rejects non-empty or non-task fixture directories", async () => {
     const nonEmpty = await mkdtemp(
       path.join(os.tmpdir(), "M1-TU-05-non-empty-"),

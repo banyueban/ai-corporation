@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 任务单元 ID | M1-TU-06 |
-| 状态 | 进行中 |
+| 状态 | 完成 |
 | 所属 Milestone | Milestone 1：本地项目骨架 |
 | 主要结果 | 用户可暂停并继续本地 Corporation，重启应用后从持久化状态恢复，且不重复已提交状态、事件或命令副作用 |
 | 基线提交 | `b31784c72e8876d294cd0d30b39e3e3c44dcec98` |
@@ -75,21 +75,21 @@
 
 ## 7. 验收合同
 
-- [ ] 协议：pause/resume 请求和公开暂停形状严格拒绝额外字段、非法 UUID/版本、非法状态组合与 Renderer 伪造目标/原因/时间；
-- [ ] 迁移：空库与 `0001`–`0004` 库均升级到 `0005`，checksum、FK、CHECK、索引、trigger 和权威 Schema 一致，旧 Corporation/Goal/Event 不变；
-- [ ] 状态机：六个允许来源均可 pause，resume 精确返回 `pausedFrom`；终态、ARCHIVED、重复新命令、错误来源和损坏元数据拒绝；
-- [ ] Workspace 门禁：不存在、MISSING、PERMISSION_DENIED 或 UNVERIFIED Workspace 不允许 pause/resume，且无部分写入；
-- [ ] 原子性：pause/resume 的 Corporation、Event、receipt 全部提交或全部回滚，fault fixture 覆盖三个写入边界；
-- [ ] 幂等与并发：同 command 重放不重复版本/事件；冲突复用拒绝；双连接 barrier 下同 expected version 仅一方成功；
-- [ ] 事件与时间线：paused/resumed 事实 append-only、同版本、脱敏且按 canonical cursor 可恢复，不泄露内部暂停字段或回执；
-- [ ] IPC 安全：非法来源、未知 channel、额外/伪造字段和非法标识固定拒绝；Preload 只暴露 allowlist；
-- [ ] UI 状态：真实 DRAFT/PAUSING/PAUSED/restored/error/conflict 驱动展示，pending 禁止重复提交，迟到响应不覆盖新版本；
-- [ ] UI 语义：暂停页明确“没有开始 Plan/Task/执行”，继续只恢复暂停前状态，不暗示外部副作用已检查或执行已开始；
-- [ ] UI 可访问性与布局：纯键盘完成暂停/继续，焦点、错误关联、reduced motion、axe 严重关键项、200%、1024 × 700 与 1440 × 900 通过；
-- [ ] 重启恢复：PAUSED 与 DRAFT 在 Renderer reload、应用进程重启和 SQLite 重开后精确恢复；启动不自动 resume、不新增事件/回执；
-- [ ] Milestone 演示：真实窗口完成 Workspace → Corporation → Goal → pause → 应用重启 → restore → resume，Goal/版本/时间线与 Workspace 均保留；
-- [ ] 最终包与跨平台：同一提交的 Windows/macOS 工程检查、开发态 E2E、最终包 E2E、清理和 artifact 上传通过；
-- [ ] 回归与 L3：`M1-TU-01` 至 `M1-TU-05`、工作区外路径拒绝、旧迁移、Native Core health 全部通过；Milestone 1 交付物、演示和退出条件逐项审查通过，P0/P1 为 0。
+- [x] 协议：pause/resume 请求和公开暂停形状严格拒绝额外字段、非法 UUID/版本、非法状态组合与 Renderer 伪造目标/原因/时间；
+- [x] 迁移：空库与 `0001`–`0004` 库均升级到 `0005`，checksum、FK、CHECK、索引、trigger 和权威 Schema 一致，旧 Corporation/Goal/Event 不变；
+- [x] 状态机：六个允许来源均可 pause，resume 精确返回 `pausedFrom`；终态、ARCHIVED、重复新命令、错误来源和损坏元数据拒绝；
+- [x] Workspace 门禁：不存在、MISSING、PERMISSION_DENIED 或 UNVERIFIED Workspace 不允许 pause/resume，且无部分写入；
+- [x] 原子性：pause/resume 的 Corporation、Event、receipt 全部提交或全部回滚，fault fixture 覆盖三个写入边界；
+- [x] 幂等与并发：同 command 重放不重复版本/事件；冲突复用拒绝；双连接 barrier 下同 expected version 仅一方成功；
+- [x] 事件与时间线：paused/resumed 事实 append-only、同版本、脱敏且按 canonical cursor 可恢复，不泄露内部暂停字段或回执；
+- [x] IPC 安全：非法来源、未知 channel、额外/伪造字段和非法标识固定拒绝；Preload 只暴露 allowlist；
+- [x] UI 状态：真实 DRAFT/PAUSING/PAUSED/restored/error/conflict 驱动展示，pending 禁止重复提交，迟到响应不覆盖新版本；
+- [x] UI 语义：暂停页明确“没有开始 Plan/Task/执行”，继续只恢复暂停前状态，不暗示外部副作用已检查或执行已开始；
+- [x] UI 可访问性与布局：纯键盘完成暂停/继续，焦点、错误关联、reduced motion、axe 严重关键项、200%、1024 × 700 与 1440 × 900 通过；
+- [x] 重启恢复：PAUSED 与 DRAFT 在 Renderer reload、应用进程重启和 SQLite 重开后精确恢复；启动不自动 resume、不新增事件/回执；
+- [x] Milestone 演示：真实窗口完成 Workspace → Corporation → Goal → pause → 应用重启 → restore → resume，Goal/版本/时间线与 Workspace 均保留；
+- [x] 最终包与跨平台：同一提交的 Windows/macOS 工程检查、开发态 E2E、最终包 E2E、清理和 artifact 上传通过；
+- [x] 回归与 L3：`M1-TU-01` 至 `M1-TU-05`、工作区外路径拒绝、旧迁移、Native Core health 全部通过；Milestone 1 交付物、演示和退出条件逐项审查通过，P0/P1 为 0。
 
 ## 8. 隔离与干扰控制
 
@@ -108,6 +108,16 @@
 - 开发态真实 Electron 窗口的暂停/应用重启/继续全旅程、键盘、axe、网络 0、三种布局截图；
 - Windows/macOS 同一提交的最终包真实窗口 Milestone 演示、清理结果、run/job/artifact ID；
 - Milestone 1 L3 逐项映射到 `M1-TU-01` 至 `M1-TU-06` 和最终演示的当前证据。
+
+当前有效证据：
+
+- 实现验收提交：`13ab5a944125eb848596ce90e1e977ae208f3f98`；
+- GitHub Actions：run `30695902463`；Windows x64 job `91358624310`、macOS Apple Silicon job `91358624279` 均成功；
+- Windows artifact `8817268064`，macOS artifact `8817259466`；
+- 两个平台均通过工程检查、开发态真实 Electron 窗口、最终包 E2E、清理和 artifact 上传；最终包日志均记录 `pause · reload · process restart · read-only restore · resume · reload · process restart`；
+- 本地 `pnpm check` 通过：协议 20 项、Storage 61 项、Desktop 60 项、Native Core 7 项及 Workspace Rust 7 项，并包含治理、格式、lint、TypeScript、Rust fmt/clippy 与 secret scan；
+- PAUSED/DRAFT 的 Renderer reload、应用进程重启和 SQLite 重开均有直接断言；启动前后状态、版本、事件和回执计数证明启动只读；
+- Milestone 1 L3 已在 `PROJECT_STATUS.md` 逐项映射，未执行必检项为 0，已知未解决 P0/P1 为 0。
 
 ## 10. 完成规则
 
