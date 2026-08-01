@@ -3,16 +3,16 @@
 | 属性 | 当前值 |
 |---|---|
 | 当前产品版本 | v0.1 MVP |
-| 当前阶段 | Milestone 2 首个任务单元实施与验收 |
+| 当前阶段 | Milestone 2 下一任务单元定义 |
 | 当前 Milestone | Milestone 2：Provider 与 Goal/Plan |
-| 当前任务单元 | M2-TU-01（进行中） |
+| 当前任务单元 | M2-TU-01（完成） |
 | 总体状态 | 进行中 |
 | 最近更新 | 2026-08-01 |
-| 下一检查点 | M2-TU-01 同源 Windows/macOS CI 与最终包验收 |
+| 下一检查点 | M2-TU-02 Provider 配置边界合同就绪 |
 
 ## 1. 当前结论
 
-Milestone 1 已完成并经用户人工安装验收；当前没有已知未解决 P0/P1。Milestone 2 已进入首个解耦任务单元：[M2-TU-01 OS 安全存储边界](docs/06-engineering/task-units/M2-TU-01-os-secure-store-boundary.md)。合同范围、依赖、接口、所有权、隔离和 14 项验收断言已明确，就绪合同提交为 `57cb9f6c94611ade1f21a6a1bb54fd7cb2326f14`，当前状态为“进行中”。
+Milestone 1 已完成并经用户人工安装验收；当前没有已知未解决 P0/P1。[M2-TU-01 OS 安全存储边界](docs/06-engineering/task-units/M2-TU-01-os-secure-store-boundary.md) 已在实现提交 `66b466f60f7a5d16d31605cd6494db65a3820781` 上通过本地 Windows 与 GitHub Windows/macOS 全部验收，状态为“完成”。当前尚无新的就绪任务合同，不得提前实施 Provider 配置或相邻能力。
 
 本任务只建立 Windows Credential Manager/macOS Keychain → Native Core → Electron Main 的密钥边界。Provider 配置、连接测试、模型调用、Renderer Key 表单、Goal Engine、Planner、Task Graph 和 Plan Review 不属于当前任务，Milestone 2 尚未完成。
 
@@ -26,7 +26,7 @@ Milestone 1 已完成并经用户人工安装验收；当前没有已知未解�
 
 ## 3. Milestone 2 范围状态
 
-- [ ] OS 安全存储；
+- [x] OS 安全存储；
 - [ ] OpenAI 风格 Provider + Mock Provider；
 - [ ] 连接测试、错误归一化和用量；
 - [ ] Goal Engine；
@@ -35,11 +35,11 @@ Milestone 1 已完成并经用户人工安装验收；当前没有已知未解�
 - [ ] Plan Review 编辑与批准 UI；
 - [ ] Windows/macOS Milestone 级真实窗口与最终包验收。
 
-这些是 Milestone 范围，不是一个任务单元的完成清单。当前只允许实施 M2-TU-01；相邻能力必须另建合同并达到“就绪”。
+这些是 Milestone 范围，不是一个任务单元的完成清单。M2-TU-01 只关闭 OS 安全存储；相邻能力必须另建合同并达到“就绪”。
 
-## 4. 当前任务边界
+## 4. 最近完成任务边界
 
-M2-TU-01 交付：
+M2-TU-01 已交付：
 
 - 独立 Rust `secure-store` 平台适配；
 - 版本化、鉴权、严格的 `secure_store.status/set/get/delete` Native RPC；
@@ -56,7 +56,7 @@ M2-TU-01 交付：
 已知条件：
 
 - 系统 PATH 未提供 Node.js，工程验证使用 Codex bundled Node.js；
-- Windows 本地可验证 Credential Manager；macOS Keychain 必须由 macOS CI 提供真实平台证据；
+- Windows Credential Manager 已在本地和 CI 验证；macOS Keychain 已由 macOS CI 验证；
 - 应用签名与 macOS notarization 不属于当前任务，但属于公开发布前置条件。
 
 ## 6. 当前验证摘要
@@ -65,11 +65,12 @@ M2-TU-01 交付：
 - `pnpm check`、Rust fmt/clippy、secret scan、协议/Native/Main 单元与故障测试通过；协议 28 项、Desktop 67 项、Native Core 10 项、Workspace Rust 7 项通过；
 - 本地 Windows Credential Manager 真实 lifecycle 与引用隔离测试通过；开发态及最终包均通过 status → set → get → rotate → 进程重启 → get → delete → 进程重启 → NOT_FOUND，并确认测试凭据无残留；
 - 最新本地 Windows NSIS 安装包 SHA-256 为 `63B5B0901641AD1E6A437CB7BC811F7F9384E9B9E6BE9282FB6B91BEB2FD042F`，包内 Native Core SHA-256 为 `CD11F54ABEAF10FC5011EFB85B224058C3C0AE1261DB237C382937D778C400BE`；真实窗口、Workspace、Goal、暂停/继续与重启恢复回归通过；
-- Renderer bundle 定向暴露扫描与 Credential Manager 残留扫描通过；macOS Keychain、macOS 最终包及同源双平台 CI 尚未取得，因此 M2-TU-01 仍为“进行中”。
+- GitHub Actions run `30699032779` 在实现提交 `66b466f60f7a5d16d31605cd6494db65a3820781` 上完成；Windows job `91366656485` 与 macOS job `91366656507` 均成功，工程检查、开发态 E2E、最终包构建、最终包 E2E 和 artifact 上传步骤全部通过；
+- Artifacts `ai-corporation-windows-x64`（ID `8818236752`）与 `ai-corporation-macos-arm64`（ID `8818217904`）可用；Renderer bundle 定向暴露扫描与 Credential Manager 残留扫描通过；P0/P1 为 0，未执行必检项为 0。
 
 ## 7. 下一步
 
-提交并推送当前实现，取得同一提交的 Windows/macOS CI、真实 OS 安全存储和最终包证据；全部通过后才关闭 M2-TU-01，并为下一解耦任务建立就绪合同。
+按任务单元规范定义 M2-TU-02 Provider 配置边界，先冻结 Provider DTO、SQLite `secret_ref` 映射、凭据写入顺序、失败补偿和 Renderer 不接触 Key 的信任边界；合同达到“就绪”并单独提交后再实施。
 
 ## 8. 更新规则
 

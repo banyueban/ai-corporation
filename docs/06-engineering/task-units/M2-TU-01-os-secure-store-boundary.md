@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 任务单元 ID | M2-TU-01 |
-| 状态 | 进行中 |
+| 状态 | 完成 |
 | 所属 Milestone | Milestone 2：Provider 与 Goal/Plan |
 | 主要结果 | Native Core 可在 Windows Credential Manager 与 macOS Keychain 中安全保存、读取、轮换和删除 Provider 密钥，密钥不进入 SQLite、Renderer、日志或错误 |
 | 基线提交 | `926c1a5d5d9664a901e79b6b0035f7bc43e76583` |
@@ -70,20 +70,20 @@
 
 ## 7. 验收合同
 
-- [ ] 协议：四个方法的 Schema/DTO 严格拒绝额外字段、错误版本、非法 UUID、控制字符、空 secret 和超限 secret，错误响应不回显输入；
-- [ ] 会话与 allowlist：错误会话、未知方法和伪造字段固定拒绝，既有请求大小上限继续生效；
-- [ ] Windows：真实 Credential Manager 完成 status → set → get → rotate → get → delete → NOT_FOUND，测试后无残留；
-- [ ] macOS：真实 Keychain 完成同一生命周期，测试后无残留；
-- [ ] 不可用处理：OS 安全存储不可用或平台调用失败时固定失败，不写文件/SQLite/环境变量且不明文降级；
-- [ ] 引用隔离：两个随机 `secretRef` 互不读取/覆盖/删除，固定应用 namespace 之外不可访问；
-- [ ] 机密性：除受信 `get` 成功结果外，stdout/stderr、错误、测试报告、截图和诊断文本均不出现 secret；
-- [ ] Main 边界：`NativeCoreClient` 可 typed set/get/delete/status，超时、Sidecar 退出、非法响应和固定 Native 错误安全映射；
-- [ ] Renderer 边界：Preload、`DesktopApi`、Renderer bundle 和公开 DTO 无 secret getter/setter、原始 RPC 或 Key 值；
-- [ ] 持久化边界：全部 SQLite migration/Schema/数据库内容不含 secret，且本任务不新增 migration；
-- [ ] 并发与生命周期：不同引用并发操作隔离；Sidecar/应用重启后可读取已保存 secret，删除后重启仍为 NOT_FOUND；
-- [ ] 最终包：Windows/macOS 同一提交的最终包包含相应 Native Core，health 与安全存储生命周期通过并完成清理；
-- [ ] 回归：`pnpm check`、`pnpm check:status`、`pnpm check:task-units`、Rust fmt/clippy、既有 Workspace/Corporation/Goal/恢复 E2E 全部通过；
-- [ ] 安全审计：secret scan 与定向源码/构建产物扫描通过，P0/P1 为 0，未执行必检项为 0。
+- [x] 协议：四个方法的 Schema/DTO 严格拒绝额外字段、错误版本、非法 UUID、控制字符、空 secret 和超限 secret，错误响应不回显输入；
+- [x] 会话与 allowlist：错误会话、未知方法和伪造字段固定拒绝，既有请求大小上限继续生效；
+- [x] Windows：真实 Credential Manager 完成 status → set → get → rotate → get → delete → NOT_FOUND，测试后无残留；
+- [x] macOS：真实 Keychain 完成同一生命周期，测试后无残留；
+- [x] 不可用处理：OS 安全存储不可用或平台调用失败时固定失败，不写文件/SQLite/环境变量且不明文降级；
+- [x] 引用隔离：两个随机 `secretRef` 互不读取/覆盖/删除，固定应用 namespace 之外不可访问；
+- [x] 机密性：除受信 `get` 成功结果外，stdout/stderr、错误、测试报告、截图和诊断文本均不出现 secret；
+- [x] Main 边界：`NativeCoreClient` 可 typed set/get/delete/status，超时、Sidecar 退出、非法响应和固定 Native 错误安全映射；
+- [x] Renderer 边界：Preload、`DesktopApi`、Renderer bundle 和公开 DTO 无 secret getter/setter、原始 RPC 或 Key 值；
+- [x] 持久化边界：全部 SQLite migration/Schema/数据库内容不含 secret，且本任务不新增 migration；
+- [x] 并发与生命周期：不同引用并发操作隔离；Sidecar/应用重启后可读取已保存 secret，删除后重启仍为 NOT_FOUND；
+- [x] 最终包：Windows/macOS 同一提交的最终包包含相应 Native Core，health 与安全存储生命周期通过并完成清理；
+- [x] 回归：`pnpm check`、`pnpm check:status`、`pnpm check:task-units`、Rust fmt/clippy、既有 Workspace/Corporation/Goal/恢复 E2E 全部通过；
+- [x] 安全审计：secret scan 与定向源码/构建产物扫描通过，P0/P1 为 0，未执行必检项为 0。
 
 ## 8. 隔离与干扰控制
 
@@ -106,3 +106,11 @@
 ## 10. 完成规则
 
 只有 14 项验收断言的状态 × 平台 × 进程生命周期 × 产物形态证据矩阵全部通过，真实 OS 凭据清理完成，P0/P1 为 0、未执行必检项为 0，方可标记本任务完成。本任务只关闭 OS 安全存储边界，不代表 Provider 配置/连接可用、UI-AC-01、Goal/Plan、Milestone 2 或发布完成。
+
+## 11. 收口证据
+
+- 实现提交：`66b466f60f7a5d16d31605cd6494db65a3820781`；
+- GitHub Actions run `30699032779`：Windows x64 job `91366656485`、macOS Apple Silicon job `91366656507` 均成功；两端工程检查、开发态 E2E、最终包构建、最终包 E2E 和 artifact 上传步骤全部成功；
+- Artifacts：`ai-corporation-windows-x64`（ID `8818236752`）、`ai-corporation-macos-arm64`（ID `8818217904`），均未过期；
+- 本地 Windows 最终包：NSIS SHA-256 `63B5B0901641AD1E6A437CB7BC811F7F9384E9B9E6BE9282FB6B91BEB2FD042F`，包内 Native Core SHA-256 `CD11F54ABEAF10FC5011EFB85B224058C3C0AE1261DB237C382937D778C400BE`；
+- Windows/macOS 均完成真实 OS lifecycle、重启与最终包回归；本地 Renderer bundle 暴露扫描和 Windows Credential Manager 残留扫描通过；P0/P1 为 0，未执行必检项为 0。
