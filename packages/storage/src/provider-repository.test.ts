@@ -69,6 +69,133 @@ function createProvider(
 }
 
 describe("ProviderRepository", () => {
+  it("isolates and restores failed and verified connection projections", () => {
+    const database = fixture();
+    const repository = new ProviderRepository(database);
+    const first = create(repository);
+    const second = createProvider(repository, {
+      providerId: "019b7f4d-a000-7000-8000-000000000064",
+      vaultId: "019b7f4d-a000-7000-8000-000000000065",
+      commandId: "019b7f4d-a000-7000-8000-000000000066",
+      requestHash: "7".repeat(64),
+      encrypted: { ...encrypted, nonce: Buffer.alloc(12, 7) },
+      name: "Secondary",
+    });
+    repository.saveConnectionTest({
+      providerId: first.id,
+      expectedVersion: first.version,
+      snapshot: {
+        status: "FAILED",
+        providerVersion: first.version,
+        testedAt: now,
+        failure: {
+          reason: "RATE_LIMIT",
+          retryable: true,
+          suggestedBackoffMs: 2_000,
+        },
+        models: [],
+      },
+    });
+    repository.saveConnectionTest({
+      providerId: second.id,
+      expectedVersion: second.version,
+      snapshot: {
+        status: "VERIFIED",
+        providerVersion: second.version,
+        testedAt: now,
+        models: [],
+      },
+    });
+    const reopened = new ProviderRepository(database).list();
+    expect(
+      reopened.find(({ id }) => id === first.id)?.connectionTest,
+    ).toMatchObject({ status: "FAILED", failure: { reason: "RATE_LIMIT" } });
+    expect(
+      reopened.find(({ id }) => id === second.id)?.connectionTest,
+    ).toMatchObject({ status: "VERIFIED" });
+    database.close();
+  });
+
+  it("persists versioned connection results and invalidates them on configuration changes", () => {
+    const database = fixture();
+    const repository = new ProviderRepository(database);
+    const created = create(repository);
+    expect(created.connectionTest).toEqual({ status: "UNVERIFIED" });
+    const snapshot = repository.saveConnectionTest({
+      providerId,
+      expectedVersion: created.version,
+      snapshot: {
+        status: "VERIFIED",
+        providerVersion: created.version,
+        testedAt: now,
+        models: [
+          {
+            id: "model-a",
+            displayName: "model-a",
+            source: "PROVIDER",
+            observedAt: now,
+          },
+        ],
+      },
+    });
+    expect(repository.get(providerId)?.connectionTest).toEqual(snapshot);
+    expect(new ProviderRepository(database).list()[0]?.connectionTest).toEqual(
+      snapshot,
+    );
+    expect(() =>
+      repository.saveConnectionTest({
+        providerId,
+        expectedVersion: 9,
+        snapshot: {
+          status: "FAILED",
+          providerVersion: 9,
+          testedAt: now,
+          failure: { reason: "NETWORK", retryable: true },
+          models: [],
+        },
+      }),
+    ).toThrow(ProviderVersionConflictError);
+
+    const renamed = repository.save({
+      command: {
+        commandId: "019b7f4d-a000-7000-8000-000000000060",
+        commandType: "SAVE",
+        requestHash: "9".repeat(64),
+      },
+      providerId,
+      expectedVersion: created.version,
+      name: "Changed",
+      endpoint: "https://api.example.test/v1",
+      configStatus: "DISABLED",
+      now,
+    });
+    expect(renamed.connectionTest).toMatchObject({
+      status: "VERIFIED",
+      providerVersion: 2,
+    });
+
+    const updated = repository.save({
+      command: {
+        commandId: "019b7f4d-a000-7000-8000-000000000063",
+        commandType: "SAVE",
+        requestHash: "8".repeat(64),
+      },
+      providerId,
+      expectedVersion: renamed.version,
+      name: "Changed",
+      endpoint: "https://api.example.test/v2",
+      configStatus: "ENABLED",
+      now,
+    });
+    expect(updated.connectionTest).toEqual({ status: "UNVERIFIED" });
+    expect(
+      database
+        .prepare("SELECT COUNT(*) AS count FROM provider_connection_test")
+        .get(),
+    ).toEqual({ count: 0 });
+    database.close();
+  });
+
   it("creates, lists, updates, reveals encrypted material, and deletes a key", () => {
     const database = fixture();
     const repository = new ProviderRepository(database);

@@ -184,14 +184,14 @@ describe("migration runner", () => {
     database.close();
   });
 
-  it("creates the existing domain schema and Provider Key Vault through migration 0006", () => {
+  it("creates the existing domain schema and Provider connection projection through migration 0007", () => {
     const database = new DatabaseSync(":memory:");
     const migrations = loadMigrations(migrationDirectory);
     applyMigrations(database, migrations);
 
     expect(
       readAppliedMigrations(database).map(({ version }) => version),
-    ).toEqual([1, 2, 3, 4, 5, 6]);
+    ).toEqual([1, 2, 3, 4, 5, 6, 7]);
     expect(
       database
         .prepare(
@@ -305,6 +305,96 @@ describe("migration runner", () => {
         ),
     ).toThrow();
     expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+    database.close();
+  });
+
+  it("upgrades a populated 0006 database to the constrained connection projection", () => {
+    const database = new DatabaseSync(":memory:");
+    const migrations = loadMigrations(migrationDirectory);
+    applyMigrations(database, migrations.slice(0, 6));
+    const now = "2026-08-02T00:00:00.000Z";
+    const vaultId = "019b7f4d-a000-7000-8000-000000000014";
+    const providerId = "019b7f4d-a000-7000-8000-000000000015";
+    database
+      .prepare(
+        `INSERT INTO key_vault_entry (
+          id, ciphertext, nonce, auth_tag, encryption_version,
+          version, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, 1, 1, ?, ?)`,
+      )
+      .run(
+        vaultId,
+        Buffer.from("ciphertext"),
+        Buffer.alloc(12, 1),
+        Buffer.alloc(16, 2),
+        now,
+        now,
+      );
+    database
+      .prepare(
+        `INSERT INTO provider (
+          id, type, name, endpoint, key_vault_entry_id, config_json,
+          config_status, version, created_at, updated_at
+        ) VALUES (?, 'OPENAI_COMPATIBLE', 'Primary',
+          'https://api.example.test/v1', ?, '{}', 'ENABLED', 1, ?, ?)`,
+      )
+      .run(providerId, vaultId, now, now);
+
+    applyMigrations(database, migrations);
+    expect(
+      database
+        .prepare(
+          `INSERT INTO provider_connection_test (
+            provider_id, provider_version, status, failure_reason, retryable,
+            suggested_backoff_ms, models_json, tested_at
+          ) VALUES (?, 1, 'VERIFIED', NULL, NULL, NULL, '[]', ?)`,
+        )
+        .run(providerId, now).changes,
+    ).toBe(1);
+    expect(() =>
+      database
+        .prepare(
+          `UPDATE provider_connection_test
+          SET status = 'FAILED', failure_reason = NULL, retryable = 1
+          WHERE provider_id = ?`,
+        )
+        .run(providerId),
+    ).toThrow();
+    expect(() =>
+      database
+        .prepare(
+          `UPDATE provider_connection_test
+          SET status = 'FAILED', failure_reason = 'RAW_PROVIDER_ERROR',
+            retryable = 0, models_json = '[]'
+          WHERE provider_id = ?`,
+        )
+        .run(providerId),
+    ).toThrow();
+    expect(() =>
+      database
+        .prepare(
+          `UPDATE provider_connection_test SET models_json = '{}'
+          WHERE provider_id = ?`,
+        )
+        .run(providerId),
+    ).toThrow();
+    expect(() =>
+      database
+        .prepare(
+          `INSERT INTO provider_connection_test (
+            provider_id, provider_version, status, failure_reason, retryable,
+            suggested_backoff_ms, models_json, tested_at
+          ) VALUES (?, 1, 'VERIFIED', NULL, NULL, NULL, '[]', ?)`,
+        )
+        .run("019b7f4d-a000-7000-8000-000000000099", now),
+    ).toThrow();
+    expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+    database.prepare("DELETE FROM provider WHERE id = ?").run(providerId);
+    expect(
+      database
+        .prepare("SELECT COUNT(*) AS count FROM provider_connection_test")
+        .get(),
+    ).toEqual({ count: 0 });
     database.close();
   });
 

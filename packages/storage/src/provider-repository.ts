@@ -1,6 +1,8 @@
 import { DatabaseSync } from "node:sqlite";
 import {
+  providerCompletedConnectionTestSnapshotSchema,
   providerPublicSchema,
+  type ProviderConnectionTestSnapshot,
   type ProviderConfigStatus,
   type ProviderPublic,
 } from "@ai-corporation/protocols";
@@ -30,6 +32,13 @@ export class ProviderDataError extends Error {
   constructor() {
     super("Provider data is invalid");
     this.name = "ProviderDataError";
+  }
+}
+
+export class ProviderConnectionTestDataError extends Error {
+  constructor() {
+    super("Provider connection test data is invalid");
+    this.name = "ProviderConnectionTestDataError";
   }
 }
 
@@ -64,10 +73,14 @@ export class ProviderRepository {
   list(): readonly ProviderPublic[] {
     return this.#database
       .prepare(
-        `SELECT id, type, name, endpoint, key_vault_entry_id, config_status,
-          version, created_at, updated_at
-        FROM provider
-        ORDER BY created_at, id`,
+        `SELECT p.id, p.type, p.name, p.endpoint, p.key_vault_entry_id,
+          p.config_status, p.version, p.created_at, p.updated_at,
+          t.status AS test_status, t.failure_reason, t.retryable,
+          t.suggested_backoff_ms, t.models_json, t.tested_at
+        FROM provider p
+        LEFT JOIN provider_connection_test t
+          ON t.provider_id = p.id AND t.provider_version = p.version
+        ORDER BY p.created_at, p.id`,
       )
       .all()
       .map(parseProviderRow);
@@ -76,9 +89,14 @@ export class ProviderRepository {
   get(providerId: string): ProviderPublic | undefined {
     const row = this.#database
       .prepare(
-        `SELECT id, type, name, endpoint, key_vault_entry_id, config_status,
-          version, created_at, updated_at
-        FROM provider WHERE id = ?`,
+        `SELECT p.id, p.type, p.name, p.endpoint, p.key_vault_entry_id,
+          p.config_status, p.version, p.created_at, p.updated_at,
+          t.status AS test_status, t.failure_reason, t.retryable,
+          t.suggested_backoff_ms, t.models_json, t.tested_at
+        FROM provider p
+        LEFT JOIN provider_connection_test t
+          ON t.provider_id = p.id AND t.provider_version = p.version
+        WHERE p.id = ?`,
       )
       .get(providerId);
     return row === undefined ? undefined : parseProviderRow(row);
@@ -217,6 +235,24 @@ export class ProviderRepository {
             input.expectedVersion,
           );
         if (result.changes !== 1) throw new ProviderVersionConflictError();
+        if (
+          existing.endpoint !== input.endpoint ||
+          input.encrypted !== undefined
+        ) {
+          this.#database
+            .prepare(
+              "DELETE FROM provider_connection_test WHERE provider_id = ?",
+            )
+            .run(input.providerId);
+        } else {
+          this.#database
+            .prepare(
+              `UPDATE provider_connection_test
+              SET provider_version = ?
+              WHERE provider_id = ? AND provider_version = ?`,
+            )
+            .run(existing.version + 1, input.providerId, existing.version);
+        }
       }
       this.#fault?.("AFTER_PROVIDER_WRITE");
       const saved = this.get(input.providerId);
@@ -261,6 +297,9 @@ export class ProviderRepository {
         )
         .run(input.now, input.providerId, input.expectedVersion);
       if (result.changes !== 1) throw new ProviderVersionConflictError();
+      this.#database
+        .prepare("DELETE FROM provider_connection_test WHERE provider_id = ?")
+        .run(input.providerId);
       this.#fault?.("AFTER_PROVIDER_WRITE");
       if (vaultEntryId !== undefined) {
         this.#database
@@ -274,6 +313,64 @@ export class ProviderRepository {
       this.#fault?.("BEFORE_COMMIT");
       this.#database.exec("COMMIT");
       return saved;
+    } catch (error) {
+      this.#database.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
+  saveConnectionTest(input: {
+    readonly providerId: string;
+    readonly expectedVersion: number;
+    readonly snapshot: Exclude<
+      ProviderConnectionTestSnapshot,
+      { readonly status: "UNVERIFIED" }
+    >;
+  }): Exclude<
+    ProviderConnectionTestSnapshot,
+    { readonly status: "UNVERIFIED" }
+  > {
+    const snapshot = providerCompletedConnectionTestSnapshotSchema.parse(
+      input.snapshot,
+    );
+    if (snapshot.providerVersion !== input.expectedVersion) {
+      throw new ProviderVersionConflictError();
+    }
+    this.#database.exec("BEGIN IMMEDIATE");
+    try {
+      const provider = this.get(input.providerId);
+      if (provider === undefined) throw new ProviderNotFoundError();
+      if (provider.version !== input.expectedVersion) {
+        throw new ProviderVersionConflictError();
+      }
+      const failed = snapshot.status === "FAILED";
+      this.#database
+        .prepare(
+          `INSERT INTO provider_connection_test (
+            provider_id, provider_version, status, failure_reason, retryable,
+            suggested_backoff_ms, models_json, tested_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(provider_id) DO UPDATE SET
+            provider_version = excluded.provider_version,
+            status = excluded.status,
+            failure_reason = excluded.failure_reason,
+            retryable = excluded.retryable,
+            suggested_backoff_ms = excluded.suggested_backoff_ms,
+            models_json = excluded.models_json,
+            tested_at = excluded.tested_at`,
+        )
+        .run(
+          input.providerId,
+          input.expectedVersion,
+          snapshot.status,
+          failed ? snapshot.failure.reason : null,
+          failed ? (snapshot.failure.retryable ? 1 : 0) : null,
+          failed ? (snapshot.failure.suggestedBackoffMs ?? null) : null,
+          JSON.stringify(snapshot.models),
+          snapshot.testedAt,
+        );
+      this.#database.exec("COMMIT");
+      return snapshot;
     } catch (error) {
       this.#database.exec("ROLLBACK");
       throw error;
@@ -358,6 +455,7 @@ export class ProviderRepository {
 }
 
 function parseProviderRow(row: Record<string, unknown>): ProviderPublic {
+  const connectionTest = parseConnectionTest(row);
   const parsed = providerPublicSchema.safeParse({
     schemaVersion: 1,
     id: row.id,
@@ -369,7 +467,54 @@ function parseProviderRow(row: Record<string, unknown>): ProviderPublic {
     version: row.version,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    connectionTest,
   });
   if (!parsed.success) throw new ProviderDataError();
+  return parsed.data;
+}
+
+function parseConnectionTest(
+  row: Record<string, unknown>,
+): ProviderConnectionTestSnapshot {
+  if (row.test_status === null || row.test_status === undefined) {
+    return { status: "UNVERIFIED" };
+  }
+  if (
+    typeof row.models_json !== "string" ||
+    typeof row.tested_at !== "string" ||
+    typeof row.version !== "number"
+  ) {
+    throw new ProviderConnectionTestDataError();
+  }
+  let models: unknown;
+  try {
+    models = JSON.parse(row.models_json);
+  } catch {
+    throw new ProviderConnectionTestDataError();
+  }
+  const candidate =
+    row.test_status === "VERIFIED"
+      ? {
+          status: "VERIFIED",
+          providerVersion: row.version,
+          testedAt: row.tested_at,
+          models,
+        }
+      : {
+          status: row.test_status,
+          providerVersion: row.version,
+          testedAt: row.tested_at,
+          models,
+          failure: {
+            reason: row.failure_reason,
+            retryable: row.retryable === 1,
+            ...(typeof row.suggested_backoff_ms === "number"
+              ? { suggestedBackoffMs: row.suggested_backoff_ms }
+              : {}),
+          },
+        };
+  const parsed =
+    providerCompletedConnectionTestSnapshotSchema.safeParse(candidate);
+  if (!parsed.success) throw new ProviderConnectionTestDataError();
   return parsed.data;
 }

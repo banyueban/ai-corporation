@@ -60,6 +60,23 @@ describe("Provider Key Vault protocol", () => {
       providerSaveRequestSchema.safeParse({ ...base, endpoint: "not a url" })
         .success,
     ).toBe(false);
+    for (const endpoint of [
+      "http://remote.example.test/v1",
+      "http://127.1/v1",
+      "https://user:pass@example.test/v1",
+      "https://example.test/v1?redirect=1",
+      "https://example.test/v1#fragment",
+    ]) {
+      expect(
+        providerSaveRequestSchema.safeParse({ ...base, endpoint }).success,
+      ).toBe(false);
+    }
+    expect(
+      providerSaveRequestSchema.safeParse({
+        ...base,
+        endpoint: "http://127.0.0.1:1234/v1",
+      }).success,
+    ).toBe(true);
     expect(
       providerSaveRequestSchema.safeParse({ ...base, key: "密".repeat(5_462) })
         .success,

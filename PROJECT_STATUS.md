@@ -5,14 +5,14 @@
 | 当前产品版本 | v0.1 MVP |
 | 当前阶段 | M2-TU-03 Provider 连接测试实施 |
 | 当前 Milestone | Milestone 2：Provider 与 Goal/Plan |
-| 当前任务单元 | M2-TU-03（就绪） |
+| 当前任务单元 | M2-TU-03（进行中） |
 | 总体状态 | 进行中 |
 | 最近更新 | 2026-08-02 |
 | 下一检查点 | M2-TU-03 实现候选通过本地合同矩阵后提交双平台 CI |
 
 ## 1. 当前结论
 
-Milestone 1 已完成并经用户人工安装验收；当前没有已知未解决 P0/P1。[M2-TU-02 应用自管 Provider Key Vault](docs/06-engineering/task-units/M2-TU-02-application-key-vault.md) 已完成。[M2-TU-03 Provider 连接测试](docs/06-engineering/task-units/M2-TU-03-provider-connection-test.md) 已根据用户确认的范围 A、`1A + 2A + 3A + 4A` 和固定 15 秒超时决策建立就绪合同，尚未开始功能实现或验收。
+Milestone 1 已完成并经用户人工安装验收；当前没有已知未解决 P0/P1。[M2-TU-02 应用自管 Provider Key Vault](docs/06-engineering/task-units/M2-TU-02-application-key-vault.md) 已完成。[M2-TU-03 Provider 连接测试](docs/06-engineering/task-units/M2-TU-03-provider-connection-test.md) 已根据用户确认的范围 A、`1A + 2A + 3A + 4A` 和固定 15 秒超时决策进入实施，尚未完成或通过验收。
 
 M2-TU-03 只承诺 OpenAI-compatible/测试专用 Mock Adapter、非生成连接测试、固定错误归一化、持久化测试结果/模型列表和 Settings 测试交互。真实模型生成、usage、运行时健康/熔断、完整 Onboarding、Goal Engine、Planner、Task Graph 和 Plan Review 不属于本任务，Milestone 2 尚未完成。
 

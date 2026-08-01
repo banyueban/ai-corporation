@@ -39,10 +39,15 @@ import {
   type CorporationUpdateNameRequest,
   healthResultSchema,
   NATIVE_HEALTH_IPC_CHANNEL,
+  PROVIDER_CANCEL_CONNECTION_TEST_IPC_CHANNEL,
   PROVIDER_DELETE_KEY_IPC_CHANNEL,
   PROVIDER_LIST_IPC_CHANNEL,
   PROVIDER_REVEAL_KEY_IPC_CHANNEL,
   PROVIDER_SAVE_IPC_CHANNEL,
+  PROVIDER_TEST_CONNECTION_IPC_CHANNEL,
+  providerCancelConnectionTestRequestSchema,
+  providerCancelConnectionTestResultSchema,
+  providerConnectionTestResultSchema,
   providerDeleteKeyRequestSchema,
   providerItemResultSchema,
   providerListRequestSchema,
@@ -50,10 +55,13 @@ import {
   providerRevealKeyRequestSchema,
   providerRevealKeyResultSchema,
   providerSaveRequestSchema,
+  providerTestConnectionRequestSchema,
+  type ProviderCancelConnectionTestRequest,
   type ProviderDeleteKeyRequest,
   type ProviderListRequest,
   type ProviderRevealKeyRequest,
   type ProviderSaveRequest,
+  type ProviderTestConnectionRequest,
   TIMELINE_LIST_IPC_CHANNEL,
   timelineListRequestSchema,
   timelineListResultSchema,
@@ -156,6 +164,15 @@ const desktopApi: DesktopApi = Object.freeze({
       await ipcRenderer.invoke(NATIVE_HEALTH_IPC_CHANNEL),
     ),
   provider: Object.freeze({
+    cancelConnectionTest: async (
+      request: ProviderCancelConnectionTestRequest,
+    ) =>
+      providerCancelConnectionTestResultSchema.parse(
+        await ipcRenderer.invoke(
+          PROVIDER_CANCEL_CONNECTION_TEST_IPC_CHANNEL,
+          providerCancelConnectionTestRequestSchema.parse(request),
+        ),
+      ),
     deleteKey: async (request: ProviderDeleteKeyRequest) =>
       providerItemResultSchema.parse(
         await ipcRenderer.invoke(
@@ -182,6 +199,13 @@ const desktopApi: DesktopApi = Object.freeze({
         await ipcRenderer.invoke(
           PROVIDER_SAVE_IPC_CHANNEL,
           providerSaveRequestSchema.parse(request),
+        ),
+      ),
+    testConnection: async (request: ProviderTestConnectionRequest) =>
+      providerConnectionTestResultSchema.parse(
+        await ipcRenderer.invoke(
+          PROVIDER_TEST_CONNECTION_IPC_CHANNEL,
+          providerTestConnectionRequestSchema.parse(request),
         ),
       ),
   }),

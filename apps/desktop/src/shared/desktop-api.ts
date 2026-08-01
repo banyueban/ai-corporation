@@ -17,12 +17,16 @@ import type {
   GoalContractSaveDraftRequest,
   HealthResult,
   ProviderDeleteKeyRequest,
+  ProviderCancelConnectionTestRequest,
+  ProviderCancelConnectionTestResult,
+  ProviderConnectionTestResult,
   ProviderItemResult,
   ProviderListRequest,
   ProviderListResult,
   ProviderRevealKeyRequest,
   ProviderRevealKeyResult,
   ProviderSaveRequest,
+  ProviderTestConnectionRequest,
   TimelineListRequest,
   TimelineListResult,
   WorkspaceListIpcResult,
@@ -58,12 +62,18 @@ export interface DesktopApi {
   }>;
   health(): Promise<HealthResult>;
   readonly provider: Readonly<{
+    cancelConnectionTest(
+      request: ProviderCancelConnectionTestRequest,
+    ): Promise<ProviderCancelConnectionTestResult>;
     deleteKey(request: ProviderDeleteKeyRequest): Promise<ProviderItemResult>;
     list(request: ProviderListRequest): Promise<ProviderListResult>;
     revealKey(
       request: ProviderRevealKeyRequest,
     ): Promise<ProviderRevealKeyResult>;
     save(request: ProviderSaveRequest): Promise<ProviderItemResult>;
+    testConnection(
+      request: ProviderTestConnectionRequest,
+    ): Promise<ProviderConnectionTestResult>;
   }>;
   readonly timeline: Readonly<{
     list(request: TimelineListRequest): Promise<TimelineListResult>;

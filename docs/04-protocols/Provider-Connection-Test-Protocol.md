@@ -53,7 +53,7 @@ Renderer 只能通过 typed Provider IPC 请求测试或取消。Electron Main/A
 
 公开结果包含 `providerId`、`providerVersion`、`status`、`testedAt`、标准 `failure`（失败时）和受限 `models`。模型项只包含 `id`、`displayName`、`source: PROVIDER` 与 `observedAt`；未知能力和价格不得猜测。
 
-Provider 列表公开 DTO 携带与当前版本匹配的最近连接测试投影。保存 Provider 配置、替换/删除 Key 时，必须在同一事务中使旧记录失效。测试完成写入时再次比较 Provider 版本；版本已变化则返回 `CONFLICT`，不得写入迟到结果。
+Provider 列表公开 DTO 携带与当前版本匹配的最近连接测试投影。Endpoint 变化、替换 Key 或删除 Key 时，必须在同一事务中使旧记录失效；仅名称或启停状态变化时保留结果并绑定新版本。测试完成写入时再次比较 Provider 版本；版本已变化则返回 `CONFLICT`，不得写入迟到结果。
 
 ## 5. 错误归一化
 

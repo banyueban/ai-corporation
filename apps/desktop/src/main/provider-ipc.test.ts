@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ProviderPublic } from "@ai-corporation/protocols";
 import {
+  handleProviderCancelConnectionTest,
   handleProviderDeleteKey,
   handleProviderList,
   handleProviderRevealKey,
   handleProviderSave,
+  handleProviderTestConnection,
 } from "./provider-ipc";
 
 const provider: ProviderPublic = {
@@ -21,6 +23,14 @@ const provider: ProviderPublic = {
 };
 
 const service = {
+  cancelConnectionTest: vi.fn(() => ({
+    ok: true as const,
+    value: {
+      schemaVersion: 1 as const,
+      requestId: "019b7f4d-a000-7000-8000-000000000054",
+      cancelled: true as const,
+    },
+  })),
   list: vi.fn(() => ({ ok: true as const, value: [provider] })),
   save: vi.fn(() => ({ ok: true as const, value: provider })),
   revealKey: vi.fn(() => ({
@@ -34,6 +44,15 @@ const service = {
   deleteKey: vi.fn(() => ({
     ok: true as const,
     value: { ...provider, hasKey: false, version: 2 },
+  })),
+  testConnection: vi.fn(async () => ({
+    ok: true as const,
+    value: {
+      status: "VERIFIED" as const,
+      providerVersion: 1,
+      testedAt: "2026-08-02T00:00:00.000Z",
+      models: [],
+    },
   })),
 };
 
@@ -85,5 +104,52 @@ describe("Provider IPC", () => {
         service,
       ).ok,
     ).toBe(true);
+  });
+
+  it("routes strict connection tests and cancellation without accepting URLs or Keys", async () => {
+    const requestId = "019b7f4d-a000-7000-8000-000000000054";
+    await expect(
+      handleProviderTestConnection(
+        true,
+        {
+          schemaVersion: 1,
+          requestId,
+          providerId: provider.id,
+          expectedVersion: 1,
+        },
+        service,
+      ),
+    ).resolves.toMatchObject({ ok: true, value: { status: "VERIFIED" } });
+    expect(
+      handleProviderCancelConnectionTest(
+        true,
+        { schemaVersion: 1, requestId },
+        service,
+      ),
+    ).toMatchObject({ ok: true, value: { cancelled: true } });
+    await expect(
+      handleProviderTestConnection(
+        true,
+        {
+          schemaVersion: 1,
+          requestId,
+          providerId: provider.id,
+          expectedVersion: 1,
+          endpoint: "https://attacker.invalid",
+          key: "leak",
+        },
+        service,
+      ),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: "INVALID_REQUEST" },
+    });
+    expect(
+      handleProviderCancelConnectionTest(
+        false,
+        { schemaVersion: 1, requestId },
+        service,
+      ),
+    ).toMatchObject({ ok: false, error: { code: "UNAUTHORIZED_CALLER" } });
   });
 });

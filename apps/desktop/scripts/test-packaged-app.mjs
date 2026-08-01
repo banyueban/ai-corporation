@@ -9,6 +9,7 @@ import {
   rmSync,
 } from "node:fs";
 import net from "node:net";
+import { createServer } from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -44,6 +45,7 @@ const workspaceDirectory = mkdtempSync(
 const diagnosticChunks = [];
 const providerSecret = `M2-TU-02-${randomUUID()}-packaged`;
 const providerReplacement = `M2-TU-02-${randomUUID()}-packaged-replacement`;
+const providerFixture = await startProviderFixture();
 let { child, port } = await launchPackagedApplication();
 
 let browser;
@@ -70,7 +72,7 @@ try {
 
   await page.getByRole("button", { name: "Settings" }).click();
   await page.getByLabel("Name").fill("Packaged Provider");
-  await page.getByLabel("Endpoint").fill("https://api.example.test/v1");
+  await page.getByLabel("Endpoint").fill(`${providerFixture.endpoint}/success`);
   await page.getByLabel("API Key").fill(providerSecret);
   await page.getByRole("button", { name: "Save Provider" }).click();
   await page
@@ -90,6 +92,22 @@ try {
     .locator(".provider-status")
     .filter({ hasText: "Provider updated." })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page.getByRole("button", { name: "Test connection" }).click();
+  await page
+    .getByRole("heading", { name: "Verified" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page
+    .getByText("packaged-fixture-model")
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  if (
+    !providerFixture.requests.some(
+      ({ authorization, path: requestPath }) =>
+        requestPath === "/success/models" &&
+        authorization === `Bearer ${providerReplacement}`,
+    )
+  ) {
+    throw new Error("Packaged Provider connection request was not observed");
+  }
   assertPackagedSecretAbsent(providerSecret);
   assertPackagedSecretAbsent(providerReplacement);
   const masterKeyPath = path.join(
@@ -233,7 +251,7 @@ try {
   }
   if (externalRequests.length !== 0) {
     throw new Error(
-      `Local Mock made external requests: ${externalRequests.join(", ")}`,
+      `Renderer made external requests: ${externalRequests.join(", ")}`,
     );
   }
 
@@ -391,9 +409,55 @@ try {
   console.log(
     "Packaged Corporation restart journey verified: pause · reload · process restart · read-only restore · resume · reload · process restart",
   );
-  console.log("Packaged local Mock external requests: 0");
+  console.log("Packaged Renderer external requests: 0");
   await page.getByRole("button", { name: "Settings" }).click();
   await page.getByRole("button", { name: /Packaged Provider/u }).click();
+  await page
+    .getByRole("heading", { name: "Verified" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+
+  await page.getByLabel("Endpoint").fill(`${providerFixture.endpoint}/auth`);
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await page.getByRole("button", { name: "Test connection" }).click();
+  await page
+    .getByRole("heading", { name: "Test failed" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page
+    .locator(".provider-connection-panel")
+    .getByText(/Authentication failed/u)
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+
+  await page.getByLabel("Endpoint").fill(`${providerFixture.endpoint}/delay`);
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await page.getByRole("button", { name: "Test connection" }).click();
+  await page
+    .getByText(/taking longer than 10 seconds/u)
+    .waitFor({ state: "visible", timeout: 12_000 });
+  await page
+    .getByText(/did not respond within 15 seconds/u)
+    .first()
+    .waitFor({ state: "visible", timeout: 8_000 });
+  await page.getByRole("button", { name: "Test connection" }).click();
+  await page
+    .getByRole("heading", { name: "Testing" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page.getByRole("button", { name: "Cancel test" }).click();
+  await page
+    .locator(".provider-status")
+    .filter({ hasText: "Connection test cancelled." })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+
+  await page.getByLabel("Endpoint").fill(`${providerFixture.endpoint}/success`);
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await page.getByRole("button", { name: "Test connection" }).click();
+  await page
+    .getByRole("heading", { name: "Verified" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  const providerConnectionEvidencePath = path.join(
+    evidenceDirectory,
+    `m2-tu03-packaged-${process.platform}-${process.arch}-connection.png`,
+  );
+  await page.screenshot({ path: providerConnectionEvidencePath });
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Delete saved Key" }).click();
   await page
@@ -403,6 +467,12 @@ try {
   assertPackagedSecretAbsent(providerReplacement);
   console.log(
     "Packaged Provider Key Vault verified: save · masked · reveal · replace · process restart · remask · reveal · delete",
+  );
+  console.log(
+    "Packaged Provider connection verified: success · restart restore · authentication failure · 10s diagnostic · 15s timeout · cancel · reset",
+  );
+  console.log(
+    `Provider connection screenshot: ${providerConnectionEvidencePath}`,
   );
   console.log(`Paused restart screenshot: ${pausedEvidencePath}`);
   console.log(`Evidence screenshot: ${evidencePath}`);
@@ -415,6 +485,7 @@ try {
 } finally {
   await browser?.close().catch(() => undefined);
   await stopChild(child);
+  await providerFixture.close();
   try {
     rmSync(userDataDirectory, {
       force: true,
@@ -439,6 +510,43 @@ try {
       `Could not remove temporary workspace; runner cleanup will remove it: ${error}`,
     );
   }
+}
+
+async function startProviderFixture() {
+  const requests = [];
+  const server = createServer((request, response) => {
+    requests.push({
+      path: request.url ?? "",
+      authorization: request.headers.authorization,
+    });
+    if (request.url === "/auth/models") {
+      response.writeHead(401, { "content-type": "application/json" });
+      response.end(JSON.stringify({ error: { code: "invalid_api_key" } }));
+      return;
+    }
+    if (request.url === "/delay/models") return;
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify({ data: [{ id: "packaged-fixture-model" }] }));
+  });
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = server.address();
+  if (address === null || typeof address === "string") {
+    throw new Error("Packaged Provider fixture did not expose a TCP port");
+  }
+  return {
+    endpoint: `http://127.0.0.1:${address.port}`,
+    requests,
+    close: () =>
+      new Promise((resolve, reject) => {
+        server.closeAllConnections();
+        server.close((error) =>
+          error === undefined ? resolve() : reject(error),
+        );
+      }),
+  };
 }
 
 function recordDiagnostic(chunk) {

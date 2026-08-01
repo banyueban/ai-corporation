@@ -1,0 +1,84 @@
+import { describe, expect, it } from "vitest";
+import type { ProviderFailureReason } from "@ai-corporation/protocols";
+import {
+  connectionFailureMessage,
+  connectionLabel,
+  connectionOperationMessage,
+  validateProviderEndpointForUi,
+} from "./ProviderSettings";
+
+describe("ProviderSettings connection view model", () => {
+  it.each([
+    "AUTHENTICATION",
+    "PERMISSION",
+    "RATE_LIMIT",
+    "QUOTA_EXHAUSTED",
+    "INVALID_REQUEST",
+    "MODEL_NOT_FOUND",
+    "CONTENT_FILTER",
+    "TIMEOUT",
+    "NETWORK",
+    "PROVIDER_INTERNAL",
+    "CANCELLED",
+  ] satisfies readonly ProviderFailureReason[])(
+    "maps %s to a safe actionable message",
+    (reason) => {
+      const message = connectionFailureMessage(reason);
+      expect(message.length).toBeGreaterThan(20);
+      expect(message).not.toMatch(/authorization|bearer|stack|raw response/iu);
+    },
+  );
+
+  it.each([
+    "NOT_FOUND",
+    "CONFLICT",
+    "MISSING_KEY",
+    "ALREADY_TESTING",
+    "VAULT_KEY_UNAVAILABLE",
+    "VAULT_INTEGRITY_FAILED",
+    "STORAGE_UNAVAILABLE",
+  ])("maps operation error %s without claiming success", (code) => {
+    const message = connectionOperationMessage(code);
+    expect(message).not.toMatch(/success|verified/iu);
+    expect(message.length).toBeGreaterThan(20);
+  });
+
+  it("keeps connection status separate from runtime health labels", () => {
+    expect(connectionLabel({ status: "UNVERIFIED" })).toBe("Not verified");
+    expect(
+      connectionLabel({
+        status: "FAILED",
+        providerVersion: 1,
+        testedAt: "2026-08-02T00:00:00.000Z",
+        failure: { reason: "NETWORK", retryable: true },
+        models: [],
+      }),
+    ).toBe("Test failed");
+    expect(
+      connectionLabel({
+        status: "VERIFIED",
+        providerVersion: 1,
+        testedAt: "2026-08-02T00:00:00.000Z",
+        models: [],
+      }),
+    ).toBe("Verified");
+  });
+
+  it("provides field-level Endpoint safety guidance", () => {
+    expect(
+      validateProviderEndpointForUi("https://api.example.test/v1"),
+    ).toBeUndefined();
+    expect(
+      validateProviderEndpointForUi("http://127.0.0.1:1234/v1"),
+    ).toBeUndefined();
+    expect(
+      validateProviderEndpointForUi("http://remote.example.test/v1"),
+    ).toMatch(/HTTPS/iu);
+    expect(
+      validateProviderEndpointForUi("https://user:pass@example.test/v1?x=1"),
+    ).toMatch(/credentials/iu);
+    expect(validateProviderEndpointForUi("file:///tmp/provider")).toMatch(
+      /HTTP/iu,
+    );
+  });
+});

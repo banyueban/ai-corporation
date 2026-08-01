@@ -9,8 +9,11 @@
 ```ts
 interface ModelProvider {
   descriptor(): ProviderDescriptor;
-  validateConfig(config: ProviderConfig): Promise<ValidationResult>;
-  listModels(config: ProviderConfig): Promise<ModelDescriptor[]>;
+  validateConfig(config: ProviderConfig): void;
+  listModels(
+    config: ProviderConfig,
+    signal: AbortSignal
+  ): Promise<ModelDescriptor[]>;
   generate(
     request: NormalizedModelRequest,
     signal: AbortSignal

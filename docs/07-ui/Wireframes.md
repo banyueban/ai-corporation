@@ -268,7 +268,7 @@
 │ Providers      ● │ Providers                              [+ 添加]         │
 │ Models           │ ┌─────────────────────────────────────────────────────┐ │
 │ Security         │ │ OpenAI-compatible        Active ✓                  │ │
-│ Data             │ │ Endpoint: https://...    Key: 已安全保存           │ │
+│ Data             │ │ Endpoint: https://...    Key: 已由应用保存         │ │
 │ Appearance       │ │ Test: Verified · Models: 4  [测试] [编辑] [禁用] │ │
 │ About            │ └─────────────────────────────────────────────────────┘ │
 │                  │                                                         │

@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 任务单元 ID | M2-TU-03 |
-| 状态 | 就绪 |
+| 状态 | 进行中 |
 | 所属 Milestone | Milestone 2：Provider 与 Goal/Plan |
 | 主要结果 | 用户可在 Settings 对已保存的 OpenAI-compatible Provider 执行可取消、可恢复结果的非生成连接测试，并获得不泄密的标准错误与模型列表 |
 | 基线提交 | `01c8567fb90b8d863f2385d822981f0755df8f22` |
@@ -37,7 +37,7 @@
 - Endpoint 规范化与安全校验：API base URL + `models`、远程 HTTPS、loopback HTTP、禁止 username/password/query/fragment/redirect；
 - Bearer Key 只在 Main/Application Service 从 Key Vault 解密后进入单次请求；15 秒截止、用户取消、10 秒 UI 诊断、1 MiB 响应和 1,000 模型上限；
 - HTTP/传输/取消/响应 Schema 的固定 `ProviderFailureReason`、retryable 与建议退避映射；原始正文不跨 Adapter；
-- `0007_provider_connection_test.sql`、Repository 投影与版本保护；持久化 `VERIFIED/FAILED`、标准失败、测试时间和模型列表；配置或 Key 变化重置，取消与迟到结果不覆盖；
+- `0007_provider_connection_test.sql`、Repository 投影与版本保护；持久化 `VERIFIED/FAILED`、标准失败、测试时间和模型列表；Endpoint 或 Key 变化重置，名称/启停变化保留，取消与迟到结果不覆盖；
 - `provider.testConnection/cancelConnectionTest` 严格协议、Main IPC、Preload 与 `DesktopApi`；既有 Provider 方法兼容；
 - Settings / Providers 的 Unverified、Testing、Verified、Failed、Cancelled、超时、诊断和模型列表状态；禁止重复测试并提供准确修复动作；
 - Adapter、协议、migration、Repository、Service、IPC、组件、可访问性、开发态真实窗口、最终包、泄密、故障、跨平台和回归测试；
@@ -61,7 +61,7 @@
 - 唯一跨进程合同为 `Provider-Connection-Test-Protocol.md`、`Provider-Key-Vault-Protocol.md` 与 `packages/protocols` Schema；不得复制 DTO；
 - `provider.testConnection` 输入 `requestId/providerId/expectedVersion`，只测试 SQLite 中该版本保存的 Endpoint 与 Key，不接受 Renderer 传入临时 Key、Authorization、任意 URL 或原始 Header；
 - `provider.cancelConnectionTest` 只接受 requestId；取消幂等且只影响对应活跃请求；Provider 版本、窗口和 request 所有权必须校验；
-- Provider 保存、Key 替换或删除使旧连接结果在同一事务中失效；连接测试落库前再次比较版本；
+- Provider Endpoint 保存变化、Key 替换或删除使旧连接结果在同一事务中失效；仅名称/启停变化保留并迁移投影版本；连接测试落库前再次比较版本；
 - `provider.list` 的可选连接测试投影保持旧 command receipt 和同 major DTO 兼容；普通 DTO 不携带 Key、密文或原始网络正文；
 - Adapter 接收受限 config、已解密 Key 与 `AbortSignal`；不依赖 Electron、SQLite 或 Renderer；Mock 与真实 Adapter 使用同一公开结果；
 - 连接测试不是数据库事务内网络调用：先读取版本化快照，事务外请求，再以条件写入提交投影；

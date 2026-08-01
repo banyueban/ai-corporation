@@ -1,5 +1,7 @@
 import type {
+  ProviderConnectionTestSnapshot,
   ProviderErrorCode,
+  ProviderFailureReason,
   ProviderPublic,
 } from "@ai-corporation/protocols";
 import { useEffect, useRef, useState, type FormEvent } from "react";
@@ -29,6 +31,11 @@ export function ProviderSettings() {
   const [editing, setEditing] = useState<ProviderPublic>();
   const [form, setForm] = useState<FormState>(emptyForm);
   const [showKey, setShowKey] = useState(false);
+  const [activeTestRequestId, setActiveTestRequestId] = useState<string>();
+  const [connectionError, setConnectionError] = useState<string>();
+  const [endpointError, setEndpointError] = useState<string>();
+  const [showConnectionDiagnostic, setShowConnectionDiagnostic] =
+    useState(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
 
   const load = async () => {
@@ -59,6 +66,9 @@ export function ProviderSettings() {
     setShowKey(false);
     setError(undefined);
     setStatus("");
+    setConnectionError(undefined);
+    setShowConnectionDiagnostic(false);
+    setEndpointError(undefined);
   };
 
   const startEdit = (provider: ProviderPublic) => {
@@ -72,16 +82,95 @@ export function ProviderSettings() {
     setShowKey(false);
     setError(undefined);
     setStatus("");
+    setConnectionError(undefined);
+    setShowConnectionDiagnostic(false);
+    setEndpointError(undefined);
+  };
+
+  const testConnection = async () => {
+    if (editing === undefined || activeTestRequestId !== undefined) return;
+    const requestId = createUuidV7();
+    setActiveTestRequestId(requestId);
+    setConnectionError(undefined);
+    setShowConnectionDiagnostic(false);
+    setStatus("Testing the saved Endpoint and Key…");
+    const diagnosticTimer = window.setTimeout(
+      () => setShowConnectionDiagnostic(true),
+      10_000,
+    );
+    try {
+      const result = await window.desktop.provider.testConnection({
+        schemaVersion: 1,
+        requestId,
+        providerId: editing.id,
+        expectedVersion: editing.version,
+      });
+      if (!result.ok) {
+        if (result.error.code === "CANCELLED") {
+          setStatus(
+            "Connection test cancelled. The previous result is unchanged.",
+          );
+        } else {
+          setConnectionError(connectionOperationMessage(result.error.code));
+          setStatus("");
+        }
+        return;
+      }
+      const updated = { ...editing, connectionTest: result.value };
+      setEditing(updated);
+      setProviders((current) => replaceProvider(current, updated));
+      setStatus(
+        result.value.status === "VERIFIED"
+          ? `Connection verified. ${result.value.models.length} model${result.value.models.length === 1 ? "" : "s"} found.`
+          : connectionFailureMessage(result.value.failure.reason),
+      );
+    } catch {
+      setConnectionError(
+        "The connection test could not be completed. Retry from Settings.",
+      );
+      setStatus("");
+    } finally {
+      window.clearTimeout(diagnosticTimer);
+      setActiveTestRequestId(undefined);
+      setShowConnectionDiagnostic(false);
+    }
+  };
+
+  const cancelConnectionTest = async () => {
+    if (activeTestRequestId === undefined) return;
+    try {
+      const result = await window.desktop.provider.cancelConnectionTest({
+        schemaVersion: 1,
+        requestId: activeTestRequestId,
+      });
+      if (!result.ok && result.error.code !== "NOT_FOUND") {
+        setConnectionError(
+          "The connection test cancellation could not be confirmed.",
+        );
+      }
+    } catch {
+      setConnectionError(
+        "The connection test cancellation could not be confirmed.",
+      );
+    }
   };
 
   const update = (field: keyof FormState, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
     setError(undefined);
     setStatus("");
+    if (field === "endpoint") setEndpointError(undefined);
   };
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
+    const endpointValidationError = validateProviderEndpointForUi(
+      form.endpoint,
+    );
+    if (endpointValidationError !== undefined) {
+      setEndpointError(endpointValidationError);
+      return;
+    }
     setPending(true);
     setError(undefined);
     setStatus("");
@@ -251,6 +340,13 @@ export function ProviderSettings() {
               </div>
             )}
 
+            {connectionError !== undefined && (
+              <div className="provider-error" role="alert">
+                <strong>Connection test was not completed.</strong>
+                <p>{connectionError}</p>
+              </div>
+            )}
+
             <label className="field">
               <span>Name</span>
               <input
@@ -264,13 +360,27 @@ export function ProviderSettings() {
             <label className="field">
               <span>Endpoint</span>
               <input
+                aria-describedby={
+                  endpointError === undefined
+                    ? undefined
+                    : "provider-endpoint-error"
+                }
+                aria-invalid={endpointError === undefined ? undefined : true}
                 autoComplete="url"
                 maxLength={2_048}
                 onChange={(event) => update("endpoint", event.target.value)}
+                onBlur={() =>
+                  setEndpointError(validateProviderEndpointForUi(form.endpoint))
+                }
                 required
                 type="url"
                 value={form.endpoint}
               />
+              {endpointError !== undefined && (
+                <small id="provider-endpoint-error" role="alert">
+                  {endpointError}
+                </small>
+              )}
             </label>
             <label className="field">
               <span>Status</span>
@@ -342,6 +452,20 @@ export function ProviderSettings() {
                 </button>
               )}
             </div>
+            {editing !== undefined && (
+              <ConnectionTestPanel
+                diagnostic={showConnectionDiagnostic}
+                onCancel={() => void cancelConnectionTest()}
+                onTest={() => void testConnection()}
+                snapshot={editing.connectionTest ?? { status: "UNVERIFIED" }}
+                testing={activeTestRequestId !== undefined}
+                testDisabled={
+                  pending ||
+                  !editing.hasKey ||
+                  activeTestRequestId !== undefined
+                }
+              />
+            )}
             <p aria-live="polite" className="provider-status" role="status">
               {status}
             </p>
@@ -350,6 +474,185 @@ export function ProviderSettings() {
       )}
     </section>
   );
+}
+
+function ConnectionTestPanel(props: {
+  readonly diagnostic: boolean;
+  readonly onCancel: () => void;
+  readonly onTest: () => void;
+  readonly snapshot: ProviderConnectionTestSnapshot;
+  readonly testDisabled: boolean;
+  readonly testing: boolean;
+}) {
+  return (
+    <section
+      aria-labelledby="provider-connection-title"
+      className="provider-connection-panel"
+    >
+      <div>
+        <p className="eyebrow">Connection test</p>
+        <h3 id="provider-connection-title">
+          {props.testing ? "Testing" : connectionLabel(props.snapshot)}
+        </h3>
+      </div>
+      {props.testing ? (
+        <>
+          <p>The app is checking the saved Endpoint, Key and model list.</p>
+          {props.diagnostic && (
+            <p role="status">
+              This is taking longer than 10 seconds. The request will time out
+              after 15 seconds; you can cancel it now.
+            </p>
+          )}
+          <button
+            className="secondary-button"
+            onClick={props.onCancel}
+            type="button"
+          >
+            Cancel test
+          </button>
+        </>
+      ) : (
+        <>
+          <ConnectionSnapshot snapshot={props.snapshot} />
+          <button
+            className="secondary-button"
+            disabled={props.testDisabled}
+            onClick={props.onTest}
+            type="button"
+          >
+            Test connection
+          </button>
+        </>
+      )}
+    </section>
+  );
+}
+
+function ConnectionSnapshot(props: {
+  readonly snapshot: ProviderConnectionTestSnapshot;
+}) {
+  if (props.snapshot.status === "UNVERIFIED") {
+    return (
+      <p>Not verified. Save a Key, then test before using this Provider.</p>
+    );
+  }
+  if (props.snapshot.status === "FAILED") {
+    return (
+      <p>
+        {connectionFailureMessage(props.snapshot.failure.reason)} Tested{" "}
+        {formatTestTime(props.snapshot.testedAt)}.
+      </p>
+    );
+  }
+  return (
+    <div>
+      <p>
+        Verified {formatTestTime(props.snapshot.testedAt)}. Found{" "}
+        {props.snapshot.models.length} model
+        {props.snapshot.models.length === 1 ? "" : "s"}.
+      </p>
+      {props.snapshot.models.length > 0 && (
+        <ul className="provider-model-list">
+          {props.snapshot.models.map((model) => (
+            <li key={model.id}>{model.id}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+export function connectionLabel(
+  snapshot: ProviderConnectionTestSnapshot,
+): string {
+  if (snapshot.status === "VERIFIED") return "Verified";
+  if (snapshot.status === "FAILED") return "Test failed";
+  return "Not verified";
+}
+
+export function connectionFailureMessage(
+  reason: ProviderFailureReason,
+): string {
+  const messages: Record<ProviderFailureReason, string> = {
+    AUTHENTICATION:
+      "Authentication failed. Check the saved Key and test again.",
+    PERMISSION:
+      "The Key lacks permission to list models. Check Provider access.",
+    RATE_LIMIT: "The Provider rate-limited the test. Wait, then retry.",
+    QUOTA_EXHAUSTED:
+      "Provider quota is exhausted. Increase quota or use another Provider.",
+    INVALID_REQUEST:
+      "The Endpoint or request is invalid. Check the API base URL.",
+    MODEL_NOT_FOUND:
+      "The requested model is unavailable. Select another model.",
+    CONTENT_FILTER:
+      "The Provider rejected the request under its content policy.",
+    TIMEOUT:
+      "The Provider did not respond within 15 seconds. Check the network and retry.",
+    NETWORK:
+      "The Provider could not be reached. Check the network and Endpoint.",
+    PROVIDER_INTERNAL:
+      "The Provider returned an invalid response or internal error. Retry or inspect the Endpoint.",
+    CANCELLED:
+      "The connection test was cancelled. The previous result is unchanged.",
+  };
+  return messages[reason];
+}
+
+export function connectionOperationMessage(code: string): string {
+  const messages: Record<string, string> = {
+    NOT_FOUND: "The Provider no longer exists. Reload Settings.",
+    CONFLICT:
+      "The Provider changed during the test. Reload and test the current version.",
+    MISSING_KEY: "No saved Key is available. Save a Key before testing.",
+    ALREADY_TESTING: "This connection test is already running.",
+    VAULT_KEY_UNAVAILABLE:
+      "The app-managed local encryption key is unavailable. Restore it or replace the Provider Key.",
+    VAULT_INTEGRITY_FAILED:
+      "The saved Key could not be authenticated. Delete it and enter the Key again.",
+    STORAGE_UNAVAILABLE:
+      "The connection result could not be stored. No success was recorded; retry.",
+  };
+  return (
+    messages[code] ??
+    "The connection test could not be completed safely. Retry from Settings."
+  );
+}
+
+export function validateProviderEndpointForUi(
+  endpoint: string,
+): string | undefined {
+  let url: URL;
+  try {
+    url = new URL(endpoint);
+  } catch {
+    return "Enter a valid HTTP(S) API base URL.";
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    return "Only HTTP(S) API base URLs are supported.";
+  }
+  if (
+    url.username !== "" ||
+    url.password !== "" ||
+    url.search !== "" ||
+    url.hash !== ""
+  ) {
+    return "Remove URL credentials, query parameters, and fragments from the Endpoint.";
+  }
+  if (
+    url.protocol === "http:" &&
+    !/^http:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:\/|$)/iu.test(
+      endpoint,
+    )
+  ) {
+    return "Remote Endpoints must use HTTPS. HTTP is allowed only for exact loopback addresses.";
+  }
+  return undefined;
+}
+
+function formatTestTime(value: string): string {
+  return new Date(value).toLocaleString();
 }
 
 function replaceProvider(

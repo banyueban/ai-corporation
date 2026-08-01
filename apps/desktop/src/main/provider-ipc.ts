@@ -1,4 +1,7 @@
 import {
+  providerCancelConnectionTestRequestSchema,
+  type ProviderCancelConnectionTestResult,
+  type ProviderConnectionTestResult,
   providerDeleteKeyRequestSchema,
   type ProviderItemResult,
   providerListRequestSchema,
@@ -6,18 +9,14 @@ import {
   providerRevealKeyRequestSchema,
   type ProviderRevealKeyResult,
   providerSaveRequestSchema,
+  providerTestConnectionRequestSchema,
 } from "@ai-corporation/protocols";
 import { providerFailure, type ProviderService } from "./provider-service";
-
-type Service = Pick<
-  ProviderService,
-  "deleteKey" | "list" | "revealKey" | "save"
->;
 
 export function handleProviderList(
   authorized: boolean,
   request: unknown,
-  service: Service | undefined,
+  service: Pick<ProviderService, "list"> | undefined,
 ): ProviderListResult {
   if (!authorized) return providerFailure("UNAUTHORIZED_CALLER");
   const parsed = providerListRequestSchema.safeParse(request);
@@ -28,7 +27,7 @@ export function handleProviderList(
 export function handleProviderSave(
   authorized: boolean,
   request: unknown,
-  service: Service | undefined,
+  service: Pick<ProviderService, "save"> | undefined,
 ): ProviderItemResult {
   if (!authorized) return providerFailure("UNAUTHORIZED_CALLER");
   const parsed = providerSaveRequestSchema.safeParse(request);
@@ -39,7 +38,7 @@ export function handleProviderSave(
 export function handleProviderRevealKey(
   authorized: boolean,
   request: unknown,
-  service: Service | undefined,
+  service: Pick<ProviderService, "revealKey"> | undefined,
 ): ProviderRevealKeyResult {
   if (!authorized) return providerFailure("UNAUTHORIZED_CALLER");
   const parsed = providerRevealKeyRequestSchema.safeParse(request);
@@ -52,7 +51,7 @@ export function handleProviderRevealKey(
 export function handleProviderDeleteKey(
   authorized: boolean,
   request: unknown,
-  service: Service | undefined,
+  service: Pick<ProviderService, "deleteKey"> | undefined,
 ): ProviderItemResult {
   if (!authorized) return providerFailure("UNAUTHORIZED_CALLER");
   const parsed = providerDeleteKeyRequestSchema.safeParse(request);
@@ -60,4 +59,53 @@ export function handleProviderDeleteKey(
   return (
     service?.deleteKey(parsed.data) ?? providerFailure("STORAGE_UNAVAILABLE")
   );
+}
+
+export async function handleProviderTestConnection(
+  authorized: boolean,
+  request: unknown,
+  service: Pick<ProviderService, "testConnection"> | undefined,
+): Promise<ProviderConnectionTestResult> {
+  if (!authorized) return connectionFailure("UNAUTHORIZED_CALLER");
+  const parsed = providerTestConnectionRequestSchema.safeParse(request);
+  if (!parsed.success) return connectionFailure("INVALID_REQUEST");
+  return (
+    service?.testConnection(parsed.data) ??
+    connectionFailure("STORAGE_UNAVAILABLE")
+  );
+}
+
+export function handleProviderCancelConnectionTest(
+  authorized: boolean,
+  request: unknown,
+  service: Pick<ProviderService, "cancelConnectionTest"> | undefined,
+): ProviderCancelConnectionTestResult {
+  if (!authorized) return cancellationFailure("UNAUTHORIZED_CALLER");
+  const parsed = providerCancelConnectionTestRequestSchema.safeParse(request);
+  if (!parsed.success) return cancellationFailure("INVALID_REQUEST");
+  return (
+    service?.cancelConnectionTest(parsed.data) ??
+    cancellationFailure("STORAGE_UNAVAILABLE")
+  );
+}
+
+function connectionFailure(
+  code: "UNAUTHORIZED_CALLER" | "INVALID_REQUEST" | "STORAGE_UNAVAILABLE",
+): ProviderConnectionTestResult {
+  return {
+    ok: false,
+    error: { code, message: "Provider connection test failed" },
+  };
+}
+
+function cancellationFailure(
+  code: "UNAUTHORIZED_CALLER" | "INVALID_REQUEST" | "STORAGE_UNAVAILABLE",
+): ProviderCancelConnectionTestResult {
+  return {
+    ok: false,
+    error: {
+      code,
+      message: "Provider connection test cancellation failed",
+    },
+  };
 }

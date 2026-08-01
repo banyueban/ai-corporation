@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { providerConnectionTestSnapshotSchema } from "./provider-connection-test";
 
 export const PROVIDER_SCHEMA_VERSION = 1 as const;
 export const PROVIDER_LIST_IPC_CHANNEL = "provider:list" as const;
@@ -20,6 +21,7 @@ export const providerPublicSchema = z
     version: z.number().int().positive(),
     createdAt: z.iso.datetime({ offset: true }),
     updatedAt: z.iso.datetime({ offset: true }),
+    connectionTest: providerConnectionTestSnapshotSchema.optional(),
   })
   .strict();
 
@@ -60,6 +62,13 @@ export const providerSaveRequestSchema = z
         code: "custom",
         message: "key exceeds the UTF-8 byte limit",
         path: ["key"],
+      });
+    }
+    if (!isAllowedProviderEndpoint(request.endpoint)) {
+      context.addIssue({
+        code: "custom",
+        message: "endpoint violates the Provider network policy",
+        path: ["endpoint"],
       });
     }
   });
@@ -148,4 +157,28 @@ export type ProviderRevealKeyResult = z.infer<
 
 function utf8Length(value: string): number {
   return new TextEncoder().encode(value).byteLength;
+}
+
+function isAllowedProviderEndpoint(endpoint: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(endpoint);
+  } catch {
+    return false;
+  }
+  if (
+    (url.protocol !== "http:" && url.protocol !== "https:") ||
+    url.username !== "" ||
+    url.password !== "" ||
+    url.search !== "" ||
+    url.hash !== ""
+  ) {
+    return false;
+  }
+  return (
+    url.protocol === "https:" ||
+    /^http:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:\/|$)/iu.test(
+      endpoint,
+    )
+  );
 }

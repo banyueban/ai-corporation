@@ -12,10 +12,12 @@ import {
   GOAL_CONTRACT_LIST_VERSIONS_IPC_CHANNEL,
   GOAL_CONTRACT_SAVE_DRAFT_IPC_CHANNEL,
   NATIVE_HEALTH_IPC_CHANNEL,
+  PROVIDER_CANCEL_CONNECTION_TEST_IPC_CHANNEL,
   PROVIDER_DELETE_KEY_IPC_CHANNEL,
   PROVIDER_LIST_IPC_CHANNEL,
   PROVIDER_REVEAL_KEY_IPC_CHANNEL,
   PROVIDER_SAVE_IPC_CHANNEL,
+  PROVIDER_TEST_CONNECTION_IPC_CHANNEL,
   TIMELINE_LIST_IPC_CHANNEL,
   WORKSPACE_LIST_IPC_CHANNEL,
   WORKSPACE_REVALIDATE_IPC_CHANNEL,
@@ -62,10 +64,12 @@ import {
 } from "./goal-contract-ipc";
 import { GoalContractService } from "./goal-contract-service";
 import {
+  handleProviderCancelConnectionTest,
   handleProviderDeleteKey,
   handleProviderList,
   handleProviderRevealKey,
   handleProviderSave,
+  handleProviderTestConnection,
 } from "./provider-ipc";
 import { ProviderKeyVault } from "./provider-key-vault";
 import { ProviderService } from "./provider-service";
@@ -186,6 +190,24 @@ async function handleNativeHealth(
 
 void app.whenReady().then(async () => {
   ipcMain.handle(NATIVE_HEALTH_IPC_CHANNEL, handleNativeHealth);
+  ipcMain.handle(
+    PROVIDER_TEST_CONNECTION_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleProviderTestConnection(
+        isTrustedRenderer(event),
+        request,
+        providerService,
+      ),
+  );
+  ipcMain.handle(
+    PROVIDER_CANCEL_CONNECTION_TEST_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleProviderCancelConnectionTest(
+        isTrustedRenderer(event),
+        request,
+        providerService,
+      ),
+  );
   ipcMain.handle(
     PROVIDER_LIST_IPC_CHANNEL,
     (event: IpcMainInvokeEvent, request: unknown) =>
@@ -452,6 +474,8 @@ app.on("window-all-closed", () => {
 app.on("before-quit", () => {
   ipcMain.removeHandler(NATIVE_HEALTH_IPC_CHANNEL);
   ipcMain.removeHandler(PROVIDER_LIST_IPC_CHANNEL);
+  ipcMain.removeHandler(PROVIDER_TEST_CONNECTION_IPC_CHANNEL);
+  ipcMain.removeHandler(PROVIDER_CANCEL_CONNECTION_TEST_IPC_CHANNEL);
   ipcMain.removeHandler(PROVIDER_SAVE_IPC_CHANNEL);
   ipcMain.removeHandler(PROVIDER_REVEAL_KEY_IPC_CHANNEL);
   ipcMain.removeHandler(PROVIDER_DELETE_KEY_IPC_CHANNEL);

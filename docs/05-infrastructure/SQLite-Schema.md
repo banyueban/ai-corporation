@@ -273,7 +273,13 @@ CREATE TABLE provider_connection_test (
     REFERENCES provider(id) ON DELETE CASCADE,
   provider_version INTEGER NOT NULL CHECK (provider_version >= 1),
   status TEXT NOT NULL CHECK (status IN ('VERIFIED','FAILED')),
-  failure_reason TEXT,
+  failure_reason TEXT CHECK (
+    failure_reason IS NULL OR failure_reason IN (
+      'AUTHENTICATION','PERMISSION','RATE_LIMIT','QUOTA_EXHAUSTED',
+      'INVALID_REQUEST','MODEL_NOT_FOUND','CONTENT_FILTER','TIMEOUT',
+      'NETWORK','PROVIDER_INTERNAL','CANCELLED'
+    )
+  ),
   retryable INTEGER CHECK (retryable IN (0,1)),
   suggested_backoff_ms INTEGER CHECK (suggested_backoff_ms >= 0),
   models_json TEXT NOT NULL CHECK (
@@ -518,7 +524,7 @@ Provider 表只保存应用自管 Key Vault 的记录 ID。`key_vault_entry` 保
 数据库或本地加密密钥文件缺失、损坏、权限拒绝、版本未知或认证解密失败时固定失败，不返回部分
 成功或明文降级。仅取得 SQLite 备份不足以恢复 Key；v0.1 当前任务通过重新录入 Provider Key 恢复。
 
-`provider_connection_test` 由 `0007_provider_connection_test.sql` 建立，只保存当前 Provider 配置版本最近一次已完成连接测试的标准结果和受限模型列表。不存在记录或 `provider_version` 与 Provider 当前版本不一致均投影为 `UNVERIFIED`；Provider Endpoint、Key 或其他配置保存以及 Key 删除必须在同一事务中删除旧测试记录。`CANCELLED` 不覆盖已有结果，迟到响应必须通过版本检查拒绝持久化。该表不保存 Authorization、Key、原始响应或错误正文，也不表示 Scheduler 的运行时健康或熔断状态。
+`provider_connection_test` 由 `0007_provider_connection_test.sql` 建立，只保存当前 Provider 配置版本最近一次已完成连接测试的标准结果和受限模型列表。不存在记录或 `provider_version` 与 Provider 当前版本不一致均投影为 `UNVERIFIED`；Provider Endpoint 变化、Key 替换或 Key 删除必须在同一事务中删除旧测试记录。仅名称或启停状态变化时，投影随 Provider 新版本迁移并保留结果。`CANCELLED` 不覆盖已有结果，迟到响应必须通过版本检查拒绝持久化。该表不保存 Authorization、Key、原始响应或错误正文，也不表示 Scheduler 的运行时健康或熔断状态。
 
 `0003_corporation_events.sql` 只建立 M1-TU-04 已冻结的 Corporation CRUD、事件与命令回执字段。`0004_goal_contract.sql` 增加 active Goal pointer、不可变 Goal 版本、Goal 命令回执和两种 Goal 事实事件。`0005_corporation_pause_resume.sql` 增加成对暂停元数据、pause/resume 独立命令回执、两种状态事实事件和物理一致性 trigger；active Plan/Organization、Policy 与事件分发游标仍由后续迁移增加。分发状态不得通过更新 append-only `domain_event` 实现。
 

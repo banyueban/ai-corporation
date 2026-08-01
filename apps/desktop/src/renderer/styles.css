@@ -688,6 +688,29 @@ h3 {
   padding-top: 0.5rem;
 }
 
+.provider-connection-panel {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #27364b;
+  border-radius: 8px;
+  background: #111b2a;
+}
+
+.provider-connection-panel h3,
+.provider-connection-panel p {
+  margin: 0;
+}
+
+.provider-model-list {
+  max-height: 180px;
+  margin: 12px 0 0;
+  padding-left: 20px;
+  overflow: auto;
+  font-family: Consolas, "SFMono-Regular", monospace;
+  font-size: 13px;
+}
+
 .danger-button {
   padding: 0 1rem;
   color: #ffc5c1;
