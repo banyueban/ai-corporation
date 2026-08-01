@@ -21,12 +21,14 @@ import {
   replaceWorkspace,
   workspaceErrorMessage,
 } from "./workspace-view-model";
+import { ProviderSettings } from "./ProviderSettings";
+import { createUuidV7 } from "./uuid-v7";
 
 type NativeCoreState =
   | { readonly status: "loading" }
   | { readonly status: "ready"; readonly result: HealthResult }
   | { readonly status: "degraded" };
-type Route = "dashboard" | "create" | "review";
+type Route = "dashboard" | "create" | "review" | "settings";
 type CorporationSummary = {
   readonly corporation: CorporationPublic;
   readonly goal: GoalContractPublic | null;
@@ -471,6 +473,7 @@ export function App() {
         onDashboard={
           route === "create" ? leaveCreate : () => setRoute("dashboard")
         }
+        onSettings={() => setRoute("settings")}
         route={route}
         versions={versions}
       />
@@ -531,6 +534,7 @@ export function App() {
               versions={versionsList}
             />
           )}
+        {route === "settings" && <ProviderSettings />}
         <p className="sr-only" aria-live="polite">
           {statusMessage}
         </p>
@@ -542,6 +546,7 @@ export function App() {
 function Sidebar(props: {
   readonly nativeCore: NativeCoreState;
   readonly onDashboard: () => void;
+  readonly onSettings: () => void;
   readonly route: Route;
   readonly versions: { readonly chrome: string; readonly electron: string };
 }) {
@@ -567,7 +572,12 @@ function Sidebar(props: {
           <button className="nav-button" disabled type="button">
             Approvals
           </button>
-          <button className="nav-button" disabled type="button">
+          <button
+            aria-current={props.route === "settings" ? "page" : undefined}
+            className="nav-button"
+            onClick={props.onSettings}
+            type="button"
+          >
             Settings
           </button>
         </nav>
@@ -1362,21 +1372,6 @@ function mapCorporationError(code: string): GoalContractErrorCode {
   if (code === "VALIDATION_FAILED") return "VALIDATION_FAILED";
   if (code === "UNAUTHORIZED_CALLER") return "UNAUTHORIZED_CALLER";
   return "STORAGE_UNAVAILABLE";
-}
-
-function createUuidV7(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(16));
-  let timestamp = Date.now();
-  for (let index = 5; index >= 0; index -= 1) {
-    bytes[index] = timestamp & 0xff;
-    timestamp = Math.floor(timestamp / 256);
-  }
-  bytes[6] = 0x70 | ((bytes[6] ?? 0) & 0x0f);
-  bytes[8] = 0x80 | ((bytes[8] ?? 0) & 0x3f);
-  const hex = [...bytes].map((value) => value.toString(16).padStart(2, "0"));
-  return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex
-    .slice(6, 8)
-    .join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10).join("")}`;
 }
 
 async function loadCorporations(

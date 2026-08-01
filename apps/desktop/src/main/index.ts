@@ -12,6 +12,10 @@ import {
   GOAL_CONTRACT_LIST_VERSIONS_IPC_CHANNEL,
   GOAL_CONTRACT_SAVE_DRAFT_IPC_CHANNEL,
   NATIVE_HEALTH_IPC_CHANNEL,
+  PROVIDER_DELETE_KEY_IPC_CHANNEL,
+  PROVIDER_LIST_IPC_CHANNEL,
+  PROVIDER_REVEAL_KEY_IPC_CHANNEL,
+  PROVIDER_SAVE_IPC_CHANNEL,
   TIMELINE_LIST_IPC_CHANNEL,
   WORKSPACE_LIST_IPC_CHANNEL,
   WORKSPACE_REVALIDATE_IPC_CHANNEL,
@@ -22,6 +26,7 @@ import {
   CorporationRepository,
   CorporationStateRepository,
   GoalContractRepository,
+  ProviderRepository,
   type GoalFaultStage,
   openWorkspaceDatabase,
   WorkspaceRepository,
@@ -56,6 +61,14 @@ import {
   handleTimelineList,
 } from "./goal-contract-ipc";
 import { GoalContractService } from "./goal-contract-service";
+import {
+  handleProviderDeleteKey,
+  handleProviderList,
+  handleProviderRevealKey,
+  handleProviderSave,
+} from "./provider-ipc";
+import { ProviderKeyVault } from "./provider-key-vault";
+import { ProviderService } from "./provider-service";
 import { resolveNativeCorePath } from "./native-core-path";
 import { createWindowOptions } from "./window-options";
 import {
@@ -71,6 +84,13 @@ import {
 import { resolveWorkspaceRuntimePaths } from "./workspace-paths";
 import { WorkspaceService } from "./workspace-service";
 
+if (process.env.AI_CORPORATION_E2E === "1") {
+  app.disableHardwareAcceleration();
+  app.commandLine.appendSwitch("disable-gpu");
+  app.commandLine.appendSwitch("disable-gpu-compositing");
+  app.commandLine.appendSwitch("disable-software-rasterizer");
+}
+
 const rendererEntryPath = path.join(__dirname, "../../renderer/index.html");
 const preloadPath = path.join(__dirname, "../preload/index.js");
 
@@ -79,6 +99,7 @@ let corporationService: CorporationService | undefined;
 let corporationStateService: CorporationStateService | undefined;
 let goalContractService: GoalContractService | undefined;
 let nativeCoreClient: NativeCoreClient | undefined;
+let providerService: ProviderService | undefined;
 let workspaceDatabase: DatabaseSync | undefined;
 let workspaceDirectorySelector: WorkspaceDirectorySelector | undefined;
 let workspaceService: WorkspaceService | undefined;
@@ -118,6 +139,13 @@ function createMainWindow(): BrowserWindow {
       event.preventDefault();
     }
   });
+  if (process.env.AI_CORPORATION_E2E === "1") {
+    window.webContents.on("render-process-gone", (_event, details) => {
+      process.stderr.write(
+        `Renderer gone: reason=${details.reason} exitCode=${details.exitCode}\n`,
+      );
+    });
+  }
 
   void window.loadFile(rendererEntryPath);
   mainWindow = window;
@@ -158,6 +186,34 @@ async function handleNativeHealth(
 
 void app.whenReady().then(async () => {
   ipcMain.handle(NATIVE_HEALTH_IPC_CHANNEL, handleNativeHealth);
+  ipcMain.handle(
+    PROVIDER_LIST_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleProviderList(isTrustedRenderer(event), request, providerService),
+  );
+  ipcMain.handle(
+    PROVIDER_SAVE_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleProviderSave(isTrustedRenderer(event), request, providerService),
+  );
+  ipcMain.handle(
+    PROVIDER_REVEAL_KEY_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleProviderRevealKey(
+        isTrustedRenderer(event),
+        request,
+        providerService,
+      ),
+  );
+  ipcMain.handle(
+    PROVIDER_DELETE_KEY_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleProviderDeleteKey(
+        isTrustedRenderer(event),
+        request,
+        providerService,
+      ),
+  );
   ipcMain.handle(
     WORKSPACE_LIST_IPC_CHANNEL,
     (event: IpcMainInvokeEvent, request: unknown) =>
@@ -348,6 +404,16 @@ void app.whenReady().then(async () => {
     goalContractService = new GoalContractService({
       repository: createGoalContractRepository(workspaceDatabase, process.env),
     });
+    providerService = new ProviderService({
+      repository: new ProviderRepository(workspaceDatabase),
+      vault: new ProviderKeyVault({
+        keyPath: path.join(
+          app.getPath("userData"),
+          "key-vault",
+          "master-key-v1",
+        ),
+      }),
+    });
     const e2eFixturePath = resolveWorkspaceE2eFixturePath(process.env);
     workspaceDirectorySelector = createWorkspaceDirectorySelector({
       ...(e2eFixturePath === undefined ? {} : { e2eFixturePath }),
@@ -363,6 +429,7 @@ void app.whenReady().then(async () => {
     corporationService = undefined;
     corporationStateService = undefined;
     goalContractService = undefined;
+    providerService = undefined;
     workspaceDirectorySelector = undefined;
     workspaceService = undefined;
   }
@@ -384,6 +451,10 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   ipcMain.removeHandler(NATIVE_HEALTH_IPC_CHANNEL);
+  ipcMain.removeHandler(PROVIDER_LIST_IPC_CHANNEL);
+  ipcMain.removeHandler(PROVIDER_SAVE_IPC_CHANNEL);
+  ipcMain.removeHandler(PROVIDER_REVEAL_KEY_IPC_CHANNEL);
+  ipcMain.removeHandler(PROVIDER_DELETE_KEY_IPC_CHANNEL);
   ipcMain.removeHandler(WORKSPACE_LIST_IPC_CHANNEL);
   ipcMain.removeHandler(WORKSPACE_REVALIDATE_IPC_CHANNEL);
   ipcMain.removeHandler(WORKSPACE_SELECT_IPC_CHANNEL);
@@ -401,6 +472,7 @@ app.on("before-quit", () => {
   ipcMain.removeHandler(TIMELINE_LIST_IPC_CHANNEL);
   corporationService = undefined;
   goalContractService = undefined;
+  providerService = undefined;
   workspaceDirectorySelector = undefined;
   workspaceService = undefined;
   workspaceDatabase?.close();

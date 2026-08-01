@@ -3,18 +3,18 @@
 | 属性 | 当前值 |
 |---|---|
 | 当前产品版本 | v0.1 MVP |
-| 当前阶段 | Milestone 2 Provider/Key Vault 实施准备 |
+| 当前阶段 | Milestone 2 Provider/Key Vault 实施与验收 |
 | 当前 Milestone | Milestone 2：Provider 与 Goal/Plan |
-| 当前任务单元 | M2-TU-02（就绪） |
+| 当前任务单元 | M2-TU-02（进行中） |
 | 总体状态 | 进行中 |
 | 最近更新 | 2026-08-02 |
-| 下一检查点 | M2-TU-02 按就绪合同进入实现 |
+| 下一检查点 | M2-TU-02 完成开发态与 Windows 最终包真实窗口验收 |
 
 ## 1. 当前结论
 
-Milestone 1 已完成并经用户人工安装验收；当前没有已知未解决 P0/P1。[M2-TU-01 OS 安全存储边界](docs/06-engineering/task-units/M2-TU-01-os-secure-store-boundary.md) 已在实现提交 `66b466f60f7a5d16d31605cd6494db65a3820781` 上通过当时合同的全部验收，状态为“完成”，但用户随后明确废弃其产品存储方案，故不再计入当前 Milestone 2 的 Key 管理完成状态。[M2-TU-02 应用自管 Provider Key Vault](docs/06-engineering/task-units/M2-TU-02-application-key-vault.md) 已基于用户确认的 `1B + 2B + 3A` 设计和基线提交 `a4810ef6f0bd6ce4368c80a45e40116943838592` 达到“就绪”，尚未开始实施，验收项保持全部未勾选。
+Milestone 1 已完成并经用户人工安装验收；当前没有已知未解决 P0/P1。[M2-TU-01 OS 安全存储边界](docs/06-engineering/task-units/M2-TU-01-os-secure-store-boundary.md) 已在实现提交 `66b466f60f7a5d16d31605cd6494db65a3820781` 上通过当时合同的全部验收，状态为“完成”，但用户随后明确废弃其产品存储方案，故不再计入当前 Milestone 2 的 Key 管理完成状态。[M2-TU-02 应用自管 Provider Key Vault](docs/06-engineering/task-units/M2-TU-02-application-key-vault.md) 已基于用户确认的 `1B + 2B + 3A` 设计进入实现与验收；当前仅记录已执行的工程检查结果，验收项在对应直接证据完整前保持未勾选。
 
-本任务只建立 Windows Credential Manager/macOS Keychain → Native Core → Electron Main 的密钥边界。Provider 配置、连接测试、模型调用、Renderer Key 表单、Goal Engine、Planner、Task Graph 和 Plan Review 不属于当前任务，Milestone 2 尚未完成。
+本任务只交付应用自管 SQLite Provider Key Vault、应用本地加密密钥和 Settings / Providers 管理界面。Provider 网络连接、模型调用、Goal Engine、Planner、Task Graph 和 Plan Review 不属于当前任务，Milestone 2 尚未完成。
 
 ## 2. 已完成基线
 
@@ -56,21 +56,21 @@ M2-TU-01 已交付，但用户随后纠正了产品存储方案；该 OS secure-
 已知条件：
 
 - 系统 PATH 未提供 Node.js，工程验证使用 Codex bundled Node.js；
-- Windows Credential Manager 已在本地和 CI 验证；macOS Keychain 已由 macOS CI 验证；
+- M2-TU-02 的 macOS 开发态、最终包和 artifact 证据必须由待推送实现提交的 macOS CI job 提供，旧 M2-TU-01 Keychain 证据不能替代；
 - 应用签名与 macOS notarization 不属于当前任务，但属于公开发布前置条件。
 
 ## 6. 当前验证摘要
 
-- M1-TU-01 至 M1-TU-06 合同均为“完成”；M2-TU-01 就绪合同提交为 `57cb9f6c94611ade1f21a6a1bb54fd7cb2326f14`；
-- `pnpm check`、Rust fmt/clippy、secret scan、协议/Native/Main 单元与故障测试通过；协议 28 项、Desktop 67 项、Native Core 10 项、Workspace Rust 7 项通过；
-- 本地 Windows Credential Manager 真实 lifecycle 与引用隔离测试通过；开发态及最终包均通过 status → set → get → rotate → 进程重启 → get → delete → 进程重启 → NOT_FOUND，并确认测试凭据无残留；
-- 最新本地 Windows NSIS 安装包 SHA-256 为 `63B5B0901641AD1E6A437CB7BC811F7F9384E9B9E6BE9282FB6B91BEB2FD042F`，包内 Native Core SHA-256 为 `CD11F54ABEAF10FC5011EFB85B224058C3C0AE1261DB237C382937D778C400BE`；真实窗口、Workspace、Goal、暂停/继续与重启恢复回归通过；
-- GitHub Actions run `30699032779` 在实现提交 `66b466f60f7a5d16d31605cd6494db65a3820781` 上完成；Windows job `91366656485` 与 macOS job `91366656507` 均成功，工程检查、开发态 E2E、最终包构建、最终包 E2E 和 artifact 上传步骤全部通过；
-- Artifacts `ai-corporation-windows-x64`（ID `8818236752`）与 `ai-corporation-macos-arm64`（ID `8818217904`）可用；Renderer bundle 定向暴露扫描与 Credential Manager 残留扫描通过；P0/P1 为 0，未执行必检项为 0。
+- M1-TU-01 至 M1-TU-06 合同均为“完成”；M2-TU-02 当前为“进行中”，16 项验收断言尚未在跨平台同提交证据完成前勾选；
+- 最新 `pnpm check` 全量通过：状态/任务合同、format、lint、typecheck、协议 24 项、Storage 65 项、Desktop 67 项、Native Core 7 项、Workspace Rust 7 项、Rust fmt/clippy 与 secret scan 均成功；
+- 本地 Windows 开发态真实窗口 E2E 2/2 通过；Key Vault 旅程覆盖保存、默认遮挡、主动显示/隐藏、SQLite/WAL/SHM 明文扫描、Renderer reload、进程重启、替换、再次显示、删除与无障碍检查，既有 Workspace/Goal/暂停恢复旅程同步通过；
+- 最新本地 Windows NSIS 安装包 SHA-256 为 `664D32E96EC5A2F51C2FB58B3AB822BB92FAD44B3FE3FFF69BC0B12AE842273D`，包内 Native Core SHA-256 为 `ACDBD55FF932A593D2796E670C77F8423E35BB093C83F9624139DF79B2F186AF`；最终包真实窗口完成 Key Vault、Workspace、Goal 故障重试、暂停/继续和两次进程重启恢复旅程；
+- 活跃产品源码与 Windows 最终包的 legacy `secure_store.*`/`secure-store` 定向扫描通过，打包诊断与 SQLite/WAL/SHM 定向 Key 泄漏扫描通过；P0/P1 为 0；
+- 尚未执行的必检项为 1 组：待推送实现提交的 Windows/macOS GitHub Actions 全部步骤、macOS 最终包旅程与双平台 artifacts。该项完成前不得标记 M2-TU-02 完成。
 
 ## 7. 下一步
 
-单独提交并推送 M2-TU-02 就绪合同后，严格按合同实施 SQLite 密文 Vault、应用本地加密密钥、typed IPC、Renderer 管理与查看、Provider/Vault 一致性、失败补偿和 legacy OS secure-store 路径移除；任何新歧义先请求用户决策。
+提交并推送 M2-TU-02 实现候选，等待同一提交的 Windows/macOS GitHub Actions；如全部适用步骤和 artifacts 通过，再更新合同断言与收口状态。任何新歧义先请求用户决策。
 
 ## 8. 更新规则
 

@@ -16,6 +16,13 @@ import type {
   GoalContractNullableItemResult,
   GoalContractSaveDraftRequest,
   HealthResult,
+  ProviderDeleteKeyRequest,
+  ProviderItemResult,
+  ProviderListRequest,
+  ProviderListResult,
+  ProviderRevealKeyRequest,
+  ProviderRevealKeyResult,
+  ProviderSaveRequest,
   TimelineListRequest,
   TimelineListResult,
   WorkspaceListIpcResult,
@@ -50,6 +57,14 @@ export interface DesktopApi {
     ): Promise<GoalContractItemResult>;
   }>;
   health(): Promise<HealthResult>;
+  readonly provider: Readonly<{
+    deleteKey(request: ProviderDeleteKeyRequest): Promise<ProviderItemResult>;
+    list(request: ProviderListRequest): Promise<ProviderListResult>;
+    revealKey(
+      request: ProviderRevealKeyRequest,
+    ): Promise<ProviderRevealKeyResult>;
+    save(request: ProviderSaveRequest): Promise<ProviderItemResult>;
+  }>;
   readonly timeline: Readonly<{
     list(request: TimelineListRequest): Promise<TimelineListResult>;
   }>;

@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 任务单元 ID | M2-TU-02 |
-| 状态 | 就绪 |
+| 状态 | 进行中 |
 | 所属 Milestone | Milestone 2：Provider 与 Goal/Plan |
 | 主要结果 | 用户可在 AI Corporation Desktop 的 Provider 设置中保存、替换、删除和主动查看 API Key；完整 Key 仅以应用自管密文进入 SQLite，重启后默认遮挡恢复 |
 | 基线提交 | `a4810ef6f0bd6ce4368c80a45e40116943838592` |
@@ -121,4 +121,4 @@
 
 ## 11. 收口证据
 
-任务尚未实施。本节只在同一验收提交的全部适用断言通过后填写；不得以设计、构建成功、进程存活、旧 M2-TU-01 OS secure-store 证据或单平台结果提前勾选。
+实现候选已完成本地 Windows 工程检查、开发态真实窗口与最终包真实窗口验证，但同一实现提交的 Windows/macOS CI、macOS 最终包和双平台 artifact 证据尚未取得，因此本合同保持“进行中”且验收断言不提前勾选。不得以设计、构建成功、进程存活、旧 M2-TU-01 OS secure-store 证据或单平台结果替代剩余验证。

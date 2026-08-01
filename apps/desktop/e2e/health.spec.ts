@@ -502,7 +502,14 @@ async function launchApplication(
   workspaceDirectory: string,
 ) {
   return electron.launch({
-    args: [appDirectory, `--user-data-dir=${userDataDirectory}`],
+    args: [
+      "--disable-gpu",
+      "--disable-software-rasterizer",
+      "--in-process-gpu",
+      "--no-sandbox",
+      appDirectory,
+      `--user-data-dir=${userDataDirectory}`,
+    ],
     env: {
       ...process.env,
       AI_CORPORATION_E2E: "1",

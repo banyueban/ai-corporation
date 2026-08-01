@@ -2,7 +2,7 @@
 
 > **已废弃：** 该协议由 M2-TU-01 实现并完成当时验收，但后续用户明确决定 Provider Key
 > 由 AI Corporation Desktop 应用自管 Key Vault 存储和管理。它不再是产品权威存储，新的
-> Provider/Key Vault 任务必须停用并移除该调用路径；本页只保留对现有代码的兼容说明。
+> M2-TU-02 已从产品源码、构建、Native allowlist 与最终包移除该调用路径；本页只保留历史协议说明，不能作为当前可调用接口使用。
 
 ## 1. 用途与信任边界
 
@@ -69,12 +69,11 @@ OS 安全存储操作失败使用固定错误代码 `-32020`：
 - Native Core 不通过 shell 或系统 CLI 调用凭据存储；
 - 安全存储不可用时必须失败关闭，不得回退到文件、SQLite、环境变量或自定义可逆加密。
 
-## 6. 实现与验收
+## 6. 历史实现与验收
 
-- TypeScript Schema：[packages/protocols/src/secure-store.ts](../../packages/protocols/src/secure-store.ts)
-- OS Adapter：[crates/secure-store/src/lib.rs](../../crates/secure-store/src/lib.rs)
-- Rust Server：[crates/native-core/src/lib.rs](../../crates/native-core/src/lib.rs)
-- Main Client：[apps/desktop/src/main/native-core-client.ts](../../apps/desktop/src/main/native-core-client.ts)
+M2-TU-01 曾在 TypeScript Schema、独立 OS Adapter crate、Native dispatcher 和 Main Client
+中实现本协议。M2-TU-02 已删除这些产品运行路径；历史实现和当时验收证据仅由 Git 与
+[M2-TU-01 合同](../06-engineering/task-units/M2-TU-01-os-secure-store-boundary.md)保存。
 
 必须分别在真实 Windows Credential Manager 与 macOS Keychain 上覆盖 status、set、get、轮换、
 进程重启、delete、NOT_FOUND、引用隔离和清理，并扫描 stdout、stderr、错误与最终包，确认除

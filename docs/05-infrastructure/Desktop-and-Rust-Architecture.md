@@ -110,13 +110,11 @@ Workspace 选择是特殊的授权入口：Renderer 只能发起无参数 `works
 - `process.start`
 - `process.cancel`
 - `process.status`
-- `secure_store.status/set/get/delete`（M2-TU-01 已实现但被后续产品决策废弃，不再作为 Provider Key 权威存储；见
-  [Legacy Secure Store RPC](../04-protocols/Secure-Store-RPC.md)）
 - `hash.file`
 
 每个 RPC 在 Rust 侧再次校验会话、路径和参数。Provider Key 由 Electron Main/Application
 Service 管理应用自管 SQLite Key Vault；应用本地加密密钥由 Main 进程在应用数据目录原子创建和读取，
-不进入 Native Core。后续任务负责停用并移除 legacy secure-store 调用路径。
+不进入 Native Core。M2-TU-02 已移除 legacy secure-store 调用路径与平台依赖。
 
 ## 6. 包与 Crate 边界
 
@@ -133,8 +131,7 @@ packages/
 crates/
 ├── native-core     JSON-RPC server
 ├── workspace-fs    安全路径与原子文件
-├── process-runner  子进程和取消
-└── secure-store    legacy OS adapter，待替代任务移除
+└── process-runner  子进程和取消
 ```
 
 依赖方向：

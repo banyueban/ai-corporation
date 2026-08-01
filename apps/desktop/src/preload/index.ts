@@ -39,6 +39,21 @@ import {
   type CorporationUpdateNameRequest,
   healthResultSchema,
   NATIVE_HEALTH_IPC_CHANNEL,
+  PROVIDER_DELETE_KEY_IPC_CHANNEL,
+  PROVIDER_LIST_IPC_CHANNEL,
+  PROVIDER_REVEAL_KEY_IPC_CHANNEL,
+  PROVIDER_SAVE_IPC_CHANNEL,
+  providerDeleteKeyRequestSchema,
+  providerItemResultSchema,
+  providerListRequestSchema,
+  providerListResultSchema,
+  providerRevealKeyRequestSchema,
+  providerRevealKeyResultSchema,
+  providerSaveRequestSchema,
+  type ProviderDeleteKeyRequest,
+  type ProviderListRequest,
+  type ProviderRevealKeyRequest,
+  type ProviderSaveRequest,
   TIMELINE_LIST_IPC_CHANNEL,
   timelineListRequestSchema,
   timelineListResultSchema,
@@ -140,6 +155,36 @@ const desktopApi: DesktopApi = Object.freeze({
     healthResultSchema.parse(
       await ipcRenderer.invoke(NATIVE_HEALTH_IPC_CHANNEL),
     ),
+  provider: Object.freeze({
+    deleteKey: async (request: ProviderDeleteKeyRequest) =>
+      providerItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          PROVIDER_DELETE_KEY_IPC_CHANNEL,
+          providerDeleteKeyRequestSchema.parse(request),
+        ),
+      ),
+    list: async (request: ProviderListRequest) =>
+      providerListResultSchema.parse(
+        await ipcRenderer.invoke(
+          PROVIDER_LIST_IPC_CHANNEL,
+          providerListRequestSchema.parse(request),
+        ),
+      ),
+    revealKey: async (request: ProviderRevealKeyRequest) =>
+      providerRevealKeyResultSchema.parse(
+        await ipcRenderer.invoke(
+          PROVIDER_REVEAL_KEY_IPC_CHANNEL,
+          providerRevealKeyRequestSchema.parse(request),
+        ),
+      ),
+    save: async (request: ProviderSaveRequest) =>
+      providerItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          PROVIDER_SAVE_IPC_CHANNEL,
+          providerSaveRequestSchema.parse(request),
+        ),
+      ),
+  }),
   timeline: Object.freeze({
     list: async (request: TimelineListRequest) =>
       timelineListResultSchema.parse(

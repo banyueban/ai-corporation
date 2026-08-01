@@ -184,14 +184,14 @@ describe("migration runner", () => {
     database.close();
   });
 
-  it("creates the Corporation, Goal, event, and state command schema through migration 0005", () => {
+  it("creates the existing domain schema and Provider Key Vault through migration 0006", () => {
     const database = new DatabaseSync(":memory:");
     const migrations = loadMigrations(migrationDirectory);
     applyMigrations(database, migrations);
 
     expect(
       readAppliedMigrations(database).map(({ version }) => version),
-    ).toEqual([1, 2, 3, 4, 5]);
+    ).toEqual([1, 2, 3, 4, 5, 6]);
     expect(
       database
         .prepare(
@@ -237,6 +237,73 @@ describe("migration runner", () => {
       "idx_event_corporation_timeline",
       "idx_goal_contract_corporation_version",
     ]);
+    expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+    database.close();
+  });
+
+  it("upgrades 0005 to the constrained Provider Key Vault schema", () => {
+    const database = new DatabaseSync(":memory:");
+    const migrations = loadMigrations(migrationDirectory);
+    applyMigrations(database, migrations.slice(0, 5));
+    applyMigrations(database, migrations);
+
+    expect(
+      database
+        .prepare(
+          `SELECT name FROM sqlite_master
+          WHERE type = 'table'
+            AND name IN ('key_vault_entry', 'provider', 'provider_command')
+          ORDER BY name`,
+        )
+        .all()
+        .map(({ name }) => name),
+    ).toEqual(["key_vault_entry", "provider", "provider_command"]);
+
+    const now = "2026-08-02T00:00:00.000Z";
+    const vaultId = "019b7f4d-a000-7000-8000-000000000011";
+    const providerId = "019b7f4d-a000-7000-8000-000000000012";
+    database
+      .prepare(
+        `INSERT INTO key_vault_entry (
+          id, ciphertext, nonce, auth_tag, encryption_version,
+          version, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, 1, 1, ?, ?)`,
+      )
+      .run(
+        vaultId,
+        Buffer.from("ciphertext"),
+        Buffer.alloc(12, 1),
+        Buffer.alloc(16, 2),
+        now,
+        now,
+      );
+    database
+      .prepare(
+        `INSERT INTO provider (
+          id, type, name, endpoint, key_vault_entry_id, config_json,
+          config_status, version, created_at, updated_at
+        ) VALUES (?, 'OPENAI_COMPATIBLE', 'Primary',
+          'https://api.example.test/v1', ?, '{}', 'ENABLED', 1, ?, ?)`,
+      )
+      .run(providerId, vaultId, now, now);
+
+    expect(() =>
+      database
+        .prepare(
+          `INSERT INTO key_vault_entry (
+            id, ciphertext, nonce, auth_tag, encryption_version,
+            version, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, 1, 1, ?, ?)`,
+        )
+        .run(
+          "019b7f4d-a000-7000-8000-000000000013",
+          Buffer.from("ciphertext"),
+          Buffer.alloc(11),
+          Buffer.alloc(16),
+          now,
+          now,
+        ),
+    ).toThrow();
     expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
     database.close();
   });

@@ -71,6 +71,7 @@ type SaveProviderInput = {
 | 错误码 | 含义 |
 |---|---|
 | `INVALID_REQUEST` | Schema、长度、Endpoint 或字段非法 |
+| `UNAUTHORIZED_CALLER` | IPC 调用方不是已授权的应用 Renderer |
 | `NOT_FOUND` | Provider 或 Key 不存在 |
 | `CONFLICT` | 乐观版本冲突 |
 | `IDEMPOTENCY_CONFLICT` | commandId 已用于不同请求 |

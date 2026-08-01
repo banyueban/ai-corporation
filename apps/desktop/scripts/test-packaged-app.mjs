@@ -1,8 +1,10 @@
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   readdirSync,
   rmSync,
 } from "node:fs";
@@ -11,7 +13,6 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
-import { verifyNativeSecureStoreJourney } from "./native-secure-store-journey.mjs";
 
 const STARTUP_TIMEOUT_MS = 30_000;
 const desktopDirectory = path.resolve(
@@ -34,28 +35,15 @@ if (!existsSync(executablePath)) {
   throw new Error(`Packaged executable does not exist: ${executablePath}`);
 }
 
-const nativeCoreExecutablePath =
-  process.platform === "win32"
-    ? path.join(path.dirname(executablePath), "resources", "native-core.exe")
-    : path.resolve(
-        path.dirname(executablePath),
-        "..",
-        "Resources",
-        "native-core",
-      );
-if (!existsSync(nativeCoreExecutablePath)) {
-  throw new Error("Packaged Native Core executable does not exist");
-}
-
-await verifyNativeSecureStoreJourney(nativeCoreExecutablePath);
-
 const userDataDirectory = mkdtempSync(
-  path.join(os.tmpdir(), "M1-TU-06-packaged-user-data-"),
+  path.join(os.tmpdir(), "M2-TU-02-packaged-user-data-"),
 );
 const workspaceDirectory = mkdtempSync(
   path.join(os.tmpdir(), "M1-TU-06-packaged-workspace-"),
 );
 const diagnosticChunks = [];
+const providerSecret = `M2-TU-02-${randomUUID()}-packaged`;
+const providerReplacement = `M2-TU-02-${randomUUID()}-packaged-replacement`;
 let { child, port } = await launchPackagedApplication();
 
 let browser;
@@ -79,6 +67,41 @@ try {
   await page
     .getByRole("heading", { name: "Create your first Corporation" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+
+  await page.getByRole("button", { name: "Settings" }).click();
+  await page.getByLabel("Name").fill("Packaged Provider");
+  await page.getByLabel("Endpoint").fill("https://api.example.test/v1");
+  await page.getByLabel("API Key").fill(providerSecret);
+  await page.getByRole("button", { name: "Save Provider" }).click();
+  await page
+    .locator(".provider-status")
+    .filter({ hasText: "Provider saved." })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page.getByRole("button", { name: "Show" }).click();
+  await waitForInputValue(
+    page.getByLabel("API Key"),
+    providerSecret,
+    "Packaged Provider reveal returned the wrong Key",
+  );
+  await page.getByRole("button", { name: "Hide" }).click();
+  await page.getByLabel("API Key").fill(providerReplacement);
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await page
+    .locator(".provider-status")
+    .filter({ hasText: "Provider updated." })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  assertPackagedSecretAbsent(providerSecret);
+  assertPackagedSecretAbsent(providerReplacement);
+  const masterKeyPath = path.join(
+    userDataDirectory,
+    "key-vault",
+    "master-key-v1",
+  );
+  if (!existsSync(masterKeyPath) || readFileSync(masterKeyPath).length !== 32) {
+    throw new Error("Packaged app-managed encryption key is invalid");
+  }
+  await page.getByRole("button", { name: "Dashboard" }).click();
+
   await page.getByRole("button", { name: "Select a workspace" }).click();
   await page
     .getByRole("heading", { name: "Choose a workspace" })
@@ -275,6 +298,19 @@ try {
   await page
     .getByText("PAUSED", { exact: true })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page.getByRole("button", { name: "Settings" }).click();
+  await page.getByRole("button", { name: /Packaged Provider/u }).click();
+  if ((await page.getByLabel("API Key").inputValue()) !== "") {
+    throw new Error("Packaged restart restored visible Key state");
+  }
+  await page.getByRole("button", { name: "Show" }).click();
+  await waitForInputValue(
+    page.getByLabel("API Key"),
+    providerReplacement,
+    "Packaged restart could not decrypt the saved Key",
+  );
+  await page.getByRole("button", { name: "Hide" }).click();
+  await page.getByRole("button", { name: "Dashboard" }).click();
   const afterRestart = await readPersistedState(page, stored.corporation.id);
   if (JSON.stringify(afterRestart) !== JSON.stringify(beforeRestart)) {
     throw new Error("Packaged startup changed persisted state");
@@ -347,9 +383,6 @@ try {
   await page.screenshot({ path: evidencePath });
   console.log(`Packaged application health verified: ${healthText}`);
   console.log(
-    "Packaged Native secure store verified: status · set · get · rotate · process restart · delete · process restart · not found · cleanup",
-  );
-  console.log(
     "Packaged Workspace journey verified: select · authorize · reload · restore",
   );
   console.log(
@@ -359,6 +392,18 @@ try {
     "Packaged Corporation restart journey verified: pause · reload · process restart · read-only restore · resume · reload · process restart",
   );
   console.log("Packaged local Mock external requests: 0");
+  await page.getByRole("button", { name: "Settings" }).click();
+  await page.getByRole("button", { name: /Packaged Provider/u }).click();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Delete saved Key" }).click();
+  await page
+    .locator(".provider-status")
+    .filter({ hasText: "Saved Key deleted." })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  assertPackagedSecretAbsent(providerReplacement);
+  console.log(
+    "Packaged Provider Key Vault verified: save · masked · reveal · replace · process restart · remask · reveal · delete",
+  );
   console.log(`Paused restart screenshot: ${pausedEvidencePath}`);
   console.log(`Evidence screenshot: ${evidencePath}`);
 } catch (error) {
@@ -410,7 +455,14 @@ async function launchPackagedApplication() {
   const port = await reservePort();
   const child = spawn(
     executablePath,
-    [`--remote-debugging-port=${port}`, `--user-data-dir=${userDataDirectory}`],
+    [
+      `--remote-debugging-port=${port}`,
+      `--user-data-dir=${userDataDirectory}`,
+      "--disable-gpu",
+      "--disable-software-rasterizer",
+      "--in-process-gpu",
+      "--no-sandbox",
+    ],
     {
       env: {
         ...process.env,
@@ -427,6 +479,28 @@ async function launchPackagedApplication() {
   child.stdout.on("data", recordDiagnostic);
   child.stderr.on("data", recordDiagnostic);
   return { child, port };
+}
+
+function assertPackagedSecretAbsent(secret) {
+  if (Buffer.concat(diagnosticChunks).includes(Buffer.from(secret))) {
+    throw new Error("Packaged diagnostics exposed a Provider Key");
+  }
+  const databasePath = path.join(
+    userDataDirectory,
+    "ai-corporation-workspace.sqlite3",
+  );
+  for (const candidate of [
+    databasePath,
+    `${databasePath}-wal`,
+    `${databasePath}-shm`,
+  ]) {
+    if (
+      existsSync(candidate) &&
+      readFileSync(candidate).includes(Buffer.from(secret))
+    ) {
+      throw new Error("Packaged SQLite files exposed a Provider Key");
+    }
+  }
 }
 
 async function readPersistedState(page, corporationId) {
@@ -508,6 +582,15 @@ async function waitForApplicationPage(browser) {
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
   throw new Error("Packaged application window did not become observable");
+}
+
+async function waitForInputValue(locator, expected, failureMessage) {
+  const deadline = Date.now() + STARTUP_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    if ((await locator.inputValue()) === expected) return;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(failureMessage);
 }
 
 async function stopChild(child) {

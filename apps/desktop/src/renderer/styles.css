@@ -441,7 +441,8 @@ h3 {
   font-weight: 700;
 }
 
-.field > span {
+.field > span,
+.field > label {
   color: #7f8da3;
   font-size: 0.72rem;
   font-weight: 500;
@@ -621,6 +622,92 @@ h3 {
   font-size: 0.72rem;
 }
 
+.provider-settings-grid {
+  display: grid;
+  grid-template-columns: minmax(14rem, 0.55fr) minmax(24rem, 1.45fr);
+  gap: 1.25rem;
+}
+
+.provider-list-panel,
+.provider-form {
+  padding: 1.5rem;
+  border: 1px solid #27364b;
+  border-radius: 1rem;
+  background: rgb(15 23 37 / 88%);
+}
+
+.provider-list-panel ul {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0;
+  margin: 1rem 0 0;
+  list-style: none;
+}
+
+.provider-list-button {
+  display: grid;
+  width: 100%;
+  height: auto;
+  min-height: 4.25rem;
+  padding: 0.8rem;
+  color: #d8e2f1;
+  text-align: left;
+  border: 1px solid #27364b;
+  background: #111b2a;
+}
+
+.provider-list-button[aria-current="true"] {
+  border-color: #8bb8ff;
+  background: #18263a;
+}
+
+.provider-list-button span,
+.provider-empty,
+.field small,
+.provider-status {
+  color: #8f9db2;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.provider-form {
+  display: grid;
+  gap: 1.1rem;
+}
+
+.secret-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.65rem;
+}
+
+.provider-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding-top: 0.5rem;
+}
+
+.danger-button {
+  padding: 0 1rem;
+  color: #ffc5c1;
+  border: 1px solid #713f42;
+  background: #321c20;
+}
+
+.provider-error {
+  padding: 1rem;
+  color: #ffc5c1;
+  border: 1px solid #68383a;
+  border-radius: 0.75rem;
+  background: #261619;
+}
+
+.provider-error p,
+.provider-status {
+  margin: 0.35rem 0 0;
+}
+
 .skeleton-card {
   width: min(100%, 46rem);
   height: 9rem;
@@ -698,7 +785,8 @@ h3 {
 
   .goal-form,
   .review-grid,
-  .history-grid {
+  .history-grid,
+  .provider-settings-grid {
     grid-template-columns: 1fr;
   }
 

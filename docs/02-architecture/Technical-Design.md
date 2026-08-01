@@ -186,8 +186,7 @@ ai-corporation/
 ├── crates/
 │   ├── native-core/
 │   ├── workspace-fs/
-│   ├── process-runner/
-│   └── secure-store/
+│   └── process-runner/
 ├── schemas/
 ├── migrations/
 ├── docs/
