@@ -19,7 +19,7 @@
 - [Threat Model T-04、T-07](../Threat-Model.md)；
 - [Core User Flow 01](../../07-ui/Core-User-Flows.md)与[UI Acceptance UI-AC-01](../../07-ui/UI-Acceptance.md)。
 
-本任务只冻结 Native Core 原始安全存储边界，不实现凭据录入 UI。后续用户已确认 Key 由专用密码输入框录入：Renderer 可在本次输入至提交完成期间短暂持有该值并通过 typed Provider IPC 单向提交，但已存 Key 不得回传，且不得暴露原始 secure-store IPC；该后续边界由新的任务合同实现和验收。
+本任务完成后，用户进一步纠正产品方案：完整 Key 改由 AI Corporation Desktop 应用自管 Key Vault 存储和管理，Renderer 默认遮挡但可在用户主动查看时取得明文。因此本合同只证明实现提交当时的 OS adapter 能力，不再代表当前产品方向，也不计入 Milestone 2 的 Key 管理完成状态；替代任务负责停用和移除该路径。
 
 ## 2. 前置条件
 

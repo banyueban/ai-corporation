@@ -330,8 +330,7 @@ Storybook 或等价组件展示工具列入 Milestone 1，而非 Milestone 0 硬
 
 - 保留 traffic lights 区域；
 - Cmd 快捷键；
-- Keychain 和系统通知语言；
+- 应用自管 Key Vault 和系统通知语言；
 - 窗口全屏/Space 恢复。
 
 业务布局和组件行为保持一致。
-

@@ -10,7 +10,7 @@
 flowchart TD
     A["欢迎"] --> B["选择 Provider 类型"]
     B --> C["填写 Endpoint / API Key / Model"]
-    C --> D["保存 Key 到系统安全存储"]
+    C --> D["保存 Key 到 AI Corporation Desktop Key Vault"]
     D --> E["连接测试"]
     E -->|成功| F["选择默认 Planner / Executor / Judge 策略"]
     F --> G["设置默认预算与审批偏好"]
@@ -22,7 +22,7 @@ flowchart TD
 ### 关键交互
 
 - API Key 在专用密码输入框录入，默认遮挡，只能由用户主动短暂显示；
-- 提交期间禁用重复提交；Main 确认接收后立即清空输入值，重新打开页面只显示“已配置/未配置”，绝不回填已存 Key；
+- 提交期间禁用重复提交；重新打开页面默认显示遮挡值，用户主动选择“查看”后可以显示已存 Key 明文；
 - 保存前说明存储位置；
 - 连接测试显示步骤，不输出 Authorization；
 - Provider 返回模型列表时可选择；失败时允许手工模型 ID；
@@ -30,7 +30,7 @@ flowchart TD
 
 ### 异常
 
-- 系统安全存储不可用：阻断保存，不能降级明文；
+- 应用 Key Vault 不可用：阻断保存，不能降级明文；
 - 网络不可用：允许保存未验证配置，但 Dashboard 显示“需验证”，不能启动 Corporation；
 - 认证失败：不盲目重试；
 - Endpoint 格式错误：字段级提示。

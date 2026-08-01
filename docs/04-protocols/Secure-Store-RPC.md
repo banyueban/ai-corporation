@@ -1,4 +1,8 @@
-# Native Core Secure Store RPC
+# Legacy Native Core Secure Store RPC
+
+> **已废弃：** 该协议由 M2-TU-01 实现并完成当时验收，但后续用户明确决定 Provider Key
+> 由 AI Corporation Desktop 应用自管 Key Vault 存储和管理。它不再是产品权威存储，新的
+> Provider/Key Vault 任务必须停用并移除该调用路径；本页只保留对现有代码的兼容说明。
 
 ## 1. 用途与信任边界
 

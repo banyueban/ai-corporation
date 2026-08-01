@@ -110,12 +110,12 @@ Workspace 选择是特殊的授权入口：Renderer 只能发起无参数 `works
 - `process.start`
 - `process.cancel`
 - `process.status`
-- `secure_store.status/set/get/delete`（协议见
-  [Secure Store RPC](../04-protocols/Secure-Store-RPC.md)）
+- `secure_store.status/set/get/delete`（M2-TU-01 已实现但被后续产品决策废弃，不再作为 Provider Key 权威存储；见
+  [Legacy Secure Store RPC](../04-protocols/Secure-Store-RPC.md)）
 - `hash.file`
 
-每个 RPC 在 Rust 侧再次校验会话、路径和参数。安全存储 RPC 只允许受信 Main 调用，不映射到
-Preload/Renderer；不可用时固定失败，不允许明文持久化回退。
+每个 RPC 在 Rust 侧再次校验会话、路径和参数。Provider Key 改由 Electron Main/Application
+Service 管理应用自管 Key Vault；后续任务负责停用并移除 legacy secure-store 调用路径。
 
 ## 6. 包与 Crate 边界
 
@@ -133,7 +133,7 @@ crates/
 ├── native-core     JSON-RPC server
 ├── workspace-fs    安全路径与原子文件
 ├── process-runner  子进程和取消
-└── secure-store    Keychain/Credential Manager
+└── secure-store    legacy OS adapter，待替代任务移除
 ```
 
 依赖方向：
@@ -152,7 +152,7 @@ Native Core 不依赖产品 UI
 - Windows junction/reparse point；
 - macOS symlink；
 - 进程组终止；
-- Credential Manager / Keychain；
+- 应用自管 Key Vault 的跨平台文件权限与原子替换；
 - 文件锁与原子替换；
 - 睡眠/唤醒事件。
 
@@ -191,7 +191,7 @@ v0.1 可先支持手动检查更新，但架构要求：
 
 ## 11. 测试重点
 
-- Renderer 无 Node 权限且无已存密钥读取能力；只允许专用密码输入框经 typed IPC 单向提交本次 Key，提交后清除；
+- Renderer 无 Node 权限；Key 默认遮挡，只有用户主动查看时才能通过专用 typed IPC 读取明文；
 - 非法 IPC channel 和 payload；
 - Sidecar 会话令牌；
 - Sidecar 被替换；

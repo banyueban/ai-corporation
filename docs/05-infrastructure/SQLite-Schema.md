@@ -236,7 +236,7 @@ CREATE TABLE provider (
   type TEXT NOT NULL,
   name TEXT NOT NULL,
   endpoint TEXT,
-  secret_ref TEXT,
+  key_vault_entry_id TEXT,
   config_json TEXT NOT NULL DEFAULT '{}',
   config_status TEXT NOT NULL CHECK (config_status IN ('ENABLED','DISABLED')),
   created_at TEXT NOT NULL,
@@ -464,6 +464,9 @@ CREATE VIRTUAL TABLE memory_fts USING fts5(
   tokenize = 'unicode61'
 );
 ```
+
+Provider 表只保存应用自管 Key Vault 的记录 ID。Key Vault 由 AI Corporation Desktop 负责创建、
+加密、读取、替换和删除；任何 SQLite 列、日志和错误都不得包含明文 Key。
 
 `0003_corporation_events.sql` 只建立 M1-TU-04 已冻结的 Corporation CRUD、事件与命令回执字段。`0004_goal_contract.sql` 增加 active Goal pointer、不可变 Goal 版本、Goal 命令回执和两种 Goal 事实事件。`0005_corporation_pause_resume.sql` 增加成对暂停元数据、pause/resume 独立命令回执、两种状态事实事件和物理一致性 trigger；active Plan/Organization、Policy 与事件分发游标仍由后续迁移增加。分发状态不得通过更新 append-only `domain_event` 实现。
 

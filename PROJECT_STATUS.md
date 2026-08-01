@@ -12,7 +12,7 @@
 
 ## 1. 当前结论
 
-Milestone 1 已完成并经用户人工安装验收；当前没有已知未解决 P0/P1。[M2-TU-01 OS 安全存储边界](docs/06-engineering/task-units/M2-TU-01-os-secure-store-boundary.md) 已在实现提交 `66b466f60f7a5d16d31605cd6494db65a3820781` 上通过本地 Windows 与 GitHub Windows/macOS 全部验收，状态为“完成”。当前尚无新的就绪任务合同，不得提前实施 Provider 配置或相邻能力。
+Milestone 1 已完成并经用户人工安装验收；当前没有已知未解决 P0/P1。[M2-TU-01 OS 安全存储边界](docs/06-engineering/task-units/M2-TU-01-os-secure-store-boundary.md) 已在实现提交 `66b466f60f7a5d16d31605cd6494db65a3820781` 上通过当时合同的全部验收，状态为“完成”，但用户随后明确废弃其产品存储方案：Provider Key 改由 AI Corporation Desktop 应用自管 Key Vault 保存和管理，Renderer 默认遮挡且可由用户主动查看明文。因此 M2-TU-01 不再计入当前 Milestone 2 的 Key 管理完成状态。当前尚无新的就绪任务合同，不得提前实施替代方案。
 
 本任务只建立 Windows Credential Manager/macOS Keychain → Native Core → Electron Main 的密钥边界。Provider 配置、连接测试、模型调用、Renderer Key 表单、Goal Engine、Planner、Task Graph 和 Plan Review 不属于当前任务，Milestone 2 尚未完成。
 
@@ -26,7 +26,7 @@ Milestone 1 已完成并经用户人工安装验收；当前没有已知未解�
 
 ## 3. Milestone 2 范围状态
 
-- [x] OS 安全存储；
+- [ ] AI Corporation Desktop 应用自管 Key Vault；
 - [ ] OpenAI 风格 Provider + Mock Provider；
 - [ ] 连接测试、错误归一化和用量；
 - [ ] Goal Engine；
@@ -39,7 +39,7 @@ Milestone 1 已完成并经用户人工安装验收；当前没有已知未解�
 
 ## 4. 最近完成任务边界
 
-M2-TU-01 已交付：
+M2-TU-01 已交付，但用户随后纠正了产品存储方案；该 OS secure-store 能力不再计入当前 Milestone 2 的 Key 管理交付：
 
 - 独立 Rust `secure-store` 平台适配；
 - 版本化、鉴权、严格的 `secure_store.status/set/get/delete` Native RPC；
@@ -70,7 +70,7 @@ M2-TU-01 已交付：
 
 ## 7. 下一步
 
-按用户确认的设计定义 M2-TU-02 Provider 配置边界：Key 由用户在专用密码输入框录入，Renderer 仅短暂持有本次输入并通过 typed IPC 单向提交，提交后清空且已存 Key 永不回传；同时冻结 Provider DTO、SQLite `secret_ref` 映射、凭据写入顺序与失败补偿。合同达到“就绪”并单独提交后再实施。
+先按用户纠正后的设计更新 M2-TU-02 合同：完整 Key 由 AI Corporation Desktop 应用自管 Key Vault 持久化和管理；Renderer 可录入、替换、删除，并在用户主动选择查看时取得明文，默认遮挡。合同必须同时定义静态加密、Provider/Key Vault 一致性、失败补偿及废弃 OS secure-store 路径的处理，达到“就绪”并单独提交后再实施。
 
 ## 8. 更新规则
 

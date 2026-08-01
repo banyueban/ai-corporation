@@ -73,7 +73,7 @@
 
 交付：
 
-- OS 安全存储；
+- AI Corporation Desktop 应用自管 Key Vault；
 - OpenAI 风格 Provider + Mock Provider；
 - 连接测试、错误归一化和用量；
 - Goal Engine；
@@ -83,7 +83,7 @@
 
 验收：
 
-- Key 不进入 SQLite 或日志；Renderer 只在用户主动录入到专用密码输入框至提交完成期间短暂持有本次输入，已存 Key 永不回传 Renderer；
+- Key 不以明文进入 SQLite 或日志；Renderer 可以录入并管理 Key，默认遮挡已存值，只有用户主动选择查看时才显示明文；
 - 非法 JSON 自动修复最多一次；
 - 循环依赖和无验收 Task 被拒绝；
 - 用户可修改并批准计划。

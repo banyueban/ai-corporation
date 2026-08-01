@@ -39,7 +39,7 @@
 |---|---|
 | Goal/Organization/Task/Scheduler 业务规则 | 安全路径解析与工作区边界 |
 | Agent Runtime 编排 | 子进程启动、终止与资源限制 |
-| Provider Adapter | 凭据访问封装 |
+| Provider Adapter 与应用自管 Key Vault | 工作区文件与进程能力 |
 | Prompt/Schema/Evaluation 组合 | 原子文件提交、哈希 |
 | UI 状态映射 | 后续高性能索引或本地沙箱 |
 
@@ -75,7 +75,7 @@ flowchart TB
     RUST["Native Core (Rust)"]
     DB[("SQLite + Artifact Store")]
     PROVIDERS["Model Providers"]
-    OS["File System / Process / Keychain"]
+    OS["File System / Process"]
 
     UI --> PRELOAD
     PRELOAD --> MAIN
@@ -409,7 +409,7 @@ WHERE id = ? AND status = 'READY';
 
 ## 14. v0.1 架构验收
 
-- Renderer 无 Node 权限且不能读取已存密钥；用户在专用密码输入框中的本次输入只允许通过 typed IPC 单向提交，提交后立即清除；
+- Renderer 无 Node 权限；Key 输入与回显默认遮挡，只有用户主动选择查看时才通过 typed IPC 读取明文，明文查看状态不得持久化；
 - 一条完整任务链可在数据库和时间线中追踪；
 - 状态与事件事务一致；
 - 任务重启恢复不重复文件写入；

@@ -12,7 +12,7 @@
 ├──────────────────────────────────────────────────────────────────────┤
 │                                                                      │
 │          连接一个 AI Provider                                       │
-│          凭据将保存在系统安全存储，不写入项目数据库。                │
+│          凭据由 AI Corporation Desktop Key Vault 加密存储和管理。  │
 │                                                                      │
 │          Provider       [ OpenAI-compatible              ▾ ]         │
 │          Endpoint       [ https://...                       ]         │

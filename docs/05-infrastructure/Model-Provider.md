@@ -99,13 +99,11 @@ type NormalizedUsage = {
 
 ## 7. 凭据
 
-- Key 存 OS 安全存储；
-- SQLite 只保存 `secret_ref`；
-- 用户在专用密码输入框录入 Key；Renderer 只在本次输入至提交完成期间短暂持有该值，必须默认遮挡，提交后立即清除；
-- 已存 Key 永不回传 Renderer；列表、详情、错误、事件和恢复状态只返回 `hasCredential` 等非敏感状态，不返回 `secret_ref` 或 Key；
-- Key 只通过专用 typed Provider IPC 单向提交到 Main；不得暴露通用 secure-store IPC、读取接口或原始 RPC；
-- 受信 Main 只能通过版本化的 [Secure Store RPC](../04-protocols/Secure-Store-RPC.md) 调用
-  Native Core；安全存储不可用时失败关闭，不得写入文件、SQLite 或环境变量；
+- Key 由 AI Corporation Desktop 的应用自管 Key Vault 存储和管理，不把 OS Keychain/Credential Manager 或 Native Core 当作权威存储；
+- Key Vault 静态加密保存完整 Key，Provider 表只保存 `key_vault_entry_id`，日志和错误不得保存明文；
+- Renderer 可以录入、替换和删除 Key；回显默认遮挡，只有用户主动选择查看时才从 Key Vault 读取并显示明文；
+- 录入、读取、替换和删除使用专用 typed Provider IPC；不得暴露通用数据库、文件或原始 RPC；
+- 明文显示状态不得跨页面恢复、Renderer 重载或应用重启自动保留；
 - 请求日志不记录 Authorization；
 - Endpoint 变更后重新连接测试；
 - 导出配置不含 Key。

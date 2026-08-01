@@ -85,10 +85,10 @@ flowchart LR
 
 控制：
 
-- OS 安全存储，固定应用 namespace，仅保存由 UUID 标识的 Provider secret；
-- 用户可在专用密码输入框录入 Key；Renderer 只短暂持有本次输入，并通过单向 typed Provider IPC 提交到受信 Main，提交后立即清除；
-- 已存 Key 只有受信 Main 可通过版本化、鉴权的 Secure Store RPC 读取；Preload/Renderer 不得读取、列举或恢复已存 Key，也不得访问原始 secure-store RPC；
-- 安全存储不可用时失败关闭，不允许文件、SQLite、环境变量或可逆加密降级；
+- AI Corporation Desktop 使用应用自管、静态加密的本地 Key Vault，并独立于 Provider 配置记录；
+- Renderer 可以通过专用 typed Provider IPC 录入、替换、删除和按用户明确动作读取 Key；默认遮挡，明文查看状态不持久化；
+- Key Vault、Provider 配置、日志、错误、截图和诊断包不得包含非预期明文副本；
+- Key Vault 加解密或一致性检查失败时固定失败，不允许明文降级；
 - 日志落盘前脱敏；
 - Tool 环境不默认继承 Key；
 - Artifact/Prompt Secret Scan；
@@ -127,7 +127,7 @@ flowchart LR
 - Sidecar 随机会话令牌；
 - Sidecar 不监听公网；
 - 方法 allowlist、严格 Schema、请求大小上限与方法级验证；
-- Secure Store RPC 使用固定脱敏错误，除受信 `get` 成功结果外不返回 secret。
+- Provider Key Vault IPC 使用固定脱敏错误；只有用户主动查看动作的成功结果可以向 Renderer 返回 Key。
 
 ### T-08 插件供应链
 

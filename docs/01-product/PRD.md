@@ -80,7 +80,7 @@ v0.1 要验证：系统能否在明确边界内接管这些管理工作，并比
 
 1. 用户启动应用；
 2. 选择一个模型提供商并录入凭据；
-3. 应用使用系统安全存储保存凭据；
+3. AI Corporation Desktop 将凭据保存到应用自管 Key Vault；
 4. 执行最小连接测试；
 5. 用户设置默认模型、预算和审批偏好。
 
@@ -150,8 +150,9 @@ Renderer 只能获得用于展示的授权路径、Workspace ID 和权限状态�
 
 - 新增、编辑、测试、禁用 Provider；
 - 配置 Endpoint、模型、超时、最大输出和价格元数据；
-- API Key 存系统安全存储；
-- Provider 配置与密钥引用分离；
+- API Key 由 AI Corporation Desktop 的应用自管 Key Vault 存储和管理；
+- Provider 配置与 Key Vault 记录分离；
+- Provider 编辑页默认遮挡已存 Key，用户主动选择查看时可以读取明文；
 - 允许为 Planner、Executor、Judge 指定不同模型策略。
 
 ### FR-003 Corporation 管理
@@ -335,7 +336,7 @@ v0.1 不追求“公司办公室”视觉拟人化，优先清晰呈现执行状
 
 - Electron 启用 `contextIsolation`，禁用 renderer 的 Node 权限；
 - IPC 采用白名单和 Schema 验证；
-- API Key 使用 OS Keychain/Credential Manager；
+- API Key 使用 AI Corporation Desktop 自管、静态加密的本地 Key Vault；
 - 日志默认脱敏；
 - 文件与命令限制在工作区和策略允许范围内；
 - Prompt 注入内容不得提升工具权限。
