@@ -3,16 +3,16 @@
 | 属性 | 当前值 |
 |---|---|
 | 当前产品版本 | v0.1 MVP |
-| 当前阶段 | Milestone 2 下一任务单元定义 |
+| 当前阶段 | Milestone 2 Provider/Key Vault 实施准备 |
 | 当前 Milestone | Milestone 2：Provider 与 Goal/Plan |
-| 当前任务单元 | M2-TU-01（完成） |
+| 当前任务单元 | M2-TU-02（就绪） |
 | 总体状态 | 进行中 |
-| 最近更新 | 2026-08-01 |
-| 下一检查点 | M2-TU-02 Provider/Key Vault 合同达到“就绪” |
+| 最近更新 | 2026-08-02 |
+| 下一检查点 | M2-TU-02 按就绪合同进入实现 |
 
 ## 1. 当前结论
 
-Milestone 1 已完成并经用户人工安装验收；当前没有已知未解决 P0/P1。[M2-TU-01 OS 安全存储边界](docs/06-engineering/task-units/M2-TU-01-os-secure-store-boundary.md) 已在实现提交 `66b466f60f7a5d16d31605cd6494db65a3820781` 上通过当时合同的全部验收，状态为“完成”，但用户随后明确废弃其产品存储方案：Provider Key 改由 AI Corporation Desktop 应用自管 Key Vault 保存和管理，Renderer 默认遮挡且可由用户主动查看明文。因此 M2-TU-01 不再计入当前 Milestone 2 的 Key 管理完成状态。当前尚无新的就绪任务合同，不得提前实施替代方案。
+Milestone 1 已完成并经用户人工安装验收；当前没有已知未解决 P0/P1。[M2-TU-01 OS 安全存储边界](docs/06-engineering/task-units/M2-TU-01-os-secure-store-boundary.md) 已在实现提交 `66b466f60f7a5d16d31605cd6494db65a3820781` 上通过当时合同的全部验收，状态为“完成”，但用户随后明确废弃其产品存储方案，故不再计入当前 Milestone 2 的 Key 管理完成状态。[M2-TU-02 应用自管 Provider Key Vault](docs/06-engineering/task-units/M2-TU-02-application-key-vault.md) 已基于用户确认的 `1B + 2B + 3A` 设计和基线提交 `a4810ef6f0bd6ce4368c80a45e40116943838592` 达到“就绪”，尚未开始实施，验收项保持全部未勾选。
 
 本任务只建立 Windows Credential Manager/macOS Keychain → Native Core → Electron Main 的密钥边界。Provider 配置、连接测试、模型调用、Renderer Key 表单、Goal Engine、Planner、Task Graph 和 Plan Review 不属于当前任务，Milestone 2 尚未完成。
 
@@ -70,7 +70,7 @@ M2-TU-01 已交付，但用户随后纠正了产品存储方案；该 OS secure-
 
 ## 7. 下一步
 
-以已经同步的 `1B + 2B + 3A` 权威设计为基线，建立 M2-TU-02 Provider/Key Vault 解耦合同；合同必须定义 SQLite 密文 Vault、应用本地加密密钥、typed IPC、Renderer 管理与查看、Provider/Vault 一致性、失败补偿及废弃 OS secure-store 路径的处理，达到“就绪”并单独提交后再实施。
+单独提交并推送 M2-TU-02 就绪合同后，严格按合同实施 SQLite 密文 Vault、应用本地加密密钥、typed IPC、Renderer 管理与查看、Provider/Vault 一致性、失败补偿和 legacy OS secure-store 路径移除；任何新歧义先请求用户决策。
 
 ## 8. 更新规则
 
