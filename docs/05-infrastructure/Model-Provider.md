@@ -100,10 +100,13 @@ type NormalizedUsage = {
 ## 7. 凭据
 
 - Key 由 AI Corporation Desktop 的应用自管 Key Vault 存储和管理，不把 OS Keychain/Credential Manager 或 Native Core 当作权威存储；
-- Key Vault 静态加密保存完整 Key，Provider 表只保存 `key_vault_entry_id`，日志和错误不得保存明文；
+- Key Vault 使用应用自行生成的 32-byte 本地加密密钥，以 AES-256-GCM v1 将完整 Key 认证加密后存入 SQLite；Provider 表只保存 `key_vault_entry_id`，日志和错误不得保存明文；
+- 本地加密密钥以应用自管文件保存在应用数据目录，不使用 OS Keychain/Credential Manager 或 Native Core；SQLite 与该文件同时泄漏时 Key 可被解密，这是 v0.1 明确接受的限制；
 - Renderer 可以录入、替换和删除 Key；回显默认遮挡，只有用户主动选择查看时才从 Key Vault 读取并显示明文；
 - 录入、读取、替换和删除使用专用 typed Provider IPC；不得暴露通用数据库、文件或原始 RPC；
 - 明文显示状态不得跨页面恢复、Renderer 重载或应用重启自动保留；
+- 应用重启后不需要用户解锁；当前会话中用户主动点击“显示”即可读取明文；
+- 数据库或本地加密密钥文件缺失、损坏、权限拒绝、版本未知或认证失败时固定失败，不允许明文降级；用户可删除不可恢复记录并重新录入 Key；
 - 请求日志不记录 Authorization；
 - Endpoint 变更后重新连接测试；
 - 导出配置不含 Key。

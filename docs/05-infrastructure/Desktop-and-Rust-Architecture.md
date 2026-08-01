@@ -114,8 +114,9 @@ Workspace 选择是特殊的授权入口：Renderer 只能发起无参数 `works
   [Legacy Secure Store RPC](../04-protocols/Secure-Store-RPC.md)）
 - `hash.file`
 
-每个 RPC 在 Rust 侧再次校验会话、路径和参数。Provider Key 改由 Electron Main/Application
-Service 管理应用自管 Key Vault；后续任务负责停用并移除 legacy secure-store 调用路径。
+每个 RPC 在 Rust 侧再次校验会话、路径和参数。Provider Key 由 Electron Main/Application
+Service 管理应用自管 SQLite Key Vault；应用本地加密密钥由 Main 进程在应用数据目录原子创建和读取，
+不进入 Native Core。后续任务负责停用并移除 legacy secure-store 调用路径。
 
 ## 6. 包与 Crate 边界
 
@@ -152,7 +153,7 @@ Native Core 不依赖产品 UI
 - Windows junction/reparse point；
 - macOS symlink；
 - 进程组终止；
-- 应用自管 Key Vault 的跨平台文件权限与原子替换；
+- 应用自管本地加密密钥文件的跨平台用户权限、原子创建与禁止覆盖；
 - 文件锁与原子替换；
 - 睡眠/唤醒事件。
 

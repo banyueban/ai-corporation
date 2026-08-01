@@ -85,10 +85,11 @@
 ### UI-AC-01 首次设置
 
 1. 输入 Provider 配置；
-2. Key 写入 AI Corporation Desktop 应用自管 Key Vault；
+2. Key 以密文写入 AI Corporation Desktop 应用自管 SQLite Key Vault，SQLite 中不存在明文；
 3. 连接成功进入 Dashboard；
 4. 认证失败不泄露 Key；
-5. Key Vault 失败时不允许明文降级。
+5. 数据库、本地加密密钥、权限或认证解密失败时不允许明文降级，不显示保存成功；
+6. 当前会话中用户主动点击“显示”可查看明文；离开页面、Renderer 重载或应用重启后重新遮挡。
 
 ### UI-AC-02 创建与计划
 

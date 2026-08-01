@@ -34,7 +34,7 @@
 | Testing | 逐步测试状态 | 取消测试 | 超时后重试 |
 | Authentication failed | 安全错误摘要 | 重新测试 | 编辑 Key/Endpoint |
 | Network failed | 网络原因 | 保存未验证配置 | 稍后验证 |
-| Secure store failed | 阻断说明 | 查看系统帮助 | 不允许明文降级 |
+| Key Vault failed | 阻断说明，并区分数据库、本地加密密钥或完整性错误 | 重试/重新录入 | 不允许明文降级或显示保存成功 |
 | Provider valid | 成功状态、模型列表 | 继续 | — |
 | Complete | 默认策略摘要 | 进入 Dashboard | 返回修改 |
 

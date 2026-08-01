@@ -336,7 +336,8 @@ v0.1 不追求“公司办公室”视觉拟人化，优先清晰呈现执行状
 
 - Electron 启用 `contextIsolation`，禁用 renderer 的 Node 权限；
 - IPC 采用白名单和 Schema 验证；
-- API Key 使用 AI Corporation Desktop 自管、静态加密的本地 Key Vault；
+- API Key 使用 AI Corporation Desktop 自管的本地 Key Vault：完整 Key 仅以密文进入 SQLite；应用自行生成并在应用数据目录保存本地加密密钥，不使用 OS Keychain、Credential Manager 或 Native Core 作为存储；
+- 该静态保护只避免 SQLite 数据库被单独读取时直接暴露 Key；同时取得数据库与应用本地加密密钥的攻击者仍可解密，产品不得把它描述为系统级强机密保护；
 - 日志默认脱敏；
 - 文件与命令限制在工作区和策略允许范围内；
 - Prompt 注入内容不得提升工具权限。

@@ -16,9 +16,19 @@
 
 ## ADR-003：Rust 作为窄系统能力 Sidecar
 
-- 决策：Rust 负责路径、文件原子提交、进程和安全存储，不在 v0.1 全面承载业务编排。
+- 决策：Rust 负责路径、文件原子提交和进程，不在 v0.1 全面承载业务编排；Provider Key Vault 属于 Electron Main/Application Service，不进入 Rust。
 - 原因：兼顾安全、跨平台、崩溃隔离和开发速度。
 - 后果：存在双运行时和 RPC 合同成本。
+
+## ADR-014：应用自管 SQLite Key Vault
+
+- 背景：Provider Key 必须由 AI Corporation Desktop 输入、存储和管理，并允许用户在 Renderer 中主动查看明文；OS Keychain、Credential Manager 和 Native Core 不作为权威存储。
+- 决策：完整 Key 使用应用生成的 32-byte 本地加密密钥进行 AES-256-GCM v1 认证加密，密文及 nonce、认证标签和版本存入 SQLite；本地加密密钥以应用自管文件保存在应用数据目录。用户无需解锁，当前会话内主动点击“显示”即可读取明文，显示状态不跨页面、Renderer 重载或应用重启保留。
+- 备选方案：用户主密码派生密钥；独立加密 Vault 文件；不做静态加密；使用 OS Keychain/Credential Manager。以上方案均未采用。
+- 正面影响：凭据与 Provider 配置可在同一 SQLite 事务边界管理；数据库单独泄漏不会直接暴露明文；跨平台产品行为一致且无需解锁交互。
+- 负面影响：同时取得 SQLite 和应用本地加密密钥的攻击者可以解密；数据库备份不包含本地加密密钥时不能恢复 Key；应用数据目录权限不是强安全边界。
+- 安全与迁移影响：禁止日志、错误、事件、普通 DTO 和诊断包携带 Key；加密格式必须版本化且认证失败时固定失败；legacy OS secure-store 路径必须停用并移除；不可恢复时允许用户删除记录并重新录入，不得明文降级。
+- 日期与负责人：2026-08-01，产品负责人选择 `1B + 2B + 3A`。
 
 ## ADR-004：Local-first + SQLite
 

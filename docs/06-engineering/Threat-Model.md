@@ -85,9 +85,10 @@ flowchart LR
 
 控制：
 
-- AI Corporation Desktop 使用应用自管、静态加密的本地 Key Vault，并独立于 Provider 配置记录；
+- AI Corporation Desktop 使用应用自管 SQLite Key Vault，并独立于 Provider 配置记录；完整 Key 使用应用自行生成并保存在应用数据目录的本地加密密钥进行 AES-256-GCM v1 认证加密；
+- 该控制只保证 SQLite 数据库单独泄漏时不直接暴露 Key；同时取得数据库和应用本地加密密钥的攻击者可以解密，这是已确认的 v0.1 残余风险，不得宣传为 OS 级强机密保护；
 - Renderer 可以通过专用 typed Provider IPC 录入、替换、删除和按用户明确动作读取 Key；默认遮挡，明文查看状态不持久化；
-- Key Vault、Provider 配置、日志、错误、截图和诊断包不得包含非预期明文副本；
+- 除 Key Vault 加密记录外，Provider 配置、日志、错误、截图和诊断包不得包含非预期明文副本；
 - Key Vault 加解密或一致性检查失败时固定失败，不允许明文降级；
 - 日志落盘前脱敏；
 - Tool 环境不默认继承 Key；

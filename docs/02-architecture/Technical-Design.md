@@ -92,7 +92,7 @@ flowchart TB
 只负责展示和用户意图采集。不得直接：
 
 - 访问 Node.js；
-- 读取 API Key；
+- 未经用户明确查看动作读取 API Key；
 - 操作文件系统；
 - 执行命令；
 - 直接调用模型网络 API。
@@ -345,7 +345,8 @@ WHERE id = ? AND status = 'READY';
 - 工具调用必须经过 Policy Engine；
 - 路径必须由 Native Core canonicalize 后校验；
 - 命令使用参数数组，不拼接 shell 字符串；
-- API Key 只在 main/native 层可见；
+- API Key 由 Main/Application Service 使用应用本地加密密钥加解密；完整 Key 只以密文进入 SQLite，不进入 Native Core 或 OS 安全存储；
+- Renderer 只能通过专用 typed IPC 录入、替换、删除 Key，并在用户主动点击“显示”后取得明文；列表、事件、日志、错误和普通 Provider DTO 不得携带明文；
 - Renderer 的内容安全策略禁止任意远程脚本；
 - 日志、事件和错误在落盘前脱敏；
 - 更新包必须签名。

@@ -231,17 +231,42 @@ CREATE INDEX idx_agent_run_task ON agent_run(task_id, attempt DESC);
 ## 6. 模型、工具与审批
 
 ```sql
-CREATE TABLE provider (
+CREATE TABLE key_vault_entry (
   id TEXT PRIMARY KEY,
-  type TEXT NOT NULL,
-  name TEXT NOT NULL,
-  endpoint TEXT,
-  key_vault_entry_id TEXT,
-  config_json TEXT NOT NULL DEFAULT '{}',
-  config_status TEXT NOT NULL CHECK (config_status IN ('ENABLED','DISABLED')),
+  ciphertext BLOB NOT NULL CHECK (length(ciphertext) > 0),
+  nonce BLOB NOT NULL CHECK (length(nonce) = 12),
+  auth_tag BLOB NOT NULL CHECK (length(auth_tag) = 16),
+  encryption_version INTEGER NOT NULL CHECK (encryption_version = 1),
+  version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
-);
+) STRICT;
+
+CREATE TABLE provider (
+  id TEXT PRIMARY KEY,
+  type TEXT NOT NULL CHECK (type IN ('OPENAI_COMPATIBLE')),
+  name TEXT NOT NULL,
+  endpoint TEXT NOT NULL,
+  key_vault_entry_id TEXT UNIQUE REFERENCES key_vault_entry(id) ON DELETE SET NULL,
+  config_json TEXT NOT NULL DEFAULT '{}',
+  config_status TEXT NOT NULL CHECK (config_status IN ('ENABLED','DISABLED')),
+  version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+) STRICT;
+
+CREATE TABLE provider_command (
+  command_id TEXT PRIMARY KEY NOT NULL,
+  command_type TEXT NOT NULL CHECK (command_type IN ('SAVE','DELETE_KEY')),
+  provider_id TEXT NOT NULL REFERENCES provider(id) ON DELETE CASCADE,
+  request_hash TEXT NOT NULL CHECK (
+    length(request_hash) = 64
+    AND request_hash NOT GLOB '*[^0-9a-f]*'
+  ),
+  result_json TEXT NOT NULL CHECK (json_valid(result_json)),
+  result_version INTEGER NOT NULL CHECK (result_version >= 1),
+  created_at TEXT NOT NULL
+) STRICT;
 
 CREATE TABLE model_call (
   id TEXT PRIMARY KEY,
@@ -465,8 +490,14 @@ CREATE VIRTUAL TABLE memory_fts USING fts5(
 );
 ```
 
-Provider 表只保存应用自管 Key Vault 的记录 ID。Key Vault 由 AI Corporation Desktop 负责创建、
-加密、读取、替换和删除；任何 SQLite 列、日志和错误都不得包含明文 Key。
+Provider 表只保存应用自管 Key Vault 的记录 ID。`key_vault_entry` 保存 AES-256-GCM v1 密文、
+12-byte nonce、16-byte authentication tag 和版本；32-byte 本地加密密钥由应用生成并以独立文件
+保存在应用数据目录，不进入 SQLite、OS Keychain/Credential Manager 或 Native Core。任何 SQLite
+列、日志和错误都不得包含明文 Key。
+
+创建 Provider 与 Key Vault 记录、替换密文、解除引用并删除 Key Vault 记录分别在短事务中完成。
+数据库或本地加密密钥文件缺失、损坏、权限拒绝、版本未知或认证解密失败时固定失败，不返回部分
+成功或明文降级。仅取得 SQLite 备份不足以恢复 Key；v0.1 当前任务通过重新录入 Provider Key 恢复。
 
 `0003_corporation_events.sql` 只建立 M1-TU-04 已冻结的 Corporation CRUD、事件与命令回执字段。`0004_goal_contract.sql` 增加 active Goal pointer、不可变 Goal 版本、Goal 命令回执和两种 Goal 事实事件。`0005_corporation_pause_resume.sql` 增加成对暂停元数据、pause/resume 独立命令回执、两种状态事实事件和物理一致性 trigger；active Plan/Organization、Policy 与事件分发游标仍由后续迁移增加。分发状态不得通过更新 append-only `domain_event` 实现。
 
