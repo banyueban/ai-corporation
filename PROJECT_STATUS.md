@@ -14,7 +14,7 @@
 
 Milestone 1 的 `M1-TU-01` 至 `M1-TU-06` 已全部完成，Milestone L3 交付物、真实窗口演示、恢复/升级回归、Windows x64 与 macOS Apple Silicon 最终包均已通过，未执行的必检项为 0，已知未解决 P0/P1 为 0。
 
-M1-TU-06 的实现验收提交为 `13ab5a944125eb848596ce90e1e977ae208f3f98`。GitHub Actions run `30695902463` 在该提交上完成双平台工程检查、开发态 Electron E2E、安装包构建、最终包真实窗口 E2E、清理和制品上传；Windows job `91358624310`、macOS job `91358624279` 均成功。
+M1-TU-06 的收口验收提交为 `f0da1b9ee0e674565ed4f096e632e222a808efea`。GitHub Actions run `30696262759` 在该提交上完成双平台工程检查、开发态 Electron E2E、安装包构建、最终包真实窗口 E2E、清理和制品上传；Windows job `91359586853`、macOS job `91359586818` 均成功。
 
 该结论只关闭 Milestone 1 的本地项目骨架，不代表真实 Provider、Plan、Task Graph、Agent/Tool 执行、未知外部副作用恢复、Milestone 2 或公开发布已经完成。
 
@@ -36,10 +36,10 @@ M1-TU-06 的实现验收提交为 `13ab5a944125eb848596ce90e1e977ae208f3f98`。G
 | Corporation CRUD 与事务事件 | `M1-TU-04` 合同完成；状态、版本和 Event 原子写入、幂等、并发与 SQLite 重开测试通过 |
 | Goal Contract 与最小时间线 | `M1-TU-05` 合同完成；手工/Mock、版本、确认、冲突、故障恢复和时间线通过 |
 | 暂停、应用重启和无重复恢复 | `M1-TU-06` 合同 15 项完成；PAUSED/DRAFT 分别覆盖 reload、进程重启和 SQLite 重开，启动事件/回执计数不变 |
-| 完整 Milestone 演示 | run `30695902463` 的开发态与最终包真实窗口完成 Workspace → Corporation → Goal → pause → 应用重启 → restore → resume |
+| 完整 Milestone 演示 | run `30696262759` 的开发态与最终包真实窗口完成 Workspace → Corporation → Goal → pause → 应用重启 → restore → resume |
 | 安全、平台与回归 | 工作区外路径由 Rust 拒绝；旧迁移/Native Core health/安全 IPC/axe/清理通过；Windows/macOS jobs 均成功；P0/P1 为 0 |
 
-最终包日志记录：`pause · reload · process restart · read-only restore · resume · reload · process restart`。Windows artifact `8817268064`，macOS artifact `8817259466`。
+最终包日志记录：`pause · reload · process restart · read-only restore · resume · reload · process restart`。Windows artifact `8817398343`，macOS artifact `8817366259`。
 
 ## 4. 阶段复盘改进
 
@@ -67,7 +67,7 @@ M1-TU-06 的实现验收提交为 `13ab5a944125eb848596ce90e1e977ae208f3f98`。G
 - M1-TU-01 至 M1-TU-06 合同均为“完成”，合同未勾选项为 0；
 - 本地 `pnpm check` 通过：治理、格式、lint、TypeScript、协议 20 项、Storage 61 项、Desktop 60 项、Rust 测试/fmt/clippy 与 secret scan 均通过；
 - M1-TU-06 本地开发态和 Windows 最终目录包真实窗口旅程、Native Core health、Mock 网络请求 0、axe 严重/关键违规 0、布局截图人工检查和临时资源清理通过；
-- GitHub Actions run `30695902463` 对提交 `13ab5a944125eb848596ce90e1e977ae208f3f98` 的 Windows job `91358624310` 与 macOS job `91358624279` 全部成功；
+- GitHub Actions run `30696262759` 对提交 `f0da1b9ee0e674565ed4f096e632e222a808efea` 的 Windows job `91359586853` 与 macOS job `91359586818` 全部成功；
 - 两个平台均通过工程检查、开发态真实窗口、最终包完整重启恢复旅程、清理和 artifact 上传；
 - Milestone 1 必需验证未执行项为 0，已知未解决 P0/P1 为 0。
 

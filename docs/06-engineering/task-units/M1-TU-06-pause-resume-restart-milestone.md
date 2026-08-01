@@ -111,9 +111,9 @@
 
 当前有效证据：
 
-- 实现验收提交：`13ab5a944125eb848596ce90e1e977ae208f3f98`；
-- GitHub Actions：run `30695902463`；Windows x64 job `91358624310`、macOS Apple Silicon job `91358624279` 均成功；
-- Windows artifact `8817268064`，macOS artifact `8817259466`；
+- 收口验收提交：`f0da1b9ee0e674565ed4f096e632e222a808efea`；
+- GitHub Actions：run `30696262759`；Windows x64 job `91359586853`、macOS Apple Silicon job `91359586818` 均成功；
+- Windows artifact `8817398343`，macOS artifact `8817366259`；
 - 两个平台均通过工程检查、开发态真实 Electron 窗口、最终包 E2E、清理和 artifact 上传；最终包日志均记录 `pause · reload · process restart · read-only restore · resume · reload · process restart`；
 - 本地 `pnpm check` 通过：协议 20 项、Storage 61 项、Desktop 60 项、Native Core 7 项及 Workspace Rust 7 项，并包含治理、格式、lint、TypeScript、Rust fmt/clippy 与 secret scan；
 - PAUSED/DRAFT 的 Renderer reload、应用进程重启和 SQLite 重开均有直接断言；启动前后状态、版本、事件和回执计数证明启动只读；
