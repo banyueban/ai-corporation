@@ -373,7 +373,8 @@ test("user authorizes and restores a Workspace through the visible window", asyn
     await expect(
       page.getByRole("button", { name: "Resume Corporation" }),
     ).toBeVisible();
-    await page.getByRole("button", { name: "Resume Corporation" }).click();
+    await page.getByRole("button", { name: "Resume Corporation" }).focus();
+    await page.keyboard.press("Enter");
     await expect(
       page.getByRole("status").filter({
         hasText:
@@ -448,8 +449,7 @@ test("user authorizes and restores a Workspace through the visible window", asyn
     const resumeButton = page.getByRole("button", {
       name: "Resume Corporation",
     });
-    await resumeButton.focus();
-    await page.keyboard.press("Enter");
+    await resumeButton.click();
     await expect(
       page.getByRole("status").filter({
         hasText:
