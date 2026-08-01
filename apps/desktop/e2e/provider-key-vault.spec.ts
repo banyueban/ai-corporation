@@ -30,12 +30,24 @@ test("user manages an app-owned Provider Key through the visible window", async 
       page.getByRole("heading", { name: "Provider credentials" }),
     ).toBeFocused();
     await expectNoSeriousAxeViolations(page);
+    await expect(page.getByText("No Provider has been saved.")).toBeVisible();
 
     await page.getByLabel("Name").fill("M2 Primary");
     await page.getByLabel("Endpoint").fill("https://api.example.test/v1");
     const keyInput = page.getByLabel("API Key");
     await keyInput.fill(firstSecret);
     await expect(keyInput).toHaveAttribute("type", "password");
+    const showButton = page.getByRole("button", { name: "Show" });
+    await showButton.scrollIntoViewIfNeeded();
+    await expect(showButton).toBeInViewport();
+    await showButton.click();
+    await expect(keyInput).toHaveAttribute("type", "text");
+    await expect(keyInput).toHaveValue(firstSecret);
+    await page.getByRole("button", { name: "Hide" }).click();
+    await expect(keyInput).toHaveAttribute("type", "password");
+    const saveButton = page.getByRole("button", { name: "Save Provider" });
+    await saveButton.scrollIntoViewIfNeeded();
+    await expect(saveButton).toBeInViewport();
     await electronApp.evaluate(({ BrowserWindow }) => {
       const window = BrowserWindow.getAllWindows()[0];
       window?.setSize(1440, 900);
@@ -83,6 +95,11 @@ test("user manages an app-owned Provider Key through the visible window", async 
     await electronApp.close();
     electronApp = await launchApplication(appDirectory, userDataDirectory);
     page = await electronApp.firstWindow();
+    await electronApp.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0];
+      window?.setSize(1024, 700);
+      window?.webContents.setZoomFactor(1);
+    });
     await page.getByRole("button", { name: "Settings" }).click();
     await page.getByRole("button", { name: /M2 Primary/u }).click();
     const restartedInput = page.getByLabel("API Key");
@@ -92,7 +109,12 @@ test("user manages an app-owned Provider Key through the visible window", async 
     await page.getByRole("button", { name: "Hide" }).click();
 
     page.once("dialog", (dialog) => dialog.accept());
-    await page.getByRole("button", { name: "Delete saved Key" }).click();
+    const deleteButton = page.getByRole("button", {
+      name: "Delete saved Key",
+    });
+    await deleteButton.scrollIntoViewIfNeeded();
+    await expect(deleteButton).toBeInViewport();
+    await deleteButton.click();
     await expect(page.locator(".provider-status")).toContainText(
       "Saved Key deleted.",
     );

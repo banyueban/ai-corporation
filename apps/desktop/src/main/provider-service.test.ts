@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -159,6 +159,30 @@ describe("ProviderService", () => {
       value: { hasKey: false, version: 2 },
     });
     expect(repository.get(created.value.id)).toMatchObject({ hasKey: false });
+    database.close();
+  });
+
+  it("does not commit Provider or Vault rows when the local key cannot be created", () => {
+    const { database, keyPath, repository, service } = fixture();
+    writeFileSync(path.dirname(keyPath), "blocks-key-directory", {
+      flag: "wx",
+    });
+
+    expect(
+      service.save({
+        schemaVersion: 1,
+        commandId: "019b7f4d-a000-7000-8000-000000000051",
+        name: "Primary",
+        endpoint: "https://api.example.test/v1",
+        configStatus: "ENABLED",
+        key: "M2-TU-02-fake-create-failure",
+      }),
+    ).toMatchObject({
+      ok: false,
+      error: { code: "VAULT_KEY_UNAVAILABLE" },
+    });
+    expect(repository.list()).toEqual([]);
+    expect(repository.hasVaultEntries()).toBe(false);
     database.close();
   });
 });

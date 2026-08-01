@@ -31,16 +31,37 @@ function fixture(): DatabaseSync {
 }
 
 function create(repository: ProviderRepository) {
-  return repository.save({
-    command: {
-      commandId: createCommandId,
-      commandType: "SAVE",
-      requestHash: "a".repeat(64),
-    },
+  return createProvider(repository, {
     providerId,
-    vaultEntryId: vaultId,
+    vaultId,
+    commandId: createCommandId,
+    requestHash: "a".repeat(64),
     encrypted,
     name: "Primary",
+  });
+}
+
+function createProvider(
+  repository: ProviderRepository,
+  input: {
+    readonly providerId: string;
+    readonly vaultId: string;
+    readonly commandId: string;
+    readonly requestHash: string;
+    readonly encrypted: EncryptedProviderKey;
+    readonly name: string;
+  },
+) {
+  return repository.save({
+    command: {
+      commandId: input.commandId,
+      commandType: "SAVE",
+      requestHash: input.requestHash,
+    },
+    providerId: input.providerId,
+    vaultEntryId: input.vaultId,
+    encrypted: input.encrypted,
+    name: input.name,
     endpoint: "https://api.example.test/v1",
     configStatus: "ENABLED",
     now,
@@ -148,21 +169,145 @@ describe("ProviderRepository", () => {
     database.close();
   });
 
-  it("rolls back Provider and Vault writes together after injected failure", () => {
+  it("isolates two Providers and their Vault records", () => {
     const database = fixture();
-    const repository = new ProviderRepository(database, {
-      fault: (stage) => {
-        if (stage === "AFTER_VAULT_WRITE") throw new Error("injected");
-      },
+    const repository = new ProviderRepository(database);
+    const first = create(repository);
+    const secondId = "019b7f4d-a000-7000-8000-000000000037";
+    const secondVaultId = "019b7f4d-a000-7000-8000-000000000038";
+    const secondEncrypted = {
+      ...encrypted,
+      ciphertext: Buffer.from("second-encrypted-value"),
+      nonce: Buffer.alloc(12, 9),
+    };
+    const second = createProvider(repository, {
+      providerId: secondId,
+      vaultId: secondVaultId,
+      commandId: "019b7f4d-a000-7000-8000-000000000039",
+      requestHash: "e".repeat(64),
+      encrypted: secondEncrypted,
+      name: "Secondary",
     });
-    expect(() => create(repository)).toThrow("injected");
-    expect(repository.list()).toEqual([]);
+
+    repository.deleteKey({
+      command: {
+        commandId: "019b7f4d-a000-7000-8000-00000000003a",
+        commandType: "DELETE_KEY",
+        requestHash: "f".repeat(64),
+      },
+      providerId: first.id,
+      expectedVersion: first.version,
+      now,
+    });
+
+    expect(repository.get(secondId)).toEqual(second);
     expect(
-      database.prepare("SELECT COUNT(*) AS count FROM key_vault_entry").get(),
-    ).toEqual({ count: 0 });
-    expect(
-      database.prepare("SELECT COUNT(*) AS count FROM provider_command").get(),
-    ).toEqual({ count: 0 });
+      Buffer.from(repository.getEncryptedKey(secondId).encrypted.ciphertext),
+    ).toEqual(Buffer.from(secondEncrypted.ciphertext));
     database.close();
+  });
+
+  it("rolls back create at every injected transaction stage", () => {
+    for (const faultStage of [
+      "AFTER_VAULT_WRITE",
+      "AFTER_PROVIDER_WRITE",
+      "BEFORE_COMMIT",
+    ] as const) {
+      const database = fixture();
+      const repository = new ProviderRepository(database, {
+        fault: (stage) => {
+          if (stage === faultStage) throw new Error("injected");
+        },
+      });
+      expect(() => create(repository)).toThrow("injected");
+      expect(repository.list()).toEqual([]);
+      expect(
+        database.prepare("SELECT COUNT(*) AS count FROM key_vault_entry").get(),
+      ).toEqual({ count: 0 });
+      expect(
+        database
+          .prepare("SELECT COUNT(*) AS count FROM provider_command")
+          .get(),
+      ).toEqual({ count: 0 });
+      database.close();
+    }
+  });
+
+  it("rolls back replace and delete at every injected transaction stage", () => {
+    const replacementStages = [
+      "AFTER_VAULT_WRITE",
+      "AFTER_PROVIDER_WRITE",
+      "BEFORE_COMMIT",
+    ] as const;
+    const deleteStages = [
+      "AFTER_PROVIDER_WRITE",
+      "AFTER_VAULT_WRITE",
+      "BEFORE_COMMIT",
+    ] as const;
+
+    for (const [index, faultStage] of replacementStages.entries()) {
+      const database = fixture();
+      const stableRepository = new ProviderRepository(database);
+      const created = create(stableRepository);
+      const repository = new ProviderRepository(database, {
+        fault: (stage) => {
+          if (stage === faultStage) throw new Error("injected");
+        },
+      });
+      expect(() =>
+        repository.save({
+          command: {
+            commandId: `019b7f4d-a000-7000-8000-00000000004${index}`,
+            commandType: "SAVE",
+            requestHash: `${index + 1}`.repeat(64),
+          },
+          providerId,
+          expectedVersion: created.version,
+          encrypted: {
+            ...encrypted,
+            ciphertext: Buffer.from("replacement-encrypted-value"),
+          },
+          name: "Changed",
+          endpoint: "https://api.example.test/v1",
+          configStatus: "DISABLED",
+          now,
+        }),
+      ).toThrow("injected");
+      expect(stableRepository.get(providerId)).toEqual(created);
+      expect(
+        Buffer.from(
+          stableRepository.getEncryptedKey(providerId).encrypted.ciphertext,
+        ),
+      ).toEqual(Buffer.from(encrypted.ciphertext));
+      database.close();
+    }
+
+    for (const [index, faultStage] of deleteStages.entries()) {
+      const database = fixture();
+      const stableRepository = new ProviderRepository(database);
+      const created = create(stableRepository);
+      const repository = new ProviderRepository(database, {
+        fault: (stage) => {
+          if (stage === faultStage) throw new Error("injected");
+        },
+      });
+      expect(() =>
+        repository.deleteKey({
+          command: {
+            commandId: `019b7f4d-a000-7000-8000-00000000005${index}`,
+            commandType: "DELETE_KEY",
+            requestHash: `${index + 4}`.repeat(64),
+          },
+          providerId,
+          expectedVersion: created.version,
+          now,
+        }),
+      ).toThrow("injected");
+      expect(stableRepository.get(providerId)).toEqual(created);
+      expect(stableRepository.getEncryptedKey(providerId).entryId).toBe(
+        vaultId,
+      );
+      database.close();
+    }
   });
 });

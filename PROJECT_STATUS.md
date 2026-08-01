@@ -62,9 +62,9 @@ M2-TU-01 已交付，但用户随后纠正了产品存储方案；该 OS secure-
 ## 6. 当前验证摘要
 
 - M1-TU-01 至 M1-TU-06 合同均为“完成”；M2-TU-02 当前为“进行中”，16 项验收断言尚未在跨平台同提交证据完成前勾选；
-- 最新 `pnpm check` 全量通过：状态/任务合同、format、lint、typecheck、协议 24 项、Storage 65 项、Desktop 67 项、Native Core 7 项、Workspace Rust 7 项、Rust fmt/clippy 与 secret scan 均成功；
+- 最新 `pnpm check` 全量通过：状态/任务合同、format、lint、typecheck、协议 24 项、Storage 67 项、Desktop 77 项、Native Core 7 项、Workspace Rust 7 项、Rust fmt/clippy 与 secret scan 均成功；
 - 本地 Windows 开发态真实窗口 E2E 2/2 通过；Key Vault 旅程覆盖保存、默认遮挡、主动显示/隐藏、SQLite/WAL/SHM 明文扫描、Renderer reload、进程重启、替换、再次显示、删除与无障碍检查，既有 Workspace/Goal/暂停恢复旅程同步通过；
-- 最新本地 Windows NSIS 安装包 SHA-256 为 `664D32E96EC5A2F51C2FB58B3AB822BB92FAD44B3FE3FFF69BC0B12AE842273D`，包内 Native Core SHA-256 为 `ACDBD55FF932A593D2796E670C77F8423E35BB093C83F9624139DF79B2F186AF`；最终包真实窗口完成 Key Vault、Workspace、Goal 故障重试、暂停/继续和两次进程重启恢复旅程；
+- 最新本地 Windows NSIS 安装包 SHA-256 为 `B1DA707528526A23E181263AEA22501D4A7B366A288B097182F2D00ED70B1AA1`，包内 Native Core SHA-256 为 `ACDBD55FF932A593D2796E670C77F8423E35BB093C83F9624139DF79B2F186AF`；最终包真实窗口完成 Key Vault、Workspace、Goal 故障重试、暂停/继续和两次进程重启恢复旅程；
 - 活跃产品源码与 Windows 最终包的 legacy `secure_store.*`/`secure-store` 定向扫描通过，打包诊断与 SQLite/WAL/SHM 定向 Key 泄漏扫描通过；P0/P1 为 0；
 - 尚未执行的必检项为 1 组：待推送实现提交的 Windows/macOS GitHub Actions 全部步骤、macOS 最终包旅程与双平台 artifacts。该项完成前不得标记 M2-TU-02 完成。
 
