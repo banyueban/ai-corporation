@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 任务单元 ID | M2-TU-02 |
-| 状态 | 进行中 |
+| 状态 | 完成 |
 | 所属 Milestone | Milestone 2：Provider 与 Goal/Plan |
 | 主要结果 | 用户可在 AI Corporation Desktop 的 Provider 设置中保存、替换、删除和主动查看 API Key；完整 Key 仅以应用自管密文进入 SQLite，重启后默认遮挡恢复 |
 | 基线提交 | `a4810ef6f0bd6ce4368c80a45e40116943838592` |
@@ -78,22 +78,22 @@
 
 ## 7. 验收合同
 
-- [ ] 协议：四个 Provider 方法的 v1 Schema/DTO 严格拒绝额外字段、错误版本、非法 UUID、非法 Endpoint、空/超限 Key 和非法状态，错误不回显输入；
-- [ ] 迁移：空库和 `0001`–`0005` 升级到 `0006` 成功；表、列、STRICT、CHECK、UNIQUE、FK、索引和 foreign key check 与权威 Schema 一致，中断后可重试；
-- [ ] 加密：AES-256-GCM v1 每次保存使用不同 nonce；SQLite/WAL/SHM 中没有测试 Key 明文，篡改 ciphertext/tag/nonce 或未知版本固定返回 `VAULT_INTEGRITY_FAILED`；
-- [ ] 本地加密密钥：首次保存原子创建 32-byte 文件，后续不覆盖；错误长度、缺失、权限/读取/创建失败返回 `VAULT_KEY_UNAVAILABLE` 且 SQLite 不提交 Key 变更；
-- [ ] Provider 生命周期：真实服务完成 create → list(masked) → reveal → replace → reveal → deleteKey → list(hasKey=false) → reveal(NOT_FOUND)，公开普通结果无明文；
-- [ ] 事务与补偿：Provider/Vault 创建、替换和删除在各故障注入点保持引用一致、无孤立凭据、无部分成功；删除不可解密记录仍可安全完成；
-- [ ] 幂等与并发：相同 commandId/请求返回相同公开结果且不重复写入；同 ID 不同请求冲突；错误 expectedVersion 不覆盖新值；两个 Provider/并发操作隔离；
-- [ ] IPC 安全：未注册 channel、非法 payload、伪造 reveal、底层错误和异常固定拒绝；Preload/普通 DTO/事件不暴露密文、nonce、tag、本地加密密钥或通用数据库/文件/Native 方法；
-- [ ] 用户界面：可从现有应用进入 Settings / Providers，键盘完成新增、保存、编辑、替换、删除；输入和已存 Key 默认遮挡，只有明确“显示”动作展示明文，再次点击可遮挡；
-- [ ] UI 状态：Loading、Empty、Saving、Normal、Conflict、Vault key unavailable、Integrity failed、Storage failed 和删除确认展示准确影响与恢复动作；失败时保留可恢复输入且不显示成功；
-- [ ] 显示生命周期：离开 Provider 编辑页、Renderer reload 和应用重启后明文显示状态消失；Provider 与 `hasKey` 恢复，重新主动显示可取回正确 Key；
-- [ ] Legacy 移除：产品构建、Native allowlist、Main/Preload/Renderer bundle、workspace/Cargo manifests 和打包产物不再包含可调用 `secure_store.*` 路径或 `secure-store` 平台依赖；历史文档保持明确废弃说明；
-- [ ] Secret 泄漏：日志、错误、事件、command receipt、SQLite 非 Vault 列、普通 DTO、HTML、截图、trace、测试报告、stdout/stderr 和诊断文本均不含随机测试 Key；只允许测试内存与明确 reveal 成功值出现；
-- [ ] 桌面适配：1024 × 700、1440 × 900 和 200% 缩放下关键表单、显示/遮挡、错误与删除确认可见；键盘、焦点、label、状态公告和窗口控制区通过 UI 专项验收；
-- [ ] 最终包与双平台：Windows/macOS 同一提交的开发态及最终包真实窗口分别完成保存 → 默认遮挡 → 显示 → 替换 → reload/restart 默认遮挡 → 再显示 → 删除，fixture 与应用数据清理独立通过；
-- [ ] 回归与治理：`pnpm check`、`pnpm check:status`、`pnpm check:task-units`、`git diff --check`、Rust fmt/clippy、既有 Workspace/Corporation/Goal/pause/restart E2E 全部通过；P0/P1 为 0，未执行必检项为 0。
+- [x] 协议：四个 Provider 方法的 v1 Schema/DTO 严格拒绝额外字段、错误版本、非法 UUID、非法 Endpoint、空/超限 Key 和非法状态，错误不回显输入；
+- [x] 迁移：空库和 `0001`–`0005` 升级到 `0006` 成功；表、列、STRICT、CHECK、UNIQUE、FK、索引和 foreign key check 与权威 Schema 一致，中断后可重试；
+- [x] 加密：AES-256-GCM v1 每次保存使用不同 nonce；SQLite/WAL/SHM 中没有测试 Key 明文，篡改 ciphertext/tag/nonce 或未知版本固定返回 `VAULT_INTEGRITY_FAILED`；
+- [x] 本地加密密钥：首次保存原子创建 32-byte 文件，后续不覆盖；错误长度、缺失、权限/读取/创建失败返回 `VAULT_KEY_UNAVAILABLE` 且 SQLite 不提交 Key 变更；
+- [x] Provider 生命周期：真实服务完成 create → list(masked) → reveal → replace → reveal → deleteKey → list(hasKey=false) → reveal(NOT_FOUND)，公开普通结果无明文；
+- [x] 事务与补偿：Provider/Vault 创建、替换和删除在各故障注入点保持引用一致、无孤立凭据、无部分成功；删除不可解密记录仍可安全完成；
+- [x] 幂等与并发：相同 commandId/请求返回相同公开结果且不重复写入；同 ID 不同请求冲突；错误 expectedVersion 不覆盖新值；两个 Provider/并发操作隔离；
+- [x] IPC 安全：未注册 channel、非法 payload、伪造 reveal、底层错误和异常固定拒绝；Preload/普通 DTO/事件不暴露密文、nonce、tag、本地加密密钥或通用数据库/文件/Native 方法；
+- [x] 用户界面：可从现有应用进入 Settings / Providers，键盘完成新增、保存、编辑、替换、删除；输入和已存 Key 默认遮挡，只有明确“显示”动作展示明文，再次点击可遮挡；
+- [x] UI 状态：Loading、Empty、Saving、Normal、Conflict、Vault key unavailable、Integrity failed、Storage failed 和删除确认展示准确影响与恢复动作；失败时保留可恢复输入且不显示成功；
+- [x] 显示生命周期：离开 Provider 编辑页、Renderer reload 和应用重启后明文显示状态消失；Provider 与 `hasKey` 恢复，重新主动显示可取回正确 Key；
+- [x] Legacy 移除：产品构建、Native allowlist、Main/Preload/Renderer bundle、workspace/Cargo manifests 和打包产物不再包含可调用 `secure_store.*` 路径或 `secure-store` 平台依赖；历史文档保持明确废弃说明；
+- [x] Secret 泄漏：日志、错误、事件、command receipt、SQLite 非 Vault 列、普通 DTO、HTML、截图、trace、测试报告、stdout/stderr 和诊断文本均不含随机测试 Key；只允许测试内存与明确 reveal 成功值出现；
+- [x] 桌面适配：1024 × 700、1440 × 900 和 200% 缩放下关键表单、显示/遮挡、错误与删除确认可见；键盘、焦点、label、状态公告和窗口控制区通过 UI 专项验收；
+- [x] 最终包与双平台：Windows/macOS 同一提交的开发态及最终包真实窗口分别完成保存 → 默认遮挡 → 显示 → 替换 → reload/restart 默认遮挡 → 再显示 → 删除，fixture 与应用数据清理独立通过；
+- [x] 回归与治理：`pnpm check`、`pnpm check:status`、`pnpm check:task-units`、`git diff --check`、Rust fmt/clippy、既有 Workspace/Corporation/Goal/pause/restart E2E 全部通过；P0/P1 为 0，未执行必检项为 0。
 
 ## 8. 隔离与干扰控制
 
@@ -121,4 +121,12 @@
 
 ## 11. 收口证据
 
-实现候选已完成本地 Windows 工程检查、开发态真实窗口与最终包真实窗口验证，但同一实现提交的 Windows/macOS CI、macOS 最终包和双平台 artifact 证据尚未取得，因此本合同保持“进行中”且验收断言不提前勾选。不得以设计、构建成功、进程存活、旧 M2-TU-01 OS secure-store 证据或单平台结果替代剩余验证。
+验收提交 `b85670dd3a65159729390dc019a3971fe014176c` 的 GitHub Actions run [`30710176795`](https://github.com/banyueban/ai-corporation/actions/runs/30710176795) 完整成功。Windows x64 job `91396134173` 与 macOS Apple Silicon job `91396134182` 的工程检查、串行开发态真实窗口 E2E、最终包构建、最终包真实窗口 E2E和 artifact 上传步骤全部成功；两平台日志均明确记录 `2 passed`、secret scan 通过以及保存 → 遮挡 → 显示 → 替换 → 进程重启 → 重新遮挡 → 再显示 → 删除通过。
+
+- Windows artifact：`ai-corporation-windows-x64`，ID `8821644524`，上传包 SHA-256 `9c4d49519f570310692d49367dd84bf2bc578728a6614dbe6ddb65deaa506d96`；
+- macOS artifact：`ai-corporation-macos-arm64`，ID `8821630948`，上传包 SHA-256 `93bec8cb0a61a9766dee99cb9b045a080d3d41dd4c6683afa9252bbdc872acd2`；
+- 本地 Windows NSIS SHA-256：`B1DA707528526A23E181263AEA22501D4A7B366A288B097182F2D00ED70B1AA1`；包内 Native Core SHA-256：`ACDBD55FF932A593D2796E670C77F8423E35BB093C83F9624139DF79B2F186AF`；
+- `pnpm check`：协议 24、Storage 67、Desktop 77、Native Core 7、Workspace Rust 7 项通过；状态/合同、format、lint、typecheck、Rust fmt/clippy、secret scan 与 `git diff --check` 全部通过；
+- P0/P1 为 0，未执行必检项为 0；fixture、应用数据与本地加密密钥测试目录清理成功。
+
+本任务只关闭应用自管 Provider 配置/Key Vault 垂直切片；Provider 网络连接、用量、Goal/Plan、完整 Onboarding、Milestone 2 和公开发布仍未完成。
