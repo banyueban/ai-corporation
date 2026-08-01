@@ -3,83 +3,78 @@
 | 属性 | 当前值 |
 |---|---|
 | 当前产品版本 | v0.1 MVP |
-| 当前阶段 | Milestone 1 已完成，阶段改进已落地 |
-| 当前 Milestone | Milestone 1：本地项目骨架（完成） |
-| 当前任务单元 | M1-TU-06（完成） |
+| 当前阶段 | Milestone 2 首个任务单元合同就绪 |
+| 当前 Milestone | Milestone 2：Provider 与 Goal/Plan |
+| 当前任务单元 | M2-TU-01（就绪） |
 | 总体状态 | 进行中 |
 | 最近更新 | 2026-08-01 |
-| 下一检查点 | 建立并审查 Milestone 2 首个任务合同 |
+| 下一检查点 | M2-TU-01 OS 安全存储边界实施与验收 |
 
 ## 1. 当前结论
 
-Milestone 1 的 `M1-TU-01` 至 `M1-TU-06` 已全部完成，Milestone L3 交付物、真实窗口演示、恢复/升级回归、Windows x64 与 macOS Apple Silicon 最终包均已通过，未执行的必检项为 0，已知未解决 P0/P1 为 0。
+Milestone 1 已完成并经用户人工安装验收；当前没有已知未解决 P0/P1。Milestone 2 已进入首个解耦任务单元：[M2-TU-01 OS 安全存储边界](docs/06-engineering/task-units/M2-TU-01-os-secure-store-boundary.md)。合同范围、依赖、接口、所有权、隔离和 14 项验收断言已明确，基线为 `926c1a5d5d9664a901e79b6b0035f7bc43e76583`，当前状态为“就绪”。
 
-M1-TU-06 的收口验收提交为 `f0da1b9ee0e674565ed4f096e632e222a808efea`。GitHub Actions run `30696262759` 在该提交上完成双平台工程检查、开发态 Electron E2E、安装包构建、最终包真实窗口 E2E、清理和制品上传；Windows job `91359586853`、macOS job `91359586818` 均成功。
+本任务只建立 Windows Credential Manager/macOS Keychain → Native Core → Electron Main 的密钥边界。Provider 配置、连接测试、模型调用、Renderer Key 表单、Goal Engine、Planner、Task Graph 和 Plan Review 不属于当前任务，Milestone 2 尚未完成。
 
-该结论只关闭 Milestone 1 的本地项目骨架，不代表真实 Provider、Plan、Task Graph、Agent/Tool 执行、未知外部副作用恢复、Milestone 2 或公开发布已经完成。
+## 2. 已完成基线
 
-## 2. Milestone 1 实施状态
+- Milestone 0：跨平台工程、Native Core health、SQLite migration runner、CI 和最终包 E2E；
+- Milestone 1：Workspace、Corporation CRUD、Goal Contract、最小时间线、暂停/继续和应用重启恢复；
+- M1-TU-01 至 M1-TU-06 全部完成，未执行必检项为 0，P0/P1 为 0；
+- 收口提交 `926c1a5d5d9664a901e79b6b0035f7bc43e76583` 的 GitHub Actions run `30696494722` 在 Windows/macOS 完整通过；
+- 本地 Windows NSIS 安装包已从该提交重新构建，同源最终应用真实窗口重启恢复旅程通过，并由用户完成人工验收。
 
-- [x] Workspace 选择、授权、重新验证、公开展示和持久化恢复；
-- [x] Corporation 创建、读取、重命名和归档，不提供删除；
-- [x] Goal Contract 手工/本地确定性 Mock、版本保存和确认，不接真实模型或 Task Graph；
-- [x] SQLite Workspace、Corporation、Goal、Event 与恢复回执表及 `0001`–`0005` 升级；
-- [x] Corporation 状态与 Domain Event 同事务提交及最小时间线；
-- [x] 安全暂停、Renderer reload、应用进程重启、SQLite 重开和继续，启动不重复已提交副作用；
-- [x] Windows x64 与 macOS Apple Silicon 开发态/最终包真实窗口演示和 artifact 上传。
+## 3. Milestone 2 范围状态
 
-## 3. L3 关闭映射
+- [ ] OS 安全存储；
+- [ ] OpenAI 风格 Provider + Mock Provider；
+- [ ] 连接测试、错误归一化和用量；
+- [ ] Goal Engine；
+- [ ] Planner 结构化输出与最多一次 JSON 修复；
+- [ ] DAG、输入输出和验收验证；
+- [ ] Plan Review 编辑与批准 UI；
+- [ ] Windows/macOS Milestone 级真实窗口与最终包验收。
 
-| 退出条件 | 当前直接证据 |
-|---|---|
-| Workspace 选择、权限、重新验证和恢复 | `M1-TU-01` 至 `M1-TU-03` 合同完成；跨平台真实窗口选择、授权、reload 与 restore 回归通过 |
-| Corporation CRUD 与事务事件 | `M1-TU-04` 合同完成；状态、版本和 Event 原子写入、幂等、并发与 SQLite 重开测试通过 |
-| Goal Contract 与最小时间线 | `M1-TU-05` 合同完成；手工/Mock、版本、确认、冲突、故障恢复和时间线通过 |
-| 暂停、应用重启和无重复恢复 | `M1-TU-06` 合同 15 项完成；PAUSED/DRAFT 分别覆盖 reload、进程重启和 SQLite 重开，启动事件/回执计数不变 |
-| 完整 Milestone 演示 | run `30696262759` 的开发态与最终包真实窗口完成 Workspace → Corporation → Goal → pause → 应用重启 → restore → resume |
-| 安全、平台与回归 | 工作区外路径由 Rust 拒绝；旧迁移/Native Core health/安全 IPC/axe/清理通过；Windows/macOS jobs 均成功；P0/P1 为 0 |
+这些是 Milestone 范围，不是一个任务单元的完成清单。当前只允许实施 M2-TU-01；相邻能力必须另建合同并达到“就绪”。
 
-最终包日志记录：`pause · reload · process restart · read-only restore · resume · reload · process restart`。Windows artifact `8817398343`，macOS artifact `8817366259`。
+## 4. 当前任务边界
 
-## 4. 阶段复盘改进
+M2-TU-01 交付：
 
-本阶段不另建历史复盘文档；经验已直接进入当前规范和自动化：
+- 独立 Rust `secure-store` 平台适配；
+- 版本化、鉴权、严格的 `secure_store.status/set/get/delete` Native RPC；
+- 仅 Electron Main 可用的 typed 客户端方法；
+- Windows Credential Manager 与 macOS Keychain 真实生命周期、重启、隔离、清理和最终包证据；
+- Key 不进入 SQLite、Renderer、日志、错误、截图或诊断文本。
 
-- `PROJECT_STATUS.md` 只记录当前事实，状态校验器阻止已完成事项错放在“尚未开始”区；
-- 验收合同在最终候选提交前展开为“状态 × 恢复机制 × 产物形态 × 平台”的证据矩阵，复合断言不得以单一路径代替；
-- 进程存活、构建成功不能代替真实可交互窗口和最终包旅程；
-- fixture 验证使用受控任务 ID 格式，测试同时覆盖当前、后续合法和非法前缀，不再硬编码前一任务；
-- 键盘/焦点、进程重启、持久化恢复和清理分别验收，除非产品合同要求，不把领域恢复绑定到 OS 焦点恢复；
-- 用户指定的 GitHub 仓库不存在时，创建仓库属于初始化流程，不作为停止初始化的默认理由。
+非范围：Provider 表/迁移、Provider HTTP/连接测试、Onboarding/Settings UI、Goal/Plan 和真实模型调用。
 
 ## 5. 活跃阻塞与外部条件
 
-当前无产品、架构、验收或仓库同步阻塞。
+当前无产品、架构、验收或仓库阻塞。
 
-已知发布条件：
+已知条件：
 
-- 系统 PATH 未提供 Node.js；当前工程验证使用 Codex bundled Node.js；
-- 应用自身保持 Chromium `sandbox: true`；Electron GUI E2E 在允许启动真实窗口的验收环境执行；
-- 应用签名与 macOS notarization 不属于 Milestone 1，但属于公开发布前置条件。
+- 系统 PATH 未提供 Node.js，工程验证使用 Codex bundled Node.js；
+- Windows 本地可验证 Credential Manager；macOS Keychain 必须由 macOS CI 提供真实平台证据；
+- 应用签名与 macOS notarization 不属于当前任务，但属于公开发布前置条件。
 
 ## 6. 当前验证摘要
 
-- M1-TU-01 至 M1-TU-06 合同均为“完成”，合同未勾选项为 0；
-- 本地 `pnpm check` 通过：治理、格式、lint、TypeScript、协议 20 项、Storage 61 项、Desktop 60 项、Rust 测试/fmt/clippy 与 secret scan 均通过；
-- M1-TU-06 本地开发态和 Windows 最终目录包真实窗口旅程、Native Core health、Mock 网络请求 0、axe 严重/关键违规 0、布局截图人工检查和临时资源清理通过；
-- GitHub Actions run `30696262759` 对提交 `f0da1b9ee0e674565ed4f096e632e222a808efea` 的 Windows job `91359586853` 与 macOS job `91359586818` 全部成功；
-- 两个平台均通过工程检查、开发态真实窗口、最终包完整重启恢复旅程、清理和 artifact 上传；
-- Milestone 1 必需验证未执行项为 0，已知未解决 P0/P1 为 0。
+- `main` 与 `origin/main` 位于 `926c1a5d5d9664a901e79b6b0035f7bc43e76583`，建立合同时工作区无源代码改动；
+- M1-TU-01 至 M1-TU-06 合同均为“完成”；
+- M2-TU-01 合同已展开平台、进程生命周期、产物形态和机密性证据维度；
+- 当前尚未产生 M2-TU-01 实现或验收证据，不得把合同就绪表述为 OS 安全存储已完成。
 
 ## 7. 下一步
 
-在开始 Milestone 2 实现前，依据 MVP Plan 建立首个任务合同，完成范围、接口、所有权、隔离、风险与证据矩阵审查并达到“就绪”。Milestone 1 的完成不自动授权实施 Milestone 2。
+运行合同结构和项目状态门禁；通过后提交合同基线。随后将 M2-TU-01 标记为“进行中”，按合同实现并取得 Windows/macOS 真实 OS 安全存储及最终包证据。
 
 ## 8. 更新规则
 
 - 只记录当前事实，不追加时间线或已失效结论；历史变化由 Git 和 CI 保存；
 - 功能、任务或 Milestone 只有通过全部适用验收后才能标记“完成”；
-- 设计文档存在不等于功能已经实现；
+- 设计文档存在或合同就绪不等于功能已经实现；
 - 当前任务状态必须与对应任务合同一致；
 - 任务通过只关闭自身，不自动推动相邻任务或 Milestone；
 - 新阻塞只进入“活跃阻塞”，解除后直接删除；
