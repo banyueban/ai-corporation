@@ -13,11 +13,13 @@ import {
   GOAL_CONTRACT_SAVE_DRAFT_IPC_CHANNEL,
   NATIVE_HEALTH_IPC_CHANNEL,
   PROVIDER_CANCEL_CONNECTION_TEST_IPC_CHANNEL,
+  PROVIDER_CANCEL_GENERATION_TEST_IPC_CHANNEL,
   PROVIDER_DELETE_KEY_IPC_CHANNEL,
   PROVIDER_LIST_IPC_CHANNEL,
   PROVIDER_REVEAL_KEY_IPC_CHANNEL,
   PROVIDER_SAVE_IPC_CHANNEL,
   PROVIDER_TEST_CONNECTION_IPC_CHANNEL,
+  PROVIDER_TEST_GENERATION_IPC_CHANNEL,
   TIMELINE_LIST_IPC_CHANNEL,
   WORKSPACE_LIST_IPC_CHANNEL,
   WORKSPACE_REVALIDATE_IPC_CHANNEL,
@@ -65,11 +67,13 @@ import {
 import { GoalContractService } from "./goal-contract-service";
 import {
   handleProviderCancelConnectionTest,
+  handleProviderCancelGenerationTest,
   handleProviderDeleteKey,
   handleProviderList,
   handleProviderRevealKey,
   handleProviderSave,
   handleProviderTestConnection,
+  handleProviderTestGeneration,
 } from "./provider-ipc";
 import { ProviderKeyVault } from "./provider-key-vault";
 import { ProviderService } from "./provider-service";
@@ -203,6 +207,24 @@ void app.whenReady().then(async () => {
     PROVIDER_CANCEL_CONNECTION_TEST_IPC_CHANNEL,
     (event: IpcMainInvokeEvent, request: unknown) =>
       handleProviderCancelConnectionTest(
+        isTrustedRenderer(event),
+        request,
+        providerService,
+      ),
+  );
+  ipcMain.handle(
+    PROVIDER_TEST_GENERATION_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleProviderTestGeneration(
+        isTrustedRenderer(event),
+        request,
+        providerService,
+      ),
+  );
+  ipcMain.handle(
+    PROVIDER_CANCEL_GENERATION_TEST_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleProviderCancelGenerationTest(
         isTrustedRenderer(event),
         request,
         providerService,
@@ -476,6 +498,8 @@ app.on("before-quit", () => {
   ipcMain.removeHandler(PROVIDER_LIST_IPC_CHANNEL);
   ipcMain.removeHandler(PROVIDER_TEST_CONNECTION_IPC_CHANNEL);
   ipcMain.removeHandler(PROVIDER_CANCEL_CONNECTION_TEST_IPC_CHANNEL);
+  ipcMain.removeHandler(PROVIDER_TEST_GENERATION_IPC_CHANNEL);
+  ipcMain.removeHandler(PROVIDER_CANCEL_GENERATION_TEST_IPC_CHANNEL);
   ipcMain.removeHandler(PROVIDER_SAVE_IPC_CHANNEL);
   ipcMain.removeHandler(PROVIDER_REVEAL_KEY_IPC_CHANNEL);
   ipcMain.removeHandler(PROVIDER_DELETE_KEY_IPC_CHANNEL);

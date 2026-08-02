@@ -688,7 +688,8 @@ h3 {
   padding-top: 0.5rem;
 }
 
-.provider-connection-panel {
+.provider-connection-panel,
+.provider-generation-panel {
   display: grid;
   gap: 12px;
   padding: 16px;
@@ -698,7 +699,9 @@ h3 {
 }
 
 .provider-connection-panel h3,
-.provider-connection-panel p {
+.provider-connection-panel p,
+.provider-generation-panel h3,
+.provider-generation-panel p {
   margin: 0;
 }
 
@@ -709,6 +712,18 @@ h3 {
   overflow: auto;
   font-family: Consolas, "SFMono-Regular", monospace;
   font-size: 13px;
+}
+
+.provider-generation-result blockquote {
+  margin: 0.75rem 0;
+  max-height: 12rem;
+  overflow: auto;
+  padding: 0.75rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--surface-subtle, #f4f5f7);
+  border-left: 3px solid var(--accent, #4f46e5);
+  color: #111827;
 }
 
 .danger-button {

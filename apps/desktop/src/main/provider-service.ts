@@ -2,7 +2,10 @@ import { createHash } from "node:crypto";
 import {
   type ProviderCancelConnectionTestRequest,
   type ProviderCancelConnectionTestResult,
+  type ProviderCancelGenerationTestRequest,
+  type ProviderCancelGenerationTestResult,
   type ProviderConnectionTestResult,
+  type ProviderGenerationTestResult,
   type ProviderDeleteKeyRequest,
   type ProviderErrorCode,
   type ProviderItemResult,
@@ -11,9 +14,10 @@ import {
   type ProviderRevealKeyResult,
   type ProviderSaveRequest,
   type ProviderTestConnectionRequest,
+  type ProviderTestGenerationRequest,
 } from "@ai-corporation/protocols";
 import {
-  OpenAiCompatibleProvider,
+  OpenAiChatCompletionsAdapter,
   ProviderAdapterConfigError,
   ProviderAdapterError,
   type ModelProvider,
@@ -21,6 +25,7 @@ import {
 import {
   ProviderCommandConflictError,
   ProviderDataError,
+  ProviderModelSelectionError,
   ProviderNotFoundError,
   type ProviderRepository,
   ProviderVersionConflictError,
@@ -41,6 +46,7 @@ type Repository = Pick<
   | "list"
   | "save"
   | "saveConnectionTest"
+  | "saveGenerationTest"
 >;
 
 type ActiveConnectionTest = {
@@ -52,7 +58,11 @@ export class ProviderService {
   readonly #activeConnectionTests = new Map<string, ActiveConnectionTest>();
   readonly #finishedConnectionTestIds = new Set<string>();
   readonly #finishedConnectionTestOrder: string[] = [];
-  readonly #adapter: ModelProvider;
+  readonly #activeGenerationTests = new Map<string, ActiveConnectionTest>();
+  readonly #finishedGenerationTestIds = new Set<string>();
+  readonly #finishedGenerationTestOrder: string[] = [];
+  readonly #adapterOverride: ModelProvider | undefined;
+  readonly #adapters: ReadonlyMap<string, ModelProvider>;
   readonly #repository: Repository;
   readonly #uuid: () => string;
   readonly #vault: ProviderKeyVault;
@@ -60,12 +70,17 @@ export class ProviderService {
   constructor(options: {
     readonly clock?: () => string;
     readonly adapter?: ModelProvider;
+    readonly adapters?: readonly ModelProvider[];
     readonly repository: Repository;
     readonly uuid?: () => string;
     readonly vault: ProviderKeyVault;
   }) {
     this.#clock = options.clock ?? (() => new Date().toISOString());
-    this.#adapter = options.adapter ?? new OpenAiCompatibleProvider();
+    this.#adapterOverride = options.adapter;
+    const adapters = options.adapters ?? [new OpenAiChatCompletionsAdapter()];
+    this.#adapters = new Map(
+      adapters.map((adapter) => [adapter.descriptor().dialect, adapter]),
+    );
     this.#repository = options.repository;
     this.#uuid = options.uuid ?? createUuidV7;
     this.#vault = options.vault;
@@ -117,6 +132,15 @@ export class ProviderService {
           name: request.name,
           endpoint: request.endpoint,
           configStatus: request.configStatus,
+          ...(request.apiDialect === undefined
+            ? {}
+            : { apiDialect: request.apiDialect }),
+          ...(request.selectedModelId === undefined
+            ? {}
+            : { selectedModelId: request.selectedModelId }),
+          ...(request.generationTimeoutMs === undefined
+            ? {}
+            : { generationTimeoutMs: request.generationTimeoutMs }),
           now: this.#clock(),
         }),
       };
@@ -185,7 +209,9 @@ export class ProviderService {
       };
       this.#activeConnectionTests.set(request.requestId, active);
       try {
-        const models = await this.#adapter.listModels(
+        const models = await this.#resolveAdapter(
+          provider.apiDialect ?? "CHAT_COMPLETIONS",
+        ).listModels(
           { endpoint: provider.endpoint, key },
           active.controller.signal,
         );
@@ -258,12 +284,147 @@ export class ProviderService {
     };
   }
 
+  async testGeneration(
+    request: ProviderTestGenerationRequest,
+  ): Promise<ProviderGenerationTestResult> {
+    if (
+      this.#activeGenerationTests.has(request.requestId) ||
+      this.#finishedGenerationTestIds.has(request.requestId)
+    ) {
+      return generationTestFailure("ALREADY_GENERATING");
+    }
+    let active: ActiveConnectionTest | undefined;
+    try {
+      const provider = this.#repository.get(request.providerId);
+      if (provider === undefined) return generationTestFailure("NOT_FOUND");
+      if (provider.version !== request.expectedVersion) {
+        return generationTestFailure("CONFLICT");
+      }
+      if (provider.configStatus !== "ENABLED") {
+        return generationTestFailure("DISABLED");
+      }
+      if (!provider.hasKey) return generationTestFailure("MISSING_KEY");
+      if (provider.connectionTest?.status !== "VERIFIED") {
+        return generationTestFailure("UNVERIFIED");
+      }
+      if (provider.selectedModelId === undefined) {
+        return generationTestFailure("MODEL_NOT_SELECTED");
+      }
+      if (
+        !provider.connectionTest.models.some(
+          ({ id }) => id === provider.selectedModelId,
+        )
+      ) {
+        return generationTestFailure("MODEL_STALE");
+      }
+      const stored = this.#repository.getEncryptedKey(request.providerId);
+      const key = this.#vault.decrypt(stored.encrypted, stored.entryId);
+      active = { controller: new AbortController() };
+      this.#activeGenerationTests.set(request.requestId, active);
+      try {
+        const response = await this.#resolveAdapter(
+          provider.apiDialect ?? "CHAT_COMPLETIONS",
+        ).generate(
+          {
+            endpoint: provider.endpoint,
+            key,
+            generationTimeoutMs: provider.generationTimeoutMs ?? 60_000,
+          },
+          {
+            modelId: provider.selectedModelId,
+            input: request.input,
+            maxOutputTokens: request.maxOutputTokens,
+            ...(request.temperature === undefined
+              ? {}
+              : { temperature: request.temperature }),
+          },
+          active.controller.signal,
+        );
+        return {
+          ok: true,
+          value: this.#repository.saveGenerationTest({
+            providerId: provider.id,
+            expectedVersion: provider.version,
+            snapshot: {
+              status: "SUCCEEDED",
+              providerVersion: provider.version,
+              modelId: response.modelId,
+              outputPreview: createOutputPreview(response.outputParts),
+              stopReason: response.stopReason,
+              usage: response.usage,
+              completedAt: this.#clock(),
+            },
+          }),
+        };
+      } catch (error) {
+        if (
+          error instanceof ProviderAdapterError &&
+          error.failure.reason === "CANCELLED"
+        ) {
+          return generationTestFailure("CANCELLED");
+        }
+        const failure = normalizeAdapterFailure(error);
+        return {
+          ok: true,
+          value: this.#repository.saveGenerationTest({
+            providerId: provider.id,
+            expectedVersion: provider.version,
+            snapshot: {
+              status: "FAILED",
+              providerVersion: provider.version,
+              modelId: provider.selectedModelId,
+              failure,
+              completedAt: this.#clock(),
+            },
+          }),
+        };
+      }
+    } catch (error) {
+      return generationTestFailure(mapGenerationTestError(error));
+    } finally {
+      if (
+        active !== undefined &&
+        this.#activeGenerationTests.get(request.requestId) === active
+      ) {
+        this.#activeGenerationTests.delete(request.requestId);
+        rememberFinished(
+          request.requestId,
+          this.#finishedGenerationTestIds,
+          this.#finishedGenerationTestOrder,
+        );
+      }
+    }
+  }
+
+  cancelGenerationTest(
+    request: ProviderCancelGenerationTestRequest,
+  ): ProviderCancelGenerationTestResult {
+    const active = this.#activeGenerationTests.get(request.requestId);
+    if (active === undefined) return generationCancellationFailure("NOT_FOUND");
+    active.controller.abort();
+    return {
+      ok: true,
+      value: {
+        schemaVersion: 1,
+        requestId: request.requestId,
+        cancelled: true,
+      },
+    };
+  }
+
   #rememberFinishedConnectionTest(requestId: string): void {
-    this.#finishedConnectionTestIds.add(requestId);
-    this.#finishedConnectionTestOrder.push(requestId);
-    if (this.#finishedConnectionTestOrder.length <= 1_024) return;
-    const expired = this.#finishedConnectionTestOrder.shift();
-    if (expired !== undefined) this.#finishedConnectionTestIds.delete(expired);
+    rememberFinished(
+      requestId,
+      this.#finishedConnectionTestIds,
+      this.#finishedConnectionTestOrder,
+    );
+  }
+
+  #resolveAdapter(dialect: string): ModelProvider {
+    if (this.#adapterOverride !== undefined) return this.#adapterOverride;
+    const adapter = this.#adapters.get(dialect);
+    if (adapter === undefined) throw new ProviderAdapterConfigError();
+    return adapter;
   }
 }
 
@@ -283,6 +444,7 @@ function mapError(error: unknown): ProviderErrorCode {
   if (error instanceof ProviderCommandConflictError) {
     return "IDEMPOTENCY_CONFLICT";
   }
+  if (error instanceof ProviderModelSelectionError) return "INVALID_REQUEST";
   if (error instanceof VaultKeyUnavailableError) {
     return "VAULT_KEY_UNAVAILABLE";
   }
@@ -293,6 +455,62 @@ function mapError(error: unknown): ProviderErrorCode {
     return "VAULT_INTEGRITY_FAILED";
   }
   return "STORAGE_UNAVAILABLE";
+}
+
+function mapGenerationTestError(
+  error: unknown,
+):
+  | "NOT_FOUND"
+  | "CONFLICT"
+  | "VAULT_KEY_UNAVAILABLE"
+  | "VAULT_INTEGRITY_FAILED"
+  | "STORAGE_UNAVAILABLE" {
+  return mapConnectionTestError(error);
+}
+
+function generationTestFailure(
+  code:
+    | "NOT_FOUND"
+    | "CONFLICT"
+    | "MISSING_KEY"
+    | "DISABLED"
+    | "UNVERIFIED"
+    | "MODEL_NOT_SELECTED"
+    | "MODEL_STALE"
+    | "ALREADY_GENERATING"
+    | "CANCELLED"
+    | "VAULT_KEY_UNAVAILABLE"
+    | "VAULT_INTEGRITY_FAILED"
+    | "STORAGE_UNAVAILABLE",
+): ProviderGenerationTestResult {
+  return {
+    ok: false,
+    error: { code, message: "Provider generation test failed" },
+  };
+}
+
+function generationCancellationFailure(
+  code: "NOT_FOUND" | "STORAGE_UNAVAILABLE",
+): ProviderCancelGenerationTestResult {
+  return {
+    ok: false,
+    error: {
+      code,
+      message: "Provider generation test cancellation failed",
+    },
+  };
+}
+
+function rememberFinished(
+  requestId: string,
+  ids: Set<string>,
+  order: string[],
+): void {
+  ids.add(requestId);
+  order.push(requestId);
+  if (order.length <= 1_024) return;
+  const expired = order.shift();
+  if (expired !== undefined) ids.delete(expired);
 }
 
 function normalizeAdapterFailure(error: unknown) {
@@ -359,4 +577,11 @@ function requestHash(value: Readonly<Record<string, unknown>>): string {
   return createHash("sha256")
     .update(JSON.stringify(value), "utf8")
     .digest("hex");
+}
+
+function createOutputPreview(
+  parts: readonly { readonly kind: "TEXT"; readonly text: string }[],
+): string {
+  const value = parts.map(({ text }) => text).join("\n");
+  return value.length <= 65_536 ? value : value.slice(0, 65_536);
 }

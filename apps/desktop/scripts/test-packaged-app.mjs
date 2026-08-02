@@ -55,6 +55,10 @@ try {
   let page = await waitForApplicationPage(browser);
   const externalRequests = [];
   const evidenceDirectory = path.join(repositoryDirectory, "release");
+  const providerGenerationEvidencePath = path.join(
+    evidenceDirectory,
+    "m2-tu04-packaged-win32-x64-generation.png",
+  );
   mkdirSync(evidenceDirectory, { recursive: true });
   page.on("request", (request) => {
     if (/^https?:/u.test(request.url())) externalRequests.push(request.url());
@@ -97,6 +101,7 @@ try {
     .getByRole("heading", { name: "Verified" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   await page
+    .locator(".provider-connection-panel")
     .getByText("packaged-fixture-model")
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   if (
@@ -108,6 +113,37 @@ try {
   ) {
     throw new Error("Packaged Provider connection request was not observed");
   }
+  await page.getByLabel("Model").selectOption("packaged-fixture-model");
+  await page.getByLabel("Generation timeout (seconds)").fill("60");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await page
+    .locator(".provider-status")
+    .filter({ hasText: "Provider updated." })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page.getByRole("button", { name: "Test generation" }).click();
+  await page
+    .getByRole("heading", { name: "Generation succeeded" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page
+    .getByText("Packaged fixture acknowledged.")
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  const generationRequest = providerFixture.requests.find(
+    ({ path: requestPath }) => requestPath === "/success/chat/completions",
+  );
+  if (
+    generationRequest?.authorization !== `Bearer ${providerReplacement}` ||
+    generationRequest.body?.model !== "packaged-fixture-model" ||
+    generationRequest.body?.max_tokens !== 32 ||
+    generationRequest.body?.temperature !== 0 ||
+    generationRequest.body?.stream !== false
+  ) {
+    throw new Error("Packaged Provider generation request was not observed");
+  }
+  await page.screenshot({
+    animations: "disabled",
+    fullPage: true,
+    path: providerGenerationEvidencePath,
+  });
   assertPackagedSecretAbsent(providerSecret);
   assertPackagedSecretAbsent(providerReplacement);
   const masterKeyPath = path.join(
@@ -472,6 +508,12 @@ try {
     "Packaged Provider connection verified: success · restart restore · authentication failure · 10s diagnostic · 15s timeout · cancel · reset",
   );
   console.log(
+    "Packaged Provider generation verified: exact model · Chat Completions non-streaming · normalized usage · persisted preview",
+  );
+  console.log(
+    `Provider generation screenshot: ${providerGenerationEvidencePath}`,
+  );
+  console.log(
     `Provider connection screenshot: ${providerConnectionEvidencePath}`,
   );
   console.log(`Paused restart screenshot: ${pausedEvidencePath}`);
@@ -515,6 +557,40 @@ try {
 async function startProviderFixture() {
   const requests = [];
   const server = createServer((request, response) => {
+    if (request.url === "/success/chat/completions") {
+      const chunks = [];
+      request.on("data", (chunk) => chunks.push(chunk));
+      request.on("end", () => {
+        const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+        requests.push({
+          path: request.url ?? "",
+          authorization: request.headers.authorization,
+          body,
+        });
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(
+          JSON.stringify({
+            model: "packaged-fixture-model",
+            choices: [
+              {
+                index: 0,
+                message: {
+                  role: "assistant",
+                  content: "Packaged fixture acknowledged.",
+                },
+                finish_reason: "stop",
+              },
+            ],
+            usage: {
+              prompt_tokens: 11,
+              completion_tokens: 3,
+              total_tokens: 14,
+            },
+          }),
+        );
+      });
+      return;
+    }
     requests.push({
       path: request.url ?? "",
       authorization: request.headers.authorization,

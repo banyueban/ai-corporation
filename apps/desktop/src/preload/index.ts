@@ -40,14 +40,19 @@ import {
   healthResultSchema,
   NATIVE_HEALTH_IPC_CHANNEL,
   PROVIDER_CANCEL_CONNECTION_TEST_IPC_CHANNEL,
+  PROVIDER_CANCEL_GENERATION_TEST_IPC_CHANNEL,
   PROVIDER_DELETE_KEY_IPC_CHANNEL,
   PROVIDER_LIST_IPC_CHANNEL,
   PROVIDER_REVEAL_KEY_IPC_CHANNEL,
   PROVIDER_SAVE_IPC_CHANNEL,
   PROVIDER_TEST_CONNECTION_IPC_CHANNEL,
+  PROVIDER_TEST_GENERATION_IPC_CHANNEL,
   providerCancelConnectionTestRequestSchema,
   providerCancelConnectionTestResultSchema,
+  providerCancelGenerationTestRequestSchema,
+  providerCancelGenerationTestResultSchema,
   providerConnectionTestResultSchema,
+  providerGenerationTestResultSchema,
   providerDeleteKeyRequestSchema,
   providerItemResultSchema,
   providerListRequestSchema,
@@ -56,12 +61,15 @@ import {
   providerRevealKeyResultSchema,
   providerSaveRequestSchema,
   providerTestConnectionRequestSchema,
+  providerTestGenerationRequestSchema,
   type ProviderCancelConnectionTestRequest,
+  type ProviderCancelGenerationTestRequest,
   type ProviderDeleteKeyRequest,
   type ProviderListRequest,
   type ProviderRevealKeyRequest,
   type ProviderSaveRequest,
   type ProviderTestConnectionRequest,
+  type ProviderTestGenerationRequest,
   TIMELINE_LIST_IPC_CHANNEL,
   timelineListRequestSchema,
   timelineListResultSchema,
@@ -173,6 +181,15 @@ const desktopApi: DesktopApi = Object.freeze({
           providerCancelConnectionTestRequestSchema.parse(request),
         ),
       ),
+    cancelGenerationTest: async (
+      request: ProviderCancelGenerationTestRequest,
+    ) =>
+      providerCancelGenerationTestResultSchema.parse(
+        await ipcRenderer.invoke(
+          PROVIDER_CANCEL_GENERATION_TEST_IPC_CHANNEL,
+          providerCancelGenerationTestRequestSchema.parse(request),
+        ),
+      ),
     deleteKey: async (request: ProviderDeleteKeyRequest) =>
       providerItemResultSchema.parse(
         await ipcRenderer.invoke(
@@ -206,6 +223,13 @@ const desktopApi: DesktopApi = Object.freeze({
         await ipcRenderer.invoke(
           PROVIDER_TEST_CONNECTION_IPC_CHANNEL,
           providerTestConnectionRequestSchema.parse(request),
+        ),
+      ),
+    testGeneration: async (request: ProviderTestGenerationRequest) =>
+      providerGenerationTestResultSchema.parse(
+        await ipcRenderer.invoke(
+          PROVIDER_TEST_GENERATION_IPC_CHANNEL,
+          providerTestGenerationRequestSchema.parse(request),
         ),
       ),
   }),

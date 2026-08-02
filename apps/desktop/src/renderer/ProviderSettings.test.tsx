@@ -4,6 +4,9 @@ import {
   connectionFailureMessage,
   connectionLabel,
   connectionOperationMessage,
+  generationFailureMessage,
+  generationLabel,
+  generationOperationMessage,
   validateProviderEndpointForUi,
 } from "./ProviderSettings";
 
@@ -81,4 +84,52 @@ describe("ProviderSettings connection view model", () => {
       /HTTP/iu,
     );
   });
+
+  it("keeps generation status dialect-neutral and separate from runtime health", () => {
+    expect(generationLabel({ status: "IDLE" })).toBe("Not tested");
+    expect(
+      generationLabel({
+        status: "SUCCEEDED",
+        providerVersion: 1,
+        modelId: "model-a",
+        outputPreview: "ok",
+        stopReason: "COMPLETED",
+        usage: { costSource: "UNKNOWN" },
+        completedAt: "2026-08-02T04:00:00.000Z",
+      }),
+    ).toBe("Generation succeeded");
+  });
+
+  it.each([
+    "NOT_FOUND",
+    "CONFLICT",
+    "MISSING_KEY",
+    "DISABLED",
+    "UNVERIFIED",
+    "MODEL_NOT_SELECTED",
+    "MODEL_STALE",
+    "ALREADY_GENERATING",
+    "VAULT_KEY_UNAVAILABLE",
+    "VAULT_INTEGRITY_FAILED",
+    "STORAGE_UNAVAILABLE",
+  ])(
+    "maps generation operation %s without leaking or claiming success",
+    (code) => {
+      const message = generationOperationMessage(code);
+      expect(message.length).toBeGreaterThan(20);
+      expect(message).not.toMatch(
+        /bearer|authorization|raw response|success/iu,
+      );
+    },
+  );
+
+  it.each([
+    "MODEL_NOT_FOUND",
+    "CONTENT_FILTER",
+  ] satisfies readonly ProviderFailureReason[])(
+    "provides an actionable generation failure for %s",
+    (reason) => {
+      expect(generationFailureMessage(reason).length).toBeGreaterThan(20);
+    },
+  );
 });

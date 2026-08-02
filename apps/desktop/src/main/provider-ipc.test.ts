@@ -2,11 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 import type { ProviderPublic } from "@ai-corporation/protocols";
 import {
   handleProviderCancelConnectionTest,
+  handleProviderCancelGenerationTest,
   handleProviderDeleteKey,
   handleProviderList,
   handleProviderRevealKey,
   handleProviderSave,
   handleProviderTestConnection,
+  handleProviderTestGeneration,
 } from "./provider-ipc";
 
 const provider: ProviderPublic = {
@@ -31,6 +33,14 @@ const service = {
       cancelled: true as const,
     },
   })),
+  cancelGenerationTest: vi.fn(() => ({
+    ok: true as const,
+    value: {
+      schemaVersion: 1 as const,
+      requestId: "019b7f4d-a000-7000-8000-000000000055",
+      cancelled: true as const,
+    },
+  })),
   list: vi.fn(() => ({ ok: true as const, value: [provider] })),
   save: vi.fn(() => ({ ok: true as const, value: provider })),
   revealKey: vi.fn(() => ({
@@ -52,6 +62,22 @@ const service = {
       providerVersion: 1,
       testedAt: "2026-08-02T00:00:00.000Z",
       models: [],
+    },
+  })),
+  testGeneration: vi.fn(async () => ({
+    ok: true as const,
+    value: {
+      status: "SUCCEEDED" as const,
+      providerVersion: 1,
+      modelId: "fixture-model-a",
+      outputPreview: "Acknowledged.",
+      stopReason: "COMPLETED" as const,
+      usage: {
+        inputTokens: 8,
+        outputTokens: 2,
+        costSource: "UNKNOWN" as const,
+      },
+      completedAt: "2026-08-02T00:00:00.000Z",
     },
   })),
 };
@@ -146,6 +172,53 @@ describe("Provider IPC", () => {
     });
     expect(
       handleProviderCancelConnectionTest(
+        false,
+        { schemaVersion: 1, requestId },
+        service,
+      ),
+    ).toMatchObject({ ok: false, error: { code: "UNAUTHORIZED_CALLER" } });
+  });
+
+  it("routes generic generation and rejects forged transport and Chat fields", async () => {
+    const requestId = "019b7f4d-a000-7000-8000-000000000055";
+    const request = {
+      schemaVersion: 1,
+      requestId,
+      providerId: provider.id,
+      expectedVersion: 1,
+      input: [{ actor: "USER", parts: [{ kind: "TEXT", text: "Test" }] }],
+      maxOutputTokens: 32,
+      temperature: 0,
+    };
+    await expect(
+      handleProviderTestGeneration(true, request, service),
+    ).resolves.toMatchObject({ ok: true, value: { status: "SUCCEEDED" } });
+    expect(
+      handleProviderCancelGenerationTest(
+        true,
+        { schemaVersion: 1, requestId },
+        service,
+      ),
+    ).toMatchObject({ ok: true, value: { cancelled: true } });
+
+    for (const forged of [
+      { endpoint: "https://attacker.invalid" },
+      { key: "leak" },
+      { model: "forged-model" },
+      { messages: [{ role: "user", content: "chat-only" }] },
+      { stream: true },
+      { headers: { authorization: "Bearer leak" } },
+      { apiDialect: "RESPONSES" },
+    ]) {
+      await expect(
+        handleProviderTestGeneration(true, { ...request, ...forged }, service),
+      ).resolves.toMatchObject({
+        ok: false,
+        error: { code: "INVALID_REQUEST" },
+      });
+    }
+    expect(
+      handleProviderCancelGenerationTest(
         false,
         { schemaVersion: 1, requestId },
         service,

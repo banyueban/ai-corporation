@@ -1,7 +1,9 @@
 import type {
+  NormalizedUsage,
   ProviderConnectionTestSnapshot,
   ProviderErrorCode,
   ProviderFailureReason,
+  ProviderGenerationTestSnapshot,
   ProviderPublic,
 } from "@ai-corporation/protocols";
 import { useEffect, useRef, useState, type FormEvent } from "react";
@@ -13,6 +15,8 @@ type FormState = {
   readonly endpoint: string;
   readonly key: string;
   readonly configStatus: "ENABLED" | "DISABLED";
+  readonly selectedModelId: string;
+  readonly generationTimeoutSeconds: string;
 };
 
 const emptyForm: FormState = {
@@ -20,6 +24,8 @@ const emptyForm: FormState = {
   endpoint: "https://api.openai.com/v1",
   key: "",
   configStatus: "ENABLED",
+  selectedModelId: "",
+  generationTimeoutSeconds: "60",
 };
 
 export function ProviderSettings() {
@@ -35,6 +41,11 @@ export function ProviderSettings() {
   const [connectionError, setConnectionError] = useState<string>();
   const [endpointError, setEndpointError] = useState<string>();
   const [showConnectionDiagnostic, setShowConnectionDiagnostic] =
+    useState(false);
+  const [activeGenerationRequestId, setActiveGenerationRequestId] =
+    useState<string>();
+  const [generationError, setGenerationError] = useState<string>();
+  const [showGenerationDiagnostic, setShowGenerationDiagnostic] =
     useState(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
 
@@ -69,6 +80,8 @@ export function ProviderSettings() {
     setConnectionError(undefined);
     setShowConnectionDiagnostic(false);
     setEndpointError(undefined);
+    setGenerationError(undefined);
+    setShowGenerationDiagnostic(false);
   };
 
   const startEdit = (provider: ProviderPublic) => {
@@ -78,6 +91,10 @@ export function ProviderSettings() {
       endpoint: provider.endpoint,
       key: "",
       configStatus: provider.configStatus,
+      selectedModelId: provider.selectedModelId ?? "",
+      generationTimeoutSeconds: String(
+        (provider.generationTimeoutMs ?? 60_000) / 1_000,
+      ),
     });
     setShowKey(false);
     setError(undefined);
@@ -85,6 +102,8 @@ export function ProviderSettings() {
     setConnectionError(undefined);
     setShowConnectionDiagnostic(false);
     setEndpointError(undefined);
+    setGenerationError(undefined);
+    setShowGenerationDiagnostic(false);
   };
 
   const testConnection = async () => {
@@ -155,10 +174,93 @@ export function ProviderSettings() {
     }
   };
 
+  const testGeneration = async () => {
+    if (editing === undefined || activeGenerationRequestId !== undefined)
+      return;
+    const requestId = createUuidV7();
+    setActiveGenerationRequestId(requestId);
+    setGenerationError(undefined);
+    setShowGenerationDiagnostic(false);
+    setStatus(
+      `Generating a low-risk test with ${editing.selectedModelId ?? "the selected model"}…`,
+    );
+    const diagnosticTimer = window.setTimeout(
+      () => setShowGenerationDiagnostic(true),
+      10_000,
+    );
+    try {
+      const result = await window.desktop.provider.testGeneration({
+        schemaVersion: 1,
+        requestId,
+        providerId: editing.id,
+        expectedVersion: editing.version,
+        input: [
+          {
+            actor: "USER",
+            parts: [
+              {
+                kind: "TEXT",
+                text: "Return a short acknowledgement that the Provider generation test succeeded.",
+              },
+            ],
+          },
+        ],
+        maxOutputTokens: 32,
+        temperature: 0,
+      });
+      if (!result.ok) {
+        if (result.error.code === "CANCELLED") {
+          setStatus(
+            "Generation test cancelled. The previous result is unchanged.",
+          );
+        } else {
+          setGenerationError(generationOperationMessage(result.error.code));
+          setStatus("");
+        }
+        return;
+      }
+      const updated = { ...editing, generationTest: result.value };
+      setEditing(updated);
+      setProviders((current) => replaceProvider(current, updated));
+      setStatus(
+        result.value.status === "SUCCEEDED"
+          ? "Generation test succeeded. Normalized usage was saved."
+          : generationFailureMessage(result.value.failure.reason),
+      );
+    } catch {
+      setGenerationError(
+        "The generation test could not be completed safely. Retry from Settings.",
+      );
+      setStatus("");
+    } finally {
+      window.clearTimeout(diagnosticTimer);
+      setActiveGenerationRequestId(undefined);
+      setShowGenerationDiagnostic(false);
+    }
+  };
+
+  const cancelGenerationTest = async () => {
+    if (activeGenerationRequestId === undefined) return;
+    try {
+      const result = await window.desktop.provider.cancelGenerationTest({
+        schemaVersion: 1,
+        requestId: activeGenerationRequestId,
+      });
+      if (!result.ok && result.error.code !== "NOT_FOUND") {
+        setGenerationError(
+          "The generation cancellation could not be confirmed.",
+        );
+      }
+    } catch {
+      setGenerationError("The generation cancellation could not be confirmed.");
+    }
+  };
+
   const update = (field: keyof FormState, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
     setError(undefined);
     setStatus("");
+    setGenerationError(undefined);
     if (field === "endpoint") setEndpointError(undefined);
   };
 
@@ -184,6 +286,10 @@ export function ProviderSettings() {
         name: form.name,
         endpoint: form.endpoint,
         configStatus: form.configStatus,
+        apiDialect: "CHAT_COMPLETIONS",
+        selectedModelId:
+          form.selectedModelId.length === 0 ? null : form.selectedModelId,
+        generationTimeoutMs: Number(form.generationTimeoutSeconds) * 1_000,
         ...(form.key.length === 0 ? {} : { key: form.key }),
       });
       if (!result.ok) {
@@ -192,7 +298,14 @@ export function ProviderSettings() {
       }
       setProviders((current) => replaceProvider(current, result.value));
       setEditing(result.value);
-      setForm((current) => ({ ...current, key: "" }));
+      setForm((current) => ({
+        ...current,
+        key: "",
+        selectedModelId: result.value.selectedModelId ?? "",
+        generationTimeoutSeconds: String(
+          (result.value.generationTimeoutMs ?? 60_000) / 1_000,
+        ),
+      }));
       setShowKey(false);
       setStatus(
         editing === undefined ? "Provider saved." : "Provider updated.",
@@ -347,6 +460,13 @@ export function ProviderSettings() {
               </div>
             )}
 
+            {generationError !== undefined && (
+              <div className="provider-error" role="alert">
+                <strong>Generation test was not completed.</strong>
+                <p>{generationError}</p>
+              </div>
+            )}
+
             <label className="field">
               <span>Name</span>
               <input
@@ -391,6 +511,44 @@ export function ProviderSettings() {
                 <option value="ENABLED">Enabled</option>
                 <option value="DISABLED">Disabled</option>
               </select>
+            </label>
+            <label className="field">
+              <span>Model</span>
+              <select
+                disabled={editing?.connectionTest?.status !== "VERIFIED"}
+                onChange={(event) =>
+                  update("selectedModelId", event.target.value)
+                }
+                value={form.selectedModelId}
+              >
+                <option value="">Select a verified model</option>
+                {editing?.connectionTest?.status === "VERIFIED" &&
+                  editing.connectionTest.models.map((model) => (
+                    <option key={model.id} value={model.id}>
+                      {model.id}
+                    </option>
+                  ))}
+              </select>
+              <small>
+                Only models returned by the current verified connection can be
+                selected. The app never substitutes another model.
+              </small>
+            </label>
+            <label className="field">
+              <span>Generation timeout (seconds)</span>
+              <input
+                inputMode="numeric"
+                max={300}
+                min={5}
+                onChange={(event) =>
+                  update("generationTimeoutSeconds", event.target.value)
+                }
+                required
+                step={1}
+                type="number"
+                value={form.generationTimeoutSeconds}
+              />
+              <small>Allowed range: 5–300 seconds. Default: 60.</small>
             </label>
             <div className="field">
               <label htmlFor="provider-api-key">API Key</label>
@@ -453,18 +611,39 @@ export function ProviderSettings() {
               )}
             </div>
             {editing !== undefined && (
-              <ConnectionTestPanel
-                diagnostic={showConnectionDiagnostic}
-                onCancel={() => void cancelConnectionTest()}
-                onTest={() => void testConnection()}
-                snapshot={editing.connectionTest ?? { status: "UNVERIFIED" }}
-                testing={activeTestRequestId !== undefined}
-                testDisabled={
-                  pending ||
-                  !editing.hasKey ||
-                  activeTestRequestId !== undefined
-                }
-              />
+              <>
+                <ConnectionTestPanel
+                  diagnostic={showConnectionDiagnostic}
+                  onCancel={() => void cancelConnectionTest()}
+                  onTest={() => void testConnection()}
+                  snapshot={editing.connectionTest ?? { status: "UNVERIFIED" }}
+                  testing={activeTestRequestId !== undefined}
+                  testDisabled={
+                    pending ||
+                    !editing.hasKey ||
+                    activeTestRequestId !== undefined ||
+                    activeGenerationRequestId !== undefined
+                  }
+                />
+                <GenerationTestPanel
+                  diagnostic={showGenerationDiagnostic}
+                  onCancel={() => void cancelGenerationTest()}
+                  onTest={() => void testGeneration()}
+                  snapshot={editing.generationTest ?? { status: "IDLE" }}
+                  testDisabled={
+                    pending ||
+                    activeTestRequestId !== undefined ||
+                    activeGenerationRequestId !== undefined ||
+                    editing.configStatus !== "ENABLED" ||
+                    editing.connectionTest?.status !== "VERIFIED" ||
+                    editing.selectedModelId === undefined
+                  }
+                  testing={activeGenerationRequestId !== undefined}
+                  timeoutSeconds={
+                    (editing.generationTimeoutMs ?? 60_000) / 1_000
+                  }
+                />
+              </>
             )}
             <p aria-live="polite" className="provider-status" role="status">
               {status}
@@ -561,6 +740,162 @@ function ConnectionSnapshot(props: {
       )}
     </div>
   );
+}
+
+function GenerationTestPanel(props: {
+  readonly diagnostic: boolean;
+  readonly onCancel: () => void;
+  readonly onTest: () => void;
+  readonly snapshot: ProviderGenerationTestSnapshot;
+  readonly testDisabled: boolean;
+  readonly testing: boolean;
+  readonly timeoutSeconds: number;
+}) {
+  return (
+    <section
+      aria-labelledby="provider-generation-title"
+      className="provider-generation-panel"
+    >
+      <div>
+        <p className="eyebrow">Generation test</p>
+        <h3 id="provider-generation-title">
+          {props.testing ? "Generating" : generationLabel(props.snapshot)}
+        </h3>
+      </div>
+      {props.testing ? (
+        <>
+          <p>
+            The app is sending a fixed, non-sensitive, non-streaming test with
+            the saved Provider and exact selected model.
+          </p>
+          {props.diagnostic && (
+            <p role="status">
+              This is taking longer than 10 seconds. The configured deadline is
+              {` ${props.timeoutSeconds} seconds`}; you can cancel it now.
+            </p>
+          )}
+          <button
+            className="secondary-button"
+            onClick={props.onCancel}
+            type="button"
+          >
+            Cancel generation
+          </button>
+        </>
+      ) : (
+        <>
+          <GenerationSnapshot
+            snapshot={props.snapshot}
+            timeoutSeconds={props.timeoutSeconds}
+          />
+          <button
+            className="secondary-button"
+            disabled={props.testDisabled}
+            onClick={props.onTest}
+            type="button"
+          >
+            Test generation
+          </button>
+        </>
+      )}
+    </section>
+  );
+}
+
+function GenerationSnapshot(props: {
+  readonly snapshot: ProviderGenerationTestSnapshot;
+  readonly timeoutSeconds: number;
+}) {
+  if (props.snapshot.status === "IDLE") {
+    return <p>Select and save a verified model before testing generation.</p>;
+  }
+  if (props.snapshot.status === "FAILED") {
+    return (
+      <p>
+        {generationFailureMessage(
+          props.snapshot.failure.reason,
+          props.timeoutSeconds,
+        )}{" "}
+        Completed {formatTestTime(props.snapshot.completedAt)}.
+      </p>
+    );
+  }
+  return (
+    <div className="provider-generation-result">
+      <p>
+        Completed {formatTestTime(props.snapshot.completedAt)} with{" "}
+        {props.snapshot.modelId}. Stop: {props.snapshot.stopReason}.
+      </p>
+      <blockquote>{props.snapshot.outputPreview}</blockquote>
+      <p>{formatUsage(props.snapshot.usage)} Cost unknown.</p>
+    </div>
+  );
+}
+
+export function generationLabel(
+  snapshot: ProviderGenerationTestSnapshot,
+): string {
+  if (snapshot.status === "SUCCEEDED") return "Generation succeeded";
+  if (snapshot.status === "FAILED") return "Generation failed";
+  return "Not tested";
+}
+
+export function generationFailureMessage(
+  reason: ProviderFailureReason,
+  timeoutSeconds = 60,
+): string {
+  if (reason === "MODEL_NOT_FOUND") {
+    return "The exact selected model is unavailable. Test the connection and select a listed model.";
+  }
+  if (reason === "CONTENT_FILTER") {
+    return "The Provider blocked the fixed test under its content policy. No output was saved.";
+  }
+  if (reason === "TIMEOUT") {
+    return `The Provider did not respond within ${timeoutSeconds} seconds. Check the network and retry.`;
+  }
+  return connectionFailureMessage(reason).replace("test", "generation");
+}
+
+export function generationOperationMessage(code: string): string {
+  const messages: Record<string, string> = {
+    NOT_FOUND: "The Provider no longer exists. Reload Settings.",
+    CONFLICT:
+      "The Provider changed during generation. Reload and test the current version.",
+    MISSING_KEY: "No saved Key is available. Save a Key before generating.",
+    DISABLED:
+      "This Provider is disabled. Enable and save it before generating.",
+    UNVERIFIED:
+      "The current Provider configuration is not verified. Test the connection first.",
+    MODEL_NOT_SELECTED:
+      "No model is selected. Choose and save an exact verified model.",
+    MODEL_STALE:
+      "The selected model is no longer in the verified list. Test and select again.",
+    ALREADY_GENERATING: "This generation request is already running.",
+    VAULT_KEY_UNAVAILABLE:
+      "The app-managed local encryption key is unavailable. Restore it or replace the Provider Key.",
+    VAULT_INTEGRITY_FAILED:
+      "The saved Key could not be authenticated. Delete it and enter the Key again.",
+    STORAGE_UNAVAILABLE:
+      "The generation result could not be stored. No success was recorded; retry.",
+  };
+  return (
+    messages[code] ??
+    "The generation test could not be completed safely. Retry from Settings."
+  );
+}
+
+function formatUsage(usage: NormalizedUsage): string {
+  const values = [
+    `Input ${usage.inputTokens ?? "unknown"}`,
+    `Output ${usage.outputTokens ?? "unknown"}`,
+    ...(usage.cachedInputTokens === undefined
+      ? []
+      : [`Cached input ${usage.cachedInputTokens}`]),
+    ...(usage.reasoningTokens === undefined
+      ? []
+      : [`Reasoning ${usage.reasoningTokens}`]),
+  ];
+  return `${values.join(" · ")} tokens.`;
 }
 
 export function connectionLabel(

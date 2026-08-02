@@ -1,10 +1,16 @@
-import type { ProviderModelDescriptor } from "@ai-corporation/protocols";
+import {
+  normalizedGenerationResponseSchema,
+  type NormalizedGenerationRequest,
+  type NormalizedGenerationResponse,
+  type ProviderModelDescriptor,
+} from "@ai-corporation/protocols";
 import {
   ProviderAdapterConfigError,
   ProviderAdapterError,
   type ModelProvider,
   type ProviderAdapterConfig,
   type ProviderFailure,
+  type ProviderGenerationConfig,
 } from "./model-provider";
 
 const MAX_RESPONSE_BYTES = 1024 * 1024;
@@ -15,7 +21,7 @@ const DEFAULT_RETRY_BACKOFF_MS = 1_000;
 
 type Fetch = typeof fetch;
 
-export class OpenAiCompatibleProvider implements ModelProvider {
+export class OpenAiChatCompletionsAdapter implements ModelProvider {
   readonly #clock: () => string;
   readonly #fetch: Fetch;
   readonly #timeoutMs: number;
@@ -36,6 +42,7 @@ export class OpenAiCompatibleProvider implements ModelProvider {
     return {
       type: "OPENAI_COMPATIBLE" as const,
       displayName: "OpenAI-compatible",
+      dialect: "CHAT_COMPLETIONS" as const,
     };
   }
 
@@ -83,9 +90,79 @@ export class OpenAiCompatibleProvider implements ModelProvider {
       signal.removeEventListener("abort", abort);
     }
   }
+
+  async generate(
+    config: ProviderGenerationConfig,
+    request: NormalizedGenerationRequest,
+    signal: AbortSignal,
+  ): Promise<NormalizedGenerationResponse> {
+    this.validateConfig(config);
+    if (
+      !Number.isInteger(config.generationTimeoutMs) ||
+      config.generationTimeoutMs < 5_000 ||
+      config.generationTimeoutMs > 300_000
+    ) {
+      throw new ProviderAdapterConfigError();
+    }
+    if (signal.aborted) throw adapterFailure("CANCELLED", false);
+    const controller = new AbortController();
+    let timedOut = false;
+    const abort = () => controller.abort();
+    signal.addEventListener("abort", abort, { once: true });
+    const timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, config.generationTimeoutMs);
+    try {
+      const response = await this.#fetch(
+        resolveApiUrl(config.endpoint, "chat/completions"),
+        {
+          method: "POST",
+          headers: {
+            accept: "application/json",
+            authorization: `Bearer ${config.key}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            model: request.modelId,
+            messages: request.input.map(({ actor, parts }) => ({
+              role: actor.toLowerCase(),
+              content: parts.map(({ text }) => text).join(""),
+            })),
+            max_tokens: request.maxOutputTokens,
+            ...(request.temperature === undefined
+              ? {}
+              : { temperature: request.temperature }),
+            stream: false,
+          }),
+          redirect: "error",
+          signal: controller.signal,
+        },
+      );
+      const body = await readLimitedBody(response);
+      if (!response.ok) throw adapterFailureForResponse(response, body);
+      return parseGeneration(body, request.modelId);
+    } catch (error) {
+      if (error instanceof ProviderAdapterError) throw error;
+      if (signal.aborted) throw adapterFailure("CANCELLED", false);
+      if (timedOut) {
+        throw adapterFailure("TIMEOUT", true, DEFAULT_RETRY_BACKOFF_MS);
+      }
+      throw adapterFailure("NETWORK", true, DEFAULT_RETRY_BACKOFF_MS);
+    } finally {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", abort);
+    }
+  }
 }
 
+export { OpenAiChatCompletionsAdapter as OpenAiCompatibleProvider };
+
 export function resolveModelsUrl(endpoint: string): URL {
+  return resolveApiUrl(endpoint, "models");
+}
+
+export function resolveApiUrl(endpoint: string, relativePath: string): URL {
   let url: URL;
   try {
     url = new URL(endpoint);
@@ -105,7 +182,7 @@ export function resolveModelsUrl(endpoint: string): URL {
     throw new ProviderAdapterConfigError();
   }
   if (!url.pathname.endsWith("/")) url.pathname += "/";
-  return new URL("models", url);
+  return new URL(relativePath, url);
 }
 
 function isExactLoopbackHttp(endpoint: string): boolean {
@@ -193,12 +270,99 @@ function parseModels(
   return models;
 }
 
+function parseGeneration(
+  body: string,
+  modelId: string,
+): NormalizedGenerationResponse {
+  let payload: unknown;
+  try {
+    payload = JSON.parse(body);
+  } catch {
+    throw adapterFailure("PROVIDER_INTERNAL", false);
+  }
+  if (!isRecord(payload) || !Array.isArray(payload.choices)) {
+    throw adapterFailure("PROVIDER_INTERNAL", false);
+  }
+  if (payload.choices.length !== 1) {
+    throw adapterFailure("PROVIDER_INTERNAL", false);
+  }
+  const choice = payload.choices[0];
+  if (
+    !isRecord(choice) ||
+    !isRecord(choice.message) ||
+    typeof choice.message.content !== "string" ||
+    choice.message.content.length === 0 ||
+    new TextEncoder().encode(choice.message.content).byteLength >
+      MAX_RESPONSE_BYTES
+  ) {
+    throw adapterFailure("PROVIDER_INTERNAL", false);
+  }
+  const candidate = {
+    modelId,
+    outputParts: [{ kind: "TEXT", text: choice.message.content }],
+    stopReason: mapStopReason(choice.finish_reason),
+    usage: parseUsage(payload.usage),
+  };
+  const parsed = normalizedGenerationResponseSchema.safeParse(candidate);
+  if (!parsed.success) throw adapterFailure("PROVIDER_INTERNAL", false);
+  return parsed.data;
+}
+
+function mapStopReason(value: unknown) {
+  if (value === "stop") return "COMPLETED" as const;
+  if (value === "length") return "OUTPUT_LIMIT" as const;
+  if (value === "content_filter") return "CONTENT_FILTER" as const;
+  return "UNKNOWN" as const;
+}
+
+function parseUsage(value: unknown) {
+  if (value === undefined || value === null) {
+    return { costSource: "UNKNOWN" as const };
+  }
+  if (!isRecord(value)) throw adapterFailure("PROVIDER_INTERNAL", false);
+  const promptTokens = optionalSafeToken(value.prompt_tokens);
+  const completionTokens = optionalSafeToken(value.completion_tokens);
+  const cachedInputTokens = optionalSafeToken(value.prompt_cache_hit_tokens);
+  let reasoningTokens: number | undefined;
+  if (value.completion_tokens_details !== undefined) {
+    if (!isRecord(value.completion_tokens_details)) {
+      throw adapterFailure("PROVIDER_INTERNAL", false);
+    }
+    reasoningTokens = optionalSafeToken(
+      value.completion_tokens_details.reasoning_tokens,
+    );
+  }
+  return {
+    ...(promptTokens === undefined ? {} : { inputTokens: promptTokens }),
+    ...(completionTokens === undefined
+      ? {}
+      : { outputTokens: completionTokens }),
+    ...(cachedInputTokens === undefined ? {} : { cachedInputTokens }),
+    ...(reasoningTokens === undefined ? {} : { reasoningTokens }),
+    costSource: "UNKNOWN" as const,
+  };
+}
+
+function optionalSafeToken(value: unknown): number | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (!Number.isSafeInteger(value) || (value as number) < 0) {
+    throw adapterFailure("PROVIDER_INTERNAL", false);
+  }
+  return value as number;
+}
+
 function adapterFailureForResponse(
   response: Response,
   body: string,
 ): ProviderAdapterError {
   if (response.status === 401) return adapterFailure("AUTHENTICATION", false);
   if (response.status === 403) return adapterFailure("PERMISSION", false);
+  if (response.status === 404 || readErrorCode(body) === "model_not_found") {
+    return adapterFailure("MODEL_NOT_FOUND", false);
+  }
+  if (readErrorCode(body) === "content_filter") {
+    return adapterFailure("CONTENT_FILTER", false);
+  }
   if (response.status === 429) {
     if (readErrorCode(body) === "insufficient_quota") {
       return adapterFailure("QUOTA_EXHAUSTED", false);

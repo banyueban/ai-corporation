@@ -184,14 +184,14 @@ describe("migration runner", () => {
     database.close();
   });
 
-  it("creates the existing domain schema and Provider connection projection through migration 0007", () => {
+  it("creates the existing domain schema and Provider generation projection through migration 0008", () => {
     const database = new DatabaseSync(":memory:");
     const migrations = loadMigrations(migrationDirectory);
     applyMigrations(database, migrations);
 
     expect(
       readAppliedMigrations(database).map(({ version }) => version),
-    ).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    ).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
     expect(
       database
         .prepare(
@@ -622,6 +622,142 @@ describe("migration runner", () => {
         )
         .get(),
     ).toEqual(before.goal);
+    expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+    database.close();
+  });
+
+  it("upgrades populated 0007 Provider data with safe generation defaults and constraints", () => {
+    const database = new DatabaseSync(":memory:");
+    const migrations = loadMigrations(migrationDirectory);
+    applyMigrations(database, migrations.slice(0, 7));
+    const now = "2026-08-02T04:00:00.000Z";
+    const vaultId = "019b7f4d-a000-7000-8000-000000000091";
+    const providerId = "019b7f4d-a000-7000-8000-000000000092";
+    database
+      .prepare(
+        `INSERT INTO key_vault_entry (
+          id, ciphertext, nonce, auth_tag, encryption_version,
+          version, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, 1, 1, ?, ?)`,
+      )
+      .run(
+        vaultId,
+        Buffer.from("ciphertext"),
+        Buffer.alloc(12, 1),
+        Buffer.alloc(16, 2),
+        now,
+        now,
+      );
+    database
+      .prepare(
+        `INSERT INTO provider (
+          id, type, name, endpoint, key_vault_entry_id, config_json,
+          config_status, version, created_at, updated_at
+        ) VALUES (?, 'OPENAI_COMPATIBLE', 'Primary',
+          'https://api.example.test/v1', ?, '{}', 'ENABLED', 1, ?, ?)`,
+      )
+      .run(providerId, vaultId, now, now);
+    applyMigrations(database, migrations);
+    expect(
+      database
+        .prepare(
+          `SELECT api_dialect, selected_model_id, generation_timeout_ms
+          FROM provider WHERE id = ?`,
+        )
+        .get(providerId),
+    ).toEqual({
+      api_dialect: "CHAT_COMPLETIONS",
+      selected_model_id: null,
+      generation_timeout_ms: 60_000,
+    });
+    expect(() =>
+      database
+        .prepare(
+          "UPDATE provider SET generation_timeout_ms = 4999 WHERE id = ?",
+        )
+        .run(providerId),
+    ).toThrow();
+    expect(() =>
+      database
+        .prepare("UPDATE provider SET api_dialect = 'RESPONSES' WHERE id = ?")
+        .run(providerId),
+    ).toThrow();
+    const insertGeneration = database.prepare(
+      `INSERT INTO provider_generation_test (
+        provider_id, provider_version, model_id, status, failure_reason,
+        retryable, suggested_backoff_ms, stop_reason, output_preview,
+        usage_json, completed_at
+      ) VALUES (?, 1, 'model-a', ?, ?, ?, NULL, ?, ?, ?, ?)`,
+    );
+    expect(() =>
+      insertGeneration.run(
+        "019b7f4d-a000-7000-8000-000000000099",
+        "SUCCEEDED",
+        null,
+        null,
+        "COMPLETED",
+        "ok",
+        '{"costSource":"UNKNOWN"}',
+        now,
+      ),
+    ).toThrow();
+    expect(() =>
+      insertGeneration.run(
+        providerId,
+        "INVALID",
+        null,
+        null,
+        "COMPLETED",
+        "ok",
+        '{"costSource":"UNKNOWN"}',
+        now,
+      ),
+    ).toThrow();
+    expect(() =>
+      insertGeneration.run(
+        providerId,
+        "SUCCEEDED",
+        null,
+        null,
+        "COMPLETED",
+        "ok",
+        "not-json",
+        now,
+      ),
+    ).toThrow();
+    expect(() =>
+      insertGeneration.run(
+        providerId,
+        "SUCCEEDED",
+        "TIMEOUT",
+        1,
+        "COMPLETED",
+        "ok",
+        '{"costSource":"UNKNOWN"}',
+        now,
+      ),
+    ).toThrow();
+    insertGeneration.run(
+      providerId,
+      "SUCCEEDED",
+      null,
+      null,
+      "COMPLETED",
+      "ok",
+      '{"costSource":"UNKNOWN"}',
+      now,
+    );
+    expect(
+      database
+        .prepare("SELECT status, output_preview FROM provider_generation_test")
+        .get(),
+    ).toEqual({ status: "SUCCEEDED", output_preview: "ok" });
+    database.prepare("DELETE FROM provider WHERE id = ?").run(providerId);
+    expect(
+      database
+        .prepare("SELECT count(*) AS count FROM provider_generation_test")
+        .get(),
+    ).toEqual({ count: 0 });
     expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
     database.close();
   });

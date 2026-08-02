@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { applyMigrations, loadMigrations } from "./migrations";
 import {
   ProviderCommandConflictError,
+  ProviderModelSelectionError,
   ProviderRepository,
   ProviderVersionConflictError,
   type EncryptedProviderKey,
@@ -436,5 +437,119 @@ describe("ProviderRepository", () => {
       );
       database.close();
     }
+  });
+
+  it("persists exact model, timeout, normalized usage and projection lifecycle", () => {
+    const database = fixture();
+    const repository = new ProviderRepository(database);
+    const created = create(repository);
+    repository.saveConnectionTest({
+      providerId,
+      expectedVersion: created.version,
+      snapshot: {
+        status: "VERIFIED",
+        providerVersion: created.version,
+        testedAt: now,
+        models: ["model-a", "model-b"].map((id) => ({
+          id,
+          displayName: id,
+          source: "PROVIDER" as const,
+          observedAt: now,
+        })),
+      },
+    });
+    const configured = repository.save({
+      command: {
+        commandId: "019b7f4d-a000-7000-8000-000000000081",
+        commandType: "SAVE",
+        requestHash: "b".repeat(64),
+      },
+      providerId,
+      expectedVersion: created.version,
+      name: created.name,
+      endpoint: created.endpoint,
+      configStatus: created.configStatus,
+      apiDialect: "CHAT_COMPLETIONS",
+      selectedModelId: "model-a",
+      generationTimeoutMs: 60_000,
+      now,
+    });
+    expect(configured).toMatchObject({
+      apiDialect: "CHAT_COMPLETIONS",
+      selectedModelId: "model-a",
+      generationTimeoutMs: 60_000,
+      generationTest: { status: "IDLE" },
+      connectionTest: { status: "VERIFIED", providerVersion: 2 },
+    });
+    const generation = repository.saveGenerationTest({
+      providerId,
+      expectedVersion: configured.version,
+      snapshot: {
+        status: "SUCCEEDED",
+        providerVersion: configured.version,
+        modelId: "model-a",
+        outputPreview: "Acknowledged.",
+        stopReason: "COMPLETED",
+        usage: { inputTokens: 5, outputTokens: 2, costSource: "UNKNOWN" },
+        completedAt: now,
+      },
+    });
+    expect(
+      new ProviderRepository(database).get(providerId)?.generationTest,
+    ).toEqual(generation);
+    const renamed = repository.save({
+      command: {
+        commandId: "019b7f4d-a000-7000-8000-000000000082",
+        commandType: "SAVE",
+        requestHash: "c".repeat(64),
+      },
+      providerId,
+      expectedVersion: configured.version,
+      name: "Renamed",
+      endpoint: configured.endpoint,
+      configStatus: "DISABLED",
+      now,
+    });
+    expect(renamed.generationTest).toMatchObject({
+      status: "SUCCEEDED",
+      providerVersion: renamed.version,
+    });
+    const timeoutChanged = repository.save({
+      command: {
+        commandId: "019b7f4d-a000-7000-8000-000000000083",
+        commandType: "SAVE",
+        requestHash: "d".repeat(64),
+      },
+      providerId,
+      expectedVersion: renamed.version,
+      name: renamed.name,
+      endpoint: renamed.endpoint,
+      configStatus: "ENABLED",
+      generationTimeoutMs: 90_000,
+      now,
+    });
+    expect(timeoutChanged).toMatchObject({
+      selectedModelId: "model-a",
+      generationTimeoutMs: 90_000,
+      generationTest: { status: "IDLE" },
+      connectionTest: { status: "VERIFIED" },
+    });
+    expect(() =>
+      repository.save({
+        command: {
+          commandId: "019b7f4d-a000-7000-8000-000000000084",
+          commandType: "SAVE",
+          requestHash: "e".repeat(64),
+        },
+        providerId,
+        expectedVersion: timeoutChanged.version,
+        name: timeoutChanged.name,
+        endpoint: timeoutChanged.endpoint,
+        configStatus: timeoutChanged.configStatus,
+        selectedModelId: "not-listed",
+        now,
+      }),
+    ).toThrow(ProviderModelSelectionError);
+    database.close();
   });
 });

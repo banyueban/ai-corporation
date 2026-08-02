@@ -41,7 +41,7 @@ function fixture(adapter?: ModelProvider): {
   readonly repository: ProviderRepository;
   readonly service: ProviderService;
 } {
-  const root = mkdtempSync(path.join(tmpdir(), "M2-TU-02-service-"));
+  const root = mkdtempSync(path.join(tmpdir(), "M2-TU-04-service-"));
   roots.push(root);
   const database = new DatabaseSync(":memory:");
   applyMigrations(database, loadMigrations(migrationDirectory));
@@ -134,10 +134,219 @@ describe("ProviderService", () => {
     failureFixture.database.close();
   });
 
+  it("generates only with an exact saved model and persists normalized usage", async () => {
+    const { database, repository, service } = fixture(
+      new DeterministicMockProvider({
+        type: "SUCCESS",
+        modelIds: ["model-a"],
+        generation: {
+          modelId: "model-a",
+          outputParts: [{ kind: "TEXT", text: "Acknowledged." }],
+          stopReason: "COMPLETED",
+          usage: { inputTokens: 8, outputTokens: 2, costSource: "UNKNOWN" },
+        },
+      }),
+    );
+    const created = service.save({
+      schemaVersion: 1,
+      commandId: "019b7f4d-a000-7000-8000-000000000091",
+      name: "Primary",
+      endpoint: "https://api.example.test/v1",
+      configStatus: "ENABLED",
+      key: "M2-TU-04-fake-service-key",
+    });
+    if (!created.ok) throw new Error("fixture create failed");
+    await expect(
+      service.testGeneration({
+        schemaVersion: 1,
+        requestId: "019b7f4d-a000-7000-8000-000000000092",
+        providerId: created.value.id,
+        expectedVersion: created.value.version,
+        input: [{ actor: "USER", parts: [{ kind: "TEXT", text: "Test" }] }],
+        maxOutputTokens: 32,
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: "UNVERIFIED" },
+    });
+    await service.testConnection({
+      schemaVersion: 1,
+      requestId: "019b7f4d-a000-7000-8000-000000000093",
+      providerId: created.value.id,
+      expectedVersion: created.value.version,
+    });
+    const configured = service.save({
+      schemaVersion: 1,
+      commandId: "019b7f4d-a000-7000-8000-000000000094",
+      providerId: created.value.id,
+      expectedVersion: created.value.version,
+      name: created.value.name,
+      endpoint: created.value.endpoint,
+      configStatus: "ENABLED",
+      apiDialect: "CHAT_COMPLETIONS",
+      selectedModelId: "model-a",
+      generationTimeoutMs: 60_000,
+    });
+    if (!configured.ok) throw new Error("fixture configure failed");
+    await expect(
+      service.testGeneration({
+        schemaVersion: 1,
+        requestId: "019b7f4d-a000-7000-8000-000000000095",
+        providerId: configured.value.id,
+        expectedVersion: configured.value.version,
+        input: [{ actor: "USER", parts: [{ kind: "TEXT", text: "Test" }] }],
+        maxOutputTokens: 32,
+        temperature: 0,
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: {
+        status: "SUCCEEDED",
+        modelId: "model-a",
+        usage: { inputTokens: 8, outputTokens: 2, costSource: "UNKNOWN" },
+      },
+    });
+    expect(repository.get(configured.value.id)?.generationTest).toMatchObject({
+      status: "SUCCEEDED",
+      modelId: "model-a",
+    });
+    database.close();
+  });
+
+  it("cancels an active generation without persisting a synthetic failure", async () => {
+    const adapter: ModelProvider = {
+      descriptor: () => ({
+        type: "MOCK",
+        displayName: "Blocking generation Mock",
+        dialect: "MOCK",
+      }),
+      validateConfig: () => undefined,
+      listModels: async () => [
+        {
+          id: "model-a",
+          displayName: "model-a",
+          source: "PROVIDER",
+          observedAt: "2026-08-02T00:00:00.000Z",
+        },
+      ],
+      generate: async (_config, _request, signal) =>
+        new Promise((_resolve, reject) => {
+          signal.addEventListener(
+            "abort",
+            () =>
+              reject(
+                new ProviderAdapterError({
+                  reason: "CANCELLED",
+                  retryable: false,
+                }),
+              ),
+            { once: true },
+          );
+        }),
+    };
+    const { database, repository, service } = fixture(adapter);
+    const configured = await createVerifiedProvider(service);
+    const requestId = "019b7f4d-a000-7000-8000-000000000096";
+    const pending = service.testGeneration(
+      generationRequest(configured, requestId),
+    );
+
+    expect(
+      service.cancelGenerationTest({ schemaVersion: 1, requestId }),
+    ).toMatchObject({ ok: true, value: { cancelled: true } });
+    await expect(pending).resolves.toMatchObject({
+      ok: false,
+      error: { code: "CANCELLED" },
+    });
+    expect(repository.get(configured.id)?.generationTest).toEqual({
+      status: "IDLE",
+    });
+    expect(
+      service.cancelGenerationTest({ schemaVersion: 1, requestId }),
+    ).toMatchObject({ ok: false, error: { code: "NOT_FOUND" } });
+    await expect(
+      service.testGeneration(generationRequest(configured, requestId)),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: "ALREADY_GENERATING" },
+    });
+    database.close();
+  });
+
+  it("rejects a late generation result after the Provider version changes", async () => {
+    let release: (() => void) | undefined;
+    const adapter: ModelProvider = {
+      descriptor: () => ({
+        type: "MOCK",
+        displayName: "Delayed generation Mock",
+        dialect: "MOCK",
+      }),
+      validateConfig: () => undefined,
+      listModels: async () => [
+        {
+          id: "model-a",
+          displayName: "model-a",
+          source: "PROVIDER",
+          observedAt: "2026-08-02T00:00:00.000Z",
+        },
+      ],
+      generate: async () => {
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        return {
+          modelId: "model-a",
+          outputParts: [{ kind: "TEXT", text: "late" }],
+          stopReason: "COMPLETED",
+          usage: { costSource: "UNKNOWN" },
+        };
+      },
+    };
+    const { database, repository, service } = fixture(adapter);
+    const configured = await createVerifiedProvider(service);
+    const pending = service.testGeneration(
+      generationRequest(configured, "019b7f4d-a000-7000-8000-000000000097"),
+    );
+    const changed = service.save({
+      schemaVersion: 1,
+      commandId: "019b7f4d-a000-7000-8000-000000000098",
+      providerId: configured.id,
+      expectedVersion: configured.version,
+      name: "Renamed while generating",
+      endpoint: configured.endpoint,
+      configStatus: configured.configStatus,
+      apiDialect: "CHAT_COMPLETIONS",
+      selectedModelId: "model-a",
+      generationTimeoutMs: 60_000,
+    });
+    expect(changed).toMatchObject({
+      ok: true,
+      value: { version: configured.version + 1 },
+    });
+    release?.();
+    await expect(pending).resolves.toMatchObject({
+      ok: false,
+      error: { code: "CONFLICT" },
+    });
+    expect(repository.get(configured.id)).toMatchObject({
+      version: configured.version + 1,
+      name: "Renamed while generating",
+      generationTest: { status: "IDLE" },
+    });
+    database.close();
+  });
+
   it("cancels only the active request without overwriting a previous result", async () => {
     const blockingAdapter: ModelProvider = {
-      descriptor: () => ({ type: "MOCK", displayName: "Blocking Mock" }),
+      descriptor: () => ({
+        type: "MOCK",
+        displayName: "Blocking Mock",
+        dialect: "MOCK",
+      }),
       validateConfig: () => undefined,
+      generate: async () => {
+        throw new Error("not used by connection test");
+      },
       listModels: async (_config, signal) =>
         new Promise((_resolve, reject) => {
           signal.addEventListener(
@@ -200,8 +409,15 @@ describe("ProviderService", () => {
   it("rejects a late result after the Provider version changes", async () => {
     let release: (() => void) | undefined;
     const delayedAdapter: ModelProvider = {
-      descriptor: () => ({ type: "MOCK", displayName: "Delayed Mock" }),
+      descriptor: () => ({
+        type: "MOCK",
+        displayName: "Delayed Mock",
+        dialect: "MOCK",
+      }),
       validateConfig: () => undefined,
+      generate: async () => {
+        throw new Error("not used by connection test");
+      },
       listModels: async () => {
         await new Promise<void>((resolve) => {
           release = resolve;
@@ -377,3 +593,56 @@ describe("ProviderService", () => {
     database.close();
   });
 });
+
+async function createVerifiedProvider(service: ProviderService) {
+  const created = service.save({
+    schemaVersion: 1,
+    commandId: "019b7f4d-a000-7000-8000-000000000099",
+    name: "Generation Provider",
+    endpoint: "https://api.example.test/v1",
+    configStatus: "ENABLED",
+    key: "M2-TU-04-fake-generation-key",
+  });
+  if (!created.ok) throw new Error("fixture create failed");
+  const connection = await service.testConnection({
+    schemaVersion: 1,
+    requestId: "019b7f4d-a000-7000-8000-000000000100",
+    providerId: created.value.id,
+    expectedVersion: created.value.version,
+  });
+  if (!connection.ok) throw new Error("fixture connection failed");
+  const configured = service.save({
+    schemaVersion: 1,
+    commandId: "019b7f4d-a000-7000-8000-000000000101",
+    providerId: created.value.id,
+    expectedVersion: created.value.version,
+    name: created.value.name,
+    endpoint: created.value.endpoint,
+    configStatus: created.value.configStatus,
+    apiDialect: "CHAT_COMPLETIONS",
+    selectedModelId: "model-a",
+    generationTimeoutMs: 60_000,
+  });
+  if (!configured.ok) throw new Error("fixture configure failed");
+  return configured.value;
+}
+
+function generationRequest(
+  provider: { readonly id: string; readonly version: number },
+  requestId: string,
+) {
+  return {
+    schemaVersion: 1 as const,
+    requestId,
+    providerId: provider.id,
+    expectedVersion: provider.version,
+    input: [
+      {
+        actor: "USER" as const,
+        parts: [{ kind: "TEXT" as const, text: "Test" }],
+      },
+    ],
+    maxOutputTokens: 32,
+    temperature: 0,
+  };
+}

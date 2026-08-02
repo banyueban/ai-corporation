@@ -1,9 +1,11 @@
 import { DatabaseSync } from "node:sqlite";
 import {
   providerCompletedConnectionTestSnapshotSchema,
+  providerCompletedGenerationTestSnapshotSchema,
   providerPublicSchema,
   type ProviderConnectionTestSnapshot,
   type ProviderConfigStatus,
+  type ProviderGenerationTestSnapshot,
   type ProviderPublic,
 } from "@ai-corporation/protocols";
 
@@ -42,6 +44,20 @@ export class ProviderConnectionTestDataError extends Error {
   }
 }
 
+export class ProviderGenerationTestDataError extends Error {
+  constructor() {
+    super("Provider generation test data is invalid");
+    this.name = "ProviderGenerationTestDataError";
+  }
+}
+
+export class ProviderModelSelectionError extends Error {
+  constructor() {
+    super("Provider model selection is invalid");
+    this.name = "ProviderModelSelectionError";
+  }
+}
+
 export interface EncryptedProviderKey {
   readonly authTag: Uint8Array;
   readonly ciphertext: Uint8Array;
@@ -73,13 +89,21 @@ export class ProviderRepository {
   list(): readonly ProviderPublic[] {
     return this.#database
       .prepare(
-        `SELECT p.id, p.type, p.name, p.endpoint, p.key_vault_entry_id,
+        `SELECT p.id, p.type, p.name, p.endpoint, p.api_dialect,
+          p.selected_model_id, p.generation_timeout_ms, p.key_vault_entry_id,
           p.config_status, p.version, p.created_at, p.updated_at,
           t.status AS test_status, t.failure_reason, t.retryable,
-          t.suggested_backoff_ms, t.models_json, t.tested_at
+          t.suggested_backoff_ms, t.models_json, t.tested_at,
+          g.status AS generation_status, g.model_id AS generation_model_id,
+          g.failure_reason AS generation_failure_reason,
+          g.retryable AS generation_retryable,
+          g.suggested_backoff_ms AS generation_backoff_ms,
+          g.stop_reason, g.output_preview, g.usage_json, g.completed_at
         FROM provider p
         LEFT JOIN provider_connection_test t
           ON t.provider_id = p.id AND t.provider_version = p.version
+        LEFT JOIN provider_generation_test g
+          ON g.provider_id = p.id AND g.provider_version = p.version
         ORDER BY p.created_at, p.id`,
       )
       .all()
@@ -89,13 +113,21 @@ export class ProviderRepository {
   get(providerId: string): ProviderPublic | undefined {
     const row = this.#database
       .prepare(
-        `SELECT p.id, p.type, p.name, p.endpoint, p.key_vault_entry_id,
+        `SELECT p.id, p.type, p.name, p.endpoint, p.api_dialect,
+          p.selected_model_id, p.generation_timeout_ms, p.key_vault_entry_id,
           p.config_status, p.version, p.created_at, p.updated_at,
           t.status AS test_status, t.failure_reason, t.retryable,
-          t.suggested_backoff_ms, t.models_json, t.tested_at
+          t.suggested_backoff_ms, t.models_json, t.tested_at,
+          g.status AS generation_status, g.model_id AS generation_model_id,
+          g.failure_reason AS generation_failure_reason,
+          g.retryable AS generation_retryable,
+          g.suggested_backoff_ms AS generation_backoff_ms,
+          g.stop_reason, g.output_preview, g.usage_json, g.completed_at
         FROM provider p
         LEFT JOIN provider_connection_test t
           ON t.provider_id = p.id AND t.provider_version = p.version
+        LEFT JOIN provider_generation_test g
+          ON g.provider_id = p.id AND g.provider_version = p.version
         WHERE p.id = ?`,
       )
       .get(providerId);
@@ -151,6 +183,9 @@ export class ProviderRepository {
     readonly name: string;
     readonly endpoint: string;
     readonly configStatus: ProviderConfigStatus;
+    readonly apiDialect?: "CHAT_COMPLETIONS";
+    readonly selectedModelId?: string | null;
+    readonly generationTimeoutMs?: number;
     readonly now: string;
   }): ProviderPublic {
     const replay = this.#readCommand(input.command);
@@ -176,14 +211,17 @@ export class ProviderRepository {
         this.#database
           .prepare(
             `INSERT INTO provider (
-              id, type, name, endpoint, key_vault_entry_id, config_json,
+              id, type, name, endpoint, api_dialect, selected_model_id,
+              generation_timeout_ms, key_vault_entry_id, config_json,
               config_status, version, created_at, updated_at
-            ) VALUES (?, 'OPENAI_COMPATIBLE', ?, ?, ?, '{}', ?, 1, ?, ?)`,
+            ) VALUES (?, 'OPENAI_COMPATIBLE', ?, ?, ?, NULL, ?, ?, '{}', ?, 1, ?, ?)`,
           )
           .run(
             input.providerId,
             input.name,
             input.endpoint,
+            input.apiDialect ?? "CHAT_COMPLETIONS",
+            input.generationTimeoutMs ?? 60_000,
             vaultEntryId,
             input.configStatus,
             input.now,
@@ -218,16 +256,41 @@ export class ProviderRepository {
           }
           this.#fault?.("AFTER_VAULT_WRITE");
         }
+        const endpointOrKeyChanged =
+          existing.endpoint !== input.endpoint || input.encrypted !== undefined;
+        const selectedModelId = endpointOrKeyChanged
+          ? undefined
+          : input.selectedModelId === undefined
+            ? existing.selectedModelId
+            : (input.selectedModelId ?? undefined);
+        if (
+          selectedModelId !== undefined &&
+          (existing.connectionTest?.status !== "VERIFIED" ||
+            !existing.connectionTest.models.some(
+              ({ id }) => id === selectedModelId,
+            ))
+        ) {
+          throw new ProviderModelSelectionError();
+        }
+        const generationTimeoutMs =
+          input.generationTimeoutMs ?? existing.generationTimeoutMs ?? 60_000;
+        const modelChanged = selectedModelId !== existing.selectedModelId;
+        const timeoutChanged =
+          generationTimeoutMs !== (existing.generationTimeoutMs ?? 60_000);
         const result = this.#database
           .prepare(
             `UPDATE provider
-            SET name = ?, endpoint = ?, config_status = ?,
+            SET name = ?, endpoint = ?, api_dialect = ?, selected_model_id = ?,
+              generation_timeout_ms = ?, config_status = ?,
               key_vault_entry_id = ?, version = version + 1, updated_at = ?
             WHERE id = ? AND version = ?`,
           )
           .run(
             input.name,
             input.endpoint,
+            input.apiDialect ?? existing.apiDialect ?? "CHAT_COMPLETIONS",
+            selectedModelId ?? null,
+            generationTimeoutMs,
             input.configStatus,
             vaultEntryId ?? null,
             input.now,
@@ -235,13 +298,15 @@ export class ProviderRepository {
             input.expectedVersion,
           );
         if (result.changes !== 1) throw new ProviderVersionConflictError();
-        if (
-          existing.endpoint !== input.endpoint ||
-          input.encrypted !== undefined
-        ) {
+        if (endpointOrKeyChanged) {
           this.#database
             .prepare(
               "DELETE FROM provider_connection_test WHERE provider_id = ?",
+            )
+            .run(input.providerId);
+          this.#database
+            .prepare(
+              "DELETE FROM provider_generation_test WHERE provider_id = ?",
             )
             .run(input.providerId);
         } else {
@@ -252,6 +317,21 @@ export class ProviderRepository {
               WHERE provider_id = ? AND provider_version = ?`,
             )
             .run(existing.version + 1, input.providerId, existing.version);
+          if (modelChanged || timeoutChanged) {
+            this.#database
+              .prepare(
+                "DELETE FROM provider_generation_test WHERE provider_id = ?",
+              )
+              .run(input.providerId);
+          } else {
+            this.#database
+              .prepare(
+                `UPDATE provider_generation_test
+                SET provider_version = ?
+                WHERE provider_id = ? AND provider_version = ?`,
+              )
+              .run(existing.version + 1, input.providerId, existing.version);
+          }
         }
       }
       this.#fault?.("AFTER_PROVIDER_WRITE");
@@ -292,13 +372,17 @@ export class ProviderRepository {
       const result = this.#database
         .prepare(
           `UPDATE provider
-          SET key_vault_entry_id = NULL, version = version + 1, updated_at = ?
+          SET key_vault_entry_id = NULL, selected_model_id = NULL,
+            version = version + 1, updated_at = ?
           WHERE id = ? AND version = ?`,
         )
         .run(input.now, input.providerId, input.expectedVersion);
       if (result.changes !== 1) throw new ProviderVersionConflictError();
       this.#database
         .prepare("DELETE FROM provider_connection_test WHERE provider_id = ?")
+        .run(input.providerId);
+      this.#database
+        .prepare("DELETE FROM provider_generation_test WHERE provider_id = ?")
         .run(input.providerId);
       this.#fault?.("AFTER_PROVIDER_WRITE");
       if (vaultEntryId !== undefined) {
@@ -368,6 +452,71 @@ export class ProviderRepository {
           failed ? (snapshot.failure.suggestedBackoffMs ?? null) : null,
           JSON.stringify(snapshot.models),
           snapshot.testedAt,
+        );
+      this.#database.exec("COMMIT");
+      return snapshot;
+    } catch (error) {
+      this.#database.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
+  saveGenerationTest(input: {
+    readonly providerId: string;
+    readonly expectedVersion: number;
+    readonly snapshot: Exclude<
+      ProviderGenerationTestSnapshot,
+      { readonly status: "IDLE" }
+    >;
+  }): Exclude<ProviderGenerationTestSnapshot, { readonly status: "IDLE" }> {
+    const snapshot = providerCompletedGenerationTestSnapshotSchema.parse(
+      input.snapshot,
+    );
+    if (snapshot.providerVersion !== input.expectedVersion) {
+      throw new ProviderVersionConflictError();
+    }
+    this.#database.exec("BEGIN IMMEDIATE");
+    try {
+      const provider = this.get(input.providerId);
+      if (provider === undefined) throw new ProviderNotFoundError();
+      if (
+        provider.version !== input.expectedVersion ||
+        provider.selectedModelId !== snapshot.modelId
+      ) {
+        throw new ProviderVersionConflictError();
+      }
+      const failed = snapshot.status === "FAILED";
+      this.#database
+        .prepare(
+          `INSERT INTO provider_generation_test (
+            provider_id, provider_version, model_id, status, failure_reason,
+            retryable, suggested_backoff_ms, stop_reason, output_preview,
+            usage_json, completed_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(provider_id) DO UPDATE SET
+            provider_version = excluded.provider_version,
+            model_id = excluded.model_id,
+            status = excluded.status,
+            failure_reason = excluded.failure_reason,
+            retryable = excluded.retryable,
+            suggested_backoff_ms = excluded.suggested_backoff_ms,
+            stop_reason = excluded.stop_reason,
+            output_preview = excluded.output_preview,
+            usage_json = excluded.usage_json,
+            completed_at = excluded.completed_at`,
+        )
+        .run(
+          input.providerId,
+          input.expectedVersion,
+          snapshot.modelId,
+          snapshot.status,
+          failed ? snapshot.failure.reason : null,
+          failed ? (snapshot.failure.retryable ? 1 : 0) : null,
+          failed ? (snapshot.failure.suggestedBackoffMs ?? null) : null,
+          failed ? null : snapshot.stopReason,
+          failed ? null : snapshot.outputPreview,
+          JSON.stringify(failed ? { costSource: "UNKNOWN" } : snapshot.usage),
+          snapshot.completedAt,
         );
       this.#database.exec("COMMIT");
       return snapshot;
@@ -456,20 +605,77 @@ export class ProviderRepository {
 
 function parseProviderRow(row: Record<string, unknown>): ProviderPublic {
   const connectionTest = parseConnectionTest(row);
+  const generationTest = parseGenerationTest(row);
   const parsed = providerPublicSchema.safeParse({
     schemaVersion: 1,
     id: row.id,
     type: row.type,
     name: row.name,
     endpoint: row.endpoint,
+    apiDialect: row.api_dialect,
+    ...(typeof row.selected_model_id === "string"
+      ? { selectedModelId: row.selected_model_id }
+      : {}),
+    generationTimeoutMs: row.generation_timeout_ms,
     configStatus: row.config_status,
     hasKey: typeof row.key_vault_entry_id === "string",
     version: row.version,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     connectionTest,
+    generationTest,
   });
   if (!parsed.success) throw new ProviderDataError();
+  return parsed.data;
+}
+
+function parseGenerationTest(
+  row: Record<string, unknown>,
+): ProviderGenerationTestSnapshot {
+  if (row.generation_status === null || row.generation_status === undefined) {
+    return { status: "IDLE" };
+  }
+  if (
+    typeof row.generation_model_id !== "string" ||
+    typeof row.completed_at !== "string" ||
+    typeof row.version !== "number" ||
+    typeof row.usage_json !== "string"
+  ) {
+    throw new ProviderGenerationTestDataError();
+  }
+  let usage: unknown;
+  try {
+    usage = JSON.parse(row.usage_json);
+  } catch {
+    throw new ProviderGenerationTestDataError();
+  }
+  const candidate =
+    row.generation_status === "SUCCEEDED"
+      ? {
+          status: "SUCCEEDED",
+          providerVersion: row.version,
+          modelId: row.generation_model_id,
+          outputPreview: row.output_preview,
+          stopReason: row.stop_reason,
+          usage,
+          completedAt: row.completed_at,
+        }
+      : {
+          status: row.generation_status,
+          providerVersion: row.version,
+          modelId: row.generation_model_id,
+          failure: {
+            reason: row.generation_failure_reason,
+            retryable: row.generation_retryable === 1,
+            ...(typeof row.generation_backoff_ms === "number"
+              ? { suggestedBackoffMs: row.generation_backoff_ms }
+              : {}),
+          },
+          completedAt: row.completed_at,
+        };
+  const parsed =
+    providerCompletedGenerationTestSnapshotSchema.safeParse(candidate);
+  if (!parsed.success) throw new ProviderGenerationTestDataError();
   return parsed.data;
 }
 

@@ -15,6 +15,20 @@ const config = {
   endpoint: "https://api.example.test/v1",
   key: "M2-TU-03-fake-adapter-key",
 };
+const generationConfig = { ...config, generationTimeoutMs: 60_000 };
+const generationRequest = {
+  modelId: "gpt-test",
+  input: [
+    {
+      actor: "USER" as const,
+      parts: [
+        { kind: "TEXT" as const, text: "Return a short acknowledgement." },
+      ],
+    },
+  ],
+  maxOutputTokens: 32,
+  temperature: 0,
+};
 const observedAt = "2026-08-02T01:00:00.000Z";
 
 describe("OpenAiCompatibleProvider", () => {
@@ -201,7 +215,127 @@ describe("OpenAiCompatibleProvider", () => {
     await expect(
       mock.listModels(config, new AbortController().signal),
     ).resolves.toHaveLength(2);
+    await expect(
+      mock.generate(
+        generationConfig,
+        generationRequest,
+        new AbortController().signal,
+      ),
+    ).resolves.toMatchObject({ modelId: "gpt-test", stopReason: "COMPLETED" });
   });
+
+  it("maps a non-streaming Chat Completions call inside the Adapter", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>(async (input, init) => {
+      expect(String(input)).toBe(
+        "https://api.example.test/v1/chat/completions",
+      );
+      expect(init?.method).toBe("POST");
+      expect(init?.redirect).toBe("error");
+      expect(new Headers(init?.headers).get("authorization")).toBe(
+        `Bearer ${config.key}`,
+      );
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      expect(body).toEqual({
+        model: "gpt-test",
+        messages: [
+          { role: "user", content: "Return a short acknowledgement." },
+        ],
+        max_tokens: 32,
+        temperature: 0,
+        stream: false,
+      });
+      return new Response(
+        JSON.stringify({
+          choices: [
+            { message: { content: "Acknowledged." }, finish_reason: "stop" },
+          ],
+          usage: {
+            prompt_tokens: 7,
+            completion_tokens: 3,
+            prompt_cache_hit_tokens: 2,
+            completion_tokens_details: { reasoning_tokens: 1 },
+          },
+        }),
+        { status: 200 },
+      );
+    });
+    const provider = new OpenAiCompatibleProvider({ fetch });
+    expect(provider.descriptor().dialect).toBe("CHAT_COMPLETIONS");
+    await expect(
+      provider.generate(
+        generationConfig,
+        generationRequest,
+        new AbortController().signal,
+      ),
+    ).resolves.toEqual({
+      modelId: "gpt-test",
+      outputParts: [{ kind: "TEXT", text: "Acknowledged." }],
+      stopReason: "COMPLETED",
+      usage: {
+        inputTokens: 7,
+        outputTokens: 3,
+        cachedInputTokens: 2,
+        reasoningTokens: 1,
+        costSource: "UNKNOWN",
+      },
+    });
+  });
+
+  it("rejects invalid generation responses and normalizes model/content errors", async () => {
+    for (const body of [
+      {},
+      { choices: [] },
+      { choices: [{ message: { content: "" }, finish_reason: "stop" }] },
+      {
+        choices: [{ message: { content: "ok" }, finish_reason: "stop" }],
+        usage: { prompt_tokens: -1 },
+      },
+    ]) {
+      await expectGenerationFailure(
+        new OpenAiCompatibleProvider({
+          fetch: async () =>
+            new Response(JSON.stringify(body), { status: 200 }),
+        }),
+        "PROVIDER_INTERNAL",
+        false,
+      );
+    }
+    await expectGenerationFailure(
+      new OpenAiCompatibleProvider({
+        fetch: async () => new Response("{}", { status: 404 }),
+      }),
+      "MODEL_NOT_FOUND",
+      false,
+    );
+    await expectGenerationFailure(
+      new OpenAiCompatibleProvider({
+        fetch: async () =>
+          new Response(JSON.stringify({ error: { code: "content_filter" } }), {
+            status: 400,
+          }),
+      }),
+      "CONTENT_FILTER",
+      false,
+    );
+  });
+
+  it("applies the configured generation deadline and user cancellation", async () => {
+    const provider = new OpenAiCompatibleProvider({
+      fetch: async (_input, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () =>
+            reject(new Error("abort")),
+          );
+        }),
+    });
+    await expectGenerationFailure(
+      provider,
+      "TIMEOUT",
+      true,
+      new AbortController().signal,
+      { ...generationConfig, generationTimeoutMs: 5_000 },
+    );
+  }, 7_000);
 
   it("uses a real dynamic loopback server and never follows a redirect with Authorization", async () => {
     await withLoopbackServer(
@@ -261,6 +395,24 @@ async function expectFailure(
   try {
     await provider.listModels(providerConfig, signal);
     throw new Error("Expected Provider failure");
+  } catch (error) {
+    expect(error).toBeInstanceOf(ProviderAdapterError);
+    if (!(error instanceof ProviderAdapterError)) throw error;
+    expect(error.failure).toMatchObject({ reason, retryable });
+    expect(JSON.stringify(error)).not.toContain(config.key);
+  }
+}
+
+async function expectGenerationFailure(
+  provider: OpenAiCompatibleProvider,
+  reason: string,
+  retryable: boolean,
+  signal: AbortSignal = new AbortController().signal,
+  providerConfig = generationConfig,
+): Promise<void> {
+  try {
+    await provider.generate(providerConfig, generationRequest, signal);
+    throw new Error("Expected Provider generation failure");
   } catch (error) {
     expect(error).toBeInstanceOf(ProviderAdapterError);
     if (!(error instanceof ProviderAdapterError)) throw error;

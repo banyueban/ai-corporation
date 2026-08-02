@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { providerConnectionTestSnapshotSchema } from "./provider-connection-test";
+import { providerGenerationTestSnapshotSchema } from "./provider-generation";
 
 export const PROVIDER_SCHEMA_VERSION = 1 as const;
 export const PROVIDER_LIST_IPC_CHANNEL = "provider:list" as const;
@@ -16,12 +17,16 @@ export const providerPublicSchema = z
     type: z.literal("OPENAI_COMPATIBLE"),
     name: z.string().trim().min(1).max(200),
     endpoint: z.url().max(2_048),
+    apiDialect: z.literal("CHAT_COMPLETIONS").optional(),
+    selectedModelId: z.string().min(1).max(512).optional(),
+    generationTimeoutMs: z.number().int().min(5_000).max(300_000).optional(),
     configStatus: providerConfigStatusSchema,
     hasKey: z.boolean(),
     version: z.number().int().positive(),
     createdAt: z.iso.datetime({ offset: true }),
     updatedAt: z.iso.datetime({ offset: true }),
     connectionTest: providerConnectionTestSnapshotSchema.optional(),
+    generationTest: providerGenerationTestSnapshotSchema.optional(),
   })
   .strict();
 
@@ -37,6 +42,9 @@ export const providerSaveRequestSchema = z
     expectedVersion: z.number().int().positive().optional(),
     name: z.string().trim().min(1).max(200),
     endpoint: z.url().max(2_048),
+    apiDialect: z.literal("CHAT_COMPLETIONS").optional(),
+    selectedModelId: z.string().min(1).max(512).nullable().optional(),
+    generationTimeoutMs: z.number().int().min(5_000).max(300_000).optional(),
     configStatus: providerConfigStatusSchema,
     key: z.string().min(1).optional(),
   })

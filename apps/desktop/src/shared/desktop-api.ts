@@ -19,7 +19,10 @@ import type {
   ProviderDeleteKeyRequest,
   ProviderCancelConnectionTestRequest,
   ProviderCancelConnectionTestResult,
+  ProviderCancelGenerationTestRequest,
+  ProviderCancelGenerationTestResult,
   ProviderConnectionTestResult,
+  ProviderGenerationTestResult,
   ProviderItemResult,
   ProviderListRequest,
   ProviderListResult,
@@ -27,6 +30,7 @@ import type {
   ProviderRevealKeyResult,
   ProviderSaveRequest,
   ProviderTestConnectionRequest,
+  ProviderTestGenerationRequest,
   TimelineListRequest,
   TimelineListResult,
   WorkspaceListIpcResult,
@@ -65,6 +69,9 @@ export interface DesktopApi {
     cancelConnectionTest(
       request: ProviderCancelConnectionTestRequest,
     ): Promise<ProviderCancelConnectionTestResult>;
+    cancelGenerationTest(
+      request: ProviderCancelGenerationTestRequest,
+    ): Promise<ProviderCancelGenerationTestResult>;
     deleteKey(request: ProviderDeleteKeyRequest): Promise<ProviderItemResult>;
     list(request: ProviderListRequest): Promise<ProviderListResult>;
     revealKey(
@@ -74,6 +81,9 @@ export interface DesktopApi {
     testConnection(
       request: ProviderTestConnectionRequest,
     ): Promise<ProviderConnectionTestResult>;
+    testGeneration(
+      request: ProviderTestGenerationRequest,
+    ): Promise<ProviderGenerationTestResult>;
   }>;
   readonly timeline: Readonly<{
     list(request: TimelineListRequest): Promise<TimelineListResult>;

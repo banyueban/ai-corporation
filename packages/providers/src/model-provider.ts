@@ -1,4 +1,6 @@
 import type {
+  NormalizedGenerationRequest,
+  NormalizedGenerationResponse,
   ProviderFailureReason,
   ProviderModelDescriptor,
 } from "@ai-corporation/protocols";
@@ -11,6 +13,11 @@ export interface ProviderAdapterConfig {
 export interface ProviderAdapterDescriptor {
   readonly type: "OPENAI_COMPATIBLE" | "MOCK";
   readonly displayName: string;
+  readonly dialect: "CHAT_COMPLETIONS" | "RESPONSES" | "MOCK";
+}
+
+export interface ProviderGenerationConfig extends ProviderAdapterConfig {
+  readonly generationTimeoutMs: number;
 }
 
 export interface ProviderFailure {
@@ -26,6 +33,11 @@ export interface ModelProvider {
     config: ProviderAdapterConfig,
     signal: AbortSignal,
   ): Promise<readonly ProviderModelDescriptor[]>;
+  generate(
+    config: ProviderGenerationConfig,
+    request: NormalizedGenerationRequest,
+    signal: AbortSignal,
+  ): Promise<NormalizedGenerationResponse>;
 }
 
 export class ProviderAdapterError extends Error {

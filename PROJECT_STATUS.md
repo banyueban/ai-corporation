@@ -3,18 +3,18 @@
 | 属性 | 当前值 |
 |---|---|
 | 当前产品版本 | v0.1 MVP |
-| 当前阶段 | M2-TU-04 Provider 非流式生成与 usage 合同就绪 |
+| 当前阶段 | M2-TU-04 Provider 非流式生成与 usage 实施 |
 | 当前 Milestone | Milestone 2：Provider 与 Goal/Plan |
-| 当前任务单元 | M2-TU-04（就绪） |
+| 当前任务单元 | M2-TU-04（进行中） |
 | 总体状态 | 进行中 |
 | 最近更新 | 2026-08-02 |
-| 下一检查点 | M2-TU-04 权威文档与合同门禁通过后进入实施 |
+| 下一检查点 | 固化 M2-TU-04 候选提交并取得同提交 Windows/macOS CI 与本机 live Provider 证据 |
 
 ## 1. 当前结论
 
 Milestone 1 已完成并经用户人工安装验收；当前没有已知未解决 P0/P1。[M2-TU-02 应用自管 Provider Key Vault](docs/06-engineering/task-units/M2-TU-02-application-key-vault.md) 与 [M2-TU-03 Provider 连接测试](docs/06-engineering/task-units/M2-TU-03-provider-connection-test.md) 均已完成。M2-TU-03 根据用户确认的范围 A、`1A + 2A + 3A + 4A` 和固定 15 秒超时决策交付，并由同一提交的 Windows/macOS 工程检查、开发态真实窗口、最终包真实应用 E2E 和制品门禁直接验收。
 
-[M2-TU-04 Provider 非流式生成与 usage](docs/06-engineering/task-units/M2-TU-04-provider-generation-usage.md) 已按用户确认的 `1A + 2A + 3A + 4A + 5A + 6A` 与 Responses 前向兼容门禁达到“就绪”。当前只承诺 Chat Completions 非流式 Adapter、dialect-neutral 通用协议、精确模型选择、标准 usage、可配置超时、Settings 测试生成和本机真实 Provider smoke；Responses、所有 streaming、Goal Engine、Planner、Task Graph 和 Plan Review 不属于本任务，Milestone 2 尚未完成。
+[M2-TU-04 Provider 非流式生成与 usage](docs/06-engineering/task-units/M2-TU-04-provider-generation-usage.md) 已按用户确认的 `1A + 2A + 3A + 4A + 5A + 6A` 与 Responses 前向兼容门禁进入候选验收。Chat Completions 非流式 Adapter、dialect-neutral 通用协议、精确模型选择、标准 usage、可配置超时、Settings 测试生成及隔离自动矩阵已实现并通过本地 Windows 工程与真实窗口/最终包验证；同提交 Windows/macOS CI 与本机真实 Provider smoke 尚未取得，因此任务仍为“进行中”。Responses、所有 streaming、Goal Engine、Planner、Task Graph 和 Plan Review 不属于本任务，Milestone 2 尚未完成。
 
 ## 2. 已完成基线
 
@@ -51,7 +51,7 @@ M2-TU-04 就绪合同只包含：
 
 ## 5. 活跃阻塞与外部条件
 
-当前无产品、架构、验收或仓库阻塞。M2-TU-04 的交付范围、API dialect、模型选择、usage、超时、真实资源验收和 Responses/streaming 前向兼容边界均已由用户明确决策；合同就绪不表示实现或验收已经完成。
+当前无产品、架构、验收或仓库阻塞。M2-TU-04 的交付范围、API dialect、模型选择、usage、超时、真实资源验收和 Responses/streaming 前向兼容边界均已由用户明确决策；本地候选通过不表示跨平台 CI 与 live Provider 验收已经完成。
 
 已知条件：
 
@@ -62,15 +62,17 @@ M2-TU-04 就绪合同只包含：
 ## 6. 当前验证摘要
 
 - M1-TU-01 至 M1-TU-06、M2-TU-02、M2-TU-03 合同均为“完成”；M2-TU-03 的 16 项验收断言全部通过；
-- 最新 `pnpm check` 全量通过：状态/任务合同、format、lint、typecheck、Protocol 27 项、Provider 23 项、Storage 70 项、Desktop 81 项、Native Core 7 项、workspace Rust 7 项、Rust fmt/clippy 与 secret scan 均成功；
-- 本地 Windows 开发态真实窗口 E2E 3/3 通过；连接测试覆盖成功、认证失败、取消、10 秒诊断、15 秒超时、Renderer reload、进程重启、配置变化重置、模型列表、键盘/缩放/无障碍和 SQLite/WAL/SHM 泄密扫描，既有 Workspace/Goal/Key Vault 旅程同步通过；
-- 最新本地 Windows NSIS 安装包 SHA-256 为 `90BBB52BBD4AF594426AC624F2A8DF477869F7131888AEB020DE39ECC51CE318`，包内 Native Core SHA-256 为 `ACDBD55FF932A593D2796E670C77F8423E35BB093C83F9624139DF79B2F186AF`；同源最终包真实窗口完成连接成功、认证失败、诊断、超时、取消、重启恢复与配置变化重置；
+- M2-TU-03 收口时 `pnpm check` 全量通过：状态/任务合同、format、lint、typecheck、Protocol 27 项、Provider 23 项、Storage 70 项、Desktop 81 项、Native Core 7 项、workspace Rust 7 项、Rust fmt/clippy 与 secret scan 均成功；
+- M2-TU-03 本地 Windows 开发态真实窗口 E2E 3/3 通过；连接测试覆盖成功、认证失败、取消、10 秒诊断、15 秒超时、Renderer reload、进程重启、配置变化重置、模型列表、键盘/缩放/无障碍和 SQLite/WAL/SHM 泄密扫描，既有 Workspace/Goal/Key Vault 旅程同步通过；
+- M2-TU-03 本地 Windows NSIS 安装包 SHA-256 为 `90BBB52BBD4AF594426AC624F2A8DF477869F7131888AEB020DE39ECC51CE318`，包内 Native Core SHA-256 为 `ACDBD55FF932A593D2796E670C77F8423E35BB093C83F9624139DF79B2F186AF`；同源最终包真实窗口完成连接成功、认证失败、诊断、超时、取消、重启恢复与配置变化重置；
 - GitHub Actions run `30714081834` 在验收提交 `a785a483bc150a44bc1be837fc357eb59e376263` 上完整成功；Windows job `91406552961`、macOS job `91406552943` 的工程检查、开发态 E2E、最终包构建、最终包 E2E 和上传步骤全部成功；
 - Artifacts `ai-corporation-windows-x64`（ID `8822822844`，SHA-256 `e82c8fe8aa9389354e9f9081d63463ec69a72e64b8f16ce2e55deb0a0ec7450d`）与 `ai-corporation-macos-arm64`（ID `8822808350`，SHA-256 `bb095e11b3db0735ce9a2bc6a2785f75d3caebf68f5de5ed68ebc5f2c4d021b1`）可用；P0/P1 为 0，未执行必检项为 0。
+- M2-TU-04 本地候选 `pnpm check` 全量通过：Protocol 31、Provider 25、Storage 72、Desktop 85；Windows 开发态真实窗口 E2E 4/4 通过，生成旅程覆盖精确模型、标准 usage/UNKNOWN cost、reload/进程重启、不自动重发、取消保留旧结果、5 秒配置超时和 axe 严重问题 0；
+- M2-TU-04 本地 Windows NSIS SHA-256 为 `992ED1980D711E32E29C8A3D35A510F44F1D6A9D1E056D1292364D2100A6B811`，包内 Native Core SHA-256 为 `ACDBD55FF932A593D2796E670C77F8423E35BB093C83F9624139DF79B2F186AF`；同源最终解包应用完整旅程通过并直接观察到精确模型、`stream:false`、32 token 上限和标准 usage；
 
 ## 7. 下一步
 
-先同步 Provider Generation、Model Provider、数据、安全和 UI 权威文档并运行合同门禁；通过后将 M2-TU-04 标记“进行中”，串行实现协议、`0008`、Adapter、Service/IPC、Settings 与隔离测试。真实 Key 只在自动矩阵通过后由正式 Renderer 写入本机应用自管 Key Vault。
+固化并推送 M2-TU-04 候选提交，取得该提交 Windows/macOS 的工程检查、开发态真实窗口、最终包 E2E 与 artifacts；随后仅经正式 Renderer 将用户提供资源写入正式应用 userData，完成 ≤32 output tokens 的本机 live smoke 与定向泄密扫描。上述证据齐全前不得勾选合同验收项或标记完成。
 
 ## 8. 更新规则
 

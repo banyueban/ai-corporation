@@ -50,8 +50,9 @@ test("user tests, cancels, and restores Provider connection facts in the visible
     await expect(testButton).toBeFocused();
     await testButton.press("Enter");
     await expect(page.getByRole("heading", { name: "Verified" })).toBeVisible();
-    await expect(page.getByText("fixture-model-a")).toBeVisible();
-    await expect(page.getByText("fixture-model-b")).toBeVisible();
+    const connectionPanel = page.locator(".provider-connection-panel");
+    await expect(connectionPanel.getByText("fixture-model-a")).toBeVisible();
+    await expect(connectionPanel.getByText("fixture-model-b")).toBeVisible();
     await expectNoSeriousAxeViolations(page);
     expect(fixture.requests).toContainEqual({
       path: "/success/models",

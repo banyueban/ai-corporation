@@ -1,7 +1,10 @@
 import {
   providerCancelConnectionTestRequestSchema,
   type ProviderCancelConnectionTestResult,
+  providerCancelGenerationTestRequestSchema,
+  type ProviderCancelGenerationTestResult,
   type ProviderConnectionTestResult,
+  type ProviderGenerationTestResult,
   providerDeleteKeyRequestSchema,
   type ProviderItemResult,
   providerListRequestSchema,
@@ -10,6 +13,7 @@ import {
   type ProviderRevealKeyResult,
   providerSaveRequestSchema,
   providerTestConnectionRequestSchema,
+  providerTestGenerationRequestSchema,
 } from "@ai-corporation/protocols";
 import { providerFailure, type ProviderService } from "./provider-service";
 
@@ -89,6 +93,34 @@ export function handleProviderCancelConnectionTest(
   );
 }
 
+export async function handleProviderTestGeneration(
+  authorized: boolean,
+  request: unknown,
+  service: Pick<ProviderService, "testGeneration"> | undefined,
+): Promise<ProviderGenerationTestResult> {
+  if (!authorized) return generationFailure("UNAUTHORIZED_CALLER");
+  const parsed = providerTestGenerationRequestSchema.safeParse(request);
+  if (!parsed.success) return generationFailure("INVALID_REQUEST");
+  return (
+    service?.testGeneration(parsed.data) ??
+    generationFailure("STORAGE_UNAVAILABLE")
+  );
+}
+
+export function handleProviderCancelGenerationTest(
+  authorized: boolean,
+  request: unknown,
+  service: Pick<ProviderService, "cancelGenerationTest"> | undefined,
+): ProviderCancelGenerationTestResult {
+  if (!authorized) return generationCancellationFailure("UNAUTHORIZED_CALLER");
+  const parsed = providerCancelGenerationTestRequestSchema.safeParse(request);
+  if (!parsed.success) return generationCancellationFailure("INVALID_REQUEST");
+  return (
+    service?.cancelGenerationTest(parsed.data) ??
+    generationCancellationFailure("STORAGE_UNAVAILABLE")
+  );
+}
+
 function connectionFailure(
   code: "UNAUTHORIZED_CALLER" | "INVALID_REQUEST" | "STORAGE_UNAVAILABLE",
 ): ProviderConnectionTestResult {
@@ -106,6 +138,27 @@ function cancellationFailure(
     error: {
       code,
       message: "Provider connection test cancellation failed",
+    },
+  };
+}
+
+function generationFailure(
+  code: "UNAUTHORIZED_CALLER" | "INVALID_REQUEST" | "STORAGE_UNAVAILABLE",
+): ProviderGenerationTestResult {
+  return {
+    ok: false,
+    error: { code, message: "Provider generation test failed" },
+  };
+}
+
+function generationCancellationFailure(
+  code: "UNAUTHORIZED_CALLER" | "INVALID_REQUEST" | "STORAGE_UNAVAILABLE",
+): ProviderCancelGenerationTestResult {
+  return {
+    ok: false,
+    error: {
+      code,
+      message: "Provider generation test cancellation failed",
     },
   };
 }

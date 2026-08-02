@@ -1,14 +1,23 @@
-import type { ProviderModelDescriptor } from "@ai-corporation/protocols";
+import type {
+  NormalizedGenerationRequest,
+  NormalizedGenerationResponse,
+  ProviderModelDescriptor,
+} from "@ai-corporation/protocols";
 import {
   ProviderAdapterConfigError,
   ProviderAdapterError,
   type ModelProvider,
   type ProviderAdapterConfig,
   type ProviderFailure,
+  type ProviderGenerationConfig,
 } from "./model-provider";
 
 export type MockProviderOutcome =
-  | { readonly type: "SUCCESS"; readonly modelIds: readonly string[] }
+  | {
+      readonly type: "SUCCESS";
+      readonly modelIds: readonly string[];
+      readonly generation?: NormalizedGenerationResponse;
+    }
   | { readonly type: "FAILURE"; readonly failure: ProviderFailure };
 
 export class DeterministicMockProvider implements ModelProvider {
@@ -24,7 +33,11 @@ export class DeterministicMockProvider implements ModelProvider {
   }
 
   descriptor() {
-    return { type: "MOCK" as const, displayName: "Deterministic Mock" };
+    return {
+      type: "MOCK" as const,
+      displayName: "Deterministic Mock",
+      dialect: "MOCK" as const,
+    };
   }
 
   validateConfig(config: ProviderAdapterConfig): void {
@@ -54,5 +67,30 @@ export class DeterministicMockProvider implements ModelProvider {
       source: "PROVIDER" as const,
       observedAt,
     }));
+  }
+
+  async generate(
+    config: ProviderGenerationConfig,
+    request: NormalizedGenerationRequest,
+    signal: AbortSignal,
+  ): Promise<NormalizedGenerationResponse> {
+    this.validateConfig(config);
+    if (signal.aborted) {
+      throw new ProviderAdapterError({
+        reason: "CANCELLED",
+        retryable: false,
+      });
+    }
+    if (this.#outcome.type === "FAILURE") {
+      throw new ProviderAdapterError(this.#outcome.failure);
+    }
+    return (
+      this.#outcome.generation ?? {
+        modelId: request.modelId,
+        outputParts: [{ kind: "TEXT", text: "Deterministic response" }],
+        stopReason: "COMPLETED",
+        usage: { inputTokens: 1, outputTokens: 1, costSource: "UNKNOWN" },
+      }
+    );
   }
 }

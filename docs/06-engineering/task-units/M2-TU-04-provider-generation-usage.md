@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 任务单元 ID | M2-TU-04 |
-| 状态 | 就绪 |
+| 状态 | 进行中 |
 | 所属 Milestone | Milestone 2：Provider 与 Goal/Plan |
 | 主要结果 | 用户可为已验证 Provider 精确选择模型并从 Settings 完成可取消、可恢复证据的非流式真实生成测试，系统以 dialect-neutral DTO 返回并持久化标准 usage |
 | 基线提交 | `bcd5b0f9122d6092178d1049d8cfa0515a1232e0` |
