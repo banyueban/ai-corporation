@@ -214,9 +214,15 @@ sequenceDiagram
     U->>UI: 输入目标并选择工作区
     UI->>C: createCorporation(command)
     C->>DB: 保存 Draft
-    C->>G: 生成 Goal Contract
-    G-->>C: Contract + unresolved questions
-    C-->>UI: 请求确认/澄清
+    C->>G: 使用用户明确选择的 Provider 生成 Goal Contract
+    G-->>C: Validated draft + unresolved questions
+    loop 每周期最多 5 轮，续期必须由用户确认
+        C-->>UI: 请求结构化澄清或周期续期决策
+        U->>UI: 回答、续期、保存未确认草稿或取消
+        UI->>G: 提交结构化答案/决策
+    end
+    G->>DB: 自动保存 PROVIDER DRAFT
+    C-->>UI: Goal Contract Review
     U->>UI: 确认合同
     C->>T: 生成并验证 Task Graph
     C->>O: 生成最小团队
@@ -283,6 +289,7 @@ sequenceDiagram
 - 每个 Corporation 默认最多 2 个活跃 Task；
 - 每个 Task 只有一个负责提交结果的活跃 Run；
 - Provider 使用全局/每 Provider 并发限流；
+- 同一 Corporation 同时只运行一个 Goal Engine 操作；每个澄清周期最多 5 轮，周期续期必须等待用户明确决定；
 - SQLite 使用单写队列，读连接池；
 - 所有可取消操作接收 `AbortSignal` 或等价取消令牌。
 
@@ -316,6 +323,8 @@ WHERE id = ? AND status = 'READY';
 4. 若副作用状态不确定，标记 `WAITING_HUMAN`；
 5. 生成 `recovery.detected` 事件；
 6. 用户确认或系统从安全检查点继续。
+
+Goal Engine 的 `GENERATING` 检查点在重启后转为 `INTERRUPTED`，不自动重放 Provider 调用；已持久化的问题、草稿、答案、周期和 usage 可以恢复。达到每个 5 轮周期上限后不再调用模型，直到用户显式续期、保存未确认草稿或取消。
 
 ## 9. 版本化协议
 

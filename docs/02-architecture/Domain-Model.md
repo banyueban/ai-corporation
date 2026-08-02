@@ -180,6 +180,6 @@ erDiagram
 5. 关键 Task 的生产者不能作为唯一 Judge。
 6. 工具权限不得高于 Corporation Policy 和用户授予权限的交集。
 7. Artifact 内容不可原地覆盖，只能创建新版本。
-8. 每次模型或工具调用都必须关联 `corporation_id`、`task_id` 和 `run_id`。
+8. 每次模型调用必须关联 `corporation_id`、`operation_id` 与规范化 `purpose`；只有执行阶段调用才同时强制关联 `task_id` 和 `run_id`，规划前调用不得伪造 Task/Run。每次工具调用仍必须关联真实 `corporation_id`、`task_id` 和 `run_id`。
 9. 终态事件写入后不可删除；敏感内容通过脱敏或密文引用存储。
 10. 达到预算、重试或时间上限后必须停止，不得自行扩大边界。

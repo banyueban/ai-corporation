@@ -90,7 +90,7 @@ CREATE TABLE goal_contract_version (
   corporation_id TEXT NOT NULL REFERENCES corporation(id) ON DELETE CASCADE,
   version INTEGER NOT NULL CHECK (version >= 1),
   status TEXT NOT NULL CHECK (status IN ('DRAFT','APPROVED','SUPERSEDED')),
-  source TEXT NOT NULL CHECK (source IN ('MANUAL','MOCK')),
+  source TEXT NOT NULL CHECK (source IN ('MANUAL','MOCK','PROVIDER')),
   content_json TEXT NOT NULL CHECK (
     json_valid(content_json) AND json_type(content_json) = 'object'
   ),
@@ -106,6 +106,36 @@ CREATE TABLE goal_contract_version (
 
 CREATE INDEX idx_goal_contract_corporation_version
 ON goal_contract_version(corporation_id, version DESC);
+
+CREATE TABLE goal_generation_operation (
+  operation_id TEXT PRIMARY KEY,
+  corporation_id TEXT NOT NULL REFERENCES corporation(id) ON DELETE CASCADE,
+  expected_corporation_version INTEGER NOT NULL CHECK (expected_corporation_version >= 1),
+  expected_goal_version INTEGER NOT NULL CHECK (expected_goal_version >= 0),
+  provider_id TEXT NOT NULL REFERENCES provider(id),
+  provider_version INTEGER NOT NULL CHECK (provider_version >= 1),
+  model_id TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN (
+    'GENERATING','CLARIFICATION_REQUIRED','EXTENSION_REQUIRED',
+    'GOAL_SAVED','FAILED','CANCELLED','INTERRUPTED'
+  )),
+  version INTEGER NOT NULL DEFAULT 1 CHECK (version >= 1),
+  cycle_number INTEGER NOT NULL DEFAULT 1 CHECK (cycle_number >= 1),
+  round_in_cycle INTEGER NOT NULL DEFAULT 0 CHECK (round_in_cycle BETWEEN 0 AND 5),
+  input_json TEXT NOT NULL CHECK (json_valid(input_json)),
+  draft_json TEXT CHECK (draft_json IS NULL OR json_valid(draft_json)),
+  questions_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(questions_json)),
+  answers_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(answers_json)),
+  usage_json TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(usage_json)),
+  failure_reason TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  completed_at TEXT
+) STRICT;
+
+CREATE UNIQUE INDEX idx_goal_generation_active
+ON goal_generation_operation(corporation_id)
+WHERE status IN ('GENERATING','CLARIFICATION_REQUIRED','EXTENSION_REQUIRED');
 
 CREATE TABLE organization_version (
   corporation_id TEXT NOT NULL REFERENCES corporation(id) ON DELETE CASCADE,
@@ -336,17 +366,32 @@ CREATE TABLE provider_generation_test (
 
 CREATE TABLE model_call (
   id TEXT PRIMARY KEY,
-  run_id TEXT NOT NULL REFERENCES agent_run(id) ON DELETE CASCADE,
+  corporation_id TEXT NOT NULL REFERENCES corporation(id) ON DELETE CASCADE,
+  operation_id TEXT NOT NULL,
+  purpose TEXT NOT NULL CHECK (purpose IN (
+    'GOAL_ANALYSIS','PLAN_GENERATION','AGENT_RUN','JUDGE'
+  )),
+  task_id TEXT,
+  run_id TEXT,
   provider_id TEXT NOT NULL REFERENCES provider(id),
+  provider_version INTEGER NOT NULL CHECK (provider_version >= 1),
   model_id TEXT NOT NULL,
-  status TEXT NOT NULL,
-  request_meta_json TEXT NOT NULL,
-  response_meta_json TEXT,
-  input_tokens INTEGER,
-  output_tokens INTEGER,
-  cost_micros INTEGER,
+  attempt INTEGER NOT NULL CHECK (attempt >= 1),
+  status TEXT NOT NULL CHECK (status IN (
+    'STARTED','SUCCEEDED','FAILED','CANCELLED','INTERRUPTED'
+  )),
+  request_meta_json TEXT NOT NULL CHECK (json_valid(request_meta_json)),
+  response_meta_json TEXT CHECK (
+    response_meta_json IS NULL OR json_valid(response_meta_json)
+  ),
+  usage_json TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(usage_json)),
+  failure_reason TEXT,
   started_at TEXT NOT NULL,
-  ended_at TEXT
+  ended_at TEXT,
+  CHECK (
+    (purpose IN ('AGENT_RUN','JUDGE') AND task_id IS NOT NULL AND run_id IS NOT NULL)
+    OR (purpose IN ('GOAL_ANALYSIS','PLAN_GENERATION') AND task_id IS NULL AND run_id IS NULL)
+  )
 );
 
 CREATE TABLE tool_invocation (

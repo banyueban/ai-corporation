@@ -57,11 +57,14 @@
 | Draft clean | 保存草稿、分析目标 |
 | Draft dirty | 离开时提示保存；窗口关闭走草稿保护 |
 | Workspace read-only | 明确提示可执行只读任务，写入类目标需修改权限 |
-| Analyzing | 禁用重复提交，可取消 |
-| Clarification needed | 问题置顶，已有合同内容保留 |
+| Provider required | 必须明确选择 ENABLED、VERIFIED 且已有精确模型的 Provider；显示 Provider/模型和发送字段，不提供自动回退 |
+| Analyzing | 禁用重复提交，可取消；显示周期/轮次与 usage，不伪造合同 |
+| Clarification needed | 问题置顶，已有严格草稿与答案保留；当前周期最多 5 轮 |
+| Clarification extension required | 停止 Provider 调用；显示剩余 HIGH 缺口，允许继续下一 5 轮、保存未确认草稿或取消 |
 | Contract ready | 显示完整合同和待确认假设 |
 | Contract changed | 标记新版本；旧计划若存在则提示受影响 |
 | Goal analysis failed | 显示错误类别；允许重试、换模型、保存原始目标 |
+| Goal analysis interrupted | 重启恢复已保存草稿/问题/答案/usage，不自动重发；允许显式重试或取消 |
 
 ## 6. Plan Review 状态
 

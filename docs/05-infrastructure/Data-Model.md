@@ -16,6 +16,7 @@
 | Corporation | `corporation` | `corporation` 表 |
 | Corporation | `goal_contract` | `0004` 增加 `corporation.active_goal_version` 并通过 trigger 指向本 Corporation 的当前 DRAFT，不设可变主表 |
 | Corporation | `goal_contract_version` | `goal_contract_version` 表，不可变 |
+| Corporation | `goal_generation_operation` | `goal_generation_operation` 表；保存有界澄清、周期、严格草稿、问题、答案和聚合 usage，不保存原始模型正文 |
 | Corporation | `corporation_policy` | v0.1 使用内置、版本化 Policy Bundle；后续迁移增加 `corporation.policy_version` |
 | Corporation | `organization` | 后续迁移增加 `corporation.active_organization_version` 并指向当前版本 |
 | Corporation | `organization_version` | `organization_version` 表，不可变 |
@@ -31,7 +32,7 @@
 | Agent | `agent_instance` | `agent_instance` 表 |
 | Agent | `agent_capability` | `agent_definition.definition_json.capabilities` |
 | Agent | `agent_run` | `agent_run` 表 |
-| Agent | `model_call` | `model_call` 表 |
+| Agent | `model_call` | `model_call` 表；所有调用关联 Corporation/operation/purpose，执行阶段 purpose 另外要求真实 Task/Run |
 | Agent | `tool_invocation` | `tool_invocation` 表 |
 | Artifact | `artifact` | `artifact` 表 |
 | Artifact | `artifact_version` | `artifact_version` 表，不可变 |
@@ -92,6 +93,8 @@ erDiagram
 状态表保存当前值，`domain_event` 保存变化历史。
 
 Corporation 的 create、update-name 与 archive 在同一个 `BEGIN IMMEDIATE` 短事务中提交当前状态、一个同版本 Domain Event 和一个命令回执。Goal save/approve 同样原子提交 Corporation version/active pointer、不可变 Goal 版本或元数据、一个同 Corporation version Domain Event 和 Goal 命令回执。pause/resume 原子提交 Corporation 状态、`paused_from`/`paused_at`、同版本 Domain Event 和独立 `corporation_state_command` 回执；resume 目标只取持久化 `paused_from`。`domain_event` 与 Goal 内容由 SQLite trigger 拒绝未授权更新或删除；未来事件分发游标使用独立投影，不修改事实事件。
+
+Goal Engine 在网络调用前短事务写入 operation/model-call 检查点，网络调用在事务外；结果仅在 Corporation、Goal、Provider 和 operation 版本仍匹配时条件写入。最终 `PROVIDER` Goal 保存与 Goal Contract 版本事务合并，操作状态只在 Goal 事务成功后变为 `GOAL_SAVED`。重启时遗留 `GENERATING` 转为 `INTERRUPTED`，不自动重放。
 
 ## 5. JSON 使用边界
 
@@ -157,6 +160,8 @@ Corporation 的 create、update-name 与 archive 在同一个 `BEGIN IMMEDIATE` 
 | Provider 连接测试 | SQLite；仅保存配置版本、标准状态/错误、测试时间和受限模型列表，不保存原始响应、Authorization 或 Key |
 | Provider 生成配置 | SQLite；保存显式 API dialect、精确选择的模型 ID 和 5–300 秒生成超时，不保存 Key |
 | Provider 生成测试 | SQLite；仅保存当前配置版本、标准状态/错误、受限输出预览、stop reason、标准 usage 和时间，不保存输入、原始请求/响应、Authorization 或 Key |
+| Goal Engine 操作 | SQLite；保存用户 Goal 字段、严格草稿、结构化问题/答案、周期/轮次、标准失败与聚合 usage；不保存 Workspace 路径/文件、system prompt、原始请求/响应或非法 JSON |
+| 模型调用记录 | SQLite；保存 Corporation/operation/purpose、Provider/模型版本、attempt、状态、标准 usage 与时间；不保存输入/输出正文或远端 request ID |
 | 完整 Prompt/响应 | 默认不长期保存；调试模式脱敏 |
 | 文件绝对路径 | SQLite，可视为敏感 |
 | Artifact 内容 | Managed Store / Workspace |

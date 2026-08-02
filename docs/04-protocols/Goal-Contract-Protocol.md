@@ -2,7 +2,7 @@
 
 ## 1. 目的与边界
 
-本协议定义 Milestone 1 的 Goal Contract 手工录入、确定性 Mock 生成、版本化保存、确认和最小事件时间线。它不调用 Provider，不生成 Task Graph，不启动 Corporation，不执行状态机迁移。
+本协议定义 Goal Contract 的手工录入、确定性 Mock、Provider 生成来源、版本化保存、确认和最小事件时间线。Provider 调用、澄清与 JSON 修复由 [Goal Engine Protocol](Goal-Engine-Protocol.md) 定义；本协议不生成 Task Graph、不启动 Corporation、不执行状态机迁移。
 
 Renderer 只获得公开 DTO。SQL、命令 hash、内部回执、Workspace canonical root、路径身份、完整内部事件 payload 和分发字段不得进入公开 API。
 
@@ -10,7 +10,7 @@ Renderer 只获得公开 DTO。SQL、命令 hash、内部回执、Workspace cano
 
 ```ts
 type GoalContractStatus = "DRAFT" | "APPROVED" | "SUPERSEDED";
-type GoalContractSource = "MANUAL" | "MOCK";
+type GoalContractSource = "MANUAL" | "MOCK" | "PROVIDER";
 type GoalAssumption = {
   text: string;
   impact: "LOW" | "MEDIUM" | "HIGH";
@@ -200,6 +200,8 @@ type TimelineListResult = {
 
 Mock 是本地确定性模板，不是模型推理：当 `source === "MOCK"` 时，`statement` 必须等于规范化后的 `originalGoal`，其他字段只复制并规范化用户明确输入的值；Main 不补全成功标准、范围、约束、假设、交付物、风险、预算或停止条件。`MANUAL` 允许 `statement` 与 `originalGoal` 不同。相同规范化输入产生逐字段相同的合同内容，Corporation ID、版本和时间仍由可信 Main 生成。
 
+`PROVIDER` 只能由 Goal Engine 在模型输出和操作版本均严格验证后写入；Renderer 不能通过普通 `save-draft` 伪造该来源。Goal Engine 保存复用本协议的版本、事件、回执和事务语义。模型生成的 assumption 初始固定为未确认；达到澄清周期上限后，只有用户明确选择保存，剩余 HIGH-impact 问题才可转成未确认 HIGH assumption。
+
 Create UI 的 Corporation 创建与 Goal 保存是两个已定义命令，不是伪造的跨服务原子事务。Corporation create 成功而 Goal save 失败时，已创建的 DRAFT Corporation 保留；UI 必须明确显示部分结果、保留 Goal 输入并允许基于重新读取的版本重试，不得声称整个创建旅程成功，也不得静默创建第二个 Corporation。
 
 ## 5. 固定错误
@@ -248,4 +250,4 @@ type GoalContractFailure = {
 
 ## 7. 非范围
 
-Provider、真实模型、澄清循环、Task Graph、Plan/Organization、Corporation 状态机、启动执行、预算账本、事件订阅/实时推送、完整诊断时间线、Goal 删除、跨设备同步和工作区文件操作均不在范围内。
+Task Graph、Plan/Organization、Corporation 状态机、启动执行、预算账本、事件订阅/实时推送、完整诊断时间线、Goal 删除、跨设备同步和工作区文件操作均不在范围内。Provider 调用与澄清状态不由本协议定义。
