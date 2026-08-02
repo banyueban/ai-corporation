@@ -3,12 +3,12 @@
 | 属性 | 当前值 |
 |---|---|
 | 当前产品版本 | v0.1 MVP |
-| 当前阶段 | M2-TU-04 已收口；下一任务合同准备 |
+| 当前阶段 | M2-TU-05 Goal Engine 合同就绪 |
 | 当前 Milestone | Milestone 2：Provider 与 Goal/Plan |
-| 当前任务单元 | M2-TU-04（完成） |
+| 当前任务单元 | M2-TU-05（就绪） |
 | 总体状态 | 进行中 |
 | 最近更新 | 2026-08-02 |
-| 下一检查点 | 审阅 Goal Engine 权威文档，先向用户提交歧义与可执行决策方案，再建立下一任务合同 |
+| 下一检查点 | 按 M2-TU-05 合同实现协议、0009 migration、Goal Engine Service 与隔离自动矩阵 |
 
 ## 1. 当前结论
 
@@ -17,6 +17,8 @@ Milestone 0、Milestone 1 已完成，Milestone 1 已经用户人工安装验收
 [M2-TU-02 应用自管 Provider Key Vault](docs/06-engineering/task-units/M2-TU-02-application-key-vault.md)、[M2-TU-03 Provider 连接测试](docs/06-engineering/task-units/M2-TU-03-provider-connection-test.md)和[M2-TU-04 Provider 非流式生成与 usage](docs/06-engineering/task-units/M2-TU-04-provider-generation-usage.md)均已完成。M2-TU-04 在候选提交 `4822e9939536bd858bdd7a82be3045151e882773` 上通过本地工程检查、Windows 开发态与最终包真实窗口、Windows/macOS 同提交 CI、真实 Provider 生成和泄密扫描。
 
 M2-TU-04 交付 Chat Completions 非流式 Adapter、dialect-neutral 通用协议、精确模型选择、标准 usage、5–300 秒可配置超时、Settings 测试生成、取消/迟到/恢复保护，以及可独立验证的 dialect Adapter registry。registry 证明未来 Responses Adapter 可与 Chat Adapter 并存且不能替换已有 Adapter。Responses、所有 streaming、Goal Engine、Planner、Task Graph 和 Plan Review 不属于该任务；Milestone 2 尚未完成。
+
+[M2-TU-05 Goal Engine 真实生成与有界澄清](docs/06-engineering/task-units/M2-TU-05-goal-engine-generation.md) 已根据用户决策达到“就绪”：真实生成成功后自动保存 `PROVIDER` DRAFT；允许多轮澄清，每周期最多 5 轮且每次续期必须由用户明确选择；每个生成阶段非法 JSON 最多修复一次；用户明确选择 Provider/模型；规划前 model call 使用 corporation/operation/purpose 而不伪造 Task/Run；只发送 Corporation 名称及用户 Goal 字段，不发送 Workspace 路径或文件。达到周期上限后，用户可继续下一个 5 轮周期，或选择保存含未确认 HIGH 假设的草稿/取消。
 
 ## 2. 已完成基线
 
@@ -53,7 +55,7 @@ M2-TU-04 已关闭：
 
 ## 5. 活跃阻塞与外部条件
 
-当前无产品、架构、仓库或外部资源阻塞。下一任务合同尚未建立，不能开始 Goal Engine 实现；必须先按文档路由识别歧义，并把原文、影响、2–3 个方案、推荐理由和决策项提交用户选择。
+当前无产品、架构、仓库或外部资源阻塞。Goal Engine 的生成落库、澄清周期、JSON 修复、Provider 选择、规划前调用审计、数据披露和周期上限行为均已由用户明确决策，M2-TU-05 可以实施。
 
 已知条件：
 
@@ -76,7 +78,7 @@ M2-TU-04 已关闭：
 
 ## 7. 下一步
 
-只进行下一任务的合同准备：按文档中心路由审阅 Goal Engine 直接涉及的产品、协议、模块、数据、安全与 UI 权威文档；如存在任何歧义，先提交详细决策方案由用户选择。用户完成决策、权威文档同步且新合同达到“就绪”前，不实施 Goal Engine。
+按 M2-TU-05 合同先实现 strict Goal Engine protocol、`0009_goal_engine.sql`、Repository/Service 与确定性 loopback 自动矩阵；通过低层门禁后再接入 Create/Review UI、真实窗口、最终包和真实 Provider smoke。任何新歧义仍须先提交用户决策。
 
 ## 8. 更新规则
 
