@@ -20,6 +20,8 @@ import {
   OpenAiChatCompletionsAdapter,
   ProviderAdapterConfigError,
   ProviderAdapterError,
+  ProviderAdapterRegistry,
+  type ProviderApiDialect,
   type ModelProvider,
 } from "@ai-corporation/providers";
 import {
@@ -62,7 +64,7 @@ export class ProviderService {
   readonly #finishedGenerationTestIds = new Set<string>();
   readonly #finishedGenerationTestOrder: string[] = [];
   readonly #adapterOverride: ModelProvider | undefined;
-  readonly #adapters: ReadonlyMap<string, ModelProvider>;
+  readonly #adapters: ProviderAdapterRegistry;
   readonly #repository: Repository;
   readonly #uuid: () => string;
   readonly #vault: ProviderKeyVault;
@@ -78,9 +80,7 @@ export class ProviderService {
     this.#clock = options.clock ?? (() => new Date().toISOString());
     this.#adapterOverride = options.adapter;
     const adapters = options.adapters ?? [new OpenAiChatCompletionsAdapter()];
-    this.#adapters = new Map(
-      adapters.map((adapter) => [adapter.descriptor().dialect, adapter]),
-    );
+    this.#adapters = new ProviderAdapterRegistry(adapters);
     this.#repository = options.repository;
     this.#uuid = options.uuid ?? createUuidV7;
     this.#vault = options.vault;
@@ -420,11 +420,9 @@ export class ProviderService {
     );
   }
 
-  #resolveAdapter(dialect: string): ModelProvider {
+  #resolveAdapter(dialect: ProviderApiDialect): ModelProvider {
     if (this.#adapterOverride !== undefined) return this.#adapterOverride;
-    const adapter = this.#adapters.get(dialect);
-    if (adapter === undefined) throw new ProviderAdapterConfigError();
-    return adapter;
+    return this.#adapters.resolve(dialect);
   }
 }
 

@@ -8,13 +8,13 @@
 | 当前任务单元 | M2-TU-04（进行中） |
 | 总体状态 | 进行中 |
 | 最近更新 | 2026-08-02 |
-| 下一检查点 | 固化 M2-TU-04 候选提交并取得同提交 Windows/macOS CI 与本机 live Provider 证据 |
+| 下一检查点 | 固化 Responses 多 dialect 并存证明的新候选，并取得同提交 CI 与本机 live Provider 证据 |
 
 ## 1. 当前结论
 
 Milestone 1 已完成并经用户人工安装验收；当前没有已知未解决 P0/P1。[M2-TU-02 应用自管 Provider Key Vault](docs/06-engineering/task-units/M2-TU-02-application-key-vault.md) 与 [M2-TU-03 Provider 连接测试](docs/06-engineering/task-units/M2-TU-03-provider-connection-test.md) 均已完成。M2-TU-03 根据用户确认的范围 A、`1A + 2A + 3A + 4A` 和固定 15 秒超时决策交付，并由同一提交的 Windows/macOS 工程检查、开发态真实窗口、最终包真实应用 E2E 和制品门禁直接验收。
 
-[M2-TU-04 Provider 非流式生成与 usage](docs/06-engineering/task-units/M2-TU-04-provider-generation-usage.md) 已按用户确认的 `1A + 2A + 3A + 4A + 5A + 6A` 与 Responses 前向兼容门禁进入候选验收。Chat Completions 非流式 Adapter、dialect-neutral 通用协议、精确模型选择、标准 usage、可配置超时、Settings 测试生成及隔离自动矩阵已实现并通过本地 Windows 工程与真实窗口/最终包验证；同提交 Windows/macOS CI 与本机真实 Provider smoke 尚未取得，因此任务仍为“进行中”。Responses、所有 streaming、Goal Engine、Planner、Task Graph 和 Plan Review 不属于本任务，Milestone 2 尚未完成。
+[M2-TU-04 Provider 非流式生成与 usage](docs/06-engineering/task-units/M2-TU-04-provider-generation-usage.md) 已按用户确认的 `1A + 2A + 3A + 4A + 5A + 6A` 与 Responses 前向兼容门禁进入候选验收。Chat Completions 非流式 Adapter、dialect-neutral 通用协议、精确模型选择、标准 usage、可配置超时、Settings 测试生成及隔离自动矩阵已实现；候选提交 `25aea67aea7f3f21c141aa09e8d93eeccd26bc6a` 的本地 Windows 与同提交 Windows/macOS CI 工程、真实窗口、最终包及 artifacts 均通过。现已补充可独立测试的 dialect Adapter registry，直接证明 Chat 与未来 Responses dialect 可并存、精确路由且重复注册不能替换已有 Adapter；该增量尚待固化并取得同提交 CI。本机真实 Provider 也尚未经新候选正式 Renderer 保存和 smoke，因此任务仍为“进行中”。Responses、所有 streaming、Goal Engine、Planner、Task Graph 和 Plan Review 不属于本任务，Milestone 2 尚未完成。
 
 ## 2. 已完成基线
 
@@ -51,7 +51,7 @@ M2-TU-04 就绪合同只包含：
 
 ## 5. 活跃阻塞与外部条件
 
-当前无产品、架构、验收或仓库阻塞。M2-TU-04 的交付范围、API dialect、模型选择、usage、超时、真实资源验收和 Responses/streaming 前向兼容边界均已由用户明确决策；本地候选通过不表示跨平台 CI 与 live Provider 验收已经完成。
+当前唯一待满足的外部条件是：真实 Key 不能进入命令、脚本、环境变量或旁路文件，必须由用户在已打开的候选应用正式 Renderer 中粘贴并保存；完成后才能执行脱敏状态核验与本地泄密扫描。M2-TU-04 的交付范围、API dialect、模型选择、usage、超时、真实资源验收和 Responses/streaming 前向兼容边界均已由用户明确决策。
 
 已知条件：
 
@@ -67,12 +67,13 @@ M2-TU-04 就绪合同只包含：
 - M2-TU-03 本地 Windows NSIS 安装包 SHA-256 为 `90BBB52BBD4AF594426AC624F2A8DF477869F7131888AEB020DE39ECC51CE318`，包内 Native Core SHA-256 为 `ACDBD55FF932A593D2796E670C77F8423E35BB093C83F9624139DF79B2F186AF`；同源最终包真实窗口完成连接成功、认证失败、诊断、超时、取消、重启恢复与配置变化重置；
 - GitHub Actions run `30714081834` 在验收提交 `a785a483bc150a44bc1be837fc357eb59e376263` 上完整成功；Windows job `91406552961`、macOS job `91406552943` 的工程检查、开发态 E2E、最终包构建、最终包 E2E 和上传步骤全部成功；
 - Artifacts `ai-corporation-windows-x64`（ID `8822822844`，SHA-256 `e82c8fe8aa9389354e9f9081d63463ec69a72e64b8f16ce2e55deb0a0ec7450d`）与 `ai-corporation-macos-arm64`（ID `8822808350`，SHA-256 `bb095e11b3db0735ce9a2bc6a2785f75d3caebf68f5de5ed68ebc5f2c4d021b1`）可用；P0/P1 为 0，未执行必检项为 0。
-- M2-TU-04 本地候选 `pnpm check` 全量通过：Protocol 31、Provider 25、Storage 72、Desktop 85；Windows 开发态真实窗口 E2E 4/4 通过，生成旅程覆盖精确模型、标准 usage/UNKNOWN cost、reload/进程重启、不自动重发、取消保留旧结果、5 秒配置超时和 axe 严重问题 0；
+- M2-TU-04 最新本地候选 `pnpm check` 全量通过：Protocol 31、Provider 27、Storage 72、Desktop 85；新增 2 项 Adapter registry 测试覆盖 Chat/Responses dialect 并存精确路由、禁止重复替换与未知 dialect 拒绝；Windows 开发态真实窗口 E2E 4/4 通过，生成旅程覆盖精确模型、标准 usage/UNKNOWN cost、reload/进程重启、不自动重发、取消保留旧结果、5 秒配置超时和 axe 严重问题 0；
 - M2-TU-04 本地 Windows NSIS SHA-256 为 `992ED1980D711E32E29C8A3D35A510F44F1D6A9D1E056D1292364D2100A6B811`，包内 Native Core SHA-256 为 `ACDBD55FF932A593D2796E670C77F8423E35BB093C83F9624139DF79B2F186AF`；同源最终解包应用完整旅程通过并直接观察到精确模型、`stream:false`、32 token 上限和标准 usage；
+- GitHub Actions run `30737335472` 在候选提交 `25aea67aea7f3f21c141aa09e8d93eeccd26bc6a` 上完整成功；Windows job `91468448603` 与 macOS job `91468448612` 的工程检查、开发态真实窗口、最终包构建、最终包 E2E 和上传步骤全部成功；artifacts `ai-corporation-windows-x64`（ID `8830111435`，SHA-256 `0363a28b955da316a46963bb482fe955ff6553688d359440e7c2b6ba03474558`）与 `ai-corporation-macos-arm64`（ID `8830080566`，SHA-256 `f7ebcc5f5ffbbcfd270ed0e19bb39819ab0e8a94c48392c44d8e979b21975171`）可用；
 
 ## 7. 下一步
 
-固化并推送 M2-TU-04 候选提交，取得该提交 Windows/macOS 的工程检查、开发态真实窗口、最终包 E2E 与 artifacts；随后仅经正式 Renderer 将用户提供资源写入正式应用 userData，完成 ≤32 output tokens 的本机 live smoke 与定向泄密扫描。上述证据齐全前不得勾选合同验收项或标记完成。
+先固化并推送 Responses 多 dialect 并存证明的新候选，取得同提交 Windows/macOS 工程、真实窗口、最终包和 artifacts；再由用户仅经新候选正式 Renderer 将真实 Provider 写入正式 userData，完成 ≤32 output tokens 的本机 live smoke。随后读取脱敏状态并对正式 SQLite/WAL/SHM、应用诊断和仓库执行定向泄密扫描；全部通过后才能勾选 16 项验收断言、运行最终门禁并创建收口提交。
 
 ## 8. 更新规则
 

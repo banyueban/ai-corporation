@@ -10,10 +10,12 @@ export interface ProviderAdapterConfig {
   readonly key: string;
 }
 
+export type ProviderApiDialect = "CHAT_COMPLETIONS" | "RESPONSES" | "MOCK";
+
 export interface ProviderAdapterDescriptor {
   readonly type: "OPENAI_COMPATIBLE" | "MOCK";
   readonly displayName: string;
-  readonly dialect: "CHAT_COMPLETIONS" | "RESPONSES" | "MOCK";
+  readonly dialect: ProviderApiDialect;
 }
 
 export interface ProviderGenerationConfig extends ProviderAdapterConfig {
@@ -54,5 +56,23 @@ export class ProviderAdapterConfigError extends Error {
   constructor() {
     super("Provider configuration is invalid");
     this.name = "ProviderAdapterConfigError";
+  }
+}
+
+export class ProviderAdapterRegistry {
+  readonly #adapters = new Map<ProviderApiDialect, ModelProvider>();
+
+  constructor(adapters: readonly ModelProvider[]) {
+    for (const adapter of adapters) {
+      const dialect = adapter.descriptor().dialect;
+      if (this.#adapters.has(dialect)) throw new ProviderAdapterConfigError();
+      this.#adapters.set(dialect, adapter);
+    }
+  }
+
+  resolve(dialect: ProviderApiDialect): ModelProvider {
+    const adapter = this.#adapters.get(dialect);
+    if (adapter === undefined) throw new ProviderAdapterConfigError();
+    return adapter;
   }
 }
