@@ -19,6 +19,7 @@ import {
   GoalCorporationNotFoundError,
   type GoalContractRepository,
   GoalStateConflictError,
+  GoalProviderContentMutationError,
   GoalVersionConflictError,
   TimelineCursorError,
 } from "@ai-corporation/storage";
@@ -175,6 +176,8 @@ function mapError(error: unknown): GoalContractErrorCode {
   }
   if (error instanceof GoalVersionConflictError) return "VERSION_CONFLICT";
   if (error instanceof GoalStateConflictError) return "STATE_CONFLICT";
+  if (error instanceof GoalProviderContentMutationError)
+    return "STATE_CONFLICT";
   if (error instanceof GoalAssumptionConfirmationError) {
     return "ASSUMPTION_CONFIRMATION_REQUIRED";
   }

@@ -594,6 +594,36 @@ describe("ProviderService", () => {
   });
 });
 
+describe("ProviderService internal generation", () => {
+  it("uses the exact verified Provider without writing a public test snapshot", async () => {
+    const { database, repository, service } = fixture(
+      new DeterministicMockProvider(
+        { type: "SUCCESS", modelIds: ["model-a"] },
+        () => "2026-08-02T00:00:00.000Z",
+      ),
+    );
+    const configured = await createVerifiedProvider(service);
+    await expect(
+      service.generate(
+        {
+          providerId: configured.id,
+          expectedVersion: configured.version,
+          generation: {
+            input: [{ actor: "USER", parts: [{ kind: "TEXT", text: "Goal" }] }],
+            maxOutputTokens: 32,
+            temperature: 0,
+          },
+        },
+        new AbortController().signal,
+      ),
+    ).resolves.toMatchObject({ modelId: "model-a" });
+    expect(repository.get(configured.id)?.generationTest).toEqual({
+      status: "IDLE",
+    });
+    database.close();
+  });
+});
+
 async function createVerifiedProvider(service: ProviderService) {
   const created = service.save({
     schemaVersion: 1,

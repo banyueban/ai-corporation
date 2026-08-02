@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 任务单元 ID | M2-TU-05 |
-| 状态 | 就绪 |
+| 状态 | 进行中 |
 | 所属 Milestone | Milestone 2：Provider 与 Goal/Plan |
 | 主要结果 | 用户可明确选择已验证 Provider/精确模型，把 Goal 输入生成并自动保存为可编辑 `PROVIDER` DRAFT；系统支持每周期 5 轮、用户显式续期的结构化澄清和每生成阶段最多一次 JSON 修复 |
 | 基线提交 | `f2b89831fca5eae51a125a60f9c932ca8c58cd70` |
@@ -29,7 +29,7 @@
 ## 3. 包含范围
 
 - Goal Engine v1 start/answer/resolve-extension/cancel/get-current strict Schema、typed IPC 与公开投影；
-- `PROVIDER` Goal Contract source；普通 Renderer `save-draft` 不能伪造该来源；
+- `PROVIDER` Goal Contract source；普通 Renderer `save-draft` 不能新建或伪造该来源；对已有 `PROVIDER` DRAFT 只允许逐项改变既有 assumption 的 `confirmed`，其余字段逐字段不可变；
 - 明确 Provider/精确模型选择；模型输入仅包含 Corporation 名称及用户 Goal 字段，不包含 Workspace 路径、目录或文件；
 - 固定、版本化 Goal system prompt；非流式 temperature 0、最多 4,096 output tokens；严格解析单个 JSON 对象；
 - 每个生成阶段首次 JSON/Schema 非法时最多一次修复；修复仍失败则固定失败且不保存 Goal；

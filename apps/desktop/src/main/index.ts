@@ -11,6 +11,11 @@ import {
   GOAL_CONTRACT_GET_CURRENT_IPC_CHANNEL,
   GOAL_CONTRACT_LIST_VERSIONS_IPC_CHANNEL,
   GOAL_CONTRACT_SAVE_DRAFT_IPC_CHANNEL,
+  GOAL_ENGINE_ANSWER_IPC_CHANNEL,
+  GOAL_ENGINE_CANCEL_IPC_CHANNEL,
+  GOAL_ENGINE_GET_CURRENT_IPC_CHANNEL,
+  GOAL_ENGINE_RESOLVE_EXTENSION_IPC_CHANNEL,
+  GOAL_ENGINE_START_IPC_CHANNEL,
   NATIVE_HEALTH_IPC_CHANNEL,
   PROVIDER_CANCEL_CONNECTION_TEST_IPC_CHANNEL,
   PROVIDER_CANCEL_GENERATION_TEST_IPC_CHANNEL,
@@ -30,6 +35,7 @@ import {
   CorporationRepository,
   CorporationStateRepository,
   GoalContractRepository,
+  GoalEngineRepository,
   ProviderRepository,
   type GoalFaultStage,
   openWorkspaceDatabase,
@@ -65,6 +71,14 @@ import {
   handleTimelineList,
 } from "./goal-contract-ipc";
 import { GoalContractService } from "./goal-contract-service";
+import {
+  handleGoalEngineAnswer,
+  handleGoalEngineCancel,
+  handleGoalEngineGetCurrent,
+  handleGoalEngineResolveExtension,
+  handleGoalEngineStart,
+} from "./goal-engine-ipc";
+import { GoalEngineService } from "./goal-engine-service";
 import {
   handleProviderCancelConnectionTest,
   handleProviderCancelGenerationTest,
@@ -106,6 +120,7 @@ let mainWindow: BrowserWindow | undefined;
 let corporationService: CorporationService | undefined;
 let corporationStateService: CorporationStateService | undefined;
 let goalContractService: GoalContractService | undefined;
+let goalEngineService: GoalEngineService | undefined;
 let nativeCoreClient: NativeCoreClient | undefined;
 let providerService: ProviderService | undefined;
 let workspaceDatabase: DatabaseSync | undefined;
@@ -262,6 +277,51 @@ void app.whenReady().then(async () => {
     WORKSPACE_LIST_IPC_CHANNEL,
     (event: IpcMainInvokeEvent, request: unknown) =>
       handleWorkspaceList(isTrustedRenderer(event), request, workspaceService),
+  );
+  ipcMain.handle(
+    GOAL_ENGINE_START_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleGoalEngineStart(
+        isTrustedRenderer(event),
+        request,
+        goalEngineService,
+      ),
+  );
+  ipcMain.handle(
+    GOAL_ENGINE_ANSWER_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleGoalEngineAnswer(
+        isTrustedRenderer(event),
+        request,
+        goalEngineService,
+      ),
+  );
+  ipcMain.handle(
+    GOAL_ENGINE_RESOLVE_EXTENSION_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleGoalEngineResolveExtension(
+        isTrustedRenderer(event),
+        request,
+        goalEngineService,
+      ),
+  );
+  ipcMain.handle(
+    GOAL_ENGINE_CANCEL_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleGoalEngineCancel(
+        isTrustedRenderer(event),
+        request,
+        goalEngineService,
+      ),
+  );
+  ipcMain.handle(
+    GOAL_ENGINE_GET_CURRENT_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleGoalEngineGetCurrent(
+        isTrustedRenderer(event),
+        request,
+        goalEngineService,
+      ),
   );
   ipcMain.handle(
     GOAL_CONTRACT_SAVE_DRAFT_IPC_CHANNEL,
@@ -458,6 +518,12 @@ void app.whenReady().then(async () => {
         ),
       }),
     });
+    const goalEngineRepository = new GoalEngineRepository(workspaceDatabase);
+    goalEngineRepository.interruptGenerating(new Date().toISOString());
+    goalEngineService = new GoalEngineService({
+      provider: providerService,
+      repository: goalEngineRepository,
+    });
     const e2eFixturePath = resolveWorkspaceE2eFixturePath(process.env);
     workspaceDirectorySelector = createWorkspaceDirectorySelector({
       ...(e2eFixturePath === undefined ? {} : { e2eFixturePath }),
@@ -473,6 +539,7 @@ void app.whenReady().then(async () => {
     corporationService = undefined;
     corporationStateService = undefined;
     goalContractService = undefined;
+    goalEngineService = undefined;
     providerService = undefined;
     workspaceDirectorySelector = undefined;
     workspaceService = undefined;
@@ -518,8 +585,14 @@ app.on("before-quit", () => {
   ipcMain.removeHandler(GOAL_CONTRACT_LIST_VERSIONS_IPC_CHANNEL);
   ipcMain.removeHandler(GOAL_CONTRACT_APPROVE_IPC_CHANNEL);
   ipcMain.removeHandler(TIMELINE_LIST_IPC_CHANNEL);
+  ipcMain.removeHandler(GOAL_ENGINE_START_IPC_CHANNEL);
+  ipcMain.removeHandler(GOAL_ENGINE_ANSWER_IPC_CHANNEL);
+  ipcMain.removeHandler(GOAL_ENGINE_RESOLVE_EXTENSION_IPC_CHANNEL);
+  ipcMain.removeHandler(GOAL_ENGINE_CANCEL_IPC_CHANNEL);
+  ipcMain.removeHandler(GOAL_ENGINE_GET_CURRENT_IPC_CHANNEL);
   corporationService = undefined;
   goalContractService = undefined;
+  goalEngineService = undefined;
   providerService = undefined;
   workspaceDirectorySelector = undefined;
   workspaceService = undefined;

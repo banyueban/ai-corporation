@@ -13,6 +13,7 @@ import { CorporationRepository } from "./corporation-repository";
 import {
   GoalAssumptionConfirmationError,
   GoalCommandConflictError,
+  GoalProviderContentMutationError,
   GoalCorporationNotFoundError,
   GoalContractRepository,
   GoalStateConflictError,
@@ -170,6 +171,49 @@ describe("GoalContractRepository", () => {
     });
     expect(count("goal_contract_command")).toBe(1);
     expect(count("domain_event")).toBe(2);
+  });
+
+  it("rejects forged Provider drafts from the ordinary save path", () => {
+    const repository = new GoalContractRepository(database);
+    expect(() =>
+      repository.saveDraft(saveInput({ source: "PROVIDER" })),
+    ).toThrow(GoalProviderContentMutationError);
+    expect(count("goal_contract_version")).toBe(0);
+    expect(corporation()).toMatchObject({
+      active_goal_version: null,
+      version: 1,
+    });
+  });
+
+  it("allows only confirmation flags to change on an existing Provider draft", () => {
+    const initial = providerContent(false);
+    seedProviderGoal(initial);
+    const repository = new GoalContractRepository(database);
+    const saved = repository.saveDraft({
+      ...saveInput(),
+      command: command("019fa9bb-4020-7d90-a4e3-a5b0eea2a9ef", "SAVE_DRAFT"),
+      expectedCorporationVersion: 2,
+      expectedGoalVersion: 1,
+      content: providerContent(true),
+      eventId: "019fa9bb-4021-7d90-a4e3-a5b0eea2a9ef",
+    });
+    expect(saved).toMatchObject({
+      version: 2,
+      source: "PROVIDER",
+      assumptions: [{ confirmed: true }],
+    });
+
+    expect(() =>
+      repository.saveDraft({
+        ...saveInput(),
+        command: command("019fa9bb-4022-7d90-a4e3-a5b0eea2a9ef", "SAVE_DRAFT"),
+        expectedCorporationVersion: 3,
+        expectedGoalVersion: 2,
+        content: { ...providerContent(true), statement: "Tampered statement" },
+        eventId: "019fa9bb-4023-7d90-a4e3-a5b0eea2a9ef",
+      }),
+    ).toThrow(GoalProviderContentMutationError);
+    expect(count("goal_contract_version")).toBe(2);
   });
 
   it("approves the current draft and supersedes it with a later version", () => {
@@ -404,6 +448,33 @@ function saveInput(overrides: Partial<GoalContractContentInput> = {}) {
     now,
     eventId: "019fa9bb-4005-7d90-a4e3-a5b0eea2a9ef",
   };
+}
+
+function providerContent(confirmed: boolean): GoalContractContentInput {
+  return {
+    ...saveInput().content,
+    source: "PROVIDER",
+    assumptions: [
+      { text: "Production access exists", impact: "HIGH", confirmed },
+    ],
+  };
+}
+
+function seedProviderGoal(content: GoalContractContentInput): void {
+  database
+    .prepare(
+      `INSERT INTO goal_contract_version (
+        corporation_id, version, status, source, content_json,
+        created_by, created_at, approved_at
+      ) VALUES (?, 1, 'DRAFT', 'PROVIDER', ?, 'local-user', ?, NULL)`,
+    )
+    .run(corporationId, JSON.stringify(content), now);
+  database
+    .prepare(
+      `UPDATE corporation SET active_goal_version = 1, version = 2,
+        updated_at = ? WHERE id = ?`,
+    )
+    .run(now, corporationId);
 }
 
 function approveInput() {

@@ -4,7 +4,10 @@ import type {
   GoalContractContentInput,
   GoalContractErrorCode,
   GoalContractPublic,
+  GoalEngineErrorCode,
+  GoalEngineOperationPublic,
   HealthResult,
+  ProviderPublic,
   TimelineEventPublic,
   WorkspaceIpcErrorCode,
   WorkspacePublic,
@@ -65,6 +68,14 @@ export function App() {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [goalError, setGoalError] = useState<GoalContractErrorCode>();
+  const [goalEngineError, setGoalEngineError] = useState<GoalEngineErrorCode>();
+  const [goalOperation, setGoalOperation] =
+    useState<GoalEngineOperationPublic>();
+  const [providers, setProviders] = useState<readonly ProviderPublic[]>([]);
+  const [selectedProviderId, setSelectedProviderId] = useState<string>();
+  const [clarificationAnswers, setClarificationAnswers] = useState<
+    Readonly<Record<string, string>>
+  >({});
   const [stateError, setStateError] = useState<CorporationErrorCode>();
   const [statePending, setStatePending] = useState(false);
   const [draftCorporation, setDraftCorporation] = useState<CorporationPublic>();
@@ -149,6 +160,9 @@ export function App() {
   const openCreate = () => {
     setOperationError(undefined);
     setGoalError(undefined);
+    setGoalEngineError(undefined);
+    setGoalOperation(undefined);
+    setClarificationAnswers({});
     setStatusMessage("");
     setSelectedWorkspaceId(
       workspaces.find((workspace) => workspace.accessStatus === "AVAILABLE")
@@ -156,6 +170,40 @@ export function App() {
     );
     setForm(emptyContent);
     setDraftCorporation(undefined);
+    setDirty(false);
+    setRoute("create");
+    void window.desktop.provider.list({ schemaVersion: 1 }).then((result) => {
+      if (!result.ok) return;
+      const available = result.value.filter(isGoalProviderAvailable);
+      setProviders(available);
+      setSelectedProviderId(undefined);
+    });
+  };
+
+  const resumeGoalAnalysis = async (summary: CorporationSummary) => {
+    const [providerResult, operationResult] = await Promise.all([
+      window.desktop.provider.list({ schemaVersion: 1 }),
+      window.desktop.goalEngine.getCurrent({
+        schemaVersion: "1.0",
+        corporationId: summary.corporation.id,
+      }),
+    ]);
+    setProviders(
+      providerResult.ok
+        ? providerResult.value.filter(isGoalProviderAvailable)
+        : [],
+    );
+    setSelectedProviderId(undefined);
+    setDraftCorporation(summary.corporation);
+    setSelectedWorkspaceId(summary.corporation.workspaceId);
+    setForm({ ...emptyContent, corporationName: summary.corporation.name });
+    setGoalOperation(
+      operationResult.ok ? (operationResult.value ?? undefined) : undefined,
+    );
+    setGoalEngineError(
+      operationResult.ok ? undefined : operationResult.error.code,
+    );
+    setClarificationAnswers({});
     setDirty(false);
     setRoute("create");
   };
@@ -292,6 +340,180 @@ export function App() {
     } finally {
       if (requestId === requestSequence.current) setSaving(false);
     }
+  };
+
+  const acceptGoalOperation = async (
+    operation: GoalEngineOperationPublic,
+    corporation: CorporationPublic,
+  ) => {
+    setGoalOperation(operation);
+    setClarificationAnswers({});
+    setDirty(false);
+    if (operation.status !== "GOAL_SAVED" || operation.goal === undefined)
+      return;
+    const refreshed = await window.desktop.corporation.get({
+      schemaVersion: "1.0",
+      corporationId: corporation.id,
+    });
+    if (!refreshed.ok) {
+      setGoalEngineError("STORAGE_UNAVAILABLE");
+      return;
+    }
+    setReviewCorporation(refreshed.value);
+    setReviewGoal(operation.goal);
+    setReviewAssumptions(operation.goal.assumptions);
+    setStatusMessage(
+      `Provider Goal draft saved. Review is required before approval. ${usageLabel(operation.usage)}`,
+    );
+    await refreshReview(corporation.id);
+    setRoute("review");
+  };
+
+  const analyzeGoal = async () => {
+    const workspace = workspaces.find(
+      ({ workspaceId }) => workspaceId === selectedWorkspaceId,
+    );
+    const provider = providers.find(({ id }) => id === selectedProviderId);
+    if (
+      workspace?.accessStatus !== "AVAILABLE" ||
+      provider === undefined ||
+      form.corporationName.trim().length === 0 ||
+      form.goal.trim().length === 0
+    ) {
+      setGoalEngineError("VALIDATION_FAILED");
+      return;
+    }
+    setSaving(true);
+    setGoalEngineError(undefined);
+    try {
+      let corporation = draftCorporation;
+      if (corporation === undefined) {
+        const created = await window.desktop.corporation.create({
+          schemaVersion: "1.0",
+          commandId: createUuidV7(),
+          workspaceId: workspace.workspaceId,
+          name: form.corporationName,
+        });
+        if (!created.ok) {
+          setGoalEngineError("STATE_CONFLICT");
+          return;
+        }
+        corporation = created.value;
+        setDraftCorporation(corporation);
+      }
+      const operationId = createUuidV7();
+      setGoalOperation({
+        schemaVersion: "1.0",
+        operationId,
+        corporationId: corporation.id,
+        providerId: provider.id,
+        providerVersion: provider.version,
+        modelId: provider.selectedModelId!,
+        status: "GENERATING",
+        version: 1,
+        cycleNumber: 1,
+        roundInCycle: 0,
+        questions: [],
+        usage: { costSource: "UNKNOWN" },
+        updatedAt: new Date().toISOString(),
+      });
+      const result = await window.desktop.goalEngine.start({
+        schemaVersion: "1.0",
+        operationId,
+        corporationId: corporation.id,
+        expectedCorporationVersion: corporation.version,
+        expectedGoalVersion: 0,
+        providerId: provider.id,
+        expectedProviderVersion: provider.version,
+        input: {
+          originalGoal: form.goal,
+          ...(lines(form.successCriteria).length === 0
+            ? {}
+            : { successCriteriaHints: lines(form.successCriteria) }),
+          ...(lines(form.deliverables).length === 0
+            ? {}
+            : { deliverableHints: lines(form.deliverables) }),
+          ...(lines(form.constraints).length === 0
+            ? {}
+            : { constraints: lines(form.constraints) }),
+          ...(lines(form.outOfScope).length === 0
+            ? {}
+            : { outOfScope: lines(form.outOfScope) }),
+        },
+      });
+      if (!result.ok) {
+        setGoalEngineError(result.error.code);
+        return;
+      }
+      await acceptGoalOperation(result.value, corporation);
+    } catch {
+      setGoalEngineError("STORAGE_UNAVAILABLE");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const answerGoalQuestions = async () => {
+    if (goalOperation === undefined || draftCorporation === undefined) return;
+    setSaving(true);
+    setGoalEngineError(undefined);
+    try {
+      const result = await window.desktop.goalEngine.answer({
+        schemaVersion: "1.0",
+        operationId: goalOperation.operationId,
+        expectedOperationVersion: goalOperation.version,
+        answers: goalOperation.questions.map(({ questionId }) => ({
+          questionId,
+          answer: clarificationAnswers[questionId] ?? "",
+        })),
+      });
+      if (!result.ok) {
+        setGoalEngineError(result.error.code);
+        return;
+      }
+      await acceptGoalOperation(result.value, draftCorporation);
+    } catch {
+      setGoalEngineError("STORAGE_UNAVAILABLE");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const resolveGoalExtension = async (
+    decision: "CONTINUE" | "SAVE_DRAFT" | "CANCEL",
+  ) => {
+    if (goalOperation === undefined || draftCorporation === undefined) return;
+    setSaving(true);
+    setGoalEngineError(undefined);
+    try {
+      const result = await window.desktop.goalEngine.resolveExtension({
+        schemaVersion: "1.0",
+        operationId: goalOperation.operationId,
+        expectedOperationVersion: goalOperation.version,
+        decision,
+      });
+      if (!result.ok) {
+        setGoalEngineError(result.error.code);
+        return;
+      }
+      await acceptGoalOperation(result.value, draftCorporation);
+    } catch {
+      setGoalEngineError("STORAGE_UNAVAILABLE");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const cancelGoalAnalysis = async () => {
+    if (goalOperation === undefined) return;
+    setSaving(true);
+    const result = await window.desktop.goalEngine.cancel({
+      schemaVersion: "1.0",
+      operationId: goalOperation.operationId,
+    });
+    if (result.ok) setGoalOperation(result.value);
+    else setGoalEngineError(result.error.code);
+    setSaving(false);
   };
 
   const refreshReview = async (corporationId: string) => {
@@ -485,6 +707,7 @@ export function App() {
             loading={loadingWorkspaces}
             onCreate={openCreate}
             onOpen={openReview}
+            onResume={resumeGoalAnalysis}
             onRevalidate={revalidateWorkspace}
             onStateChange={changeCorporationState}
             operationError={operationError}
@@ -500,12 +723,23 @@ export function App() {
             error={operationError}
             form={form}
             goalError={goalError}
+            goalEngineError={goalEngineError}
+            goalOperation={goalOperation}
             headingRef={createHeading}
+            clarificationAnswers={clarificationAnswers}
+            onAnalyze={analyzeGoal}
+            onAnswer={answerGoalQuestions}
             onBack={leaveCreate}
+            onCancelAnalysis={cancelGoalAnalysis}
+            onResolveExtension={resolveGoalExtension}
             onSave={saveGoal}
             onSelect={selectWorkspace}
             onUpdate={updateForm}
             saving={saving}
+            providers={providers}
+            selectedProviderId={selectedProviderId}
+            setSelectedProviderId={setSelectedProviderId}
+            setClarificationAnswers={setClarificationAnswers}
             selecting={selecting}
             selectedWorkspaceId={selectedWorkspaceId}
             setSelectedWorkspaceId={setSelectedWorkspaceId}
@@ -607,6 +841,7 @@ function Dashboard(props: {
   readonly loading: boolean;
   readonly onCreate: () => void;
   readonly onOpen: (summary: CorporationSummary) => Promise<void>;
+  readonly onResume: (summary: CorporationSummary) => Promise<void>;
   readonly onRevalidate: (workspaceId: string) => Promise<void>;
   readonly onStateChange: (corporation: CorporationPublic) => Promise<void>;
   readonly operationError: WorkspaceIpcErrorCode | undefined;
@@ -730,11 +965,16 @@ function Dashboard(props: {
                     </button>
                     <button
                       className="secondary-button"
-                      disabled={summary.goal === null}
-                      onClick={() => void props.onOpen(summary)}
+                      onClick={() =>
+                        void (summary.goal === null
+                          ? props.onResume(summary)
+                          : props.onOpen(summary))
+                      }
                       type="button"
                     >
-                      Open Goal Contract
+                      {summary.goal === null
+                        ? "Resume Goal creation"
+                        : "Open Goal Contract"}
                     </button>
                   </article>
                 ))}
@@ -799,18 +1039,33 @@ function Dashboard(props: {
 }
 
 function CreateCorporation(props: {
+  readonly clarificationAnswers: Readonly<Record<string, string>>;
   readonly error: WorkspaceIpcErrorCode | undefined;
   readonly form: typeof emptyContent;
   readonly goalError: GoalContractErrorCode | undefined;
+  readonly goalEngineError: GoalEngineErrorCode | undefined;
+  readonly goalOperation: GoalEngineOperationPublic | undefined;
   readonly headingRef: RefObject<HTMLHeadingElement | null>;
+  readonly onAnalyze: () => Promise<void>;
+  readonly onAnswer: () => Promise<void>;
   readonly onBack: () => void;
+  readonly onCancelAnalysis: () => Promise<void>;
+  readonly onResolveExtension: (
+    decision: "CONTINUE" | "SAVE_DRAFT" | "CANCEL",
+  ) => Promise<void>;
   readonly onSave: (source: "MANUAL" | "MOCK") => Promise<void>;
   readonly onSelect: () => Promise<void>;
   readonly onUpdate: (field: keyof typeof emptyContent, value: string) => void;
+  readonly providers: readonly ProviderPublic[];
   readonly saving: boolean;
+  readonly selectedProviderId: string | undefined;
   readonly selecting: boolean;
   readonly selectedWorkspaceId: string | undefined;
   readonly setSelectedWorkspaceId: (id: string) => void;
+  readonly setSelectedProviderId: (id: string | undefined) => void;
+  readonly setClarificationAnswers: (
+    answers: Readonly<Record<string, string>>,
+  ) => void;
   readonly statusMessage: string;
   readonly workspaces: readonly WorkspacePublic[];
 }) {
@@ -821,6 +1076,14 @@ function CreateCorporation(props: {
     event.preventDefault();
     void props.onSave(source);
   };
+  const selectedProvider = props.providers.find(
+    ({ id }) => id === props.selectedProviderId,
+  );
+  const operationActive =
+    props.goalOperation !== undefined &&
+    ["GENERATING", "CLARIFICATION_REQUIRED", "EXTENSION_REQUIRED"].includes(
+      props.goalOperation.status,
+    );
   return (
     <>
       <header className="page-header page-header--create">
@@ -845,6 +1108,9 @@ function CreateCorporation(props: {
         />
       )}
       {props.goalError !== undefined && <GoalError code={props.goalError} />}
+      {props.goalEngineError !== undefined && (
+        <GoalEngineError code={props.goalEngineError} />
+      )}
       <section className="selection-panel" aria-labelledby="selection-title">
         <div>
           <p className="eyebrow">Required boundary</p>
@@ -915,7 +1181,7 @@ function CreateCorporation(props: {
           />
         </label>
         <label className="field field--wide">
-          Success criteria * <span>One per line</span>
+          Success criteria <span>Required for manual/Mock; one per line</span>
           <textarea
             onChange={(event) =>
               props.onUpdate("successCriteria", event.target.value)
@@ -965,9 +1231,72 @@ function CreateCorporation(props: {
           />
         </label>
         <div className="form-actions field--wide">
+          <section
+            className="provider-disclosure"
+            aria-labelledby="provider-analysis-title"
+          >
+            <h2 id="provider-analysis-title">Provider Goal analysis</h2>
+            <label className="field">
+              Verified Provider and exact model *
+              <select
+                disabled={operationActive || props.saving}
+                onChange={(event) =>
+                  props.setSelectedProviderId(event.target.value || undefined)
+                }
+                value={props.selectedProviderId ?? ""}
+              >
+                <option value="">Choose explicitly…</option>
+                {props.providers.map((provider) => (
+                  <option key={provider.id} value={provider.id}>
+                    {provider.name} · {provider.selectedModelId}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p>
+              Sent to the selected Provider: Corporation name, Goal, optional
+              Goal hints, and clarification answers. Workspace paths, folders,
+              files, and API keys are not sent.
+            </p>
+            {selectedProvider !== undefined && (
+              <p className="selected-boundary">
+                Selected: <strong>{selectedProvider.name}</strong> · model{" "}
+                <strong>{selectedProvider.selectedModelId}</strong> · version{" "}
+                {selectedProvider.version}
+              </p>
+            )}
+            <button
+              className="primary-button"
+              disabled={
+                operationActive ||
+                props.saving ||
+                selectedProvider === undefined
+              }
+              onClick={(event) => {
+                event.preventDefault();
+                void props.onAnalyze();
+              }}
+              type="submit"
+            >
+              {props.saving
+                ? "Analyzing…"
+                : "Analyze and create Provider draft"}
+            </button>
+          </section>
+          {props.goalOperation !== undefined && (
+            <GoalAnalysisPanel
+              answers={props.clarificationAnswers}
+              onAnswer={props.onAnswer}
+              onCancel={props.onCancelAnalysis}
+              onChangeAnswers={props.setClarificationAnswers}
+              onResolve={props.onResolveExtension}
+              operation={props.goalOperation}
+              saving={props.saving}
+            />
+          )}
           <button
             className="secondary-button"
-            disabled={props.saving}
+            disabled={props.saving || operationActive}
             onClick={(event) => submit(event, "MANUAL")}
             type="submit"
           >
@@ -976,7 +1305,7 @@ function CreateCorporation(props: {
           <button
             aria-describedby="mock-help"
             className="primary-button"
-            disabled={props.saving}
+            disabled={props.saving || operationActive}
             onClick={(event) => submit(event, "MOCK")}
             type="submit"
           >
@@ -989,6 +1318,135 @@ function CreateCorporation(props: {
         </div>
       </form>
     </>
+  );
+}
+
+function GoalAnalysisPanel(props: {
+  readonly answers: Readonly<Record<string, string>>;
+  readonly onAnswer: () => Promise<void>;
+  readonly onCancel: () => Promise<void>;
+  readonly onChangeAnswers: (answers: Readonly<Record<string, string>>) => void;
+  readonly onResolve: (
+    decision: "CONTINUE" | "SAVE_DRAFT" | "CANCEL",
+  ) => Promise<void>;
+  readonly operation: GoalEngineOperationPublic;
+  readonly saving: boolean;
+}) {
+  const operation = props.operation;
+  const answersComplete = operation.questions.every(
+    ({ questionId }) => (props.answers[questionId] ?? "").trim().length > 0,
+  );
+  return (
+    <section className="goal-analysis" aria-live="polite">
+      <div className="workspace-card__top">
+        <h2>Goal analysis</h2>
+        <span className="status-badge status-badge--neutral">
+          {operation.status}
+        </span>
+      </div>
+      <p>
+        Cycle {operation.cycleNumber} · completed clarification rounds{" "}
+        {operation.roundInCycle}/5 · {usageLabel(operation.usage)}
+      </p>
+      {operation.status === "GENERATING" && (
+        <>
+          <p>
+            Provider generation is in progress. No Goal is shown until
+            validated.
+          </p>
+          <button
+            className="secondary-button"
+            disabled={false}
+            onClick={() => void props.onCancel()}
+            type="button"
+          >
+            Cancel analysis
+          </button>
+        </>
+      )}
+      {(operation.status === "CLARIFICATION_REQUIRED" ||
+        operation.status === "EXTENSION_REQUIRED") && (
+        <div className="clarification-list">
+          <h3>Remaining high-impact questions</h3>
+          {operation.questions.map((question) => (
+            <label className="field" key={question.questionId}>
+              {question.text} *
+              <textarea
+                disabled={
+                  operation.status === "EXTENSION_REQUIRED" || props.saving
+                }
+                onChange={(event) =>
+                  props.onChangeAnswers({
+                    ...props.answers,
+                    [question.questionId]: event.target.value,
+                  })
+                }
+                rows={3}
+                value={props.answers[question.questionId] ?? ""}
+              />
+            </label>
+          ))}
+        </div>
+      )}
+      {operation.status === "CLARIFICATION_REQUIRED" && (
+        <div className="analysis-actions">
+          <button
+            className="primary-button"
+            disabled={!answersComplete || props.saving}
+            onClick={() => void props.onAnswer()}
+            type="button"
+          >
+            Submit all answers
+          </button>
+          <button
+            className="secondary-button"
+            disabled={props.saving}
+            onClick={() => void props.onCancel()}
+            type="button"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+      {operation.status === "EXTENSION_REQUIRED" && (
+        <div className="analysis-actions">
+          <p>
+            This five-round cycle reached its limit. Provider calls are stopped
+            until you explicitly choose an action.
+          </p>
+          <button
+            className="primary-button"
+            disabled={props.saving}
+            onClick={() => void props.onResolve("CONTINUE")}
+            type="button"
+          >
+            Continue another 5 rounds
+          </button>
+          <button
+            className="secondary-button"
+            disabled={props.saving}
+            onClick={() => void props.onResolve("SAVE_DRAFT")}
+            type="button"
+          >
+            Save with unconfirmed HIGH assumptions
+          </button>
+          <button
+            className="secondary-button"
+            disabled={props.saving}
+            onClick={() => void props.onResolve("CANCEL")}
+            type="button"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+      {["FAILED", "CANCELLED", "INTERRUPTED"].includes(operation.status) && (
+        <p>
+          Analysis did not save a Goal. Your Corporation and input remain; use
+          Analyze again for an explicit retry or choose a manual/Mock draft.
+        </p>
+      )}
+    </section>
   );
 }
 
@@ -1253,6 +1711,37 @@ function GoalError({ code }: { readonly code: GoalContractErrorCode }) {
   );
 }
 
+function GoalEngineError({ code }: { readonly code: GoalEngineErrorCode }) {
+  const messages: Record<GoalEngineErrorCode, string> = {
+    VALIDATION_FAILED:
+      "Choose an available Workspace and verified Provider, then enter Corporation name and Goal.",
+    UNAUTHORIZED_CALLER:
+      "The request did not come from the trusted app window.",
+    NOT_FOUND: "The Goal analysis resource no longer exists.",
+    VERSION_CONFLICT:
+      "Corporation, Goal, Provider, or analysis facts changed. Reload before retrying.",
+    STATE_CONFLICT:
+      "The current Goal analysis state does not allow this action.",
+    INCOMPLETE_ANSWERS:
+      "Answer every current high-impact question before continuing.",
+    PROVIDER_UNAVAILABLE:
+      "The selected Provider, key, verification, or model is no longer available.",
+    CANCELLED: "Goal analysis was cancelled; no Goal was saved.",
+    STORAGE_UNAVAILABLE:
+      "Goal analysis storage is unavailable; no success is assumed.",
+  };
+  return (
+    <section className="error-state" role="alert">
+      <div>
+        <p className="eyebrow">Goal analysis not completed</p>
+        <h2>Action needs attention</h2>
+        <p>{messages[code]}</p>
+      </div>
+      <code>{code}</code>
+    </section>
+  );
+}
+
 function CorporationStateError({
   code,
 }: {
@@ -1298,6 +1787,26 @@ function lines(value: string): string[] {
     .split(/\r?\n/u)
     .map((item) => item.trim())
     .filter((item) => item.length > 0);
+}
+
+function isGoalProviderAvailable(provider: ProviderPublic): boolean {
+  return (
+    provider.configStatus === "ENABLED" &&
+    provider.hasKey &&
+    provider.connectionTest?.status === "VERIFIED" &&
+    provider.selectedModelId !== undefined &&
+    provider.connectionTest.models.some(
+      ({ id }) => id === provider.selectedModelId,
+    )
+  );
+}
+
+function usageLabel(usage: GoalEngineOperationPublic["usage"]): string {
+  const input = usage.inputTokens === undefined ? "?" : usage.inputTokens;
+  const output = usage.outputTokens === undefined ? "?" : usage.outputTokens;
+  return `usage ${input} input / ${output} output tokens · cost ${
+    usage.costMicros === undefined ? "unknown" : `${usage.costMicros} µUSD`
+  }`;
 }
 
 function contentFromForm(

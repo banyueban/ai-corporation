@@ -473,6 +473,38 @@ try {
     .getByText("APPROVED", { exact: true })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
 
+  providerFixture.setGenerationMode("goal");
+  await page.getByRole("button", { name: "Dashboard", exact: true }).click();
+  await page.getByRole("button", { name: "New Corporation" }).click();
+  await page
+    .getByLabel("Corporation name *")
+    .fill("Packaged Provider Goal Corporation");
+  await page
+    .getByLabel("Goal *")
+    .fill("Generate a Provider Goal in the final package");
+  await page
+    .getByLabel(/Verified Provider and exact model/u)
+    .selectOption({ label: "Packaged Provider · packaged-fixture-model" });
+  await page
+    .getByRole("button", { name: "Analyze and create Provider draft" })
+    .click();
+  await page
+    .getByRole("heading", { name: "Confirm Goal Contract" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page
+    .getByText("v1 · DRAFT · PROVIDER")
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page
+    .getByRole("status")
+    .filter({ hasText: /usage 13 input \/ 9 output/u })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  const goalEngineEvidencePath = path.join(
+    evidenceDirectory,
+    `m2-tu05-packaged-${process.platform}-${process.arch}-goal-engine.png`,
+  );
+  await page.screenshot({ path: goalEngineEvidencePath });
+  providerFixture.setGenerationMode("success");
+
   const healthText = await page
     .getByRole("status", { name: /Native Core ready/u })
     .getAttribute("aria-label");
@@ -623,6 +655,21 @@ async function startProviderFixture() {
           return;
         }
         response.writeHead(200, { "content-type": "application/json" });
+        const goalContent = JSON.stringify({
+          draft: {
+            statement: "Generate a Provider Goal in the final package",
+            successCriteria: ["Provider draft is reviewable"],
+            inScope: ["Final package"],
+            outOfScope: [],
+            constraints: [],
+            assumptions: [],
+            deliverables: ["Goal Contract"],
+            riskLevel: "LOW",
+            budget: {},
+            stopConditions: [],
+          },
+          unresolvedQuestions: [],
+        });
         response.end(
           JSON.stringify({
             model: "packaged-fixture-model",
@@ -631,15 +678,18 @@ async function startProviderFixture() {
                 index: 0,
                 message: {
                   role: "assistant",
-                  content: "Packaged fixture acknowledged.",
+                  content:
+                    generationMode === "goal"
+                      ? goalContent
+                      : "Packaged fixture acknowledged.",
                 },
                 finish_reason: "stop",
               },
             ],
             usage: {
-              prompt_tokens: 11,
-              completion_tokens: 3,
-              total_tokens: 14,
+              prompt_tokens: generationMode === "goal" ? 13 : 11,
+              completion_tokens: generationMode === "goal" ? 9 : 3,
+              total_tokens: generationMode === "goal" ? 22 : 14,
             },
           }),
         );

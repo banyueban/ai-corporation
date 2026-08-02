@@ -3,9 +3,9 @@
 | 属性 | 当前值 |
 |---|---|
 | 当前产品版本 | v0.1 MVP |
-| 当前阶段 | M2-TU-05 Goal Engine 合同就绪 |
+| 当前阶段 | M2-TU-05 Goal Engine 实施 |
 | 当前 Milestone | Milestone 2：Provider 与 Goal/Plan |
-| 当前任务单元 | M2-TU-05（就绪） |
+| 当前任务单元 | M2-TU-05（进行中） |
 | 总体状态 | 进行中 |
 | 最近更新 | 2026-08-02 |
 | 下一检查点 | 按 M2-TU-05 合同实现协议、0009 migration、Goal Engine Service 与隔离自动矩阵 |

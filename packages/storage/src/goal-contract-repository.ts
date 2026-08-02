@@ -16,6 +16,7 @@ export class GoalVersionConflictError extends Error {}
 export class GoalStateConflictError extends Error {}
 export class GoalAssumptionConfirmationError extends Error {}
 export class GoalCommandConflictError extends Error {}
+export class GoalProviderContentMutationError extends Error {}
 export class GoalDataError extends Error {}
 export class TimelineCursorError extends Error {}
 
@@ -95,6 +96,11 @@ export class GoalContractRepository {
         throw new GoalVersionConflictError();
       }
       const content = goalContractContentInputSchema.parse(input.content);
+      const currentGoal =
+        currentGoalVersion === 0
+          ? undefined
+          : this.#requiredGoal(corporation.id, currentGoalVersion);
+      assertProviderContentMutation(currentGoal, content);
       const nextGoalVersion = currentGoalVersion + 1;
       const nextCorporationVersion = corporation.version + 1;
 
@@ -471,6 +477,43 @@ export class GoalContractRepository {
       throw new TimelineCursorError();
     }
   }
+}
+
+function assertProviderContentMutation(
+  current: GoalContractPublic | undefined,
+  next: GoalContractContentInput,
+): void {
+  if (current?.source !== "PROVIDER" && next.source !== "PROVIDER") return;
+  if (current?.source !== "PROVIDER" || next.source !== "PROVIDER") {
+    throw new GoalProviderContentMutationError();
+  }
+  const currentComparable = providerComparableContent(current);
+  const nextComparable = providerComparableContent(next);
+  if (JSON.stringify(currentComparable) !== JSON.stringify(nextComparable)) {
+    throw new GoalProviderContentMutationError();
+  }
+}
+
+function providerComparableContent(
+  value: GoalContractPublic | GoalContractContentInput,
+) {
+  return {
+    source: value.source,
+    originalGoal: value.originalGoal,
+    statement: value.statement,
+    successCriteria: value.successCriteria,
+    inScope: value.inScope,
+    outOfScope: value.outOfScope,
+    constraints: value.constraints,
+    assumptions: value.assumptions.map(({ text, impact }) => ({
+      text,
+      impact,
+    })),
+    deliverables: value.deliverables,
+    riskLevel: value.riskLevel,
+    budget: value.budget,
+    stopConditions: value.stopConditions,
+  };
 }
 
 function parseGoal(row: Record<string, unknown>): GoalContractPublic {

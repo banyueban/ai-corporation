@@ -184,14 +184,14 @@ describe("migration runner", () => {
     database.close();
   });
 
-  it("creates the existing domain schema and Provider generation projection through migration 0008", () => {
+  it("creates the existing domain schema and Goal Engine projection through migration 0009", () => {
     const database = new DatabaseSync(":memory:");
     const migrations = loadMigrations(migrationDirectory);
     applyMigrations(database, migrations);
 
     expect(
       readAppliedMigrations(database).map(({ version }) => version),
-    ).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    ).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
     expect(
       database
         .prepare(
@@ -203,9 +203,13 @@ describe("migration runner", () => {
               'corporation_command',
               'goal_contract_version',
               'goal_contract_command',
+              'goal_generation_operation',
+              'model_call',
               'corporation_state_command',
               'idx_corporation_workspace_updated',
               'idx_goal_contract_corporation_version',
+              'idx_goal_generation_active',
+              'idx_model_call_operation',
               'idx_event_corporation_timeline',
               'domain_event_reject_update',
               'domain_event_reject_delete',
@@ -233,9 +237,13 @@ describe("migration runner", () => {
       "goal_contract_reject_content_update",
       "goal_contract_reject_delete",
       "goal_contract_version",
+      "goal_generation_operation",
       "idx_corporation_workspace_updated",
       "idx_event_corporation_timeline",
       "idx_goal_contract_corporation_version",
+      "idx_goal_generation_active",
+      "idx_model_call_operation",
+      "model_call",
     ]);
     expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
     database.close();
@@ -758,6 +766,71 @@ describe("migration runner", () => {
         .prepare("SELECT count(*) AS count FROM provider_generation_test")
         .get(),
     ).toEqual({ count: 0 });
+    expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+    database.close();
+  });
+
+  it("upgrades populated 0008 Goal data without changing MANUAL semantics", () => {
+    const database = new DatabaseSync(":memory:");
+    const migrations = loadMigrations(migrationDirectory);
+    applyMigrations(database, migrations.slice(0, 8));
+    const timestamp = "2026-08-02T05:00:00.000Z";
+    const workspaceId = "019fa9bb-7200-7d90-a4e3-a5b0eea2a9ef";
+    const corporationId = "019fa9bb-7201-7d90-a4e3-a5b0eea2a9ef";
+    const content = JSON.stringify({
+      source: "MANUAL",
+      originalGoal: "Preserve this Goal",
+      statement: "Preserve this Goal",
+      successCriteria: ["Unchanged"],
+      inScope: [],
+      outOfScope: [],
+      constraints: [],
+      assumptions: [],
+      deliverables: [],
+      riskLevel: "LOW",
+      budget: {},
+      stopConditions: [],
+    });
+    database
+      .prepare(
+        `INSERT INTO workspace (
+        id, name, display_path, canonical_root_path, platform,
+        permission_mode, access_status, path_identity_json, created_at, updated_at
+      ) VALUES (?, 'Workspace', 'display', 'canonical', 'windows',
+        'READ_WRITE', 'AVAILABLE', '{}', ?, ?)`,
+      )
+      .run(workspaceId, timestamp, timestamp);
+    database
+      .prepare(
+        `INSERT INTO corporation (
+        id, workspace_id, name, status, version, created_at, updated_at
+      ) VALUES (?, ?, 'Corporation', 'DRAFT', 1, ?, ?)`,
+      )
+      .run(corporationId, workspaceId, timestamp, timestamp);
+    database
+      .prepare(
+        `INSERT INTO goal_contract_version (
+        corporation_id, version, status, source, content_json,
+        created_by, created_at, approved_at
+      ) VALUES (?, 1, 'DRAFT', 'MANUAL', ?, 'local-user', ?, NULL)`,
+      )
+      .run(corporationId, content, timestamp);
+    database
+      .prepare(
+        `UPDATE corporation SET active_goal_version = 1, version = 2,
+        updated_at = ? WHERE id = ?`,
+      )
+      .run(timestamp, corporationId);
+
+    applyMigrations(database, migrations);
+    expect(
+      database
+        .prepare(
+          `SELECT source, content_json FROM goal_contract_version
+      WHERE corporation_id = ? AND version = 1`,
+        )
+        .get(corporationId),
+    ).toEqual({ source: "MANUAL", content_json: content });
     expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
     database.close();
   });

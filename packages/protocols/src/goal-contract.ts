@@ -53,7 +53,7 @@ export const goalContractStatusSchema = z.enum([
   "APPROVED",
   "SUPERSEDED",
 ]);
-export const goalContractSourceSchema = z.enum(["MANUAL", "MOCK"]);
+export const goalContractSourceSchema = z.enum(["MANUAL", "MOCK", "PROVIDER"]);
 export const goalRiskLevelSchema = z.enum([
   "LOW",
   "MEDIUM",

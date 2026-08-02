@@ -15,6 +15,13 @@ import type {
   GoalContractListVersionsRequest,
   GoalContractNullableItemResult,
   GoalContractSaveDraftRequest,
+  GoalEngineAnswerRequest,
+  GoalEngineCancelRequest,
+  GoalEngineGetCurrentRequest,
+  GoalEngineItemResult,
+  GoalEngineNullableItemResult,
+  GoalEngineResolveExtensionRequest,
+  GoalEngineStartRequest,
   HealthResult,
   ProviderDeleteKeyRequest,
   ProviderCancelConnectionTestRequest,
@@ -63,6 +70,17 @@ export interface DesktopApi {
     saveDraft(
       request: GoalContractSaveDraftRequest,
     ): Promise<GoalContractItemResult>;
+  }>;
+  readonly goalEngine: Readonly<{
+    answer(request: GoalEngineAnswerRequest): Promise<GoalEngineItemResult>;
+    cancel(request: GoalEngineCancelRequest): Promise<GoalEngineItemResult>;
+    getCurrent(
+      request: GoalEngineGetCurrentRequest,
+    ): Promise<GoalEngineNullableItemResult>;
+    resolveExtension(
+      request: GoalEngineResolveExtensionRequest,
+    ): Promise<GoalEngineItemResult>;
+    start(request: GoalEngineStartRequest): Promise<GoalEngineItemResult>;
   }>;
   health(): Promise<HealthResult>;
   readonly provider: Readonly<{

@@ -30,6 +30,23 @@ import {
   type GoalContractGetCurrentRequest,
   type GoalContractListVersionsRequest,
   type GoalContractSaveDraftRequest,
+  GOAL_ENGINE_ANSWER_IPC_CHANNEL,
+  GOAL_ENGINE_CANCEL_IPC_CHANNEL,
+  GOAL_ENGINE_GET_CURRENT_IPC_CHANNEL,
+  GOAL_ENGINE_RESOLVE_EXTENSION_IPC_CHANNEL,
+  GOAL_ENGINE_START_IPC_CHANNEL,
+  goalEngineAnswerRequestSchema,
+  goalEngineCancelRequestSchema,
+  goalEngineGetCurrentRequestSchema,
+  goalEngineItemResultSchema,
+  goalEngineNullableItemResultSchema,
+  goalEngineResolveExtensionRequestSchema,
+  goalEngineStartRequestSchema,
+  type GoalEngineAnswerRequest,
+  type GoalEngineCancelRequest,
+  type GoalEngineGetCurrentRequest,
+  type GoalEngineResolveExtensionRequest,
+  type GoalEngineStartRequest,
   type CorporationArchiveRequest,
   type CorporationCreateRequest,
   type CorporationGetRequest,
@@ -164,6 +181,43 @@ const desktopApi: DesktopApi = Object.freeze({
         await ipcRenderer.invoke(
           GOAL_CONTRACT_SAVE_DRAFT_IPC_CHANNEL,
           goalContractSaveDraftRequestSchema.parse(request),
+        ),
+      ),
+  }),
+  goalEngine: Object.freeze({
+    answer: async (request: GoalEngineAnswerRequest) =>
+      goalEngineItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          GOAL_ENGINE_ANSWER_IPC_CHANNEL,
+          goalEngineAnswerRequestSchema.parse(request),
+        ),
+      ),
+    cancel: async (request: GoalEngineCancelRequest) =>
+      goalEngineItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          GOAL_ENGINE_CANCEL_IPC_CHANNEL,
+          goalEngineCancelRequestSchema.parse(request),
+        ),
+      ),
+    getCurrent: async (request: GoalEngineGetCurrentRequest) =>
+      goalEngineNullableItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          GOAL_ENGINE_GET_CURRENT_IPC_CHANNEL,
+          goalEngineGetCurrentRequestSchema.parse(request),
+        ),
+      ),
+    resolveExtension: async (request: GoalEngineResolveExtensionRequest) =>
+      goalEngineItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          GOAL_ENGINE_RESOLVE_EXTENSION_IPC_CHANNEL,
+          goalEngineResolveExtensionRequestSchema.parse(request),
+        ),
+      ),
+    start: async (request: GoalEngineStartRequest) =>
+      goalEngineItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          GOAL_ENGINE_START_IPC_CHANNEL,
+          goalEngineStartRequestSchema.parse(request),
         ),
       ),
   }),

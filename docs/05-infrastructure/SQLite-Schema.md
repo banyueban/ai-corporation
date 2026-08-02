@@ -110,6 +110,7 @@ ON goal_contract_version(corporation_id, version DESC);
 CREATE TABLE goal_generation_operation (
   operation_id TEXT PRIMARY KEY,
   corporation_id TEXT NOT NULL REFERENCES corporation(id) ON DELETE CASCADE,
+  request_hash TEXT NOT NULL,
   expected_corporation_version INTEGER NOT NULL CHECK (expected_corporation_version >= 1),
   expected_goal_version INTEGER NOT NULL CHECK (expected_goal_version >= 0),
   provider_id TEXT NOT NULL REFERENCES provider(id),
@@ -126,11 +127,12 @@ CREATE TABLE goal_generation_operation (
   draft_json TEXT CHECK (draft_json IS NULL OR json_valid(draft_json)),
   questions_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(questions_json)),
   answers_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(answers_json)),
-  usage_json TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(usage_json)),
+  usage_json TEXT NOT NULL DEFAULT '{"costSource":"UNKNOWN"}' CHECK (json_valid(usage_json)),
   failure_reason TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  completed_at TEXT
+  completed_at TEXT,
+  saved_goal_version INTEGER CHECK (saved_goal_version IS NULL OR saved_goal_version >= 1)
 ) STRICT;
 
 CREATE UNIQUE INDEX idx_goal_generation_active

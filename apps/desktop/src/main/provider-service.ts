@@ -15,6 +15,8 @@ import {
   type ProviderSaveRequest,
   type ProviderTestConnectionRequest,
   type ProviderTestGenerationRequest,
+  type NormalizedGenerationRequest,
+  type NormalizedGenerationResponse,
 } from "@ai-corporation/protocols";
 import {
   OpenAiChatCompletionsAdapter,
@@ -412,6 +414,53 @@ export class ProviderService {
     };
   }
 
+  async generate(
+    request: {
+      readonly providerId: string;
+      readonly expectedVersion: number;
+      readonly generation: Omit<NormalizedGenerationRequest, "modelId">;
+    },
+    signal: AbortSignal,
+  ): Promise<NormalizedGenerationResponse> {
+    const provider = this.#repository.get(request.providerId);
+    if (provider === undefined)
+      throw new ProviderRuntimeUnavailableError("NOT_FOUND");
+    if (provider.version !== request.expectedVersion) {
+      throw new ProviderRuntimeUnavailableError("VERSION_CONFLICT");
+    }
+    if (provider.configStatus !== "ENABLED") {
+      throw new ProviderRuntimeUnavailableError("DISABLED");
+    }
+    if (!provider.hasKey)
+      throw new ProviderRuntimeUnavailableError("MISSING_KEY");
+    if (provider.connectionTest?.status !== "VERIFIED") {
+      throw new ProviderRuntimeUnavailableError("UNVERIFIED");
+    }
+    if (provider.selectedModelId === undefined) {
+      throw new ProviderRuntimeUnavailableError("MODEL_NOT_SELECTED");
+    }
+    if (
+      !provider.connectionTest.models.some(
+        ({ id }) => id === provider.selectedModelId,
+      )
+    ) {
+      throw new ProviderRuntimeUnavailableError("MODEL_STALE");
+    }
+    const stored = this.#repository.getEncryptedKey(request.providerId);
+    const key = this.#vault.decrypt(stored.encrypted, stored.entryId);
+    return this.#resolveAdapter(
+      provider.apiDialect ?? "CHAT_COMPLETIONS",
+    ).generate(
+      {
+        endpoint: provider.endpoint,
+        key,
+        generationTimeoutMs: provider.generationTimeoutMs ?? 60_000,
+      },
+      { modelId: provider.selectedModelId, ...request.generation },
+      signal,
+    );
+  }
+
   #rememberFinishedConnectionTest(requestId: string): void {
     rememberFinished(
       requestId,
@@ -423,6 +472,22 @@ export class ProviderService {
   #resolveAdapter(dialect: ProviderApiDialect): ModelProvider {
     if (this.#adapterOverride !== undefined) return this.#adapterOverride;
     return this.#adapters.resolve(dialect);
+  }
+}
+
+export class ProviderRuntimeUnavailableError extends Error {
+  constructor(
+    readonly reason:
+      | "NOT_FOUND"
+      | "VERSION_CONFLICT"
+      | "DISABLED"
+      | "MISSING_KEY"
+      | "UNVERIFIED"
+      | "MODEL_NOT_SELECTED"
+      | "MODEL_STALE",
+  ) {
+    super("Provider runtime is unavailable");
+    this.name = "ProviderRuntimeUnavailableError";
   }
 }
 

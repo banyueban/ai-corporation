@@ -200,7 +200,7 @@ type TimelineListResult = {
 
 Mock 是本地确定性模板，不是模型推理：当 `source === "MOCK"` 时，`statement` 必须等于规范化后的 `originalGoal`，其他字段只复制并规范化用户明确输入的值；Main 不补全成功标准、范围、约束、假设、交付物、风险、预算或停止条件。`MANUAL` 允许 `statement` 与 `originalGoal` 不同。相同规范化输入产生逐字段相同的合同内容，Corporation ID、版本和时间仍由可信 Main 生成。
 
-`PROVIDER` 只能由 Goal Engine 在模型输出和操作版本均严格验证后写入；Renderer 不能通过普通 `save-draft` 伪造该来源。Goal Engine 保存复用本协议的版本、事件、回执和事务语义。模型生成的 assumption 初始固定为未确认；达到澄清周期上限后，只有用户明确选择保存，剩余 HIGH-impact 问题才可转成未确认 HIGH assumption。
+`PROVIDER` 只能由 Goal Engine 在模型输出和操作版本均严格验证后首次写入；Renderer 不能通过普通 `save-draft` 新建或伪造该来源。用户在 Review 确认已有 Provider Goal 的 assumption 时，普通 `save-draft` 只允许在当前 `PROVIDER` DRAFT 基础上改变既有 assumption 的 `confirmed` 布尔值；source、原始目标、正文、成功标准、范围、约束、assumption 数量/顺序/文本/影响、交付物、风险、预算和停止条件必须逐字段保持一致。任一其他变化固定拒绝且不产生新版本、事件或回执。Goal Engine 保存复用本协议的版本、事件、回执和事务语义。模型生成的 assumption 初始固定为未确认；达到澄清周期上限后，只有用户明确选择保存，剩余 HIGH-impact 问题才可转成未确认 HIGH assumption。
 
 Create UI 的 Corporation 创建与 Goal 保存是两个已定义命令，不是伪造的跨服务原子事务。Corporation create 成功而 Goal save 失败时，已创建的 DRAFT Corporation 保留；UI 必须明确显示部分结果、保留 Goal 输入并允许基于重新读取的版本重试，不得声称整个创建旅程成功，也不得静默创建第二个 Corporation。
 
