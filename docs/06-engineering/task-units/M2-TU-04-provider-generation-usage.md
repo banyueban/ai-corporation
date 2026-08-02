@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 任务单元 ID | M2-TU-04 |
-| 状态 | 进行中 |
+| 状态 | 完成 |
 | 所属 Milestone | Milestone 2：Provider 与 Goal/Plan |
 | 主要结果 | 用户可为已验证 Provider 精确选择模型并从 Settings 完成可取消、可恢复证据的非流式真实生成测试，系统以 dialect-neutral DTO 返回并持久化标准 usage |
 | 基线提交 | `bcd5b0f9122d6092178d1049d8cfa0515a1232e0` |
@@ -68,22 +68,22 @@
 
 ## 7. 验收合同
 
-- [ ] 前向兼容：通用协议、Service、Repository、Renderer 和持久化无 Chat 专属 DTO/字段；Chat Adapter 显式声明 dialect；静态/合同测试证明未来 Responses 可新增并存分支且 streaming 不复用本协议；
-- [ ] 协议：generate/cancel v1 Schema 严格拒绝额外字段、错误版本、非法 UUID/版本、空/超限输入、非法 token/temperature/usage/输出与未授权调用；公开错误不含输入或原始正文；
-- [ ] Chat 请求：准确 `POST <base>/chat/completions`，Bearer 使用已保存 Key，映射 input/max tokens/temperature，固定 `stream:false`，禁止 redirect 且不发送额外敏感 header；
-- [ ] Chat 响应：合法单一文本 choice 映射为通用 outputParts/stopReason；Chat 原始结构不跨 Adapter；空、多 choice、非文本、超 1 MiB、非法 UTF-8/JSON/usage 安全失败；
-- [ ] 错误归一化：401、403、404/model missing、429 rate/quota、其他 4xx、5xx、content filter、DNS/TLS/socket、5–300 秒 timeout 和用户取消得到固定 reason/retryable/backoff；正文不外泄；
-- [ ] Mock：Deterministic Mock 与 Chat Adapter 实现同一 generate 合同；成功、错误、usage 缺失/存在、取消和迟到矩阵一致，Mock 不进入生产类型/SQLite/UI；
-- [ ] 迁移：空库与 `0001`–`0007` 升级到 `0008` 成功；STRICT/CHECK/FK/JSON/级联/默认值/foreign key check 与权威 Schema 一致，中断可重试；
-- [ ] 模型与配置：仅可从当前 VERIFIED 模型列表精确选择；无自由输入/自动回退；默认 60 秒且仅 5–300 秒；Endpoint/Key 改变清除选择及投影，名称/启停/超时变化符合协议；
-- [ ] 持久化：成功/失败投影与 usage 可在 SQLite 重开、Renderer reload 和应用重启恢复；不保存任意输入、完整原始响应、Key、Authorization 或远端 request ID；取消/冲突不覆盖；
-- [ ] 并发：同 requestId 不重复调用；两个 Provider 隔离；取消只影响目标；Provider 版本变化时迟到结果返回冲突且不覆盖新配置或旧有效结果；资源/timer/listener/server/port 无残留；
-- [ ] Key/IPC：缺 Key、Vault 故障、disabled、未验证、未选择/过期模型在发网前失败；错误窗口、伪造 model/dialect/URL/Header/Key 和未知取消固定拒绝；Renderer 无通用 fetch/Vault/DB/文件/Native RPC；
-- [ ] UI：Settings 可选择精确模型、设置 timeout、发起/取消/重试固定低风险生成并查看受限输出、stopReason、token usage 与 UNKNOWN cost；pending、诊断、错误与修复动作准确；
-- [ ] UI 恢复与适配：重载/重启恢复持久化事实但不自动重发；键盘/焦点/live region/label/错误关联及 1024×700、1440×900、200% 缩放可完成；Key 默认遮挡且不进入截图；
-- [ ] 自动真实窗口：Windows/macOS 同一提交开发态与最终包用 loopback 完成成功、usage、错误、取消、超时、重启、配置变化和回归；功能与清理独立通过；
-- [ ] 本机真实 Provider：自动矩阵通过后，经正式 Renderer 将本机资源保存到应用自管 Key Vault，精确选择已返回模型并完成一次 ≤32 output tokens 的非敏感生成；只记录脱敏成功、模型、usage/UNKNOWN cost、时间和泄密扫描；
-- [ ] 治理：`pnpm check`、status/task-unit/diff、Rust fmt/clippy、secret scan、既有 Workspace/Corporation/Goal/pause/restart/Key Vault/connection E2E 全部通过；Windows/macOS CI 同提交最终包与 artifacts 成功；P0/P1 和未执行必检项为 0。
+- [x] 前向兼容：通用协议、Service、Repository、Renderer 和持久化无 Chat 专属 DTO/字段；Chat Adapter 显式声明 dialect；静态/合同测试证明未来 Responses 可新增并存分支且 streaming 不复用本协议；
+- [x] 协议：generate/cancel v1 Schema 严格拒绝额外字段、错误版本、非法 UUID/版本、空/超限输入、非法 token/temperature/usage/输出与未授权调用；公开错误不含输入或原始正文；
+- [x] Chat 请求：准确 `POST <base>/chat/completions`，Bearer 使用已保存 Key，映射 input/max tokens/temperature，固定 `stream:false`，禁止 redirect 且不发送额外敏感 header；
+- [x] Chat 响应：合法单一文本 choice 映射为通用 outputParts/stopReason；Chat 原始结构不跨 Adapter；空、多 choice、非文本、超 1 MiB、非法 UTF-8/JSON/usage 安全失败；
+- [x] 错误归一化：401、403、404/model missing、429 rate/quota、其他 4xx、5xx、content filter、DNS/TLS/socket、5–300 秒 timeout 和用户取消得到固定 reason/retryable/backoff；正文不外泄；
+- [x] Mock：Deterministic Mock 与 Chat Adapter 实现同一 generate 合同；成功、错误、usage 缺失/存在、取消和迟到矩阵一致，Mock 不进入生产类型/SQLite/UI；
+- [x] 迁移：空库与 `0001`–`0007` 升级到 `0008` 成功；STRICT/CHECK/FK/JSON/级联/默认值/foreign key check 与权威 Schema 一致，中断可重试；
+- [x] 模型与配置：仅可从当前 VERIFIED 模型列表精确选择；无自由输入/自动回退；默认 60 秒且仅 5–300 秒；Endpoint/Key 改变清除选择及投影，名称/启停/超时变化符合协议；
+- [x] 持久化：成功/失败投影与 usage 可在 SQLite 重开、Renderer reload 和应用重启恢复；不保存任意输入、完整原始响应、Key、Authorization 或远端 request ID；取消/冲突不覆盖；
+- [x] 并发：同 requestId 不重复调用；两个 Provider 隔离；取消只影响目标；Provider 版本变化时迟到结果返回冲突且不覆盖新配置或旧有效结果；资源/timer/listener/server/port 无残留；
+- [x] Key/IPC：缺 Key、Vault 故障、disabled、未验证、未选择/过期模型在发网前失败；错误窗口、伪造 model/dialect/URL/Header/Key 和未知取消固定拒绝；Renderer 无通用 fetch/Vault/DB/文件/Native RPC；
+- [x] UI：Settings 可选择精确模型、设置 timeout、发起/取消/重试固定低风险生成并查看受限输出、stopReason、token usage 与 UNKNOWN cost；pending、诊断、错误与修复动作准确；
+- [x] UI 恢复与适配：重载/重启恢复持久化事实但不自动重发；键盘/焦点/live region/label/错误关联及 1024×700、1440×900、200% 缩放可完成；Key 默认遮挡且不进入截图；
+- [x] 自动真实窗口：Windows/macOS 同一提交开发态与最终包用 loopback 完成成功、usage、错误、取消、超时、重启、配置变化和回归；功能与清理独立通过；
+- [x] 本机真实 Provider：自动矩阵通过后，经正式 Renderer 将本机资源保存到应用自管 Key Vault，精确选择已返回模型并完成一次 ≤32 output tokens 的非敏感生成；只记录脱敏成功、模型、usage/UNKNOWN cost、时间和泄密扫描；
+- [x] 治理：`pnpm check`、status/task-unit/diff、Rust fmt/clippy、secret scan、既有 Workspace/Corporation/Goal/pause/restart/Key Vault/connection E2E 全部通过；Windows/macOS CI 同提交最终包与 artifacts 成功；P0/P1 和未执行必检项为 0。
 
 ## 8. 隔离与干扰控制
 
@@ -103,6 +103,18 @@
 - 本机正式应用真实 Provider smoke 的脱敏结果、usage、时间、数据库/日志泄密扫描与重启恢复；
 - 同一候选提交的 Windows/macOS GitHub Actions run/job、逐步结论、最终包 artifact ID/digest。
 
-## 10. 完成规则
+## 10. 验收证据
+
+- 实现与验收候选提交：`4822e9939536bd858bdd7a82be3045151e882773`；本地 `pnpm check` 全量通过，包含 Protocol 31 项、Provider 27 项、Storage 72 项、Desktop 85 项、Native Core 7 项、workspace Rust 7 项、Rust fmt/clippy 与 secret scan；Windows 开发态 Electron 真实窗口 E2E 4/4 通过；
+- 同提交 Windows 最终包直接通过完整 packaged journey；Provider generation 覆盖精确模型、Chat Completions 非流式请求、标准 usage、取消保留旧结果、5 秒配置超时、429 限流、恢复成功、应用进程重启恢复且不自动重放。NSIS SHA-256 为 `8E6AE2D731B078787CCFF4672C41A586F4A8F0427E8670C74B106D71A2BCFE8E`，包内 Native Core SHA-256 为 `9063A461DA75BF124C28BB596FFA75CA3128334D6ADF34B13B7447DF193BBB9D`，generation 截图 SHA-256 为 `DEADCA6C26E3FDD92032D7CC04EA55BA0084428621D928F45CE7936E73693525`；
+- GitHub Actions run `30738607539` 在该候选提交上完整成功；Windows x64 job `91471838105` 与 macOS Apple Silicon job `91471838083` 的工程检查、开发态 Electron E2E、安装包构建、最终包真实应用 E2E 和制品上传步骤全部成功；
+- Windows artifact `ai-corporation-windows-x64`（ID `8830535933`，SHA-256 `ce53385389c7abdcaa8d79c34faa09730784e9bc6716b72f42eabff4e3085a8d`）与 macOS artifact `ai-corporation-macos-arm64`（ID `8830517482`，SHA-256 `19b3de62bd4e8220591d3d193b52cf528e2c89c2583d7db997a14fa286286694`）均可用；下载的 Windows ZIP digest 与 GitHub 一致；
+- 正式 Windows 最终包经 Renderer 读取应用自管 Key Vault 中已保存的真实 Provider，连接状态为 `Verified`，精确模型为 `deepseek-v4-flash`；独立生成于 2026-08-02 16:07:03（Asia/Shanghai）成功，完成时间前移，stop reason 为 `OUTPUT_LIMIT`，usage 为 input 94、output 32、cached input 0、reasoning 27，cost 为 UNKNOWN；没有记录输出正文或 Key；
+- 正式 userData 在应用正常关闭后对 SQLite 与两个浏览器存储日志共 3 个当前持久化文件执行定向扫描，Key 形态与 Authorization Bearer 明文发现均为 0；应用主密钥文件为 32 字节。首次真实请求在 60 秒观察窗口边缘完成，随后把应用内可配置超时调整为 120 秒并重新发起独立请求，第二次直接成功；该外部延迟事实不替代成功证据，也未发现实现缺陷；
+- Responses coexistence registry 合同测试证明 Chat 与未来 Responses dialect 可同时注册、精确路由，重复注册不能替换 Chat Adapter，未知 dialect 固定拒绝；所有 streaming 均未进入本协议。P0/P1 为 0，未执行必检项为 0。
+
+上述证据只关闭 M2-TU-04，不证明 Responses、streaming、Goal Engine、Planner、Task Graph、Plan Review、费用预算或 Milestone 2 完成。
+
+## 11. 完成规则
 
 只有 16 项验收断言按 dialect/错误 × 配置版本/取消/恢复 × 开发态/最终包 × Windows/macOS 展开并全部取得当前提交直接证据，本机真实 Provider smoke 通过且凭据只存在应用自管 Key Vault，资源清理通过，P0/P1 与未执行必检项为 0，方可标记完成。本任务不代表 Responses、streaming、Goal/Plan、费用预算或 Milestone 2 完成。
