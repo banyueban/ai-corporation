@@ -144,6 +144,46 @@ try {
     fullPage: true,
     path: providerGenerationEvidencePath,
   });
+  providerFixture.setGenerationMode("delay");
+  await page.getByRole("button", { name: "Test generation" }).click();
+  await page
+    .getByRole("heading", { name: "Generating" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page.getByRole("button", { name: "Cancel generation" }).click();
+  await page
+    .locator(".provider-status")
+    .filter({ hasText: "Generation test cancelled." })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page
+    .getByRole("heading", { name: "Generation succeeded" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+
+  await page.getByLabel("Generation timeout (seconds)").fill("5");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await page
+    .getByRole("heading", { name: "Not tested" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page.getByRole("button", { name: "Test generation" }).click();
+  await page
+    .locator(".provider-generation-panel")
+    .getByText(/within 5 seconds/u)
+    .waitFor({ state: "visible", timeout: 10_000 });
+
+  providerFixture.setGenerationMode("rate-limit");
+  await page.getByRole("button", { name: "Test generation" }).click();
+  await page
+    .locator(".provider-generation-panel")
+    .getByText(/rate-limited/u)
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+
+  providerFixture.setGenerationMode("success");
+  await page.getByLabel("Generation timeout (seconds)").fill("60");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await page.getByRole("button", { name: "Test generation" }).click();
+  await page
+    .getByRole("heading", { name: "Generation succeeded" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  const generationCallsAfterSuccess = providerFixture.generationCalls();
   assertPackagedSecretAbsent(providerSecret);
   assertPackagedSecretAbsent(providerReplacement);
   const masterKeyPath = path.join(
@@ -354,6 +394,12 @@ try {
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   await page.getByRole("button", { name: "Settings" }).click();
   await page.getByRole("button", { name: /Packaged Provider/u }).click();
+  await page
+    .getByRole("heading", { name: "Generation succeeded" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  if (providerFixture.generationCalls() !== generationCallsAfterSuccess) {
+    throw new Error("Packaged restart automatically replayed generation");
+  }
   if ((await page.getByLabel("API Key").inputValue()) !== "") {
     throw new Error("Packaged restart restored visible Key state");
   }
@@ -508,7 +554,7 @@ try {
     "Packaged Provider connection verified: success · restart restore · authentication failure · 10s diagnostic · 15s timeout · cancel · reset",
   );
   console.log(
-    "Packaged Provider generation verified: exact model · Chat Completions non-streaming · normalized usage · persisted preview",
+    "Packaged Provider generation verified: exact model · Chat Completions non-streaming · normalized usage · cancel · 5s timeout · rate limit · restart restore without replay",
   );
   console.log(
     `Provider generation screenshot: ${providerGenerationEvidencePath}`,
@@ -556,6 +602,7 @@ try {
 
 async function startProviderFixture() {
   const requests = [];
+  let generationMode = "success";
   const server = createServer((request, response) => {
     if (request.url === "/success/chat/completions") {
       const chunks = [];
@@ -567,6 +614,14 @@ async function startProviderFixture() {
           authorization: request.headers.authorization,
           body,
         });
+        if (generationMode === "delay") return;
+        if (generationMode === "rate-limit") {
+          response.writeHead(429, { "content-type": "application/json" });
+          response.end(
+            JSON.stringify({ error: { code: "rate_limit_exceeded" } }),
+          );
+          return;
+        }
         response.writeHead(200, { "content-type": "application/json" });
         response.end(
           JSON.stringify({
@@ -615,6 +670,13 @@ async function startProviderFixture() {
   return {
     endpoint: `http://127.0.0.1:${address.port}`,
     requests,
+    generationCalls: () =>
+      requests.filter(({ path: requestPath }) =>
+        requestPath.endsWith("/chat/completions"),
+      ).length,
+    setGenerationMode: (mode) => {
+      generationMode = mode;
+    },
     close: () =>
       new Promise((resolve, reject) => {
         server.closeAllConnections();

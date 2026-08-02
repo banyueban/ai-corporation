@@ -8,13 +8,13 @@
 | 当前任务单元 | M2-TU-04（进行中） |
 | 总体状态 | 进行中 |
 | 最近更新 | 2026-08-02 |
-| 下一检查点 | 固化 Responses 多 dialect 并存证明的新候选，并取得同提交 CI 与本机 live Provider 证据 |
+| 下一检查点 | 固化最终包 generation 取消/超时/失败矩阵，并取得同提交 Windows/macOS CI 证据 |
 
 ## 1. 当前结论
 
 Milestone 1 已完成并经用户人工安装验收；当前没有已知未解决 P0/P1。[M2-TU-02 应用自管 Provider Key Vault](docs/06-engineering/task-units/M2-TU-02-application-key-vault.md) 与 [M2-TU-03 Provider 连接测试](docs/06-engineering/task-units/M2-TU-03-provider-connection-test.md) 均已完成。M2-TU-03 根据用户确认的范围 A、`1A + 2A + 3A + 4A` 和固定 15 秒超时决策交付，并由同一提交的 Windows/macOS 工程检查、开发态真实窗口、最终包真实应用 E2E 和制品门禁直接验收。
 
-[M2-TU-04 Provider 非流式生成与 usage](docs/06-engineering/task-units/M2-TU-04-provider-generation-usage.md) 已按用户确认的 `1A + 2A + 3A + 4A + 5A + 6A` 与 Responses 前向兼容门禁进入候选验收。Chat Completions 非流式 Adapter、dialect-neutral 通用协议、精确模型选择、标准 usage、可配置超时、Settings 测试生成及隔离自动矩阵已实现；候选提交 `25aea67aea7f3f21c141aa09e8d93eeccd26bc6a` 的本地 Windows 与同提交 Windows/macOS CI 工程、真实窗口、最终包及 artifacts 均通过。现已补充可独立测试的 dialect Adapter registry，直接证明 Chat 与未来 Responses dialect 可并存、精确路由且重复注册不能替换已有 Adapter；该增量尚待固化并取得同提交 CI。本机真实 Provider 也尚未经新候选正式 Renderer 保存和 smoke，因此任务仍为“进行中”。Responses、所有 streaming、Goal Engine、Planner、Task Graph 和 Plan Review 不属于本任务，Milestone 2 尚未完成。
+[M2-TU-04 Provider 非流式生成与 usage](docs/06-engineering/task-units/M2-TU-04-provider-generation-usage.md) 已按用户确认的 `1A + 2A + 3A + 4A + 5A + 6A` 与 Responses 前向兼容门禁进入候选验收。Chat Completions 非流式 Adapter、dialect-neutral 通用协议、精确模型选择、标准 usage、可配置超时、Settings 测试生成及隔离自动矩阵已实现；候选提交 `8f1cb98d4e5aa59db71e8152ab5514ebc9ccef3c` 还包含可独立测试的 dialect Adapter registry，直接证明 Chat 与未来 Responses dialect 可并存、精确路由且重复注册不能替换已有 Adapter。该提交的本地工程/真实窗口、同提交 Windows/macOS CI、最终包及 artifacts 均通过；本机真实 Provider 也已由正式 Renderer 保存并在该候选完成新的 ≤32 output tokens smoke 与泄密扫描。最终包 generation 取消/配置超时/限流/重启不重放的增量矩阵已在本地通过，但尚待固化和同提交 CI，因此任务仍为“进行中”。Responses、所有 streaming、Goal Engine、Planner、Task Graph 和 Plan Review 不属于本任务，Milestone 2 尚未完成。
 
 ## 2. 已完成基线
 
@@ -51,7 +51,7 @@ M2-TU-04 就绪合同只包含：
 
 ## 5. 活跃阻塞与外部条件
 
-当前唯一待满足的外部条件是：真实 Key 不能进入命令、脚本、环境变量或旁路文件，必须由用户在已打开的候选应用正式 Renderer 中粘贴并保存；完成后才能执行脱敏状态核验与本地泄密扫描。M2-TU-04 的交付范围、API dialect、模型选择、usage、超时、真实资源验收和 Responses/streaming 前向兼容边界均已由用户明确决策。
+当前无产品、架构、仓库或外部资源阻塞。真实 Key 已由用户在正式 Renderer 中保存，未进入命令、脚本、环境变量或旁路文件；剩余工作是固化增强后的最终包 generation 矩阵并取得同提交 Windows/macOS CI。M2-TU-04 的交付范围、API dialect、模型选择、usage、超时、真实资源验收和 Responses/streaming 前向兼容边界均已由用户明确决策。
 
 已知条件：
 
@@ -68,12 +68,14 @@ M2-TU-04 就绪合同只包含：
 - GitHub Actions run `30714081834` 在验收提交 `a785a483bc150a44bc1be837fc357eb59e376263` 上完整成功；Windows job `91406552961`、macOS job `91406552943` 的工程检查、开发态 E2E、最终包构建、最终包 E2E 和上传步骤全部成功；
 - Artifacts `ai-corporation-windows-x64`（ID `8822822844`，SHA-256 `e82c8fe8aa9389354e9f9081d63463ec69a72e64b8f16ce2e55deb0a0ec7450d`）与 `ai-corporation-macos-arm64`（ID `8822808350`，SHA-256 `bb095e11b3db0735ce9a2bc6a2785f75d3caebf68f5de5ed68ebc5f2c4d021b1`）可用；P0/P1 为 0，未执行必检项为 0。
 - M2-TU-04 最新本地候选 `pnpm check` 全量通过：Protocol 31、Provider 27、Storage 72、Desktop 85；新增 2 项 Adapter registry 测试覆盖 Chat/Responses dialect 并存精确路由、禁止重复替换与未知 dialect 拒绝；Windows 开发态真实窗口 E2E 4/4 通过，生成旅程覆盖精确模型、标准 usage/UNKNOWN cost、reload/进程重启、不自动重发、取消保留旧结果、5 秒配置超时和 axe 严重问题 0；
-- M2-TU-04 本地 Windows NSIS SHA-256 为 `992ED1980D711E32E29C8A3D35A510F44F1D6A9D1E056D1292364D2100A6B811`，包内 Native Core SHA-256 为 `ACDBD55FF932A593D2796E670C77F8423E35BB093C83F9624139DF79B2F186AF`；同源最终解包应用完整旅程通过并直接观察到精确模型、`stream:false`、32 token 上限和标准 usage；
-- GitHub Actions run `30737335472` 在候选提交 `25aea67aea7f3f21c141aa09e8d93eeccd26bc6a` 上完整成功；Windows job `91468448603` 与 macOS job `91468448612` 的工程检查、开发态真实窗口、最终包构建、最终包 E2E 和上传步骤全部成功；artifacts `ai-corporation-windows-x64`（ID `8830111435`，SHA-256 `0363a28b955da316a46963bb482fe955ff6553688d359440e7c2b6ba03474558`）与 `ai-corporation-macos-arm64`（ID `8830080566`，SHA-256 `f7ebcc5f5ffbbcfd270ed0e19bb39819ab0e8a94c48392c44d8e979b21975171`）可用；
+- M2-TU-04 同提交 Windows artifact 已下载并按 GitHub digest `28df20aa6c79ae051ceee8c11f2c4b7ffdac8077eb18cacb9d89dd4b5b80aa47` 校验；其中 NSIS SHA-256 为 `ACED4A68AED90FD370FEF5A798BA13037EDE9A826041975FA3F5DF9A1BCD3922`，包内 Native Core SHA-256 为 `E2101A42BBA2CC1B068DBA0C58217BFB2A689BC2653866CB1F2B0AD78370D562`；该最终应用已在本机完整通过 packaged journey，并直接观察到精确模型、`stream:false`、32 token 上限和标准 usage；
+- GitHub Actions run `30738010057` 在候选提交 `8f1cb98d4e5aa59db71e8152ab5514ebc9ccef3c` 上完整成功；Windows job `91470226702` 与 macOS job `91470226726` 的工程检查、开发态真实窗口、最终包构建、最终包 E2E 和上传步骤全部成功；artifacts `ai-corporation-windows-x64`（ID `8830322979`，SHA-256 `28df20aa6c79ae051ceee8c11f2c4b7ffdac8077eb18cacb9d89dd4b5b80aa47`）与 `ai-corporation-macos-arm64`（ID `8830303996`，SHA-256 `271a46d5f45f8cf225fcea13cb650a27a275e4a7d75153a904f28408fff30f1d`）可用；
+- 正式本机 Provider 已由 Renderer 保存到应用自管 Key Vault；`8f1cb98` 候选重新执行固定生成后完成时间推进，精确模型匹配，output tokens 为 19（≤32），usage 含 input/output/cache/reasoning 且 costSource 为 UNKNOWN；正式 SQLite/WAL/SHM/诊断 5 个文件的 Key 形态与 Authorization 明文扫描为 0，主密钥文件为 32 字节，仓库 secret scan 通过；
+- 增强后的本地最终包 generation 旅程已直接通过成功/usage、取消保留旧结果、5 秒配置超时、429 限流、恢复成功和进程重启不自动重放；该脚本增量尚待同提交 CI。
 
 ## 7. 下一步
 
-先固化并推送 Responses 多 dialect 并存证明的新候选，取得同提交 Windows/macOS 工程、真实窗口、最终包和 artifacts；再由用户仅经新候选正式 Renderer 将真实 Provider 写入正式 userData，完成 ≤32 output tokens 的本机 live smoke。随后读取脱敏状态并对正式 SQLite/WAL/SHM、应用诊断和仓库执行定向泄密扫描；全部通过后才能勾选 16 项验收断言、运行最终门禁并创建收口提交。
+固化并推送增强后的最终包 generation 矩阵，取得同提交 Windows/macOS 工程、开发态与最终包、artifacts 直接证据；通过后再逐项勾选 16 项验收断言、运行最终门禁并创建收口提交。
 
 ## 8. 更新规则
 
