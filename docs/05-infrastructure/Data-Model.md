@@ -155,6 +155,8 @@ Corporation 的 create、update-name 与 archive 在同一个 `BEGIN IMMEDIATE` 
 | Key Vault 本地加密密钥 | 应用数据目录中的应用自管文件；不进入 SQLite、OS Keychain/Credential Manager 或 Native Core |
 | Provider Endpoint | SQLite |
 | Provider 连接测试 | SQLite；仅保存配置版本、标准状态/错误、测试时间和受限模型列表，不保存原始响应、Authorization 或 Key |
+| Provider 生成配置 | SQLite；保存显式 API dialect、精确选择的模型 ID 和 5–300 秒生成超时，不保存 Key |
+| Provider 生成测试 | SQLite；仅保存当前配置版本、标准状态/错误、受限输出预览、stop reason、标准 usage 和时间，不保存输入、原始请求/响应、Authorization 或 Key |
 | 完整 Prompt/响应 | 默认不长期保存；调试模式脱敏 |
 | 文件绝对路径 | SQLite，可视为敏感 |
 | Artifact 内容 | Managed Store / Workspace |

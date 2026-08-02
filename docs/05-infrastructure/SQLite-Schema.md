@@ -247,6 +247,11 @@ CREATE TABLE provider (
   type TEXT NOT NULL CHECK (type IN ('OPENAI_COMPATIBLE')),
   name TEXT NOT NULL,
   endpoint TEXT NOT NULL,
+  api_dialect TEXT NOT NULL DEFAULT 'CHAT_COMPLETIONS'
+    CHECK (api_dialect IN ('CHAT_COMPLETIONS')),
+  selected_model_id TEXT,
+  generation_timeout_ms INTEGER NOT NULL DEFAULT 60000
+    CHECK (generation_timeout_ms BETWEEN 5000 AND 300000),
   key_vault_entry_id TEXT UNIQUE REFERENCES key_vault_entry(id) ON DELETE SET NULL,
   config_json TEXT NOT NULL DEFAULT '{}',
   config_status TEXT NOT NULL CHECK (config_status IN ('ENABLED','DISABLED')),
@@ -290,6 +295,42 @@ CREATE TABLE provider_connection_test (
     (status = 'VERIFIED' AND failure_reason IS NULL AND retryable IS NULL)
     OR
     (status = 'FAILED' AND failure_reason IS NOT NULL AND retryable IS NOT NULL)
+  )
+) STRICT;
+
+CREATE TABLE provider_generation_test (
+  provider_id TEXT PRIMARY KEY NOT NULL
+    REFERENCES provider(id) ON DELETE CASCADE,
+  provider_version INTEGER NOT NULL CHECK (provider_version >= 1),
+  model_id TEXT NOT NULL CHECK (length(model_id) BETWEEN 1 AND 512),
+  status TEXT NOT NULL CHECK (status IN ('SUCCEEDED','FAILED')),
+  failure_reason TEXT CHECK (
+    failure_reason IS NULL OR failure_reason IN (
+      'AUTHENTICATION','PERMISSION','RATE_LIMIT','QUOTA_EXHAUSTED',
+      'INVALID_REQUEST','MODEL_NOT_FOUND','CONTENT_FILTER','TIMEOUT',
+      'NETWORK','PROVIDER_INTERNAL','CANCELLED'
+    )
+  ),
+  retryable INTEGER CHECK (retryable IN (0,1)),
+  suggested_backoff_ms INTEGER CHECK (suggested_backoff_ms >= 0),
+  stop_reason TEXT CHECK (
+    stop_reason IS NULL OR stop_reason IN (
+      'COMPLETED','OUTPUT_LIMIT','CONTENT_FILTER','UNKNOWN'
+    )
+  ),
+  output_preview TEXT CHECK (
+    output_preview IS NULL OR length(CAST(output_preview AS BLOB)) <= 65536
+  ),
+  usage_json TEXT NOT NULL CHECK (
+    json_valid(usage_json) AND json_type(usage_json) = 'object'
+  ),
+  completed_at TEXT NOT NULL,
+  CHECK (
+    (status = 'SUCCEEDED' AND failure_reason IS NULL AND retryable IS NULL
+      AND stop_reason IS NOT NULL AND output_preview IS NOT NULL)
+    OR
+    (status = 'FAILED' AND failure_reason IS NOT NULL AND retryable IS NOT NULL
+      AND stop_reason IS NULL AND output_preview IS NULL)
   )
 ) STRICT;
 
@@ -525,6 +566,8 @@ Provider 表只保存应用自管 Key Vault 的记录 ID。`key_vault_entry` 保
 成功或明文降级。仅取得 SQLite 备份不足以恢复 Key；v0.1 当前任务通过重新录入 Provider Key 恢复。
 
 `provider_connection_test` 由 `0007_provider_connection_test.sql` 建立，只保存当前 Provider 配置版本最近一次已完成连接测试的标准结果和受限模型列表。不存在记录或 `provider_version` 与 Provider 当前版本不一致均投影为 `UNVERIFIED`；Provider Endpoint 变化、Key 替换或 Key 删除必须在同一事务中删除旧测试记录。仅名称或启停状态变化时，投影随 Provider 新版本迁移并保留结果。`CANCELLED` 不覆盖已有结果，迟到响应必须通过版本检查拒绝持久化。该表不保存 Authorization、Key、原始响应或错误正文，也不表示 Scheduler 的运行时健康或熔断状态。
+
+`0008_provider_generation.sql` 为 Provider 增加显式 `CHAT_COMPLETIONS` dialect、精确模型选择和生成超时，并建立最近生成测试投影。模型只能从当前 `VERIFIED` 连接模型列表中选择；Endpoint 或 Key 改变时在同一事务清除连接测试、模型选择和生成测试；名称/启停变化迁移连接与生成投影；超时变化保留连接和模型但清除生成投影；模型变化保留连接但清除生成投影。生成投影只保存固定低风险输入的受限预览、标准 usage/错误与时间；不保存输入、原始远端 DTO、Authorization、Key 或远端 request ID。取消与配置冲突不覆盖已有投影。
 
 `0003_corporation_events.sql` 只建立 M1-TU-04 已冻结的 Corporation CRUD、事件与命令回执字段。`0004_goal_contract.sql` 增加 active Goal pointer、不可变 Goal 版本、Goal 命令回执和两种 Goal 事实事件。`0005_corporation_pause_resume.sql` 增加成对暂停元数据、pause/resume 独立命令回执、两种状态事实事件和物理一致性 trigger；active Plan/Organization、Policy 与事件分发游标仍由后续迁移增加。分发状态不得通过更新 append-only `domain_event` 实现。
 

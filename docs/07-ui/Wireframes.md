@@ -269,7 +269,10 @@
 │ Models           │ ┌─────────────────────────────────────────────────────┐ │
 │ Security         │ │ OpenAI-compatible        Active ✓                  │ │
 │ Data             │ │ Endpoint: https://...    Key: 已由应用保存         │ │
-│ Appearance       │ │ Test: Verified · Models: 4  [测试] [编辑] [禁用] │ │
+│ Appearance       │ │ Connect: Verified · Models: 4       [测试连接]   │ │
+│                  │ │ Model [精确选择已验证模型 ▾] Timeout [60 s]      │ │
+│                  │ │ Generation: 18 input / 7 output · Cost unknown    │ │
+│                  │ │ [测试生成] [取消] [编辑] [禁用]                  │ │
 │ About            │ └─────────────────────────────────────────────────────┘ │
 │                  │                                                         │
 │                  │ Planner    Balanced route                               │

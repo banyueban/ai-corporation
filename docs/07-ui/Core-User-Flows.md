@@ -26,7 +26,9 @@ flowchart TD
 - 保存前说明存储位置；
 - 连接测试显示步骤，不输出 Authorization；
 - 连接测试固定 15 秒超时，测试期间可取消；超过 10 秒显示安全诊断提示，不显示原始 Provider 正文；
-- Provider 返回模型列表时可选择；失败时允许手工模型 ID；
+- Provider 返回并验证模型列表后只能精确选择其中一个模型；不允许手工模型 ID，也不自动回退到其他模型；
+- 模型选择后可执行一次固定、无用户资料、最多 32 output tokens 的非流式测试生成；显示受限输出、stop reason 和 Provider 返回的 token usage；无可靠价格时明确显示费用未知；
+- 生成超时默认 60 秒，可在 5–300 秒内配置，测试生成始终可取消；
 - 用户可跳过非必需个性化，但不能跳过至少一个可用 Provider。
 
 ### 异常
@@ -37,6 +39,7 @@ flowchart TD
 - Endpoint 格式错误：字段级提示。
 - 远程 Endpoint 只允许 HTTPS；HTTP 仅用于本机 loopback；不允许 redirect、URL 凭据、query 或 fragment；
 - Endpoint 或 Key 变化后显示“未验证”，成功/失败结果与模型列表在重启后恢复；该结果不冒充运行时健康或熔断状态。
+- Endpoint 或 Key 变化同时清除模型选择与生成测试结果；模型或超时变化清除旧生成测试结果但不破坏连接验证；名称或启停变化保留结果。任何变化都不静默切换模型。生成取消保留此前结果，重启不自动重发。
 
 ## 2. Flow 02：创建 Corporation 与 Goal Contract
 

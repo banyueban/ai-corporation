@@ -15,15 +15,13 @@ interface ModelProvider {
     signal: AbortSignal
   ): Promise<ModelDescriptor[]>;
   generate(
-    request: NormalizedModelRequest,
+    request: NormalizedGenerationRequest,
     signal: AbortSignal
-  ): Promise<NormalizedModelResponse>;
-  stream?(
-    request: NormalizedModelRequest,
-    signal: AbortSignal
-  ): AsyncIterable<ModelStreamEvent>;
+  ): Promise<NormalizedGenerationResponse>;
 }
 ```
+
+`descriptor()` 必须声明 API dialect。M2-TU-04 当前生产 Adapter 为 `CHAT_COMPLETIONS`。未来增加 Responses 时新增并保留独立 `RESPONSES` Adapter，不替换 Chat Adapter。streaming 不属于上述非流式接口，必须由独立任务定义跨 dialect 的规范化事件协议；Chat chunk/delta 不能成为 Responses streaming 的公共协议。
 
 ## 3. 能力描述
 
@@ -74,26 +72,21 @@ M2-TU-03 的连接测试采用以下固定边界：
 - 持久化的连接测试状态不是 Scheduler 维护的 `ProviderHealthStatus`，不得据此推断熔断或运行时健康；
 - Deterministic Mock Provider 是实现同一接口的测试适配器，不进入生产 SQLite 或正式 Settings UI。
 
-## 5. 标准请求
+## 5. 非流式标准请求
 
 ```ts
-type NormalizedModelRequest = {
+type NormalizedGenerationRequest = {
   modelId: string;
-  messages: NormalizedMessage[];
-  tools?: ToolDescriptor[];
-  responseSchema?: object;
+  input: Array<{
+    actor: "SYSTEM" | "USER" | "ASSISTANT";
+    parts: Array<{ kind: "TEXT"; text: string }>;
+  }>;
   temperature?: number;
   maxOutputTokens?: number;
-  metadata: {
-    corporationId: string;
-    taskId: string;
-    runId: string;
-    purpose: string;
-  };
 };
 ```
 
-Provider Adapter 负责转换，无法支持的必需能力在调用前报错。
+公共请求/响应/usage 禁止出现 `messages`、`choices`、`delta`、`chat.completion`、`finish_reason` 等 Chat 专属 DTO。Provider Adapter 负责 dialect 转换，无法支持的必需能力在调用前报错。Tool、Schema、stream 与运行元数据由后续任务在不污染该最小接口的前提下扩展。
 
 ## 6. 用量与费用
 
@@ -108,7 +101,7 @@ type NormalizedUsage = {
 };
 ```
 
-如果 Provider 不返回费用，按版本化价格元数据估算并明确标记。
+如果 Provider 不返回费用，按版本化价格元数据估算并明确标记。M2-TU-04 尚不提供可靠价格元数据，因此只持久化 Provider 明确返回且通过严格校验的 token usage；省略 `costMicros` 并标记 `costSource: UNKNOWN`，不得猜测费用。
 
 ## 7. 凭据
 
@@ -152,7 +145,8 @@ Provider 状态分成三个相互独立的维度：
 
 ## 9. 流式与取消
 
-- 流式事件仅用于 UI 与内部累积；
+- streaming 使用独立、dialect-neutral 的规范化事件协议另建任务；
+- Chat streaming 与 Responses streaming 分别由 Adapter 转换，不共享远端 chunk/delta DTO；
 - 最终响应必须经过完整 Schema 验证；
 - 用户取消传播到 HTTP 请求；
 - 中断的部分输出不成为正式 Artifact；

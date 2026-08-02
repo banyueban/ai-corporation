@@ -198,6 +198,10 @@ flowchart LR
 - 固定 15 秒截止、可取消、限制响应体和模型条目数量，异常成功响应固定归一化；
 - Key、Authorization、Provider 原始错误正文和响应正文不得进入日志、SQLite 测试结果、事件、错误或 Renderer；
 - 连接测试结果通过 Provider ID 与配置版本绑定；Endpoint 或 Key 变化后旧结果失效，迟到结果不得覆盖新版本。
+- 生成调用只向已保存 Endpoint 下由显式 dialect Adapter 解析的固定路径发送 Authorization；当前 Chat Adapter 只允许 `POST chat/completions`、`stream:false`，禁止 Renderer 覆盖 URL、Header、Key、dialect 或模型；
+- 通用生成 DTO 不携带 Chat/Responses 原始对象；远端正文、request ID 和错误仅在 Adapter 内受限解析，输出与 usage 通过大小、类型和整数边界校验后才可跨边界；
+- 生成超时限制为 5–300 秒且始终可取消；取消、Provider 版本变化和迟到响应不得覆盖已持久化结果；
+- 未来 Responses 必须作为独立 Adapter 与 Chat Adapter 并存；streaming 另建 dialect-neutral 事件协议，禁止把远端 Chat delta 暴露为公共协议。
 
 ## 4. 风险接受
 

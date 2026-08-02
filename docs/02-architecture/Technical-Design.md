@@ -360,9 +360,10 @@ WHERE id = ? AND status = 'READY';
 - `listModels`
 - `validateConfig`
 - `generate`
-- `stream`
 - `cancel`
 - `normalizeUsage`
+
+非流式 `generate` 使用 dialect-neutral input items/output parts/usage；Chat Completions 原始 DTO 只能存在于显式 `CHAT_COMPLETIONS` Adapter。未来 Responses 支持以并存 Adapter 增加，不替换 Chat Adapter。`stream` 由独立规范化事件协议和任务提供，不以 Chat delta 作为公共基础。
 
 ### Tool
 

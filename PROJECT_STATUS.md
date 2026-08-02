@@ -3,18 +3,18 @@
 | 属性 | 当前值 |
 |---|---|
 | 当前产品版本 | v0.1 MVP |
-| 当前阶段 | M2-TU-03 Provider 连接测试已完成，等待下一任务边界决策 |
+| 当前阶段 | M2-TU-04 Provider 非流式生成与 usage 合同就绪 |
 | 当前 Milestone | Milestone 2：Provider 与 Goal/Plan |
-| 当前任务单元 | M2-TU-03（完成） |
+| 当前任务单元 | M2-TU-04（就绪） |
 | 总体状态 | 进行中 |
 | 最近更新 | 2026-08-02 |
-| 下一检查点 | 明确 M2-TU-04 真实模型生成与 usage 的任务边界并建立就绪合同 |
+| 下一检查点 | M2-TU-04 权威文档与合同门禁通过后进入实施 |
 
 ## 1. 当前结论
 
 Milestone 1 已完成并经用户人工安装验收；当前没有已知未解决 P0/P1。[M2-TU-02 应用自管 Provider Key Vault](docs/06-engineering/task-units/M2-TU-02-application-key-vault.md) 与 [M2-TU-03 Provider 连接测试](docs/06-engineering/task-units/M2-TU-03-provider-connection-test.md) 均已完成。M2-TU-03 根据用户确认的范围 A、`1A + 2A + 3A + 4A` 和固定 15 秒超时决策交付，并由同一提交的 Windows/macOS 工程检查、开发态真实窗口、最终包真实应用 E2E 和制品门禁直接验收。
 
-M2-TU-03 只关闭 OpenAI-compatible/测试专用 Mock Adapter、非生成连接测试、固定错误归一化、持久化测试结果/模型列表和 Settings 测试交互。真实模型生成、usage、运行时健康/熔断、完整 Onboarding、Goal Engine、Planner、Task Graph 和 Plan Review 不属于本任务，Milestone 2 尚未完成；下一任务必须先消解边界歧义并形成就绪合同。
+[M2-TU-04 Provider 非流式生成与 usage](docs/06-engineering/task-units/M2-TU-04-provider-generation-usage.md) 已按用户确认的 `1A + 2A + 3A + 4A + 5A + 6A` 与 Responses 前向兼容门禁达到“就绪”。当前只承诺 Chat Completions 非流式 Adapter、dialect-neutral 通用协议、精确模型选择、标准 usage、可配置超时、Settings 测试生成和本机真实 Provider smoke；Responses、所有 streaming、Goal Engine、Planner、Task Graph 和 Plan Review 不属于本任务，Milestone 2 尚未完成。
 
 ## 2. 已完成基线
 
@@ -37,21 +37,21 @@ M2-TU-03 只关闭 OpenAI-compatible/测试专用 Mock Adapter、非生成连接
 
 这些是 Milestone 范围，不是一个任务单元的完成清单。M2-TU-01 只关闭“不得依赖 OS 安全存储”的边界决策，应用自管 Key Vault 由 M2-TU-02 交付；相邻能力必须另建合同并达到“就绪”。
 
-## 4. 最近完成任务边界
+## 4. 当前任务边界
 
-M2-TU-03 已关闭且只包含：
+M2-TU-04 就绪合同只包含：
 
-- OpenAI-compatible `GET <base>/models` 与同接口 Deterministic Mock Adapter；
-- 远程 HTTPS、loopback HTTP、禁止 redirect/URL 凭据/query/fragment、15 秒截止和可取消；
-- 固定错误归一化、`0007` 持久化测试结果/模型列表及配置版本失效保护；
-- `provider.testConnection/cancelConnectionTest` typed IPC 和 Settings 真实状态；
-- Windows/macOS 开发态与最终包的成功、失败、取消、超时、重启恢复和泄密矩阵。
+- dialect-neutral 非流式生成协议、Chat Completions Adapter 与测试专用 Mock；
+- 精确模型选择、默认 60 秒且 5–300 秒可配置超时、固定低风险测试生成；
+- 标准 usage 与最近生成测试投影、取消/并发/版本变化/迟到保护；
+- Settings 结果/错误/恢复 UI、Windows/macOS 自动真实窗口与最终包矩阵；
+- 本机正式应用通过 Renderer 保存用户提供资源，并完成一次低输出上限的真实 Provider smoke。
 
-非范围：真实模型生成、usage/费用、Provider runtime health/熔断/回退、正式 Mock 类型、完整 Onboarding、Goal/Plan。
+非范围：Responses、streaming、Goal/Plan、JSON Schema/修复、Tool Call、费用估算/预算、Provider runtime health/熔断/回退、正式 Mock 类型。
 
 ## 5. 活跃阻塞与外部条件
 
-当前无产品、架构、验收或仓库阻塞。M2-TU-04 尚未建立任务合同；真实模型生成 API、stream/取消、结构化输出和 usage 口径必须先完成边界决策，这属于下一任务的正常就绪门禁，不视为 M2-TU-03 阻塞。
+当前无产品、架构、验收或仓库阻塞。M2-TU-04 的交付范围、API dialect、模型选择、usage、超时、真实资源验收和 Responses/streaming 前向兼容边界均已由用户明确决策；合同就绪不表示实现或验收已经完成。
 
 已知条件：
 
@@ -70,7 +70,7 @@ M2-TU-03 已关闭且只包含：
 
 ## 7. 下一步
 
-在不把 M2-TU-03 的完成扩张为 Milestone 完成的前提下，先明确 M2-TU-04 的真实模型生成 API、stream/取消、结构化输出、usage 口径、错误边界和验收矩阵；存在歧义时向用户列出方案并由用户决策，合同达到“就绪”后才实施。
+先同步 Provider Generation、Model Provider、数据、安全和 UI 权威文档并运行合同门禁；通过后将 M2-TU-04 标记“进行中”，串行实现协议、`0008`、Adapter、Service/IPC、Settings 与隔离测试。真实 Key 只在自动矩阵通过后由正式 Renderer 写入本机应用自管 Key Vault。
 
 ## 8. 更新规则
 
