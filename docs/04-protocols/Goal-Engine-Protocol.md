@@ -132,6 +132,7 @@ goal-engine:get-current
 - `purpose` 当前为 `GOAL_ANALYSIS`，未来可增加 `PLAN_GENERATION | AGENT_RUN | JUDGE`；
 - `taskId/runId` 只在执行阶段对应 purpose 时必填，规划前调用不得创建合成 Task/Run；
 - 保存标准 token usage 和 UNKNOWN/可靠费用来源，不保存输入正文、输出正文或远端 request ID。
+- Adapter 失败只保存既有的标准 `ProviderFailureReason`，不得压缩为无法诊断的通用失败，也不得保存远端错误正文。
 
 Goal operation 的公开 usage 是所有成功 Provider 响应的规范化 usage 聚合；缺失字段保持未知，不得猜测费用。JSON 修复和每轮澄清均单独计入调用记录。
 

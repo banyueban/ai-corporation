@@ -521,6 +521,9 @@ try {
     "Packaged Goal UI journey verified: create · injected save failure · retry · review · assumption gate · approve · timeline · reload · restore",
   );
   console.log(
+    `Packaged Goal Engine verified: explicit Provider/model · final-package generation · PROVIDER draft · normalized usage · screenshot ${goalEngineEvidencePath}`,
+  );
+  console.log(
     "Packaged Corporation restart journey verified: pause · reload · process restart · read-only restore · resume · reload · process restart",
   );
   console.log("Packaged Renderer external requests: 0");

@@ -6,11 +6,13 @@ import type {
   NormalizedGenerationRequest,
   NormalizedGenerationResponse,
 } from "@ai-corporation/protocols";
+import { goalEngineModelOutputSchema } from "@ai-corporation/protocols";
 import {
   applyMigrations,
   GoalEngineRepository,
   loadMigrations,
 } from "@ai-corporation/storage";
+import { ProviderAdapterError } from "@ai-corporation/providers";
 import { GoalEngineService } from "./goal-engine-service";
 
 const migrationDirectory = fileURLToPath(
@@ -54,6 +56,20 @@ describe("GoalEngineService", () => {
     expect(serialized).toContain("Launch safely");
     expect(serialized).not.toContain("canonical-secret-path");
     expect(serialized).not.toContain("fake-key-material");
+    const systemPrompt = (
+      calls[0] as {
+        readonly generation: Pick<NormalizedGenerationRequest, "input">;
+      }
+    ).generation.input[0]?.parts[0]?.text;
+    const promptExample = JSON.parse(
+      systemPrompt?.split("Use this exact valid example shape:\n").at(-1) ??
+        "null",
+    );
+    expect(goalEngineModelOutputSchema.safeParse(promptExample).success).toBe(
+      true,
+    );
+    expect(systemPrompt).not.toContain("hardLimitMicros");
+    expect(systemPrompt).not.toContain("warningThresholdPercent");
     expect(
       database.prepare("SELECT COUNT(*) AS count FROM model_call").get(),
     ).toEqual({ count: 1 });
@@ -125,6 +141,23 @@ describe("GoalEngineService", () => {
         .prepare("SELECT COUNT(*) AS count FROM goal_contract_version")
         .get(),
     ).toEqual({ count: 0 });
+  });
+
+  it("audits the normalized Provider failure without remote error text", async () => {
+    const service = createService(async () => {
+      throw new ProviderAdapterError({
+        reason: "INVALID_REQUEST",
+        retryable: false,
+      });
+    });
+    const result = await service.start(startRequest());
+    expect(result).toMatchObject({
+      ok: true,
+      value: { status: "FAILED", failureReason: "PROVIDER_FAILURE" },
+    });
+    expect(
+      database.prepare("SELECT status, failure_reason FROM model_call").get(),
+    ).toEqual({ status: "FAILED", failure_reason: "INVALID_REQUEST" });
   });
 
   it("uses persisted question text and complete answer in the next generation", async () => {

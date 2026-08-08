@@ -83,7 +83,7 @@
 - [ ] 周期决策：EXTENSION_REQUIRED 只接受用户显式 CONTINUE/SAVE_DRAFT/CANCEL；CONTINUE 每次只增加一个 5 轮周期且不自动调用；下个周期再次到限重新询问；续期不成为偏好；
 - [ ] Goal 保存：无问题自动保存；SAVE_DRAFT 把剩余问题变为去重未确认 HIGH assumptions；两者创建新 `PROVIDER` DRAFT、supersede 旧版本并原子写 pointer/version/event/receipt；不批准、不规划、不迁移 Corporation；
 - [ ] 迁移：空库与 `0001`–`0008` 升级 `0009` 成功；已有 MANUAL/MOCK Goal 保持逐字节语义；source、operation、model_call 的 STRICT/CHECK/FK/JSON/唯一活动索引、foreign key check 和中断重试与权威 Schema 一致；
-- [ ] 调用审计与 usage：正常、修复和每轮澄清各有独立 GOAL_ANALYSIS model_call；关联 corporation/operation/provider/model/attempt，task/run 为空；聚合 token/costSource 准确，未知费用不猜测；正文/request ID 不落库；
+- [ ] 调用审计与 usage：正常、修复和每轮澄清各有独立 GOAL_ANALYSIS model_call；关联 corporation/operation/provider/model/attempt，task/run 为空；聚合 token/costSource 准确，Adapter 失败保留标准 ProviderFailureReason，未知费用不猜测；正文/远端错误/request ID 不落库；
 - [ ] 持久化与恢复：草稿、问题、答案、周期/轮次、标准失败与 usage 在 SQLite 重开、Renderer reload 和应用重启恢复；遗留 GENERATING 转 INTERRUPTED 且不自动重放；可显式重试/取消；
 - [ ] 并发/取消/迟到：同 Corporation 单活跃；相同 operationId 幂等且不同请求冲突；两个 Corporation 隔离；取消只影响目标且 2 秒内进入流程；Corporation/Goal/Provider/operation 变化后的迟到结果不覆盖；timer/listener/server/port/进程无残留；
 - [ ] 错误与安全：Provider 标准失败、Vault/Storage、Workspace、Schema、答案、状态和版本错误固定归一化；输入/答案/模型正文/路径/Key/Authorization/SQL/堆栈不进入错误、日志、trace、事件、截图或诊断；
