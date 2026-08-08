@@ -8,11 +8,11 @@
 | 当前任务单元 | M2-TU-05（进行中） |
 | 总体状态 | 进行中 |
 | 最近更新 | 2026-08-09 |
-| 下一检查点 | 撤销并轮换已暴露的 GitHub CLI 凭据，重新认证后下载同提交 Windows artifact，完成真实 Provider Goal smoke |
+| 下一检查点 | 等待真实 Provider `PROVIDER_INTERNAL` 外部故障恢复后，使用同提交 Windows 最终包重新执行 Goal smoke |
 
 ## 1. 当前结论
 
-Milestone 0、Milestone 1 已完成，Milestone 1 已经用户人工安装验收。当前产品实现没有已知未解决 P0/P1；但本地 artifact 下载诊断把 GitHub CLI token 展开到任务工具输出，必须按未解除安全 P0 处理。该 token 未进入仓库文件、commit 或 CI artifact，本机 GitHub CLI 已登出；服务器端撤销/轮换和重新认证尚待用户完成。
+Milestone 0、Milestone 1 已完成，Milestone 1 已经用户人工安装验收。当前产品实现没有已知未解决 P0/P1。此前暴露的 GitHub CLI 凭据已经用户处置并重新认证，仓库文件、commit、CI artifact 与泄密扫描均未发现该凭据；该安全阻断已解除。
 
 [M2-TU-02 应用自管 Provider Key Vault](docs/06-engineering/task-units/M2-TU-02-application-key-vault.md)、[M2-TU-03 Provider 连接测试](docs/06-engineering/task-units/M2-TU-03-provider-connection-test.md)和[M2-TU-04 Provider 非流式生成与 usage](docs/06-engineering/task-units/M2-TU-04-provider-generation-usage.md)均已完成。M2-TU-04 在候选提交 `4822e9939536bd858bdd7a82be3045151e882773` 上通过本地工程检查、Windows 开发态与最终包真实窗口、Windows/macOS 同提交 CI、真实 Provider 生成和泄密扫描。
 
@@ -55,7 +55,7 @@ M2-TU-04 已关闭：
 
 ## 5. 活跃阻塞与外部条件
 
-当前存在一个安全与外部凭据阻塞：下载候选 Windows artifact 时，诊断残留 curl 进程的完整命令行导致 GitHub CLI token 出现在任务工具输出。本机 `gh auth logout --hostname github.com --user banyueban` 已成功，仓库与 Git 历史泄密扫描未发现该 token；用户必须在 GitHub 服务器端撤销/轮换凭据并重新完成 `gh auth login`，此后才能下载同提交 Windows artifact 并继续真实 Provider 最终包验收。阻塞解除前 M2-TU-05 不得标记完成。
+当前存在一个外部 Provider 阻塞：同提交 Windows 最终包使用已保存 `deepseek-v4-flash` 执行真实 Goal smoke 时，第一次独立 operation 的首次调用以标准 `PROVIDER_INTERNAL` 失败且没有 usage；显式重试的首次调用成功并记录 input 379、output 1676、cached input 256、reasoning 1084，随后唯一修复调用再次以 `PROVIDER_INTERNAL` 失败。两次内部失败分别持续约 43 秒和 42 秒；不是认证、Key、模型过期、超时、Schema 放宽或本地存储失败。软件未自动重试、未保存 Goal、未伪造成功。外部故障恢复并取得一次完整真实 Goal 成功证据前，M2-TU-05 不得标记完成。
 
 已知条件：
 
@@ -69,7 +69,9 @@ M2-TU-04 已关闭：
 
 - M2-TU-05 候选提交 `4522a7801624c9dc7dc5b75bc26e9a42aea81c1b` 的本地 `pnpm check` 完整通过：Protocol 35、Provider 27、Storage 78、Desktop 94、Native Core 7、workspace Rust 7，format/lint/typecheck、Rust fmt/clippy、secret scan 和 `git diff --check` 成功；Windows 开发态 Electron E2E 5/5 通过；
 - GitHub Actions run `31266354234` 在同一候选提交完整成功；Windows job `93125016756` 与 macOS Apple Silicon job `93125016784` 的工程检查、开发态 E2E、最终包构建、最终包 E2E 和 artifact 上传全部成功；Windows artifact ID `9024317044`、digest `sha256:56d02a75ebe5f9f9e4147885717694b75eda3a8b5fef61377215db8c1719b221`，macOS artifact ID `9024301726`、digest `sha256:750b2bf138d48e0f2b67a573efe2baf80e2cdab6c64872ec9efabce39ffe9743`；
-- 本机正式包真实 Provider 验收曾直接发现两项缺陷并保持失败：修复请求不应构造缺少 reasoning continuation 的 `ASSISTANT` 历史；固定 prompt 的预算示例与严格 Goal Schema 不一致。候选提交已修复并以 Schema 可解析示例回归测试锁定，但修复后的同提交 Windows artifact 尚未完成本机真实 Provider smoke，因此 M2-TU-05 仍未通过；
+- 本机正式包真实 Provider 验收曾直接发现两项缺陷并保持失败：修复请求不应构造缺少 reasoning continuation 的 `ASSISTANT` 历史；固定 prompt 的预算示例与严格 Goal Schema 不一致。候选提交已修复并以 Schema 可解析示例回归测试锁定；
+- 用户下载的 Windows artifact 浏览器重封装 ZIP SHA-256 为 `29D0F76384F13425510E61CF2AF00849C90CF65FF5E6859717224E918CA6E714`；解压后的 NSIS SHA-256 为 `04CE222592B89F4B758959E8E30C3B708FB78BFCEFBFF5A3D50A752D4484C641`，`app.asar` SHA-256 为 `5C2A83773E536CC0EDC33657B7F35AD9737AD432B756C9A3CF681EBE66B40609`，包内包含新预算字段和 Provider-neutral 修复标记且不含旧 `hardLimitMicros`；
+- 同提交 Windows 最终包真实 Provider smoke 的两个独立 operation 均保持失败：第一次首次调用 `PROVIDER_INTERNAL` 且无 usage；显式重试首次调用成功并记录 input 379、output 1676、cached input 256、reasoning 1084，唯一修复调用 `PROVIDER_INTERNAL`。未创建 Goal，外部故障仍是唯一未通过的关闭门禁；
 
 - 候选提交 `4822e9939536bd858bdd7a82be3045151e882773` 的 `pnpm check` 全量通过：Protocol 31、Provider 27、Storage 72、Desktop 85、Native Core 7、workspace Rust 7，format/lint/typecheck、Rust fmt/clippy 和 secret scan 均成功；Windows 开发态 Electron E2E 4/4 通过；
 - Provider registry 的 2 项专门测试覆盖 Chat/未来 Responses dialect 同时注册与精确路由、禁止重复替换以及未知 dialect 拒绝；通用协议和持久化没有 Chat 专属 DTO；
@@ -82,7 +84,7 @@ M2-TU-04 已关闭：
 
 ## 7. 下一步
 
-先在 GitHub 服务器端撤销/轮换已暴露凭据并重新认证 GitHub CLI；随后下载并校验 run `31266354234` 的 Windows artifact，使用应用 Key Vault 中已保存的真实 Provider/精确模型完成脱敏 Goal smoke 与泄密扫描。只有该证据通过后才可关闭 M2-TU-05；任何新歧义仍须先提交用户决策。
+等待真实 Provider `PROVIDER_INTERNAL` 外部故障恢复后，使用已解压的 run `31266354234` Windows 最终包、应用 Key Vault 中已保存的 Provider/精确模型重新执行一次脱敏 Goal smoke；成功后补齐泄密扫描和关闭证据。只有该证据通过后才可关闭 M2-TU-05；任何新歧义仍须先提交用户决策。
 
 ## 8. 更新规则
 
