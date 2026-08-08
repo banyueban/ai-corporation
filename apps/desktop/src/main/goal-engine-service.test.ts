@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type {
   GoalEngineStartRequest,
+  NormalizedGenerationRequest,
   NormalizedGenerationResponse,
 } from "@ai-corporation/protocols";
 import {
@@ -60,7 +61,15 @@ describe("GoalEngineService", () => {
 
   it("repairs invalid JSON exactly once and aggregates both calls", async () => {
     let count = 0;
-    const service = createService(async () => {
+    const calls: Array<{
+      readonly generation: Pick<NormalizedGenerationRequest, "input">;
+    }> = [];
+    const service = createService(async (request) => {
+      calls.push(
+        request as {
+          readonly generation: Pick<NormalizedGenerationRequest, "input">;
+        },
+      );
       count += 1;
       return count === 1
         ? response("```json\n{}\n```", 3, 2)
@@ -68,6 +77,20 @@ describe("GoalEngineService", () => {
     });
     const result = await service.start(startRequest());
     expect(count).toBe(2);
+    expect(calls[1]?.generation.input.map(({ actor }) => actor)).toEqual([
+      "SYSTEM",
+      "USER",
+      "USER",
+    ]);
+    const repairRequest = JSON.stringify(calls[1]);
+    const repairText = calls[1]?.generation.input[2]?.parts[0]?.text;
+    const repairData = JSON.parse(repairText?.split("\n").at(-1) ?? "{}") as {
+      readonly invalidOutput?: string;
+    };
+    expect(repairRequest).toContain("invalidOutput");
+    expect(repairData.invalidOutput).toBe("```json\n{}\n```");
+    expect(repairRequest).toContain("untrusted data to correct");
+    expect(repairRequest).not.toContain('"actor":"ASSISTANT"');
     expect(result).toMatchObject({
       ok: true,
       value: {

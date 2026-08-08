@@ -1,16 +1,16 @@
 # M2-TU-05 Goal Engine 真实生成与有界澄清垂直切片
 
-| 属性 | 值 |
-|---|---|
-| 任务单元 ID | M2-TU-05 |
-| 状态 | 进行中 |
-| 所属 Milestone | Milestone 2：Provider 与 Goal/Plan |
-| 主要结果 | 用户可明确选择已验证 Provider/精确模型，把 Goal 输入生成并自动保存为可编辑 `PROVIDER` DRAFT；系统支持每周期 5 轮、用户显式续期的结构化澄清和每生成阶段最多一次 JSON 修复 |
-| 基线提交 | `f2b89831fca5eae51a125a60f9c932ca8c58cd70` |
+| 属性           | 值                                                                                                                                                                       |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 任务单元 ID    | M2-TU-05                                                                                                                                                                 |
+| 状态           | 进行中                                                                                                                                                                   |
+| 所属 Milestone | Milestone 2：Provider 与 Goal/Plan                                                                                                                                       |
+| 主要结果       | 用户可明确选择已验证 Provider/精确模型，把 Goal 输入生成并自动保存为可编辑 `PROVIDER` DRAFT；系统支持每周期 5 轮、用户显式续期的结构化澄清和每生成阶段最多一次 JSON 修复 |
+| 基线提交       | `f2b89831fca5eae51a125a60f9c932ca8c58cd70`                                                                                                                               |
 
 ## 1. 需求与设计引用
 
-- 用户决策：`1A + 2B + 3A + 4A + 5A + 6A`，并补充选择 `7C`：澄清按每周期 5 轮执行；达到周期上限时询问用户，用户可显式增加下一个 5 轮周期；不继续时按 `8A` 由用户选择保存含未确认 HIGH 假设的草稿或取消；
+- 用户决策：`1A + 2B + 3A + 4A + 5A + 6A`，并补充选择 `7C`：澄清按每周期 5 轮执行；达到周期上限时询问用户，用户可显式增加下一个 5 轮周期；不继续时按 `8A` 由用户选择保存含未确认 HIGH 假设的草稿或取消；真实 DeepSeek V4 验收发现 reasoning continuation 兼容缺口后，用户选择修复方案 A：把无效输出作为明确隔离的 `USER` 修复数据，不构造 `ASSISTANT` 历史或引入 Provider 私有字段；
 - [MVP Plan：Milestone 2](../MVP-Plan.md)、[PRD 创建 Corporation/FR-004](../../01-product/PRD.md)；
 - [Goal Engine Protocol](../../04-protocols/Goal-Engine-Protocol.md)、[Goal Contract Protocol](../../04-protocols/Goal-Contract-Protocol.md)、[Provider Generation Protocol](../../04-protocols/Provider-Generation-Protocol.md)；
 - [Domain Model](../../02-architecture/Domain-Model.md)、[Technical Design](../../02-architecture/Technical-Design.md)；
@@ -32,7 +32,7 @@
 - `PROVIDER` Goal Contract source；普通 Renderer `save-draft` 不能新建或伪造该来源；对已有 `PROVIDER` DRAFT 只允许逐项改变既有 assumption 的 `confirmed`，其余字段逐字段不可变；
 - 明确 Provider/精确模型选择；模型输入仅包含 Corporation 名称及用户 Goal 字段，不包含 Workspace 路径、目录或文件；
 - 固定、版本化 Goal system prompt；非流式 temperature 0、最多 4,096 output tokens；严格解析单个 JSON 对象；
-- 每个生成阶段首次 JSON/Schema 非法时最多一次修复；修复仍失败则固定失败且不保存 Goal；
+- 每个生成阶段首次 JSON/Schema 非法时最多一次修复；修复沿用原始 SYSTEM/USER 输入，把受限无效输出作为不可执行的 `USER` 数据，不构造 `ASSISTANT` 历史、不携带 Chat/Provider 私有 continuation/reasoning 字段；修复仍失败则固定失败且不保存 Goal；
 - 每周期最多 5 轮结构化 HIGH-impact 澄清；达到上限停止 Provider 调用并等待 `CONTINUE | SAVE_DRAFT | CANCEL`；每次 CONTINUE 只增加一个 5 轮周期；
 - 最终无问题时自动保存 `PROVIDER` DRAFT；SAVE_DRAFT 把剩余问题转为去重、未确认 HIGH assumptions 后保存；两者均不批准、不规划、不改变 Corporation 状态；
 - `0009_goal_engine.sql`：Goal source 兼容迁移、operation、通用 model_call、约束/索引和重启中断投影；
@@ -78,7 +78,7 @@
 - [ ] 输入披露：开始前明确显示 Provider/精确模型和发送字段；Main 只发送 Corporation 名称及用户 Goal 字段，Workspace 路径/身份/目录/文件、Key、任意 Header 和 Renderer system prompt override 在发网前均不可达；
 - [ ] Provider 门禁：仅 ENABLED、已保存 Key、VERIFIED 且 selectedModel 仍在当前列表的精确版本可调用；多 Provider 不自动选择/回退，版本变化固定冲突；
 - [ ] 输出 Schema：单个受限 JSON 对象严格映射完整 draft 与 0–5 HIGH 问题；缺字段、额外字段、重复/超限、已确认模型 assumption、非 JSON、多对象、Markdown fence、超 1 MiB 和非法 UTF-8 安全失败；
-- [ ] JSON 修复：每个生成阶段首次非法只调用同 Provider/版本/模型一次修复；修复成功继续，修复失败停止；正常成功不修复，原始/修复正文不持久化或外泄；
+- [ ] JSON 修复：每个生成阶段首次非法只调用同 Provider/版本/模型一次修复；修复输入把受限无效输出隔离为 `USER` 数据且不存在 `ASSISTANT` 历史、Chat/Provider 私有 continuation/reasoning 字段；修复成功继续，修复失败停止；正常成功不修复，原始/修复正文不持久化或外泄；
 - [ ] 澄清周期：每周期精确最多 5 轮；完整答案才生成；周期内继续、无问题自动保存；第 5 轮仍有问题进入 EXTENSION_REQUIRED 并停止调用；轮次/周期/问题不可伪造或跳跃；
 - [ ] 周期决策：EXTENSION_REQUIRED 只接受用户显式 CONTINUE/SAVE_DRAFT/CANCEL；CONTINUE 每次只增加一个 5 轮周期且不自动调用；下个周期再次到限重新询问；续期不成为偏好；
 - [ ] Goal 保存：无问题自动保存；SAVE_DRAFT 把剩余问题变为去重未确认 HIGH assumptions；两者创建新 `PROVIDER` DRAFT、supersede 旧版本并原子写 pointer/version/event/receipt；不批准、不规划、不迁移 Corporation；

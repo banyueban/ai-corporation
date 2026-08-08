@@ -75,7 +75,7 @@ type GoalEngineModelOutput = {
 
 `draft` 始终必须完整且通过 Goal Contract Schema；`unresolvedQuestions` 为 0–5 个规范化、去重的 HIGH-impact 问题。Main 为问题分配本地 UUID v7，不信任模型标识。模型不得把问题静默改写成已确认事实；模型生成的 assumptions 固定 `confirmed:false`。
 
-第一次输出不是严格、合法且大小受限的 JSON 时，同一生成阶段只允许一次修复调用。修复仍失败则操作进入 `FAILED`。修复调用只发送到相同 Provider/版本/模型；无效正文只在内存中短暂存在，不持久化、不记录日志、不进入 Renderer 或 artifact。
+第一次输出不是严格、合法且大小受限的 JSON 时，同一生成阶段只允许一次修复调用。修复仍失败则操作进入 `FAILED`。修复调用只发送到相同 Provider/版本/模型；它重新使用原始 SYSTEM/USER 输入，并把受限的无效正文作为明确标记、不可执行的 `USER` 修复数据发送，不构造 `ASSISTANT` 历史消息，不要求或携带 Chat/Provider 私有 continuation、reasoning 或 message 字段。超过修复输入上限时省略无效正文，只发送修复指令。无效正文只在内存中短暂存在，不持久化、不记录日志、不进入 Renderer 或 artifact。
 
 ## 5. 澄清周期
 
