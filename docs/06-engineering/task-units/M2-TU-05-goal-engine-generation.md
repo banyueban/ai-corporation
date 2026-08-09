@@ -3,7 +3,7 @@
 | 属性           | 值                                                                                                                                                                       |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 任务单元 ID    | M2-TU-05                                                                                                                                                                 |
-| 状态           | 进行中                                                                                                                                                                   |
+| 状态           | 完成                                                                                                                                                                     |
 | 所属 Milestone | Milestone 2：Provider 与 Goal/Plan                                                                                                                                       |
 | 主要结果       | 用户可明确选择已验证 Provider/精确模型，把 Goal 输入生成并自动保存为可编辑 `PROVIDER` DRAFT；系统支持每周期 5 轮、用户显式续期的结构化澄清和每生成阶段最多一次 JSON 修复 |
 | 基线提交       | `f2b89831fca5eae51a125a60f9c932ca8c58cd70`                                                                                                                               |
@@ -75,24 +75,24 @@
 
 ## 7. 验收合同
 
-- [ ] 协议：五个 Goal Engine v1 channel 的 strict Schema 拒绝额外字段、错误版本/UUID/版本、超限文本/列表/答案、非法枚举和未授权调用；普通 Goal save 不能伪造 `PROVIDER` source；
-- [ ] 输入披露：开始前明确显示 Provider/精确模型和发送字段；Main 只发送 Corporation 名称及用户 Goal 字段，Workspace 路径/身份/目录/文件、Key、任意 Header 和 Renderer system prompt override 在发网前均不可达；
-- [ ] Provider 门禁：仅 ENABLED、已保存 Key、VERIFIED 且 selectedModel 仍在当前列表的精确版本可调用；多 Provider 不自动选择/回退，版本变化固定冲突；
-- [ ] 输出 Schema：请求明确使用 dialect-neutral `JSON_OBJECT` 并由 Chat Adapter 映射远端 JSON 模式；65,536 token 额度覆盖正常 Goal 及模型思考空间；单个受限 JSON 对象严格映射完整 draft 与 0–5 HIGH 问题；缺字段、额外字段、重复/超限、已确认模型 assumption、非 JSON、多对象、Markdown fence、超 1 MiB 和非法 UTF-8 安全失败；
-- [ ] JSON 修复：每个生成阶段首次非法只调用同 Provider/版本/模型一次修复；修复输入把受限无效输出隔离为 `USER` 数据且不存在 `ASSISTANT` 历史、Chat/Provider 私有 continuation/reasoning 字段；修复成功继续，修复失败停止；正常成功不修复，原始/修复正文不持久化或外泄；
-- [ ] 澄清周期：每周期精确最多 5 轮；完整答案才生成；周期内继续、无问题自动保存；第 5 轮仍有问题进入 EXTENSION_REQUIRED 并停止调用；轮次/周期/问题不可伪造或跳跃；
-- [ ] 周期决策：EXTENSION_REQUIRED 只接受用户显式 CONTINUE/SAVE_DRAFT/CANCEL；CONTINUE 每次只增加一个 5 轮周期且不自动调用；下个周期再次到限重新询问；续期不成为偏好；
-- [ ] Goal 保存：无问题自动保存；SAVE_DRAFT 把剩余问题变为去重未确认 HIGH assumptions；两者创建新 `PROVIDER` DRAFT、supersede 旧版本并原子写 pointer/version/event/receipt；不批准、不规划、不迁移 Corporation；
-- [ ] 迁移：空库与 `0001`–`0008` 升级 `0009` 成功；已有 MANUAL/MOCK Goal 保持逐字节语义；source、operation、model_call 的 STRICT/CHECK/FK/JSON/唯一活动索引、foreign key check 和中断重试与权威 Schema 一致；
-- [ ] 调用审计与 usage：正常、修复和每轮澄清各有独立 GOAL_ANALYSIS model_call；关联 corporation/operation/provider/model/attempt，task/run 为空；聚合 token/costSource 准确，Adapter 失败保留标准 ProviderFailureReason，并在内部审计区分 HTTP 5xx、空输出、额度耗尽和非法响应；未知费用不猜测；正文/隐藏推理/远端错误/request ID 不落库；
-- [ ] 持久化与恢复：草稿、问题、答案、周期/轮次、标准失败与 usage 在 SQLite 重开、Renderer reload 和应用重启恢复；遗留 GENERATING 转 INTERRUPTED 且不自动重放；可显式重试/取消；
-- [ ] 并发/取消/迟到：同 Corporation 单活跃；相同 operationId 幂等且不同请求冲突；两个 Corporation 隔离；取消只影响目标且 2 秒内进入流程；Corporation/Goal/Provider/operation 变化后的迟到结果不覆盖；timer/listener/server/port/进程无残留；
-- [ ] 错误与安全：Provider 标准失败、Vault/Storage、Workspace、Schema、答案、状态和版本错误固定归一化；输入/答案/模型正文/路径/Key/Authorization/SQL/堆栈不进入错误、日志、trace、事件、截图或诊断；
-- [ ] UI：Create 的 Goal 必填，其余 Goal 内容为可选提示；用户明确选择 Provider/模型后可分析、取消、回答问题、查看 cycle/round/usage、续期、保存未确认草稿或取消，并进入真实 Goal Review；pending 防重复；
-- [ ] UI 恢复与适配：dirty input、部分 Corporation、CLARIFICATION_REQUIRED、EXTENSION_REQUIRED、FAILED/CANCELLED/INTERRUPTED/GOAL_SAVED 恢复准确且不伪造成功；键盘/焦点/live region/label/错误关联及 1024×700、1440×900、200% 可完成；
-- [ ] 自动真实窗口：Windows/macOS 同一提交开发态与最终包用动态 loopback 覆盖直接成功、一次修复、修复失败、两轮澄清、5 轮到限、续期再到限、保存未确认草稿、取消、中断/重启、版本冲突和既有回归；功能与清理独立通过；
-- [ ] 本机真实 Provider：自动矩阵通过后，正式 Windows 最终包从 Renderer 明确选择已保存真实 Provider/模型，用非敏感最小 Goal 完成一次真实生成；只记录脱敏状态、Goal source/version、usage/UNKNOWN cost、时间与泄密扫描；
-- [ ] 治理：协议/设计/Schema/迁移/实现/测试一致；`pnpm check`、status/task-unit/diff、Rust fmt/clippy、secret scan、Workspace/Corporation/Goal/pause/restart/Key Vault/Provider E2E 全部通过；Windows/macOS CI 同提交最终包与 artifacts 成功；P0/P1 和未执行必检项为 0。
+- [x] 协议：五个 Goal Engine v1 channel 的 strict Schema 拒绝额外字段、错误版本/UUID/版本、超限文本/列表/答案、非法枚举和未授权调用；普通 Goal save 不能伪造 `PROVIDER` source；
+- [x] 输入披露：开始前明确显示 Provider/精确模型和发送字段；Main 只发送 Corporation 名称及用户 Goal 字段，Workspace 路径/身份/目录/文件、Key、任意 Header 和 Renderer system prompt override 在发网前均不可达；
+- [x] Provider 门禁：仅 ENABLED、已保存 Key、VERIFIED 且 selectedModel 仍在当前列表的精确版本可调用；多 Provider 不自动选择/回退，版本变化固定冲突；
+- [x] 输出 Schema：请求明确使用 dialect-neutral `JSON_OBJECT` 并由 Chat Adapter 映射远端 JSON 模式；65,536 token 额度覆盖正常 Goal 及模型思考空间；单个受限 JSON 对象严格映射完整 draft 与 0–5 HIGH 问题；缺字段、额外字段、重复/超限、已确认模型 assumption、非 JSON、多对象、Markdown fence、超 1 MiB 和非法 UTF-8 安全失败；
+- [x] JSON 修复：每个生成阶段首次非法只调用同 Provider/版本/模型一次修复；修复输入把受限无效输出隔离为 `USER` 数据且不存在 `ASSISTANT` 历史、Chat/Provider 私有 continuation/reasoning 字段；修复成功继续，修复失败停止；正常成功不修复，原始/修复正文不持久化或外泄；
+- [x] 澄清周期：每周期精确最多 5 轮；完整答案才生成；周期内继续、无问题自动保存；第 5 轮仍有问题进入 EXTENSION_REQUIRED 并停止调用；轮次/周期/问题不可伪造或跳跃；
+- [x] 周期决策：EXTENSION_REQUIRED 只接受用户显式 CONTINUE/SAVE_DRAFT/CANCEL；CONTINUE 每次只增加一个 5 轮周期且不自动调用；下个周期再次到限重新询问；续期不成为偏好；
+- [x] Goal 保存：无问题自动保存；SAVE_DRAFT 把剩余问题变为去重未确认 HIGH assumptions；两者创建新 `PROVIDER` DRAFT、supersede 旧版本并原子写 pointer/version/event/receipt；不批准、不规划、不迁移 Corporation；
+- [x] 迁移：空库与 `0001`–`0008` 升级 `0009` 成功；已有 MANUAL/MOCK Goal 保持逐字节语义；source、operation、model_call 的 STRICT/CHECK/FK/JSON/唯一活动索引、foreign key check 和中断重试与权威 Schema 一致；
+- [x] 调用审计与 usage：正常、修复和每轮澄清各有独立 GOAL_ANALYSIS model_call；关联 corporation/operation/provider/model/attempt，task/run 为空；聚合 token/costSource 准确，Adapter 失败保留标准 ProviderFailureReason，并在内部审计区分 HTTP 5xx、空输出、额度耗尽和非法响应；未知费用不猜测；正文/隐藏推理/远端错误/request ID 不落库；
+- [x] 持久化与恢复：草稿、问题、答案、周期/轮次、标准失败与 usage 在 SQLite 重开、Renderer reload 和应用重启恢复；遗留 GENERATING 转 INTERRUPTED 且不自动重放；可显式重试/取消；
+- [x] 并发/取消/迟到：同 Corporation 单活跃；相同 operationId 幂等且不同请求冲突；两个 Corporation 隔离；取消只影响目标且 2 秒内进入流程；Corporation/Goal/Provider/operation 变化后的迟到结果不覆盖；timer/listener/server/port/进程无残留；
+- [x] 错误与安全：Provider 标准失败、Vault/Storage、Workspace、Schema、答案、状态和版本错误固定归一化；输入/答案/模型正文/路径/Key/Authorization/SQL/堆栈不进入错误、日志、trace、事件、截图或诊断；
+- [x] UI：Create 的 Goal 必填，其余 Goal 内容为可选提示；用户明确选择 Provider/模型后可分析、取消、回答问题、查看 cycle/round/usage、续期、保存未确认草稿或取消，并进入真实 Goal Review；pending 防重复；
+- [x] UI 恢复与适配：dirty input、部分 Corporation、CLARIFICATION_REQUIRED、EXTENSION_REQUIRED、FAILED/CANCELLED/INTERRUPTED/GOAL_SAVED 恢复准确且不伪造成功；键盘/焦点/live region/label/错误关联及 1024×700、1440×900、200% 可完成；
+- [x] 自动真实窗口：Windows/macOS 同一提交开发态与最终包用动态 loopback 覆盖直接成功、一次修复、修复失败、两轮澄清、5 轮到限、续期再到限、保存未确认草稿、取消、中断/重启、版本冲突和既有回归；功能与清理独立通过；
+- [x] 本机真实 Provider：自动矩阵通过后，正式 Windows 最终包从 Renderer 明确选择已保存真实 Provider/模型，用非敏感最小 Goal 完成一次真实生成；只记录脱敏状态、Goal source/version、usage/UNKNOWN cost、时间与泄密扫描；
+- [x] 治理：协议/设计/Schema/迁移/实现/测试一致；`pnpm check`、status/task-unit/diff、Rust fmt/clippy、secret scan、Workspace/Corporation/Goal/pause/restart/Key Vault/Provider E2E 全部通过；Windows/macOS CI 同提交最终包与 artifacts 成功；P0/P1 和未执行必检项为 0。
 
 ## 8. 隔离与干扰控制
 
@@ -114,30 +114,30 @@
 
 ## 10. 验收证据
 
-以下是逐项自动化证据审计；它不代替用户人工 UI 验收，也不表示任务已经完成。自动化基线提交 `ffe9544f3112a2e0e92bae456ef8d67a19a750ef` 的 GitHub Actions run `31295335463` 已通过，后续新增 Goal Engine 1024×700/200% 与 1440×900 专项窗口证据仍须形成新候选并重跑双平台 CI。
+最终候选提交 `ffb5637cd39d5744cd974e0dac7f5c4ac2bae182` 的 GitHub Actions run `31295696426` 已通过；Windows job `93200322608` 与 macOS Apple Silicon job `93200322583` 均完整通过工程检查、包含 Goal Engine 1024×700/200% 与 1440×900 专项场景的开发态 Electron E2E、最终包构建、最终包 E2E 和 artifact 上传。用户于 2026-08-09 明确确认人工 UI 验收通过。
 
-| 验收项               | 直接证据                                                                                                                                                                                   |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1 协议               | `goal-engine.test.ts` 5 项 strict Schema 测试、`goal-engine-ipc.test.ts` 3 项授权/五 channel 额外字段拒绝测试、Goal Contract forged PROVIDER 拒绝测试；`pnpm check` 通过。                 |
-| 2 输入披露           | `goal-engine-service.test.ts` 的 disclosed-fields 断言、开发态/最终包真实窗口披露文案与 loopback 请求断言；Workspace/Key/Header 不进入 Goal 模型输入。                                     |
-| 3 Provider 门禁      | Provider Service 的已保存 Key、ENABLED/VERIFIED/精确版本/迟到版本测试；开发态和最终包仅能显式选择验证模型。                                                                                |
-| 4 输出 Schema        | Provider Generation strict/额度测试、Chat Adapter JSON object 映射和非法/超限响应测试；窗口实际请求断言 `json_object`、65,536、非流式。                                                    |
-| 5 JSON 修复          | Service 的恰好一次修复、二次非法失败、安全修复输入/审计测试；扩展后的跨平台窗口矩阵直接覆盖修复成功与再次失败。                                                                            |
-| 6 澄清周期           | Repository 五轮状态机测试；跨平台窗口矩阵直接完成 cycle 1 和 cycle 2 各 5 轮并在每个上限停止。                                                                                             |
-| 7 周期决策           | Protocol 决策枚举、Repository 单周期 CONTINUE；窗口矩阵覆盖显式续期、再次到限、SAVE_DRAFT 和 CANCEL。                                                                                      |
-| 8 Goal 保存          | Repository 原子 PROVIDER DRAFT 测试、窗口未确认 HIGH 假设门禁；真实 Provider B 路径保存 version 1 DRAFT，7 条 assumptions 中 6 条为未确认 HIGH。                                           |
-| 9 迁移               | Storage migration 空库、0001–0008 升级、0009 约束/外键/既有 MANUAL 语义测试；Storage 78/78 通过。                                                                                          |
-| 10 审计与 usage      | Repository/model_call、Service 正常/修复/失败诊断及 usage 聚合测试；真实 Provider 11/11 `SUCCEEDED`，标准聚合 usage 且无正文诊断。                                                         |
-| 11 持久化与恢复      | Repository transcript/reopen/interrupt 测试；跨平台窗口异常退出后恢复 `INTERRUPTED`，调用数保持不变且不自动重放。                                                                          |
-| 12 并发/取消/迟到    | Repository 单活跃/版本测试、Provider Service 多 operation/取消/迟到测试；窗口矩阵直接覆盖生成取消、周期到限取消、版本冲突和重启。                                                          |
-| 13 错误与安全        | 固定 Schema/Provider diagnostics 测试、Protocol 无值诊断测试、`pnpm secret:scan`；正式 userData 55 文件 Key 形态与 Authorization Bearer 命中均为 0。                                       |
-| 14 UI                | Windows/macOS 开发态窗口覆盖显式选择、生成、取消、回答、cycle/round/usage、续期、保存和 Review；最终包覆盖 PROVIDER draft 与 usage。                                                       |
-| 15 UI 恢复与适配     | Electron E2E 覆盖焦点、axe、失败/取消/中断/Goal saved 恢复；完整窗口套件覆盖 1024×700、1440×900 和 200% 的既有核心回归。                                                                   |
-| 16 自动真实窗口      | 同提交 Windows/macOS 开发态扩展矩阵覆盖成功、修复/失败、两周期、再次到限、未确认保存、取消、冲突和重启；两平台最终包均直接启动并完成 Goal Engine 与既有旅程。                              |
-| 17 本机真实 Provider | Windows 最终包 Renderer 使用应用 Key Vault 中已保存的 `deepseek-v4-flash` 完成 11 次调用和 B 保存；Key 未进入命令、脚本、环境、日志、截图或 Git。                                          |
-| 18 治理              | 本地 `pnpm check`、Electron E2E 6/6、当前源码 package/packaged E2E、`git diff --check` 通过；CI run `31295335463` 双平台全绿；Windows artifact `9032805377`、macOS artifact `9032784777`。 |
+| 验收项               | 直接证据                                                                                                                                                                                                         |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 协议               | `goal-engine.test.ts` 5 项 strict Schema 测试、`goal-engine-ipc.test.ts` 3 项授权/五 channel 额外字段拒绝测试、Goal Contract forged PROVIDER 拒绝测试；`pnpm check` 通过。                                       |
+| 2 输入披露           | `goal-engine-service.test.ts` 的 disclosed-fields 断言、开发态/最终包真实窗口披露文案与 loopback 请求断言；Workspace/Key/Header 不进入 Goal 模型输入。                                                           |
+| 3 Provider 门禁      | Provider Service 的已保存 Key、ENABLED/VERIFIED/精确版本/迟到版本测试；开发态和最终包仅能显式选择验证模型。                                                                                                      |
+| 4 输出 Schema        | Provider Generation strict/额度测试、Chat Adapter JSON object 映射和非法/超限响应测试；窗口实际请求断言 `json_object`、65,536、非流式。                                                                          |
+| 5 JSON 修复          | Service 的恰好一次修复、二次非法失败、安全修复输入/审计测试；扩展后的跨平台窗口矩阵直接覆盖修复成功与再次失败。                                                                                                  |
+| 6 澄清周期           | Repository 五轮状态机测试；跨平台窗口矩阵直接完成 cycle 1 和 cycle 2 各 5 轮并在每个上限停止。                                                                                                                   |
+| 7 周期决策           | Protocol 决策枚举、Repository 单周期 CONTINUE；窗口矩阵覆盖显式续期、再次到限、SAVE_DRAFT 和 CANCEL。                                                                                                            |
+| 8 Goal 保存          | Repository 原子 PROVIDER DRAFT 测试、窗口未确认 HIGH 假设门禁；真实 Provider B 路径保存 version 1 DRAFT，7 条 assumptions 中 6 条为未确认 HIGH。                                                                 |
+| 9 迁移               | Storage migration 空库、0001–0008 升级、0009 约束/外键/既有 MANUAL 语义测试；Storage 78/78 通过。                                                                                                                |
+| 10 审计与 usage      | Repository/model_call、Service 正常/修复/失败诊断及 usage 聚合测试；真实 Provider 11/11 `SUCCEEDED`，标准聚合 usage 且无正文诊断。                                                                               |
+| 11 持久化与恢复      | Repository transcript/reopen/interrupt 测试；跨平台窗口异常退出后恢复 `INTERRUPTED`，调用数保持不变且不自动重放。                                                                                                |
+| 12 并发/取消/迟到    | Repository 单活跃/版本测试、Provider Service 多 operation/取消/迟到测试；窗口矩阵直接覆盖生成取消、周期到限取消、版本冲突和重启。                                                                                |
+| 13 错误与安全        | 固定 Schema/Provider diagnostics 测试、Protocol 无值诊断测试、`pnpm secret:scan`；正式 userData 55 文件 Key 形态与 Authorization Bearer 命中均为 0。                                                             |
+| 14 UI                | Windows/macOS 开发态窗口覆盖显式选择、生成、取消、回答、cycle/round/usage、续期、保存和 Review；最终包覆盖 PROVIDER draft 与 usage。                                                                             |
+| 15 UI 恢复与适配     | Electron E2E 覆盖焦点、axe、失败/取消/中断/Goal saved 恢复；完整窗口套件覆盖 1024×700、1440×900 和 200% 的既有核心回归。                                                                                         |
+| 16 自动真实窗口      | 同提交 Windows/macOS 开发态扩展矩阵覆盖成功、修复/失败、两周期、再次到限、未确认保存、取消、冲突和重启；两平台最终包均直接启动并完成 Goal Engine 与既有旅程。                                                    |
+| 17 本机真实 Provider | Windows 最终包 Renderer 使用应用 Key Vault 中已保存的 `deepseek-v4-flash` 完成 11 次调用和 B 保存；Key 未进入命令、脚本、环境、日志、截图或 Git。                                                                |
+| 18 治理              | 本地 `pnpm check`、Electron E2E 6/6、当前源码 package/packaged E2E、`git diff --check` 通过；CI run `31295696426` 双平台全绿；Windows artifact `9032913454`、macOS artifact `9032899167`；用户人工 UI 验收通过。 |
 
-Windows artifact digest 为 `sha256:2bac42c115bcec35070ea045e5c45ee10072f5ac7877f7940a7189dd0fcbd97c`；macOS artifact digest 为 `sha256:f1372924c938428c181537453c26b3380717e93e863c0c242d4b1897bc99e263`。本地 Windows NSIS SHA-256 为 `1DA3C15A1075A18880B6F276F9D9EA9FA3102C4337FD8E6B635C87EC7F20250A`。P0/P1 为 0，未执行必检项为 0。
+Windows artifact digest 为 `sha256:e4472ec29a61d28f786dded17e8b4c9fb4d38b524079e663c298bc3722482556`；macOS artifact digest 为 `sha256:9f3c383aac52e45bf2f4f702d827c88a4f8661659e682212a91c38359f652604`。本地 Windows NSIS SHA-256 为 `1DA3C15A1075A18880B6F276F9D9EA9FA3102C4337FD8E6B635C87EC7F20250A`。P0/P1 为 0，未执行必检项为 0。
 
 ## 11. 完成规则
 

@@ -1,18 +1,18 @@
 # AI Corporation Desktop 项目进度
 
-| 属性           | 当前值                                                      |
-| -------------- | ----------------------------------------------------------- |
-| 当前产品版本   | v0.1 MVP                                                    |
-| 当前阶段       | M2-TU-05 Goal Engine 实施                                   |
-| 当前 Milestone | Milestone 2：Provider 与 Goal/Plan                          |
-| 当前任务单元   | M2-TU-05（进行中）                                          |
-| 总体状态       | 进行中                                                      |
-| 最近更新       | 2026-08-09                                                  |
-| 下一检查点     | 用户人工验收 Goal Engine UI；新增尺寸证据形成并验证最终候选 |
+| 属性           | 当前值                                         |
+| -------------- | ---------------------------------------------- |
+| 当前产品版本   | v0.1 MVP                                       |
+| 当前阶段       | M2-TU-05 已完成；下一任务合同准备              |
+| 当前 Milestone | Milestone 2：Provider 与 Goal/Plan             |
+| 当前任务单元   | M2-TU-05（完成）                               |
+| 总体状态       | 进行中                                         |
+| 最近更新       | 2026-08-09                                     |
+| 下一检查点     | 定义 Milestone 2 的 Planner 结构化输出任务合同 |
 
 ## 1. 当前结论
 
-Milestone 0、Milestone 1 已完成，Milestone 1 已经用户人工安装验收。M2-TU-05 此前确认的结构化输出/输出额度 P1 已按用户方案 A 修复：Goal 使用 dialect-neutral `JSON_OBJECT`、65,536 token 上限、完整非空 Schema 示例以及不含正文的安全诊断。新 Windows 最终包真实 Renderer 已连续完成初始生成和两个各 5 轮的澄清周期，共 11 次真实 Provider 调用，所有调用和严格输出 Schema 均成功；用户按 8A 选择保存后，operation 已成为 `GOAL_SAVED`，原子保存 version 1、`PROVIDER` 来源的 DRAFT，剩余问题转为 6 条未确认 HIGH assumptions。当前本地全量工程检查、开发态和最终包真实窗口、产物哈希与正式 userData 泄密扫描均通过；尚待同一候选提交的 Windows/macOS CI 与 artifact 证据，因此尚未关闭 M2-TU-05。此前暴露的 GitHub CLI 凭据已经用户处置并重新认证，仓库文件、commit、CI artifact 与泄密扫描均未发现该凭据；该安全阻断已解除。
+Milestone 0、Milestone 1 已完成，Milestone 1 已经用户人工安装验收。M2-TU-05 已完成：此前确认的结构化输出/输出额度 P1 已按用户方案 A 修复，Goal 使用 dialect-neutral `JSON_OBJECT`、65,536 token 上限、完整非空 Schema 示例以及不含正文的安全诊断。Windows 最终包真实 Renderer 连续完成初始生成和两个各 5 轮的澄清周期，共 11 次真实 Provider 调用，所有调用和严格输出 Schema 均成功；用户按 8A 选择保存后，operation 成为 `GOAL_SAVED`，原子保存 version 1、`PROVIDER` 来源 DRAFT，剩余问题转为 6 条未确认 HIGH assumptions。最终候选的本地全量检查、Windows/macOS 开发态和最终包真实窗口、产物与泄密扫描以及用户人工 UI 验收全部通过。此前暴露的 GitHub CLI 凭据已经用户处置并重新认证，仓库文件、commit、CI artifact 与泄密扫描均未发现该凭据；该安全阻断已解除。
 
 [M2-TU-02 应用自管 Provider Key Vault](docs/06-engineering/task-units/M2-TU-02-application-key-vault.md)、[M2-TU-03 Provider 连接测试](docs/06-engineering/task-units/M2-TU-03-provider-connection-test.md)和[M2-TU-04 Provider 非流式生成与 usage](docs/06-engineering/task-units/M2-TU-04-provider-generation-usage.md)均已完成。M2-TU-04 在候选提交 `4822e9939536bd858bdd7a82be3045151e882773` 上通过本地工程检查、Windows 开发态与最终包真实窗口、Windows/macOS 同提交 CI、真实 Provider 生成和泄密扫描。
 
@@ -55,7 +55,7 @@ M2-TU-04 已关闭：
 
 ## 5. 活跃阻塞与外部条件
 
-当前无已知产品 P0/P1。M2-TU-05 自动化逐项审计补齐了修复再次失败、第二周期再次到限、版本冲突、中断/重启以及 Goal Engine 1024×700/200% 和 1440×900 专项窗口证据；剩余门禁是用户人工 UI 验收，以及把新增尺寸证据形成新候选后取得同提交 Windows/macOS CI 与 artifacts。两项都通过前不得标记任务完成。
+当前无活跃阻塞，P0/P1 为 0，未执行必检项为 0。下一任务仍须先建立并达到“就绪”的独立任务合同；在合同就绪前不得开始 Planner 实现。
 
 已知条件：
 
@@ -68,7 +68,7 @@ M2-TU-04 已关闭：
 ## 6. 当前验证摘要
 
 - 当前工作区 `pnpm check` 完整通过：Protocol 36、Provider 28、Storage 78、Desktop 95、Native Core 7、workspace Rust 7，status/task-unit、format/lint/typecheck、Rust fmt/clippy 和 secret scan 均成功；Windows 开发态 Electron E2E 6/6 通过，Goal Engine 窗口直接覆盖成功、一次修复、修复再次失败、取消、版本冲突、两个完整 5 轮周期、续期再次到限、保存未确认草稿以及异常退出/重启 `INTERRUPTED` 且不重放；实际 Goal HTTP 请求断言 `response_format: json_object`、`max_tokens: 65536` 和非流式；当前源码重新构建的 Windows 最终包 E2E 通过 Native Core、Workspace、Goal、Goal Engine、恢复、Key Vault、Provider 连接/生成及外部请求隔离；
-- 前一候选提交 `7d905aba6a3b2933da8ecd0f5ada53a19cd9598f` 的 GitHub Actions run `31292263033` 在 Windows/macOS 完整成功，但逐项验收审计随后发现真实窗口矩阵缺口并补充场景，且新场景发现并修复 EXTENSION_REQUIRED 取消误报 `STORAGE_UNAVAILABLE` 的缺陷；因此该 run 不能作为当前未提交修复的最终同提交证据，必须重跑；
+- 最终候选 `ffb5637cd39d5744cd974e0dac7f5c4ac2bae182` 的 GitHub Actions run `31295696426` 完整成功；Windows job `93200322608` 与 macOS job `93200322583` 的工程检查、Goal Engine 尺寸/缩放开发态 E2E、最终包构建/E2E 和 artifact 上传全部成功；Windows artifact `9032913454`、digest `sha256:e4472ec29a61d28f786dded17e8b4c9fb4d38b524079e663c298bc3722482556`，macOS artifact `9032899167`、digest `sha256:9f3c383aac52e45bf2f4f702d827c88a4f8661659e682212a91c38359f652604`；用户人工 UI 验收通过；
 - 最新 Windows 最终包正式 Renderer 使用应用 Key Vault 中已保存的 `deepseek-v4-flash` 完成两个澄清周期：初始生成加 10 轮澄清共 11 次调用全部 `SUCCEEDED`，没有 Provider failure、failure reason 或 model-output diagnostic；用户选择保存后 operation 为 `GOAL_SAVED`，version 1 DRAFT 来源为 `PROVIDER`，7 条 assumptions 中 6 条为未确认 HIGH，聚合 usage 为 input 21,704、output 50,775、cached input 17,792、reasoning 44,701、cost UNKNOWN；
 - 当前 Windows NSIS SHA-256 为 `1DA3C15A1075A18880B6F276F9D9EA9FA3102C4337FD8E6B635C87EC7F20250A`，包内 Native Core SHA-256 为 `ACDBD55FF932A593D2796E670C77F8423E35BB093C83F9624139DF79B2F186AF`，Goal Engine 截图 SHA-256 为 `BA9E2A3F21C633568F49B34179C31810A606934E79CB5D7DD566156E27D1957C`；正式应用目录 55 个文件的 Key 形态和 Authorization Bearer 明文扫描命中均为 0；
 
@@ -83,7 +83,7 @@ M2-TU-04 已关闭：
 
 ## 7. 下一步
 
-等待用户人工验收 Goal Engine 的信息层级、风险文案、键盘全流程、200% 缩放和 Windows 原生窗口行为；同时提交新增尺寸证据并重跑同提交 Windows/macOS CI 与 artifacts。两项通过后才能勾选任务合同、更新本状态为完成并运行最终状态/合同检查。任务关闭只代表 Goal Engine 任务单元完成，不关闭 Planner、Task Graph、Plan Review 或 Milestone 2。
+M2-TU-05 只关闭 Goal Engine 任务单元，不关闭 Planner、Task Graph、Plan Review 或 Milestone 2。下一步按 MVP Plan 为 Planner 结构化输出建立边界清晰、可独立验收的任务合同；发现输出协议、JSON 修复、DAG 所有权或 Plan Review 边界存在歧义时，先提交用户决策，不进行推测性实现。
 
 ## 8. 更新规则
 
