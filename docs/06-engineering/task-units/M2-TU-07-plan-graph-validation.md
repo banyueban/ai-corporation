@@ -3,7 +3,7 @@
 | 属性           | 值                                                                                                             |
 | -------------- | -------------------------------------------------------------------------------------------------------------- |
 | 任务单元 ID    | M2-TU-07                                                                                                       |
-| 状态           | 进行中                                                                                                         |
+| 状态           | 完成                                                                                                           |
 | 所属 Milestone | Milestone 2：Provider 与 Goal/Plan                                                                             |
 | 主要结果       | Planner 草稿在本地确定性验证 DAG、引用、验收、预算和权限描述，通过时原子创建正式 Task/依赖，失败时展示精确问题 |
 | 基线提交       | `96f05ec0760302fd81dd351bebea6f6f52324652`                                                                     |
@@ -73,25 +73,25 @@
 
 ## 7. 验收合同
 
-- [ ] 协议：Plan report、finding、正式 Task/Input/Output/Acceptance strict Schema 拒绝额外字段、非法 UUID/version/status/code/path/数量；
-- [ ] 任务数量：1 和 20 个 Task 可验证；21 与 50 固定 INVALID；不得自动删除、合并或调用 Provider；
-- [ ] 图：合法顺序/并行/单 Task 通过；重复 local ID、未知引用、自依赖、重复边和多种环安全失败；
-- [ ] milestone：未知 Task 和跨 milestone 重复 Task 失败；未归 milestone 的 Task 不被伪造归属；
-- [ ] 验收与叶子：每个 Task 必须有 REQUIRED criterion；叶子必须有 required output；证据标签受限、去重且不被当成输出引用或评价结论；
-- [ ] 输入输出：TASK_OUTPUT 的 Task、logical name、media type 与依赖上游路径全部闭合；Goal 输入绑定当前 goalVersion；跨 Plan/Corporation 不可表达；
-- [ ] 产物类型：四种允许 media type 精确映射到 TEXT/DOCUMENT/JSON/FILE；未知类型失败且不物化；
-- [ ] 费用预算：Goal 有费用上限时缺 Task 上限、非整数/溢出或总和超限失败；等于上限通过；Goal 未设置时不伪造上限；
-- [ ] 时长预算：使用 DAG 最长路径而非全图简单求和；缺上限、溢出和超限失败；并行分支及等于上限正确；
-- [ ] 修订预算：全图 maxEvaluationRevisions 求和；缺上限和超限失败；Goal 未设置时只保留 Task Schema；
-- [ ] 权限描述：未知 capability/tool/profile、绝对/盘符/UNC/`.`/`..`/NUL/反斜杠混淆路径失败；安全相对路径通过但 UI 不显示为已授权；
-- [ ] 单 Run warning：固定 80%/10 项阈值稳定产生 warning，不阻止其他方面有效的 Plan，不显示为已证明可完成；
-- [ ] INVALID 原子性：保存受限 report 与 `DRAFT/INVALID`，正式 task/task_dependency 为 0；故障注入不留下半份状态；
-- [ ] VALID 原子性：复用可信 Task UUID，Task/依赖/contract/report 与 `VALIDATED/VALID` 同事务；合同逐字段映射且不创建 Artifact/Run/Agent/Approval；
-- [ ] 幂等与竞态：相同 hash 重复验证不重复 Task/依赖/report 时间；Plan/Goal/draft/version 变化或并发验证条件失败且不覆盖新事实；
-- [ ] 恢复：Planner 保存后自动验证；Renderer reload、应用重启和 SQLite 重开恢复同一结果；遗留 PENDING 只本地重试，不产生 model_call 或网络请求；
-- [ ] UI：中文显示正在本地验证、固定问题、预算/权限/warning 与已验证事实；生成失败、取消或中断后可重新选择模型并明确重试，恢复页面不会自动调用 Provider；INVALID/VALID 都继续明确尚未组队、未批准、不可执行；键盘、焦点、1024×700、1440×900 和 200% 可完成；
-- [ ] 安全：report、错误、日志、trace、截图和诊断不含 Goal/模型正文、绝对路径、Key、Authorization、SQL 或堆栈；路径攻击集通过；
-- [ ] 治理：协议/设计/Schema/迁移/实现/测试一致；适用 `pnpm check`、开发态与最终包真实窗口、Windows/macOS CI、artifact 和人工 UI 验收通过；P0/P1 与未执行必检项为 0。
+- [x] 协议：Plan report、finding、正式 Task/Input/Output/Acceptance strict Schema 拒绝额外字段、非法 UUID/version/status/code/path/数量；
+- [x] 任务数量：1 和 20 个 Task 可验证；21 与 50 固定 INVALID；不得自动删除、合并或调用 Provider；
+- [x] 图：合法顺序/并行/单 Task 通过；重复 local ID、未知引用、自依赖、重复边和多种环安全失败；
+- [x] milestone：未知 Task 和跨 milestone 重复 Task 失败；未归 milestone 的 Task 不被伪造归属；
+- [x] 验收与叶子：每个 Task 必须有 REQUIRED criterion；叶子必须有 required output；证据标签受限、去重且不被当成输出引用或评价结论；
+- [x] 输入输出：TASK_OUTPUT 的 Task、logical name、media type 与依赖上游路径全部闭合；Goal 输入绑定当前 goalVersion；跨 Plan/Corporation 不可表达；
+- [x] 产物类型：四种允许 media type 精确映射到 TEXT/DOCUMENT/JSON/FILE；未知类型失败且不物化；
+- [x] 费用预算：Goal 有费用上限时缺 Task 上限、非整数/溢出或总和超限失败；等于上限通过；Goal 未设置时不伪造上限；
+- [x] 时长预算：使用 DAG 最长路径而非全图简单求和；缺上限、溢出和超限失败；并行分支及等于上限正确；
+- [x] 修订预算：全图 maxEvaluationRevisions 求和；缺上限和超限失败；Goal 未设置时只保留 Task Schema；
+- [x] 权限描述：未知 capability/tool/profile、绝对/盘符/UNC/`.`/`..`/NUL/反斜杠混淆路径失败；安全相对路径通过但 UI 不显示为已授权；
+- [x] 单 Run warning：固定 80%/10 项阈值稳定产生 warning，不阻止其他方面有效的 Plan，不显示为已证明可完成；
+- [x] INVALID 原子性：保存受限 report 与 `DRAFT/INVALID`，正式 task/task_dependency 为 0；故障注入不留下半份状态；
+- [x] VALID 原子性：复用可信 Task UUID，Task/依赖/contract/report 与 `VALIDATED/VALID` 同事务；合同逐字段映射且不创建 Artifact/Run/Agent/Approval；
+- [x] 幂等与竞态：相同 hash 重复验证不重复 Task/依赖/report 时间；Plan/Goal/draft/version 变化或并发验证条件失败且不覆盖新事实；
+- [x] 恢复：Planner 保存后自动验证；Renderer reload、应用重启和 SQLite 重开恢复同一结果；遗留 PENDING 只本地重试，不产生 model_call 或网络请求；
+- [x] UI：中文显示正在本地验证、固定问题、预算/权限/warning 与已验证事实；生成失败、取消或中断后可重新选择模型并明确重试，恢复页面不会自动调用 Provider；INVALID/VALID 都继续明确尚未组队、未批准、不可执行；键盘、焦点、1024×700、1440×900 和 200% 可完成；
+- [x] 安全：report、错误、日志、trace、截图和诊断不含 Goal/模型正文、绝对路径、Key、Authorization、SQL 或堆栈；路径攻击集通过；
+- [x] 治理：协议/设计/Schema/迁移/实现/测试一致；适用 `pnpm check`、开发态与最终包真实窗口、Windows/macOS CI、artifact 和人工 UI 验收通过；P0/P1 与未执行必检项为 0。
 
 ## 8. 隔离与干扰控制
 

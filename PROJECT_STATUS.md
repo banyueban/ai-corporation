@@ -3,12 +3,12 @@
 | 属性           | 当前值                                         |
 | -------------- | ---------------------------------------------- |
 | 当前产品版本   | v0.1 MVP                                       |
-| 当前阶段       | M2-TU-07 本地计划验证与正式 Task 物化实施中    |
+| 当前阶段       | M2-TU-07 已完成，Plan Review 任务合同待建立    |
 | 当前 Milestone | Milestone 2：Provider 与 Goal/Plan             |
-| 当前任务单元   | M2-TU-07（进行中）                             |
-| 总体状态       | 进行中                                         |
+| 当前任务单元   | M2-TU-07（完成）                               |
+| 总体状态       | 阶段检查中                                     |
 | 最近更新       | 2026-08-10                                     |
-| 下一检查点     | 生成修复后的 Windows 候选并完成人工 UI 复验    |
+| 下一检查点     | 建立并评审 Plan Review 编辑/批准任务合同       |
 
 ## 1. 当前结论
 
@@ -16,9 +16,7 @@ Milestone 0、Milestone 1 和 M2-TU-02 至 M2-TU-06 已完成。M2-TU-06 已交�
 
 当前中文界面候选的完整 `pnpm check`、Windows 开发态 Electron E2E 7/7、Windows 最终包完整真实窗口矩阵、截图检查、Windows/macOS CI 和正式 Renderer 真实 Provider 复验均已通过。用户于 2026-08-09 确认人工 UI 验收通过，M2-TU-06 的 19 项验收断言全部关闭，P0/P1 为 0。该结论只关闭 M2-TU-06 和 Planner 结构化输出，不代表 DAG 验证、Plan Review、Organization、执行或整个 Milestone 2 完成。
 
-M2-TU-07 已形成实施候选：Planner 保存后自动进行不调用 Provider 的本地确定性验证；1–20 个 Task、DAG、引用、输入输出、逐 Task 验收、叶子输出、milestone、Goal 硬预算和权限描述均由固定规则检查；验证通过时在同一事务物化正式 Task/依赖，失败时只保存受限报告；普通二进制输出映射为 `FILE`；中文 UI 明确区分验证中、失败和通过，并继续标注未批准、未组队、不可执行。当前提交的跨平台 CI 与最终包自动验收已通过，但最新 Windows artifact 尚未在本地取得，用户人工验收未完成，DAG 项继续保持未完成。
-
-用户人工复验发现：恢复一个生成失败的 Planner 操作时，页面保留失败原因却隐藏了模型选择和明确重试入口，导致用户无法从软件内继续。当前候选已重新显示模型服务商/模型选择和“重新生成并验证计划”，恢复页面不会自动调用 Provider；开发态和 Windows/macOS 最终包真实窗口均覆盖失败恢复、点击前零新增请求及明确重试成功。修复后的 Windows artifact 本地下载和用户人工复验尚未完成，因此该问题仍作为当前 P1，M2-TU-07 不得完成。
+M2-TU-07 已完成：Planner 保存后自动进行不调用 Provider 的本地确定性验证；1–20 个 Task、DAG、引用、输入输出、逐 Task 验收、叶子输出、milestone、Goal 硬预算和权限描述均由固定规则检查；验证通过时在同一事务物化正式 Task/依赖，失败时只保存受限报告；普通二进制输出映射为 `FILE`；中文 UI 明确区分验证中、失败和通过，并继续标注未批准、未组队、不可执行。失败、取消或中断后保留原因并提供明确重试入口，恢复页面不会自动请求 Provider。完整工程检查、Windows 开发态窗口、Windows/macOS CI、最终包窗口矩阵和 artifacts 已通过，用户于 2026-08-10 明确确认人工验收通过，19 项验收断言全部关闭，P0/P1 为 0。
 
 ## 2. 已完成基线
 
@@ -28,6 +26,8 @@ M2-TU-07 已形成实施候选：Planner 保存后自动进行不调用 Provider
 - M2-TU-03：Provider 连接测试、错误归一化和精确模型列表；
 - M2-TU-04：dialect-neutral 非流式生成、Chat Completions Adapter、usage、超时/取消与 Responses 前向兼容门禁；
 - M2-TU-05：Goal Engine 真实生成、每周期 5 轮有界澄清、一次 JSON 修复和 APPROVED Goal 前置能力。
+- M2-TU-06：Planner 结构化生成、最多一次 JSON 修复、草稿持久化和正式 Renderer 真实 Provider 验证；
+- M2-TU-07：Plan DAG/引用/输入输出/验收/预算/权限描述本地验证与正式 Task 原子物化。
 
 ## 3. Milestone 2 范围状态
 
@@ -36,13 +36,13 @@ M2-TU-07 已形成实施候选：Planner 保存后自动进行不调用 Provider
 - [x] 连接测试、错误归一化和用量；
 - [x] Goal Engine；
 - [x] Planner 结构化输出与最多一次 JSON 修复；
-- [ ] DAG、输入输出和验收验证；
+- [x] DAG、输入输出和验收验证；
 - [ ] Plan Review 编辑与批准 UI；
 - [ ] Windows/macOS Milestone 级真实窗口与最终包验收。
 
-Planner 结构化生成基础已随 M2-TU-06 关闭。Task Graph 语义验证、正式 Task materialization、Plan Review、Organization 和执行仍未完成，Milestone 2 不得关闭。
+Planner 结构化生成基础已随 M2-TU-06 关闭，Task Graph 语义验证与正式 Task materialization 已随 M2-TU-07 关闭。Plan Review 编辑/批准、Organization 和执行仍未完成，Milestone 2 不得关闭。
 
-## 4. 当前任务边界
+## 4. 最近完成的任务边界
 
 M2-TU-07 只交付：
 
@@ -57,7 +57,7 @@ M2-TU-07 只交付：
 
 ## 5. 活跃阻塞与外部条件
 
-当前 P0 为 0，P1 为 1：失败 Planner 恢复入口的源码、开发态窗口、Windows/macOS CI 与最终包窗口验收已通过，但修复后的 Windows artifact 尚未在本地取得，用户人工复验未完成。提交 `50748280fafc4fb726d904261b12958c9dfacd0e` 的 GitHub Actions run `31323532761` 已通过并上传 Windows/macOS artifact。Windows artifact 使用 `gh run download` 下载约三分钟无进度且未创建目标文件，已停止并清理专用残留下载进程；GitHub 上的 artifact 完整存在。此前本机 `electron-builder` 在启动阶段无日志卡住，故当前仍需解决本地取得 Windows 候选的问题。
+当前 P0/P1 为 0，无 M2-TU-07 交付阻塞。提交 `50748280fafc4fb726d904261b12958c9dfacd0e` 的 GitHub Actions run `31323532761` 已通过并上传 Windows/macOS artifacts；用户已明确确认人工验收通过。本机通过 `gh run download` 取得 Windows artifact 的尝试未完成且未留下目标文件，这是当前工具环境的下载限制，不再阻塞已由用户确认的任务验收。下一任务尚未建立就绪合同，开始 Plan Review 实施前必须完成合同与歧义决策。
 
 已知条件：系统 PATH 未提供 Node.js，工程验证使用 Codex bundled Node.js；正式 Key 仍只由应用自管 Key Vault 使用，未进入命令、脚本、环境变量、Git、日志或截图；费用无法从当前 Provider 响应可靠取得时保持 `UNKNOWN`。
 
@@ -86,7 +86,7 @@ M2-TU-07 只交付：
 
 ## 7. 下一步
 
-从 GitHub Actions run `31323532761` 取得 Windows artifact `ai-corporation-windows-x64`，核对本地安装包后请求用户人工复验；人工复验通过前当前 P1、M2-TU-07、DAG 项和 Milestone 2 均保持未完成。Plan Review 编辑/批准仍属于后续任务。
+按 MVP Plan 建立 Plan Review 编辑/批准的独立任务合同，明确编辑范围、版本与作废规则、批准状态、失败恢复、UI 和验收边界；合同达到“就绪”且用户完成必要决策前不得实施。M2-TU-07 已关闭，但 Plan Review 和 Milestone 2 仍未完成。
 
 ## 8. 更新规则
 
