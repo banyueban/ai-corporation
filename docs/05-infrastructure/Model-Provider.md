@@ -12,11 +12,11 @@ interface ModelProvider {
   validateConfig(config: ProviderConfig): void;
   listModels(
     config: ProviderConfig,
-    signal: AbortSignal
+    signal: AbortSignal,
   ): Promise<ModelDescriptor[]>;
   generate(
     request: NormalizedGenerationRequest,
-    signal: AbortSignal
+    signal: AbortSignal,
   ): Promise<NormalizedGenerationResponse>;
 }
 ```
@@ -30,7 +30,7 @@ type ModelDescriptor = {
   id: string;
   displayName: string;
   contextWindow?: number;
-  maxOutputTokens?: number;
+  maxOutputTokens: number;
   capabilities: {
     text: boolean;
     vision: boolean;
@@ -83,10 +83,13 @@ type NormalizedGenerationRequest = {
   }>;
   temperature?: number;
   maxOutputTokens?: number;
+  outputFormat?: "TEXT" | "JSON_OBJECT";
 };
 ```
 
-公共请求/响应/usage 禁止出现 `messages`、`choices`、`delta`、`chat.completion`、`finish_reason` 等 Chat 专属 DTO。Provider Adapter 负责 dialect 转换，无法支持的必需能力在调用前报错。Tool、Schema、stream 与运行元数据由后续任务在不污染该最小接口的前提下扩展。
+公共请求/响应/usage 禁止出现 `messages`、`choices`、`delta`、`chat.completion`、`finish_reason`、`response_format` 等 Chat 专属 DTO。`outputFormat: JSON_OBJECT` 是通用输出约束，由 Chat Adapter 映射为自身远端字段，未来 Responses Adapter 独立映射；Provider Adapter 负责 dialect 转换，无法支持的必需能力在调用前报错。Tool、完整 JSON Schema、stream 与运行元数据由后续任务在不污染该最小接口的前提下扩展。
+
+规范化 `maxOutputTokens` 上限为 65,536；这只是协议可表达上限，不是对任意 Provider 能力的假设。调用方不得因 Provider 拒绝而静默降低额度、切换模型或切换 dialect。
 
 ## 6. 用量与费用
 
@@ -140,6 +143,8 @@ Provider 状态分成三个相互独立的维度：
 - `CANCELLED`
 
 每类带 `retryable` 和建议退避。认证错误不重试。
+
+Adapter 内部还可携带固定安全诊断枚举，区分 HTTP 服务器错误、响应过大、非法 UTF-8/JSON/结构/usage、空输出和额度耗尽但没有最终输出。该枚举不替代 `ProviderFailureReason`，不向 Renderer 暴露自由文本，也不得包含正文、隐藏推理、远端 ID、Header 或 Key。
 
 连接测试的固定映射为：HTTP 401 → `AUTHENTICATION`，403 → `PERMISSION`，429 且响应错误码为 `insufficient_quota` → `QUOTA_EXHAUSTED`，其他 429 → `RATE_LIMIT`，其他 4xx → `INVALID_REQUEST`，5xx → `PROVIDER_INTERNAL`，15 秒截止 → `TIMEOUT`，传输失败 → `NETWORK`，用户取消 → `CANCELLED`。成功响应不是合法模型列表时按不可重试的 `PROVIDER_INTERNAL` 处理。错误正文只在 Adapter 内用于受限解析，不进入 Renderer、日志或持久化结果。
 

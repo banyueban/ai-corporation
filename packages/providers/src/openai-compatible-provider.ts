@@ -2,6 +2,7 @@ import {
   normalizedGenerationResponseSchema,
   type NormalizedGenerationRequest,
   type NormalizedGenerationResponse,
+  type ProviderFailureDiagnostic,
   type ProviderModelDescriptor,
 } from "@ai-corporation/protocols";
 import {
@@ -130,6 +131,9 @@ export class OpenAiChatCompletionsAdapter implements ModelProvider {
               content: parts.map(({ text }) => text).join(""),
             })),
             max_tokens: request.maxOutputTokens,
+            ...(request.outputFormat === "JSON_OBJECT"
+              ? { response_format: { type: "json_object" } }
+              : {}),
             ...(request.temperature === undefined
               ? {}
               : { temperature: request.temperature }),
@@ -198,7 +202,12 @@ async function readLimitedBody(response: Response): Promise<string> {
     Number.isFinite(Number(contentLength)) &&
     Number(contentLength) > MAX_RESPONSE_BYTES
   ) {
-    throw adapterFailure("PROVIDER_INTERNAL", false);
+    throw adapterFailure(
+      "PROVIDER_INTERNAL",
+      false,
+      undefined,
+      "RESPONSE_TOO_LARGE",
+    );
   }
   if (response.body === null) return "";
   const reader = response.body.getReader();
@@ -211,7 +220,12 @@ async function readLimitedBody(response: Response): Promise<string> {
       length += result.value.byteLength;
       if (length > MAX_RESPONSE_BYTES) {
         await reader.cancel();
-        throw adapterFailure("PROVIDER_INTERNAL", false);
+        throw adapterFailure(
+          "PROVIDER_INTERNAL",
+          false,
+          undefined,
+          "RESPONSE_TOO_LARGE",
+        );
       }
       chunks.push(result.value);
     }
@@ -227,7 +241,7 @@ async function readLimitedBody(response: Response): Promise<string> {
   try {
     return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   } catch {
-    throw adapterFailure("PROVIDER_INTERNAL", false);
+    throw adapterFailure("PROVIDER_INTERNAL", false, undefined, "INVALID_UTF8");
   }
 }
 
@@ -278,24 +292,56 @@ function parseGeneration(
   try {
     payload = JSON.parse(body);
   } catch {
-    throw adapterFailure("PROVIDER_INTERNAL", false);
+    throw adapterFailure("PROVIDER_INTERNAL", false, undefined, "INVALID_JSON");
   }
   if (!isRecord(payload) || !Array.isArray(payload.choices)) {
-    throw adapterFailure("PROVIDER_INTERNAL", false);
+    throw adapterFailure(
+      "PROVIDER_INTERNAL",
+      false,
+      undefined,
+      "INVALID_RESPONSE_SHAPE",
+    );
   }
   if (payload.choices.length !== 1) {
-    throw adapterFailure("PROVIDER_INTERNAL", false);
+    throw adapterFailure(
+      "PROVIDER_INTERNAL",
+      false,
+      undefined,
+      "INVALID_RESPONSE_SHAPE",
+    );
   }
   const choice = payload.choices[0];
+  if (!isRecord(choice) || !isRecord(choice.message)) {
+    throw adapterFailure(
+      "PROVIDER_INTERNAL",
+      false,
+      undefined,
+      "INVALID_RESPONSE_SHAPE",
+    );
+  }
   if (
-    !isRecord(choice) ||
-    !isRecord(choice.message) ||
     typeof choice.message.content !== "string" ||
-    choice.message.content.length === 0 ||
-    new TextEncoder().encode(choice.message.content).byteLength >
-      MAX_RESPONSE_BYTES
+    choice.message.content.length === 0
   ) {
-    throw adapterFailure("PROVIDER_INTERNAL", false);
+    throw adapterFailure(
+      "PROVIDER_INTERNAL",
+      false,
+      undefined,
+      choice.finish_reason === "length"
+        ? "OUTPUT_LIMIT_WITHOUT_OUTPUT"
+        : "EMPTY_OUTPUT",
+    );
+  }
+  if (
+    new TextEncoder().encode(choice.message.content).byteLength >
+    MAX_RESPONSE_BYTES
+  ) {
+    throw adapterFailure(
+      "PROVIDER_INTERNAL",
+      false,
+      undefined,
+      "RESPONSE_TOO_LARGE",
+    );
   }
   const candidate = {
     modelId,
@@ -304,7 +350,14 @@ function parseGeneration(
     usage: parseUsage(payload.usage),
   };
   const parsed = normalizedGenerationResponseSchema.safeParse(candidate);
-  if (!parsed.success) throw adapterFailure("PROVIDER_INTERNAL", false);
+  if (!parsed.success) {
+    throw adapterFailure(
+      "PROVIDER_INTERNAL",
+      false,
+      undefined,
+      "INVALID_RESPONSE_SHAPE",
+    );
+  }
   return parsed.data;
 }
 
@@ -319,14 +372,26 @@ function parseUsage(value: unknown) {
   if (value === undefined || value === null) {
     return { costSource: "UNKNOWN" as const };
   }
-  if (!isRecord(value)) throw adapterFailure("PROVIDER_INTERNAL", false);
+  if (!isRecord(value)) {
+    throw adapterFailure(
+      "PROVIDER_INTERNAL",
+      false,
+      undefined,
+      "INVALID_USAGE",
+    );
+  }
   const promptTokens = optionalSafeToken(value.prompt_tokens);
   const completionTokens = optionalSafeToken(value.completion_tokens);
   const cachedInputTokens = optionalSafeToken(value.prompt_cache_hit_tokens);
   let reasoningTokens: number | undefined;
   if (value.completion_tokens_details !== undefined) {
     if (!isRecord(value.completion_tokens_details)) {
-      throw adapterFailure("PROVIDER_INTERNAL", false);
+      throw adapterFailure(
+        "PROVIDER_INTERNAL",
+        false,
+        undefined,
+        "INVALID_USAGE",
+      );
     }
     reasoningTokens = optionalSafeToken(
       value.completion_tokens_details.reasoning_tokens,
@@ -346,7 +411,12 @@ function parseUsage(value: unknown) {
 function optionalSafeToken(value: unknown): number | undefined {
   if (value === undefined || value === null) return undefined;
   if (!Number.isSafeInteger(value) || (value as number) < 0) {
-    throw adapterFailure("PROVIDER_INTERNAL", false);
+    throw adapterFailure(
+      "PROVIDER_INTERNAL",
+      false,
+      undefined,
+      "INVALID_USAGE",
+    );
   }
   return value as number;
 }
@@ -381,6 +451,7 @@ function adapterFailureForResponse(
       "PROVIDER_INTERNAL",
       true,
       readRetryAfter(response) ?? DEFAULT_RETRY_BACKOFF_MS,
+      "HTTP_SERVER_ERROR",
     );
   }
   return adapterFailure("PROVIDER_INTERNAL", false);
@@ -410,12 +481,16 @@ function adapterFailure(
   reason: ProviderFailure["reason"],
   retryable: boolean,
   suggestedBackoffMs?: number,
+  diagnostic?: ProviderFailureDiagnostic,
 ): ProviderAdapterError {
-  return new ProviderAdapterError({
-    reason,
-    retryable,
-    ...(suggestedBackoffMs === undefined ? {} : { suggestedBackoffMs }),
-  });
+  return new ProviderAdapterError(
+    {
+      reason,
+      retryable,
+      ...(suggestedBackoffMs === undefined ? {} : { suggestedBackoffMs }),
+    },
+    diagnostic,
+  );
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -430,6 +430,8 @@ ON approval_request(corporation_id, created_at)
 WHERE status = 'PENDING';
 ```
 
+`model_call.response_meta_json` 使用版本化、无正文元数据。M2-TU-05 失败调用可保存固定 `failureDiagnostic` 枚举，以区分 HTTP 服务器错误、空输出、额度耗尽和非法响应结构；不得保存 Prompt、模型正文、隐藏推理、远端 request ID、Header、Key 或自由文本错误。该字段已由 `0009_goal_engine.sql` 定义为可扩展 JSON 对象，本次不修改 `0001`–`0008`，也不需要重建既有表。
+
 ## 7. Artifact 与评价
 
 ```sql

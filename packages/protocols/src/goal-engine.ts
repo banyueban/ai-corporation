@@ -119,6 +119,74 @@ export const goalEngineModelOutputSchema = z
   })
   .strict();
 
+const goalModelOutputIssueCodeSchema = z.enum([
+  "invalid_type",
+  "too_big",
+  "too_small",
+  "invalid_format",
+  "not_multiple_of",
+  "unrecognized_keys",
+  "invalid_union",
+  "invalid_key",
+  "invalid_element",
+  "invalid_value",
+  "custom",
+]);
+
+const goalModelOutputIssuePathSchema = z.enum([
+  "ROOT",
+  "draft",
+  "draft.statement",
+  "draft.successCriteria",
+  "draft.successCriteria.[]",
+  "draft.inScope",
+  "draft.inScope.[]",
+  "draft.outOfScope",
+  "draft.outOfScope.[]",
+  "draft.constraints",
+  "draft.constraints.[]",
+  "draft.assumptions",
+  "draft.assumptions.[]",
+  "draft.assumptions.[].text",
+  "draft.assumptions.[].impact",
+  "draft.assumptions.[].confirmed",
+  "draft.deliverables",
+  "draft.deliverables.[]",
+  "draft.riskLevel",
+  "draft.budget",
+  "draft.budget.costLimitMicros",
+  "draft.budget.durationLimitMinutes",
+  "draft.budget.maxRevisions",
+  "draft.stopConditions",
+  "draft.stopConditions.[]",
+  "unresolvedQuestions",
+  "unresolvedQuestions.[]",
+  "unresolvedQuestions.[].text",
+  "unresolvedQuestions.[].impact",
+  "UNKNOWN",
+]);
+
+export const goalModelOutputDiagnosticSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("RESPONSE_TOO_LARGE") }).strict(),
+  z.object({ kind: z.literal("INVALID_JSON") }).strict(),
+  z
+    .object({
+      kind: z.literal("SCHEMA_INVALID"),
+      issues: z
+        .array(
+          z
+            .object({
+              code: goalModelOutputIssueCodeSchema,
+              path: goalModelOutputIssuePathSchema,
+            })
+            .strict(),
+        )
+        .min(1)
+        .max(16),
+    })
+    .strict(),
+]);
+
 export const goalEngineStatusSchema = z.enum([
   "GENERATING",
   "CLARIFICATION_REQUIRED",
@@ -314,6 +382,9 @@ export type GoalEngineInput = z.infer<typeof goalEngineInputSchema>;
 export type GoalEngineItemResult = z.infer<typeof goalEngineItemResultSchema>;
 export type GoalEngineModelDraft = z.infer<typeof goalEngineModelDraftSchema>;
 export type GoalEngineModelOutput = z.infer<typeof goalEngineModelOutputSchema>;
+export type GoalModelOutputDiagnostic = z.infer<
+  typeof goalModelOutputDiagnosticSchema
+>;
 export type GoalEngineNullableItemResult = z.infer<
   typeof goalEngineNullableItemResultSchema
 >;

@@ -5,6 +5,7 @@ export const PROVIDER_TEST_GENERATION_IPC_CHANNEL =
   "provider:test-generation" as const;
 export const PROVIDER_CANCEL_GENERATION_TEST_IPC_CHANNEL =
   "provider:cancel-generation-test" as const;
+export const MAX_NORMALIZED_OUTPUT_TOKENS = 65_536;
 
 export const normalizedGenerationActorSchema = z.enum([
   "SYSTEM",
@@ -41,6 +42,19 @@ export const normalizedStopReasonSchema = z.enum([
   "UNKNOWN",
 ]);
 
+export const normalizedOutputFormatSchema = z.enum(["TEXT", "JSON_OBJECT"]);
+
+export const providerFailureDiagnosticSchema = z.enum([
+  "HTTP_SERVER_ERROR",
+  "RESPONSE_TOO_LARGE",
+  "INVALID_UTF8",
+  "INVALID_JSON",
+  "INVALID_RESPONSE_SHAPE",
+  "EMPTY_OUTPUT",
+  "OUTPUT_LIMIT_WITHOUT_OUTPUT",
+  "INVALID_USAGE",
+]);
+
 export const normalizedGenerationOutputPartSchema = z
   .object({ kind: z.literal("TEXT"), text: z.string().min(1).max(1_048_576) })
   .strict();
@@ -49,7 +63,8 @@ export const normalizedGenerationRequestSchema = z
   .object({
     modelId: z.string().min(1).max(512),
     input: z.array(normalizedGenerationInputItemSchema).min(1).max(32),
-    maxOutputTokens: z.number().int().min(1).max(4_096),
+    maxOutputTokens: z.number().int().min(1).max(MAX_NORMALIZED_OUTPUT_TOKENS),
+    outputFormat: normalizedOutputFormatSchema.optional(),
     temperature: z.number().min(0).max(2).optional(),
   })
   .strict()
@@ -236,6 +251,9 @@ export type NormalizedGenerationResponse = z.infer<
   typeof normalizedGenerationResponseSchema
 >;
 export type NormalizedUsage = z.infer<typeof normalizedUsageSchema>;
+export type ProviderFailureDiagnostic = z.infer<
+  typeof providerFailureDiagnosticSchema
+>;
 export type ProviderGenerationTestSnapshot = z.infer<
   typeof providerGenerationTestSnapshotSchema
 >;

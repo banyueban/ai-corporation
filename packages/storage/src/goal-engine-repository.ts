@@ -16,7 +16,9 @@ import {
   type GoalEngineModelDraft,
   type GoalEngineOperationPublic,
   type GoalEngineQuestion,
+  type GoalModelOutputDiagnostic,
   type NormalizedUsage,
+  type ProviderFailureDiagnostic,
 } from "@ai-corporation/protocols";
 import { GoalContractRepository } from "./goal-contract-repository";
 
@@ -413,6 +415,7 @@ export class GoalEngineRepository {
     readonly status: "SUCCEEDED" | "FAILED" | "CANCELLED";
     readonly usage: NormalizedUsage;
     readonly failureReason?: string;
+    readonly failureDiagnostic?: ProviderFailureDiagnostic;
     readonly now: string;
   }): void {
     const update = this.#database
@@ -423,12 +426,33 @@ export class GoalEngineRepository {
       )
       .run(
         input.status,
-        JSON.stringify({ schemaVersion: 1 }),
+        JSON.stringify({
+          schemaVersion: 1,
+          ...(input.failureDiagnostic === undefined
+            ? {}
+            : { failureDiagnostic: input.failureDiagnostic }),
+        }),
         JSON.stringify(input.usage),
         input.failureReason ?? null,
         input.now,
         input.id,
       );
+    if (update.changes !== 1) throw new GoalEngineVersionConflictError();
+  }
+
+  recordModelOutputDiagnostic(input: {
+    readonly id: string;
+    readonly diagnostic: GoalModelOutputDiagnostic;
+  }): void {
+    const update = this.#database
+      .prepare(
+        `UPDATE model_call
+        SET response_meta_json = json_set(
+          response_meta_json, '$.modelOutputDiagnostic', json(?)
+        )
+        WHERE id = ? AND status = 'SUCCEEDED'`,
+      )
+      .run(JSON.stringify(input.diagnostic), input.id);
     if (update.changes !== 1) throw new GoalEngineVersionConflictError();
   }
 

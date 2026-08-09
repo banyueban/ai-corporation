@@ -2,6 +2,7 @@ import type {
   NormalizedGenerationRequest,
   NormalizedGenerationResponse,
   ProviderFailureReason,
+  ProviderFailureDiagnostic,
   ProviderModelDescriptor,
 } from "@ai-corporation/protocols";
 
@@ -44,11 +45,16 @@ export interface ModelProvider {
 
 export class ProviderAdapterError extends Error {
   readonly failure: ProviderFailure;
+  readonly diagnostic: ProviderFailureDiagnostic | undefined;
 
-  constructor(failure: ProviderFailure) {
+  constructor(
+    failure: ProviderFailure,
+    diagnostic?: ProviderFailureDiagnostic,
+  ) {
     super("Provider request failed");
     this.name = "ProviderAdapterError";
     this.failure = failure;
+    this.diagnostic = diagnostic;
   }
 }
 

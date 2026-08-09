@@ -498,6 +498,20 @@ try {
     .getByRole("status")
     .filter({ hasText: /usage 13 input \/ 9 output/u })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  const goalGenerationRequest = providerFixture.requests
+    .filter(({ path: requestPath }) =>
+      requestPath.endsWith("/chat/completions"),
+    )
+    .at(-1);
+  if (
+    goalGenerationRequest?.body?.max_tokens !== 65_536 ||
+    goalGenerationRequest.body?.response_format?.type !== "json_object" ||
+    goalGenerationRequest.body?.stream !== false
+  ) {
+    throw new Error(
+      "Packaged Goal request did not use normalized JSON object output and 65K limit",
+    );
+  }
   const goalEngineEvidencePath = path.join(
     evidenceDirectory,
     `m2-tu05-packaged-${process.platform}-${process.arch}-goal-engine.png`,

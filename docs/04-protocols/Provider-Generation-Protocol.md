@@ -1,9 +1,9 @@
 # Provider 非流式生成协议
 
-| 属性 | 内容 |
-|---|---|
-| 协议版本 | 1.0 |
-| 适用任务 | M2-TU-04 |
+| 属性     | 内容                                                                           |
+| -------- | ------------------------------------------------------------------------------ |
+| 协议版本 | 1.1                                                                            |
+| 适用任务 | M2-TU-04、M2-TU-05                                                             |
 | 权威范围 | dialect-neutral 生成 DTO、Chat Completions Adapter、测试生成 IPC、usage 与取消 |
 
 ## 1. 当前交付与前向兼容门禁
@@ -23,7 +23,8 @@
 - `requestId/providerId: UUID v7`；
 - `expectedVersion: positive integer`；
 - `input`: 1–32 个输入项；每项为 `{ actor, parts }`，`actor` 为 `SYSTEM | USER | ASSISTANT`，`parts` 当前只允许 `{ kind: TEXT, text }`；
-- `maxOutputTokens`: 1–4,096；
+- `maxOutputTokens`: 1–65,536；调用方必须按任务 Schema、模型能力、预算和风险选择实际值，测试生成仍固定为 32；
+- `outputFormat?`: `TEXT | JSON_OBJECT`；省略等价于 `TEXT`。这是 dialect-neutral 输出约束，不是 Chat DTO；
 - `temperature?`: 0–2。
 
 模型 ID、Endpoint、Key、dialect 与生成超时只从已保存 Provider 当前版本读取，Renderer 不得在生成请求中覆盖。公开结果只包含：
@@ -47,11 +48,11 @@
 
 ## 4. Chat Completions Adapter
 
-Adapter descriptor 固定声明 `dialect: CHAT_COMPLETIONS`。它把规范化输入映射为远端 `messages`，把 `maxOutputTokens` 映射为 `max_tokens`，并固定 `stream: false`；解析仅接受一个合法文本 choice，远端 Chat DTO 不跨出 Adapter。
+Adapter descriptor 固定声明 `dialect: CHAT_COMPLETIONS`。它把规范化输入映射为远端 `messages`，把 `maxOutputTokens` 映射为 `max_tokens`，把 `outputFormat: JSON_OBJECT` 映射为 `response_format: { type: json_object }`，并固定 `stream: false`；解析仅接受一个合法文本 choice，远端 Chat DTO 不跨出 Adapter。未来 Responses Adapter 必须自行映射同一个通用约束，不能复用或暴露 Chat 请求结构。
 
 沿用 Provider Endpoint 安全策略：远程 HTTPS、精确 loopback HTTP、禁止 URL 凭据/query/fragment 和 redirect；Authorization 只发送到保存 Endpoint 下解析出的 `chat/completions`。响应体最多 1 MiB。生成超时来自保存配置，默认 60 秒、允许 5–300 秒；用户始终可取消。
 
-错误映射沿用 Provider 标准失败原因，并补充：404 或远端明确模型不存在 → `MODEL_NOT_FOUND`；内容过滤 → `CONTENT_FILTER`；其他非法成功结构 → `PROVIDER_INTERNAL`。原始错误正文只在 Adapter 内受限解析，不进入普通结果、持久化、Renderer、日志或诊断。
+错误映射沿用 Provider 标准失败原因，并补充：404 或远端明确模型不存在 → `MODEL_NOT_FOUND`；内容过滤 → `CONTENT_FILTER`；其他非法成功结构 → `PROVIDER_INTERNAL`。Adapter 可附带不对 Renderer 公开的安全诊断枚举，用于区分 `HTTP_SERVER_ERROR | RESPONSE_TOO_LARGE | INVALID_UTF8 | INVALID_JSON | INVALID_RESPONSE_SHAPE | EMPTY_OUTPUT | OUTPUT_LIMIT_WITHOUT_OUTPUT | INVALID_USAGE`。诊断不得包含响应正文、隐藏推理、远端 request ID、Header、Key 或任意自由文本；原始错误正文仍只在 Adapter 内受限解析，不进入普通结果、持久化、Renderer、日志或诊断。
 
 ## 5. Provider 配置与模型选择
 
@@ -77,5 +78,6 @@ Settings 显示 `IDLE | GENERATING | SUCCEEDED | FAILED | CANCELLED` 交互状�
 - Key 仅由 Main 从应用自管 Key Vault 解密后传入单次 Adapter 调用；Renderer 不获得 Key 或通用 fetch；
 - Prompt、输出、Key、Authorization、原始网络正文和远端请求 ID 不进入日志、错误、trace 或 CI artifact；测试生成投影只保存固定输入对应的受限输出预览；
 - 既有 Provider v1 DTO 与连接测试行为保持同 major 兼容；配置新增字段有明确默认值；
+- `outputFormat` 的默认值保持文本行为；65,536 是通用协议上限，不表示所有 Provider 都支持该额度，Adapter/Provider 明确拒绝时仍按标准失败返回，不得静默降低或自动回退；
 - Mock Adapter 实现同一非流式通用生成接口，但不成为生产 Provider 类型或 Settings 选项；
 - 真实 Provider smoke 只在本机通过正式 UI 和应用自管 Key Vault执行，不进入普通 CI，不读取真实工作区，不记录凭据或完整原始响应。

@@ -68,8 +68,21 @@ describe("GoalEngineService", () => {
     expect(goalEngineModelOutputSchema.safeParse(promptExample).success).toBe(
       true,
     );
+    expect(promptExample).toMatchObject({
+      draft: {
+        assumptions: [{ impact: "HIGH", confirmed: false }],
+      },
+      unresolvedQuestions: [{ impact: "HIGH" }],
+    });
     expect(systemPrompt).not.toContain("hardLimitMicros");
     expect(systemPrompt).not.toContain("warningThresholdPercent");
+    expect(calls[0]).toMatchObject({
+      generation: {
+        maxOutputTokens: 65_536,
+        outputFormat: "JSON_OBJECT",
+        temperature: 0,
+      },
+    });
     expect(
       database.prepare("SELECT COUNT(*) AS count FROM model_call").get(),
     ).toEqual({ count: 1 });
@@ -141,23 +154,72 @@ describe("GoalEngineService", () => {
         .prepare("SELECT COUNT(*) AS count FROM goal_contract_version")
         .get(),
     ).toEqual({ count: 0 });
+    const diagnostics = database
+      .prepare("SELECT response_meta_json FROM model_call ORDER BY attempt")
+      .all()
+      .map((row) => JSON.parse(String(row.response_meta_json)));
+    expect(diagnostics).toEqual([
+      { schemaVersion: 1, modelOutputDiagnostic: { kind: "INVALID_JSON" } },
+      { schemaVersion: 1, modelOutputDiagnostic: { kind: "INVALID_JSON" } },
+    ]);
+  });
+
+  it("audits only fixed Schema issue codes and known paths without values", async () => {
+    let count = 0;
+    const service = createService(async () => {
+      count += 1;
+      return count === 1
+        ? response(
+            JSON.stringify({
+              draft: { attackerControlledField: "must-not-persist" },
+              unresolvedQuestions: [],
+            }),
+          )
+        : response(validOutput([]));
+    });
+    await service.start(startRequest());
+    const metadata = String(
+      (
+        database
+          .prepare(
+            "SELECT response_meta_json FROM model_call WHERE attempt = 1",
+          )
+          .get() as Record<string, unknown>
+      ).response_meta_json,
+    );
+    expect(metadata).toContain('"kind":"SCHEMA_INVALID"');
+    expect(metadata).toContain('"path":"draft.statement"');
+    expect(metadata).not.toContain("attackerControlledField");
+    expect(metadata).not.toContain("must-not-persist");
   });
 
   it("audits the normalized Provider failure without remote error text", async () => {
     const service = createService(async () => {
-      throw new ProviderAdapterError({
-        reason: "INVALID_REQUEST",
-        retryable: false,
-      });
+      throw new ProviderAdapterError(
+        {
+          reason: "PROVIDER_INTERNAL",
+          retryable: false,
+        },
+        "OUTPUT_LIMIT_WITHOUT_OUTPUT",
+      );
     });
     const result = await service.start(startRequest());
     expect(result).toMatchObject({
       ok: true,
       value: { status: "FAILED", failureReason: "PROVIDER_FAILURE" },
     });
-    expect(
-      database.prepare("SELECT status, failure_reason FROM model_call").get(),
-    ).toEqual({ status: "FAILED", failure_reason: "INVALID_REQUEST" });
+    const call = database
+      .prepare(
+        "SELECT status, failure_reason, response_meta_json FROM model_call",
+      )
+      .get() as Record<string, unknown>;
+    expect(call.status).toBe("FAILED");
+    expect(call.failure_reason).toBe("PROVIDER_INTERNAL");
+    expect(JSON.parse(String(call.response_meta_json))).toEqual({
+      schemaVersion: 1,
+      failureDiagnostic: "OUTPUT_LIMIT_WITHOUT_OUTPUT",
+    });
+    expect(JSON.stringify(call)).not.toContain("remote error text");
   });
 
   it("uses persisted question text and complete answer in the next generation", async () => {

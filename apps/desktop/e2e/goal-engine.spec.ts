@@ -64,6 +64,11 @@ test("user creates and cancels real Goal Engine operations in the visible window
         .getByRole("status")
         .filter({ hasText: /usage 12 input \/ 8 output/u }),
     ).toBeVisible();
+    expect(fixture.generationRequests()[0]?.body).toMatchObject({
+      max_tokens: 65_536,
+      response_format: { type: "json_object" },
+      stream: false,
+    });
     await expectNoSeriousAxeViolations(page);
 
     await page.getByRole("button", { name: "Dashboard", exact: true }).click();
@@ -178,44 +183,60 @@ async function openNewGoal(
 
 async function startGoalFixture() {
   const queued: string[] = [];
-  const requests: { path: string; authorization?: string }[] = [];
+  const requests: Array<{
+    path: string;
+    authorization?: string;
+    body?: Record<string, unknown>;
+  }> = [];
   let delayed = false;
   let delayedResponse: ServerResponse | undefined;
   const server = createServer((request, response) => {
-    requests.push({
+    const requestRecord: (typeof requests)[number] = {
       path: request.url ?? "",
       ...(request.headers.authorization === undefined
         ? {}
         : { authorization: request.headers.authorization }),
-    });
+    };
+    requests.push(requestRecord);
     if (request.url === "/models") {
       response.writeHead(200, { "content-type": "application/json" });
       response.end(JSON.stringify({ data: [{ id: "goal-model" }] }));
       return;
     }
-    if (request.url === "/chat/completions" && delayed) {
-      delayed = false;
-      delayedResponse = response;
-      return;
-    }
     if (request.url === "/chat/completions") {
-      const output = queued.shift();
-      if (output === undefined)
-        throw new Error("Goal fixture response queue is empty");
-      response.writeHead(200, { "content-type": "application/json" });
-      response.end(
-        JSON.stringify({
-          model: "goal-model",
-          choices: [
-            {
-              index: 0,
-              message: { role: "assistant", content: output },
-              finish_reason: "stop",
+      const chunks: Uint8Array[] = [];
+      request.on("data", (chunk: Uint8Array) => chunks.push(chunk));
+      request.on("end", () => {
+        requestRecord.body = JSON.parse(
+          Buffer.concat(chunks).toString("utf8"),
+        ) as Record<string, unknown>;
+        if (delayed) {
+          delayed = false;
+          delayedResponse = response;
+          return;
+        }
+        const output = queued.shift();
+        if (output === undefined)
+          throw new Error("Goal fixture response queue is empty");
+        response.writeHead(200, { "content-type": "application/json" });
+        response.end(
+          JSON.stringify({
+            model: "goal-model",
+            choices: [
+              {
+                index: 0,
+                message: { role: "assistant", content: output },
+                finish_reason: "stop",
+              },
+            ],
+            usage: {
+              prompt_tokens: 12,
+              completion_tokens: 8,
+              total_tokens: 20,
             },
-          ],
-          usage: { prompt_tokens: 12, completion_tokens: 8, total_tokens: 20 },
-        }),
-      );
+          }),
+        );
+      });
       return;
     }
     response.writeHead(404).end();
@@ -238,6 +259,10 @@ async function startGoalFixture() {
       requests.filter(
         ({ path: requestPath }) => requestPath === "/chat/completions",
       ).length,
+    generationRequests: () =>
+      requests.filter(
+        ({ path: requestPath }) => requestPath === "/chat/completions",
+      ),
     releaseDelayed: () => delayedResponse?.destroy(),
     close: () =>
       new Promise<void>((resolve, reject) => {

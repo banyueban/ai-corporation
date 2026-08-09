@@ -10,7 +10,7 @@
 
 ## 1. 需求与设计引用
 
-- 用户决策：`1A + 2B + 3A + 4A + 5A + 6A`，并补充选择 `7C`：澄清按每周期 5 轮执行；达到周期上限时询问用户，用户可显式增加下一个 5 轮周期；不继续时按 `8A` 由用户选择保存含未确认 HIGH 假设的草稿或取消；真实 DeepSeek V4 验收发现 reasoning continuation 兼容缺口后，用户选择修复方案 A：把无效输出作为明确隔离的 `USER` 修复数据，不构造 `ASSISTANT` 历史或引入 Provider 私有字段；
+- 用户决策：`1A + 2B + 3A + 4A + 5A + 6A`，并补充选择 `7C`：澄清按每周期 5 轮执行；达到周期上限时询问用户，用户可显式增加下一个 5 轮周期；不继续时按 `8A` 由用户选择保存含未确认 HIGH 假设的草稿或取消；真实 DeepSeek V4 验收发现 reasoning continuation 兼容缺口后，用户选择修复方案 A：把无效输出作为明确隔离的 `USER` 修复数据，不构造 `ASSISTANT` 历史或引入 Provider 私有字段；真实验收进一步确认 4,096 token 与默认思考模式及 Goal Schema 不一致且请求未启用结构化输出后，用户选择完整修复方案 A：增加 dialect-neutral `JSON_OBJECT` 约束、把通用/Goal 输出额度提高到 65,536，并记录无正文的安全失败诊断；
 - [MVP Plan：Milestone 2](../MVP-Plan.md)、[PRD 创建 Corporation/FR-004](../../01-product/PRD.md)；
 - [Goal Engine Protocol](../../04-protocols/Goal-Engine-Protocol.md)、[Goal Contract Protocol](../../04-protocols/Goal-Contract-Protocol.md)、[Provider Generation Protocol](../../04-protocols/Provider-Generation-Protocol.md)；
 - [Domain Model](../../02-architecture/Domain-Model.md)、[Technical Design](../../02-architecture/Technical-Design.md)；
@@ -31,13 +31,13 @@
 - Goal Engine v1 start/answer/resolve-extension/cancel/get-current strict Schema、typed IPC 与公开投影；
 - `PROVIDER` Goal Contract source；普通 Renderer `save-draft` 不能新建或伪造该来源；对已有 `PROVIDER` DRAFT 只允许逐项改变既有 assumption 的 `confirmed`，其余字段逐字段不可变；
 - 明确 Provider/精确模型选择；模型输入仅包含 Corporation 名称及用户 Goal 字段，不包含 Workspace 路径、目录或文件；
-- 固定、版本化 Goal system prompt；非流式 temperature 0、最多 4,096 output tokens；严格解析单个 JSON 对象；
+- 固定、版本化 Goal system prompt；非流式 temperature 0、`outputFormat: JSON_OBJECT`、最多 65,536 output tokens；严格解析单个 JSON 对象；
 - 每个生成阶段首次 JSON/Schema 非法时最多一次修复；修复沿用原始 SYSTEM/USER 输入，把受限无效输出作为不可执行的 `USER` 数据，不构造 `ASSISTANT` 历史、不携带 Chat/Provider 私有 continuation/reasoning 字段；修复仍失败则固定失败且不保存 Goal；
 - 每周期最多 5 轮结构化 HIGH-impact 澄清；达到上限停止 Provider 调用并等待 `CONTINUE | SAVE_DRAFT | CANCEL`；每次 CONTINUE 只增加一个 5 轮周期；
 - 最终无问题时自动保存 `PROVIDER` DRAFT；SAVE_DRAFT 把剩余问题转为去重、未确认 HIGH assumptions 后保存；两者均不批准、不规划、不改变 Corporation 状态；
 - `0009_goal_engine.sql`：Goal source 兼容迁移、operation、通用 model_call、约束/索引和重启中断投影；
 - Repository/Application Service 的事务外网络、乐观版本、幂等、取消、同 Corporation 单活跃、Provider/Goal/Corporation 变化和迟到结果保护；
-- 聚合标准 usage；每次正常/修复调用独立审计，不保存输入/输出正文或远端 request ID；
+- 聚合标准 usage；每次正常/修复调用独立审计，只允许在 `response_meta_json` 保存固定安全失败诊断，不保存输入/输出正文、隐藏推理、自由文本错误或远端 request ID；
 - Create/Review UI 的可选提示、Provider/模型与披露说明、生成/取消、结构化回答、周期续期决策、usage、错误、恢复和自动保存结果；
 - Windows/macOS 开发态与最终包 loopback 矩阵，以及 Windows 本机真实 Provider 低风险 Goal smoke。
 
@@ -58,6 +58,7 @@
 
 - 跨进程唯一合同为 Goal Engine/Goal Contract/Provider Generation Protocol 与 `packages/protocols` Schema；禁止复制 DTO；
 - Goal Engine 只能通过 `ModelProvider.generate` 的 dialect-neutral DTO 调用显式 registry Adapter；Chat 原始 DTO 不得进入 Service/Repository/Renderer；
+- Goal Engine 使用通用 `JSON_OBJECT` 输出约束；Chat Adapter 与未来 Responses Adapter 必须分别映射，不得让 `response_format` 或其他 dialect 私有字段进入 Service/Repository/Renderer；
 - start 绑定当前 DRAFT Corporation、当前 Goal version、Provider version/VERIFIED 模型和 Workspace AVAILABLE 事实；Main 从持久化读取 Corporation 名称和 Provider 配置；
 - 网络调用不在 SQLite 事务内；调用前写 operation/model_call 检查点，返回后条件提交；取消、版本冲突和迟到不能覆盖；
 - Goal 自动保存复用 Goal Contract 版本事务、事件、指针和回执；operation 只有在该事务成功后才能成为 GOAL_SAVED；
@@ -77,13 +78,13 @@
 - [ ] 协议：五个 Goal Engine v1 channel 的 strict Schema 拒绝额外字段、错误版本/UUID/版本、超限文本/列表/答案、非法枚举和未授权调用；普通 Goal save 不能伪造 `PROVIDER` source；
 - [ ] 输入披露：开始前明确显示 Provider/精确模型和发送字段；Main 只发送 Corporation 名称及用户 Goal 字段，Workspace 路径/身份/目录/文件、Key、任意 Header 和 Renderer system prompt override 在发网前均不可达；
 - [ ] Provider 门禁：仅 ENABLED、已保存 Key、VERIFIED 且 selectedModel 仍在当前列表的精确版本可调用；多 Provider 不自动选择/回退，版本变化固定冲突；
-- [ ] 输出 Schema：单个受限 JSON 对象严格映射完整 draft 与 0–5 HIGH 问题；缺字段、额外字段、重复/超限、已确认模型 assumption、非 JSON、多对象、Markdown fence、超 1 MiB 和非法 UTF-8 安全失败；
+- [ ] 输出 Schema：请求明确使用 dialect-neutral `JSON_OBJECT` 并由 Chat Adapter 映射远端 JSON 模式；65,536 token 额度覆盖正常 Goal 及模型思考空间；单个受限 JSON 对象严格映射完整 draft 与 0–5 HIGH 问题；缺字段、额外字段、重复/超限、已确认模型 assumption、非 JSON、多对象、Markdown fence、超 1 MiB 和非法 UTF-8 安全失败；
 - [ ] JSON 修复：每个生成阶段首次非法只调用同 Provider/版本/模型一次修复；修复输入把受限无效输出隔离为 `USER` 数据且不存在 `ASSISTANT` 历史、Chat/Provider 私有 continuation/reasoning 字段；修复成功继续，修复失败停止；正常成功不修复，原始/修复正文不持久化或外泄；
 - [ ] 澄清周期：每周期精确最多 5 轮；完整答案才生成；周期内继续、无问题自动保存；第 5 轮仍有问题进入 EXTENSION_REQUIRED 并停止调用；轮次/周期/问题不可伪造或跳跃；
 - [ ] 周期决策：EXTENSION_REQUIRED 只接受用户显式 CONTINUE/SAVE_DRAFT/CANCEL；CONTINUE 每次只增加一个 5 轮周期且不自动调用；下个周期再次到限重新询问；续期不成为偏好；
 - [ ] Goal 保存：无问题自动保存；SAVE_DRAFT 把剩余问题变为去重未确认 HIGH assumptions；两者创建新 `PROVIDER` DRAFT、supersede 旧版本并原子写 pointer/version/event/receipt；不批准、不规划、不迁移 Corporation；
 - [ ] 迁移：空库与 `0001`–`0008` 升级 `0009` 成功；已有 MANUAL/MOCK Goal 保持逐字节语义；source、operation、model_call 的 STRICT/CHECK/FK/JSON/唯一活动索引、foreign key check 和中断重试与权威 Schema 一致；
-- [ ] 调用审计与 usage：正常、修复和每轮澄清各有独立 GOAL_ANALYSIS model_call；关联 corporation/operation/provider/model/attempt，task/run 为空；聚合 token/costSource 准确，Adapter 失败保留标准 ProviderFailureReason，未知费用不猜测；正文/远端错误/request ID 不落库；
+- [ ] 调用审计与 usage：正常、修复和每轮澄清各有独立 GOAL_ANALYSIS model_call；关联 corporation/operation/provider/model/attempt，task/run 为空；聚合 token/costSource 准确，Adapter 失败保留标准 ProviderFailureReason，并在内部审计区分 HTTP 5xx、空输出、额度耗尽和非法响应；未知费用不猜测；正文/隐藏推理/远端错误/request ID 不落库；
 - [ ] 持久化与恢复：草稿、问题、答案、周期/轮次、标准失败与 usage 在 SQLite 重开、Renderer reload 和应用重启恢复；遗留 GENERATING 转 INTERRUPTED 且不自动重放；可显式重试/取消；
 - [ ] 并发/取消/迟到：同 Corporation 单活跃；相同 operationId 幂等且不同请求冲突；两个 Corporation 隔离；取消只影响目标且 2 秒内进入流程；Corporation/Goal/Provider/operation 变化后的迟到结果不覆盖；timer/listener/server/port/进程无残留；
 - [ ] 错误与安全：Provider 标准失败、Vault/Storage、Workspace、Schema、答案、状态和版本错误固定归一化；输入/答案/模型正文/路径/Key/Authorization/SQL/堆栈不进入错误、日志、trace、事件、截图或诊断；

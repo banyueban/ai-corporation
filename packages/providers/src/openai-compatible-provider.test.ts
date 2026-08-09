@@ -29,6 +29,11 @@ const generationRequest = {
   maxOutputTokens: 32,
   temperature: 0,
 };
+const jsonGenerationRequest = {
+  ...generationRequest,
+  maxOutputTokens: 65_536,
+  outputFormat: "JSON_OBJECT" as const,
+};
 const observedAt = "2026-08-02T01:00:00.000Z";
 
 describe("OpenAiCompatibleProvider", () => {
@@ -281,16 +286,55 @@ describe("OpenAiCompatibleProvider", () => {
     });
   });
 
+  it("maps the dialect-neutral JSON object constraint inside the Chat Adapter", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>(async (_input, init) => {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      expect(body).toMatchObject({
+        max_tokens: 65_536,
+        response_format: { type: "json_object" },
+        stream: false,
+      });
+      expect(body).not.toHaveProperty("outputFormat");
+      return new Response(
+        JSON.stringify({
+          choices: [
+            { message: { content: '{"ok":true}' }, finish_reason: "stop" },
+          ],
+        }),
+        { status: 200 },
+      );
+    });
+    await expect(
+      new OpenAiCompatibleProvider({ fetch }).generate(
+        generationConfig,
+        jsonGenerationRequest,
+        new AbortController().signal,
+      ),
+    ).resolves.toMatchObject({
+      outputParts: [{ kind: "TEXT", text: '{"ok":true}' }],
+    });
+  });
+
   it("rejects invalid generation responses and normalizes model/content errors", async () => {
-    for (const body of [
-      {},
-      { choices: [] },
-      { choices: [{ message: { content: "" }, finish_reason: "stop" }] },
-      {
-        choices: [{ message: { content: "ok" }, finish_reason: "stop" }],
-        usage: { prompt_tokens: -1 },
-      },
-    ]) {
+    for (const [body, diagnostic] of [
+      [{}, "INVALID_RESPONSE_SHAPE"],
+      [{ choices: [] }, "INVALID_RESPONSE_SHAPE"],
+      [
+        { choices: [{ message: { content: "" }, finish_reason: "stop" }] },
+        "EMPTY_OUTPUT",
+      ],
+      [
+        { choices: [{ message: { content: null }, finish_reason: "length" }] },
+        "OUTPUT_LIMIT_WITHOUT_OUTPUT",
+      ],
+      [
+        {
+          choices: [{ message: { content: "ok" }, finish_reason: "stop" }],
+          usage: { prompt_tokens: -1 },
+        },
+        "INVALID_USAGE",
+      ],
+    ] as const) {
       await expectGenerationFailure(
         new OpenAiCompatibleProvider({
           fetch: async () =>
@@ -298,6 +342,9 @@ describe("OpenAiCompatibleProvider", () => {
         }),
         "PROVIDER_INTERNAL",
         false,
+        new AbortController().signal,
+        generationConfig,
+        diagnostic,
       );
     }
     await expectGenerationFailure(
@@ -409,6 +456,7 @@ async function expectGenerationFailure(
   retryable: boolean,
   signal: AbortSignal = new AbortController().signal,
   providerConfig = generationConfig,
+  diagnostic?: string,
 ): Promise<void> {
   try {
     await provider.generate(providerConfig, generationRequest, signal);
@@ -417,6 +465,7 @@ async function expectGenerationFailure(
     expect(error).toBeInstanceOf(ProviderAdapterError);
     if (!(error instanceof ProviderAdapterError)) throw error;
     expect(error.failure).toMatchObject({ reason, retryable });
+    if (diagnostic !== undefined) expect(error.diagnostic).toBe(diagnostic);
     expect(JSON.stringify(error)).not.toContain(config.key);
   }
 }

@@ -32,6 +32,17 @@ describe("Provider generation protocol", () => {
         requestId,
       }),
     ).toEqual({ schemaVersion: 1, requestId });
+    expect(
+      normalizedGenerationRequestSchema.parse({
+        modelId: "model",
+        input,
+        maxOutputTokens: 65_536,
+        outputFormat: "JSON_OBJECT",
+      }),
+    ).toMatchObject({
+      maxOutputTokens: 65_536,
+      outputFormat: "JSON_OBJECT",
+    });
   });
 
   it("rejects transport fields, provider overrides and Chat-specific DTO", () => {
@@ -69,6 +80,22 @@ describe("Provider generation protocol", () => {
           },
         ],
         maxOutputTokens: 32,
+      }).success,
+    ).toBe(false);
+    expect(
+      normalizedGenerationRequestSchema.safeParse({
+        modelId: "model",
+        input,
+        maxOutputTokens: 65_537,
+        outputFormat: "JSON_OBJECT",
+      }).success,
+    ).toBe(false);
+    expect(
+      normalizedGenerationRequestSchema.safeParse({
+        modelId: "model",
+        input,
+        maxOutputTokens: 65_536,
+        outputFormat: "CHAT_JSON_MODE",
       }).success,
     ).toBe(false);
     for (const usage of [

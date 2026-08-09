@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   goalEngineAnswerRequestSchema,
   goalEngineModelOutputSchema,
+  goalModelOutputDiagnosticSchema,
   goalEngineOperationPublicSchema,
   goalEngineResolveExtensionRequestSchema,
   goalEngineStartRequestSchema,
@@ -67,6 +68,30 @@ describe("Goal Engine protocol", () => {
       goalEngineModelOutputSchema.safeParse({
         ...modelOutput(0),
         chatCompletionId: "forbidden-chat-dto",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("accepts only fixed model-output diagnostics without values", () => {
+    expect(
+      goalModelOutputDiagnosticSchema.parse({
+        kind: "SCHEMA_INVALID",
+        issues: [{ code: "invalid_type", path: "draft.statement" }],
+      }),
+    ).toEqual({
+      kind: "SCHEMA_INVALID",
+      issues: [{ code: "invalid_type", path: "draft.statement" }],
+    });
+    expect(
+      goalModelOutputDiagnosticSchema.safeParse({
+        kind: "SCHEMA_INVALID",
+        issues: [
+          {
+            code: "invalid_type",
+            path: "draft.attackerControlledField",
+            value: "must not persist",
+          },
+        ],
       }).success,
     ).toBe(false);
   });
