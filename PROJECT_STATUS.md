@@ -16,9 +16,9 @@ Milestone 0、Milestone 1 和 M2-TU-02 至 M2-TU-06 已完成。M2-TU-06 已交�
 
 当前中文界面候选的完整 `pnpm check`、Windows 开发态 Electron E2E 7/7、Windows 最终包完整真实窗口矩阵、截图检查、Windows/macOS CI 和正式 Renderer 真实 Provider 复验均已通过。用户于 2026-08-09 确认人工 UI 验收通过，M2-TU-06 的 19 项验收断言全部关闭，P0/P1 为 0。该结论只关闭 M2-TU-06 和 Planner 结构化输出，不代表 DAG 验证、Plan Review、Organization、执行或整个 Milestone 2 完成。
 
-M2-TU-07 已形成实施候选：Planner 保存后自动进行不调用 Provider 的本地确定性验证；1–20 个 Task、DAG、引用、输入输出、逐 Task 验收、叶子输出、milestone、Goal 硬预算和权限描述均由固定规则检查；验证通过时在同一事务物化正式 Task/依赖，失败时只保存受限报告；普通二进制输出映射为 `FILE`；中文 UI 明确区分验证中、失败和通过，并继续标注未批准、未组队、不可执行。该任务尚未完成跨平台 CI、最新 Windows 包和用户人工验收，DAG 项继续保持未完成。
+M2-TU-07 已形成实施候选：Planner 保存后自动进行不调用 Provider 的本地确定性验证；1–20 个 Task、DAG、引用、输入输出、逐 Task 验收、叶子输出、milestone、Goal 硬预算和权限描述均由固定规则检查；验证通过时在同一事务物化正式 Task/依赖，失败时只保存受限报告；普通二进制输出映射为 `FILE`；中文 UI 明确区分验证中、失败和通过，并继续标注未批准、未组队、不可执行。当前提交的跨平台 CI 与最终包自动验收已通过，但最新 Windows artifact 尚未在本地取得，用户人工验收未完成，DAG 项继续保持未完成。
 
-用户人工复验发现：恢复一个生成失败的 Planner 操作时，页面保留失败原因却隐藏了模型选择和明确重试入口，导致用户无法从软件内继续。当前源码候选已重新显示模型服务商/模型选择和“重新生成并验证计划”，恢复页面不会自动调用 Provider；开发态真实窗口已覆盖失败恢复、点击前零新增请求及明确重试成功。修复后的最终 Windows 包和用户人工复验尚未完成，因此该问题仍作为当前 P1，M2-TU-07 不得完成。
+用户人工复验发现：恢复一个生成失败的 Planner 操作时，页面保留失败原因却隐藏了模型选择和明确重试入口，导致用户无法从软件内继续。当前候选已重新显示模型服务商/模型选择和“重新生成并验证计划”，恢复页面不会自动调用 Provider；开发态和 Windows/macOS 最终包真实窗口均覆盖失败恢复、点击前零新增请求及明确重试成功。修复后的 Windows artifact 本地下载和用户人工复验尚未完成，因此该问题仍作为当前 P1，M2-TU-07 不得完成。
 
 ## 2. 已完成基线
 
@@ -57,13 +57,14 @@ M2-TU-07 只交付：
 
 ## 5. 活跃阻塞与外部条件
 
-当前 P0 为 0，P1 为 1：失败 Planner 恢复入口的源码修复与开发态窗口验收已通过，但修复后的最终 Windows 包及用户人工复验未完成。提交 `faceeb24d860371c157d190e77b32ca8cd34a833` 的 Windows/macOS CI 已完成当时源码的工程检查、开发态窗口、最终包构建、最终包窗口矩阵和 artifact 上传，但该候选包含上述问题，不能再作为最终候选。本机 `electron-builder` 在启动阶段无日志卡住；换新输出目录、绕过 pnpm 和目录包模式仍可复现，超时后已清理确认属于本仓库的残留构建进程，未关闭用户已安装并正在运行的软件。修复提交需要重新通过 Windows/macOS CI、最终包矩阵、artifact 下载和用户人工 UI 复验。
+当前 P0 为 0，P1 为 1：失败 Planner 恢复入口的源码、开发态窗口、Windows/macOS CI 与最终包窗口验收已通过，但修复后的 Windows artifact 尚未在本地取得，用户人工复验未完成。提交 `50748280fafc4fb726d904261b12958c9dfacd0e` 的 GitHub Actions run `31323532761` 已通过并上传 Windows/macOS artifact。Windows artifact 使用 `gh run download` 下载约三分钟无进度且未创建目标文件，已停止并清理专用残留下载进程；GitHub 上的 artifact 完整存在。此前本机 `electron-builder` 在启动阶段无日志卡住，故当前仍需解决本地取得 Windows 候选的问题。
 
 已知条件：系统 PATH 未提供 Node.js，工程验证使用 Codex bundled Node.js；正式 Key 仍只由应用自管 Key Vault 使用，未进入命令、脚本、环境变量、Git、日志或截图；费用无法从当前 Provider 响应可靠取得时保持 `UNKNOWN`。
 
 ## 6. 当前验证摘要
 
-- Planner 失败恢复修复的完整 `pnpm check` 通过：Protocol 44、Provider 28、Storage 85、Desktop 120，Native Core 7、workspace Rust 7；status/task-unit、format、lint、typecheck、Rust fmt/clippy、secret scan 均成功；Windows 开发态 Electron 真实窗口 7/7 通过，明确断言恢复失败页不会自动新增 Provider 请求、必须重新选择模型、明确点击重试后保存 `VALID` Plan；最终包测试已加入同一断言，但修复后的最终包尚未生成和执行；
+- Planner 失败恢复修复的完整 `pnpm check` 通过：Protocol 44、Provider 28、Storage 85、Desktop 120，Native Core 7、workspace Rust 7；status/task-unit、format、lint、typecheck、Rust fmt/clippy、secret scan 均成功；Windows 开发态 Electron 真实窗口 7/7 通过，明确断言恢复失败页不会自动新增 Provider 请求、必须重新选择模型、明确点击重试后保存 `VALID` Plan；
+- 提交 `50748280fafc4fb726d904261b12958c9dfacd0e` 的 GitHub Actions run `31323532761` 通过：Windows job `93270153359`（4m42s）和 macOS job `93270153370`（3m31s）均完成工程检查、开发态 Electron、最终包构建、包含失败恢复明确重试的新最终包真实窗口矩阵和 artifact 上传；Windows artifact `9040916792`，大小 249,513,328 bytes，digest `sha256:a129866f328733f72a7cc3d96187afd09b8211d7ecdef69b2e8fda502eefb136`；macOS artifact `9040902573`，大小 491,015,448 bytes，digest `sha256:841aadce3e85325d82e935476836b453bf091e1cf3d49f617ba41cf807cd2b6e`；只有 Node.js 20 action runtime 弃用提醒，无 CI 失败；
 - M2-TU-07 当前实现的 `pnpm check` 完整通过：Protocol 44、Provider 28、Storage 85、Desktop 120，Native Core 7、workspace Rust 7；status/task-unit、format、lint、typecheck、Rust fmt/clippy、secret scan 和 `git diff --check` 均成功；状态提示修复后受影响的 Goal/Planner Electron E2E 3/3 通过；
 - 本地验证器专项 11/11 通过，覆盖 1/20/21 Task、合法与错误图、milestone、验收/叶子、四种媒体映射、输入输出闭合、费用/最长路径时长/修订预算、目录和路径攻击、单次运行 warning 与稳定 draft hash；Protocol strict 测试覆盖正式 Task/report 的额外字段、身份、状态、code、path、数量和去重；Storage 85/85 覆盖 `0011`、VALID 原子物化/幂等与 INVALID 不创建 Task；
 - Windows 开发态真实窗口完整矩阵曾 7/7 通过；状态提示修复后 Planner 相关 3/3 再次通过，并明确断言验证通过时不再出现旧“等待验证”提示、不合格计划只调用 Provider 一次、显示固定中文问题、刷新恢复 `DRAFT/INVALID`；
@@ -85,7 +86,7 @@ M2-TU-07 只交付：
 
 ## 7. 下一步
 
-提交 Planner 失败恢复修复，等待同一提交的 Windows/macOS CI 和最终包真实窗口矩阵通过，下载新的 Windows artifact 后请求用户人工复验；人工复验通过前当前 P1、M2-TU-07、DAG 项和 Milestone 2 均保持未完成。Plan Review 编辑/批准仍属于后续任务。
+从 GitHub Actions run `31323532761` 取得 Windows artifact `ai-corporation-windows-x64`，核对本地安装包后请求用户人工复验；人工复验通过前当前 P1、M2-TU-07、DAG 项和 Milestone 2 均保持未完成。Plan Review 编辑/批准仍属于后续任务。
 
 ## 8. 更新规则
 
