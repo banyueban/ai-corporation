@@ -8,7 +8,7 @@
 | 当前任务单元   | M2-TU-07（进行中）                             |
 | 总体状态       | 进行中                                         |
 | 最近更新       | 2026-08-09                                     |
-| 下一检查点     | 提交 M2-TU-07 候选并取得 Windows/macOS CI 结果 |
+| 下一检查点     | 下载 Windows CI 候选并完成人工 UI 验收         |
 
 ## 1. 当前结论
 
@@ -55,16 +55,17 @@ M2-TU-07 只交付：
 
 ## 5. 活跃阻塞与外部条件
 
-当前 P0/P1 为 0。最新源码的开发态验证已通过，但本机 `electron-builder` 在启动阶段无日志卡住；换新输出目录、绕过 pnpm 和目录包模式仍可复现，超时后已清理确认属于本仓库的残留构建进程，未关闭用户已安装并正在运行的软件。较早的 M2-TU-07 Windows 候选曾完成打包和最终包窗口矩阵，但截图发现并修复了“验证通过”与旧“等待验证”提示并存的问题，因此较早包不能作为最新源码的最终包证据。最新 Windows/macOS CI、最新 Windows 包和用户人工 UI 验收仍待完成。
+当前 P0/P1 为 0。提交 `faceeb24d860371c157d190e77b32ca8cd34a833` 的 Windows/macOS CI 已完成最新源码的工程检查、开发态窗口、最终包构建、最终包窗口矩阵和 artifact 上传。本机 `electron-builder` 在启动阶段无日志卡住；换新输出目录、绕过 pnpm 和目录包模式仍可复现，超时后已清理确认属于本仓库的残留构建进程，未关闭用户已安装并正在运行的软件。Windows CI artifact 的本地下载因当前网络失去活动连接而挂死，已结束专用下载进程；GitHub artifact 本身完整存在。最新 Windows 候选的本地下载和用户人工 UI 验收仍待完成。
 
 已知条件：系统 PATH 未提供 Node.js，工程验证使用 Codex bundled Node.js；正式 Key 仍只由应用自管 Key Vault 使用，未进入命令、脚本、环境变量、Git、日志或截图；费用无法从当前 Provider 响应可靠取得时保持 `UNKNOWN`。
 
 ## 6. 当前验证摘要
 
-- M2-TU-07 当前实现的 `pnpm check` 曾完整通过：Protocol 44、Provider 28、Storage 85、Desktop 120，Native Core 7、workspace Rust 7；status/task-unit、format、lint、typecheck、Rust fmt/clippy 和 secret scan 均成功；状态提示修复后受影响的 Goal/Planner Electron E2E 3/3 通过，完整检查将在提交前重跑；
+- M2-TU-07 当前实现的 `pnpm check` 完整通过：Protocol 44、Provider 28、Storage 85、Desktop 120，Native Core 7、workspace Rust 7；status/task-unit、format、lint、typecheck、Rust fmt/clippy、secret scan 和 `git diff --check` 均成功；状态提示修复后受影响的 Goal/Planner Electron E2E 3/3 通过；
 - 本地验证器专项 11/11 通过，覆盖 1/20/21 Task、合法与错误图、milestone、验收/叶子、四种媒体映射、输入输出闭合、费用/最长路径时长/修订预算、目录和路径攻击、单次运行 warning 与稳定 draft hash；Protocol strict 测试覆盖正式 Task/report 的额外字段、身份、状态、code、path、数量和去重；Storage 85/85 覆盖 `0011`、VALID 原子物化/幂等与 INVALID 不创建 Task；
 - Windows 开发态真实窗口完整矩阵曾 7/7 通过；状态提示修复后 Planner 相关 3/3 再次通过，并明确断言验证通过时不再出现旧“等待验证”提示、不合格计划只调用 Provider 一次、显示固定中文问题、刷新恢复 `DRAFT/INVALID`；
 - 较早 Windows M2-TU-07 候选的最终包真实窗口矩阵通过并生成截图，但该截图发现蓝色旧等待提示与绿色验证通过卡片冲突；源码与开发态 E2E 已修复并通过，最新源码的 Windows 包因本机 builder 卡住尚未生成，故不得把较早包算作最终候选通过；
+- 最新候选提交 `faceeb24d860371c157d190e77b32ca8cd34a833` 的 GitHub Actions run `31320916354` 通过：macOS job `93263647751`（3m45s）和 Windows job `93263647770`（5m32s）均完成工程检查、开发态 Electron、最终包构建、最终包真实窗口矩阵和上传；Windows artifact `9040204322`，大小 249,512,906 bytes，digest `sha256:86ecae522e24e46f6c5bf69bca1fb053a17fb960ba6aa2db04ca62ddc0a3fa27`；macOS artifact `9040180967`，大小 490,877,476 bytes，digest `sha256:5cf1da01fbb6545d65783e7c40470b3e78f64a671a0c861c1ea074017e54c749`；只有 Node.js 20 action runtime 弃用提醒，无失败或产品 P0/P1；
 
 - 当前中文候选 `pnpm check` 完整通过：Protocol 41、Provider 28、Storage 83、Desktop 108、Native Core 7、workspace Rust 7；status/task-unit、format、lint、typecheck、Rust fmt/clippy 和 secret scan 均成功；
 - Windows 开发态 Electron E2E 7/7 通过。Planner 直接覆盖成功、一次修复、修复再次失败且无 Plan、2 秒内取消、Corporation 版本冲突、Renderer 重载稳定 Plan ID、进程重启转 `INTERRUPTED` 且不重发；既有 Workspace、Provider、Key Vault 和 Goal 回归同时通过；
@@ -81,7 +82,7 @@ M2-TU-07 只交付：
 
 ## 7. 下一步
 
-重跑最新源码的完整工程检查，提交并推送 M2-TU-07 候选，由 GitHub Windows/macOS CI 在干净环境执行工程检查、开发态窗口、最终包构建和最终包矩阵。CI 通过后下载 Windows artifact 进行本地包级复验并请求用户人工 UI 验收；这些证据齐全前 M2-TU-07、DAG 项和 Milestone 2 均保持未完成。Plan Review 编辑/批准仍属于后续任务。
+从 GitHub Actions run `31320916354` 下载 Windows artifact `ai-corporation-windows-x64`，进行本地候选复验并请求用户人工 UI 验收；人工验收通过前 M2-TU-07、DAG 项和 Milestone 2 均保持未完成。Plan Review 编辑/批准仍属于后续任务。
 
 ## 8. 更新规则
 
