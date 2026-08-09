@@ -34,6 +34,11 @@ test("user creates and cancels real Goal Engine operations in the visible window
   });
   try {
     const page = await app.firstWindow();
+    await app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0];
+      window?.setSize(1024, 700);
+      window?.webContents.setZoomFactor(2);
+    });
     await page.getByRole("button", { name: "Settings" }).click();
     await page.getByLabel("Name").fill("Goal Fixture Provider");
     await page.getByLabel("Endpoint").fill(fixture.endpoint);
@@ -71,6 +76,18 @@ test("user creates and cancels real Goal Engine operations in the visible window
       stream: false,
     });
     await expectNoSeriousAxeViolations(page);
+    await page.screenshot({
+      path: path.resolve(
+        __dirname,
+        "../../../release",
+        `m2-tu05-dev-${process.platform}-${process.arch}-1024x700-200-percent.png`,
+      ),
+    });
+    await app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0];
+      window?.setSize(1440, 900);
+      window?.webContents.setZoomFactor(1);
+    });
 
     await page.getByRole("button", { name: "Dashboard", exact: true }).click();
     await page.getByRole("button", { name: "New Corporation" }).click();
@@ -183,6 +200,13 @@ test("user creates and cancels real Goal Engine operations in the visible window
     await expect(
       page.getByText(/Cycle 2 · completed clarification rounds 5\/5/u),
     ).toBeVisible();
+    await page.screenshot({
+      path: path.resolve(
+        __dirname,
+        "../../../release",
+        `m2-tu05-dev-${process.platform}-${process.arch}-1440x900-cycle-2.png`,
+      ),
+    });
     await page.getByRole("button", { name: "Cancel" }).click();
     await expect(page.getByText("CANCELLED", { exact: true })).toBeVisible();
 

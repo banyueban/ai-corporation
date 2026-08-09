@@ -112,6 +112,33 @@
 - 本机正式应用真实 Provider smoke 的脱敏 Goal/usage/时间、数据库/日志泄密扫描与重启事实；
 - 同一候选提交 Windows/macOS GitHub Actions run/job、最终包 artifact ID/digest。
 
-## 10. 完成规则
+## 10. 验收证据
+
+以下是逐项自动化证据审计；它不代替用户人工 UI 验收，也不表示任务已经完成。自动化基线提交 `ffe9544f3112a2e0e92bae456ef8d67a19a750ef` 的 GitHub Actions run `31295335463` 已通过，后续新增 Goal Engine 1024×700/200% 与 1440×900 专项窗口证据仍须形成新候选并重跑双平台 CI。
+
+| 验收项               | 直接证据                                                                                                                                                                                   |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1 协议               | `goal-engine.test.ts` 5 项 strict Schema 测试、`goal-engine-ipc.test.ts` 3 项授权/五 channel 额外字段拒绝测试、Goal Contract forged PROVIDER 拒绝测试；`pnpm check` 通过。                 |
+| 2 输入披露           | `goal-engine-service.test.ts` 的 disclosed-fields 断言、开发态/最终包真实窗口披露文案与 loopback 请求断言；Workspace/Key/Header 不进入 Goal 模型输入。                                     |
+| 3 Provider 门禁      | Provider Service 的已保存 Key、ENABLED/VERIFIED/精确版本/迟到版本测试；开发态和最终包仅能显式选择验证模型。                                                                                |
+| 4 输出 Schema        | Provider Generation strict/额度测试、Chat Adapter JSON object 映射和非法/超限响应测试；窗口实际请求断言 `json_object`、65,536、非流式。                                                    |
+| 5 JSON 修复          | Service 的恰好一次修复、二次非法失败、安全修复输入/审计测试；扩展后的跨平台窗口矩阵直接覆盖修复成功与再次失败。                                                                            |
+| 6 澄清周期           | Repository 五轮状态机测试；跨平台窗口矩阵直接完成 cycle 1 和 cycle 2 各 5 轮并在每个上限停止。                                                                                             |
+| 7 周期决策           | Protocol 决策枚举、Repository 单周期 CONTINUE；窗口矩阵覆盖显式续期、再次到限、SAVE_DRAFT 和 CANCEL。                                                                                      |
+| 8 Goal 保存          | Repository 原子 PROVIDER DRAFT 测试、窗口未确认 HIGH 假设门禁；真实 Provider B 路径保存 version 1 DRAFT，7 条 assumptions 中 6 条为未确认 HIGH。                                           |
+| 9 迁移               | Storage migration 空库、0001–0008 升级、0009 约束/外键/既有 MANUAL 语义测试；Storage 78/78 通过。                                                                                          |
+| 10 审计与 usage      | Repository/model_call、Service 正常/修复/失败诊断及 usage 聚合测试；真实 Provider 11/11 `SUCCEEDED`，标准聚合 usage 且无正文诊断。                                                         |
+| 11 持久化与恢复      | Repository transcript/reopen/interrupt 测试；跨平台窗口异常退出后恢复 `INTERRUPTED`，调用数保持不变且不自动重放。                                                                          |
+| 12 并发/取消/迟到    | Repository 单活跃/版本测试、Provider Service 多 operation/取消/迟到测试；窗口矩阵直接覆盖生成取消、周期到限取消、版本冲突和重启。                                                          |
+| 13 错误与安全        | 固定 Schema/Provider diagnostics 测试、Protocol 无值诊断测试、`pnpm secret:scan`；正式 userData 55 文件 Key 形态与 Authorization Bearer 命中均为 0。                                       |
+| 14 UI                | Windows/macOS 开发态窗口覆盖显式选择、生成、取消、回答、cycle/round/usage、续期、保存和 Review；最终包覆盖 PROVIDER draft 与 usage。                                                       |
+| 15 UI 恢复与适配     | Electron E2E 覆盖焦点、axe、失败/取消/中断/Goal saved 恢复；完整窗口套件覆盖 1024×700、1440×900 和 200% 的既有核心回归。                                                                   |
+| 16 自动真实窗口      | 同提交 Windows/macOS 开发态扩展矩阵覆盖成功、修复/失败、两周期、再次到限、未确认保存、取消、冲突和重启；两平台最终包均直接启动并完成 Goal Engine 与既有旅程。                              |
+| 17 本机真实 Provider | Windows 最终包 Renderer 使用应用 Key Vault 中已保存的 `deepseek-v4-flash` 完成 11 次调用和 B 保存；Key 未进入命令、脚本、环境、日志、截图或 Git。                                          |
+| 18 治理              | 本地 `pnpm check`、Electron E2E 6/6、当前源码 package/packaged E2E、`git diff --check` 通过；CI run `31295335463` 双平台全绿；Windows artifact `9032805377`、macOS artifact `9032784777`。 |
+
+Windows artifact digest 为 `sha256:2bac42c115bcec35070ea045e5c45ee10072f5ac7877f7940a7189dd0fcbd97c`；macOS artifact digest 为 `sha256:f1372924c938428c181537453c26b3380717e93e863c0c242d4b1897bc99e263`。本地 Windows NSIS SHA-256 为 `1DA3C15A1075A18880B6F276F9D9EA9FA3102C4337FD8E6B635C87EC7F20250A`。P0/P1 为 0，未执行必检项为 0。
+
+## 11. 完成规则
 
 只有 18 项验收断言按输出/修复 × 周期/续期/取消 × 版本/恢复 × 开发态/最终包 × Windows/macOS 展开并全部取得当前提交直接证据，本机真实 Provider smoke 通过且凭据仍只由应用 Key Vault 管理，资源清理通过，P0/P1 与未执行必检项为 0，方可标记完成。本任务不代表 Planner、Task Graph、Organization、Plan Review、执行或 Milestone 2 完成。

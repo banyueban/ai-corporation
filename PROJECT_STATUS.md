@@ -1,14 +1,14 @@
 # AI Corporation Desktop 项目进度
 
-| 属性           | 当前值                                                           |
-| -------------- | ---------------------------------------------------------------- |
-| 当前产品版本   | v0.1 MVP                                                         |
-| 当前阶段       | M2-TU-05 Goal Engine 实施                                        |
-| 当前 Milestone | Milestone 2：Provider 与 Goal/Plan                               |
-| 当前任务单元   | M2-TU-05（进行中）                                               |
-| 总体状态       | 进行中                                                           |
-| 最近更新       | 2026-08-09                                                       |
-| 下一检查点     | 推送 M2-TU-05 候选并取得同提交 Windows/macOS CI 与 artifact 证据 |
+| 属性           | 当前值                                                      |
+| -------------- | ----------------------------------------------------------- |
+| 当前产品版本   | v0.1 MVP                                                    |
+| 当前阶段       | M2-TU-05 Goal Engine 实施                                   |
+| 当前 Milestone | Milestone 2：Provider 与 Goal/Plan                          |
+| 当前任务单元   | M2-TU-05（进行中）                                          |
+| 总体状态       | 进行中                                                      |
+| 最近更新       | 2026-08-09                                                  |
+| 下一检查点     | 用户人工验收 Goal Engine UI；新增尺寸证据形成并验证最终候选 |
 
 ## 1. 当前结论
 
@@ -55,7 +55,7 @@ M2-TU-04 已关闭：
 
 ## 5. 活跃阻塞与外部条件
 
-当前无产品或本机验收阻塞。M2-TU-05 的剩余完成门禁是：把当前候选推送到 GitHub，取得该提交 Windows/macOS 工程检查、开发态 E2E、最终包构建/E2E 和 artifact 全部成功的直接证据。CI 完成前不得标记任务完成。
+当前无已知产品 P0/P1。M2-TU-05 自动化逐项审计补齐了修复再次失败、第二周期再次到限、版本冲突、中断/重启以及 Goal Engine 1024×700/200% 和 1440×900 专项窗口证据；剩余门禁是用户人工 UI 验收，以及把新增尺寸证据形成新候选后取得同提交 Windows/macOS CI 与 artifacts。两项都通过前不得标记任务完成。
 
 已知条件：
 
@@ -83,7 +83,7 @@ M2-TU-04 已关闭：
 
 ## 7. 下一步
 
-提交并推送当前 M2-TU-05 候选，等待同提交 Windows/macOS CI 和 artifact；通过后更新任务合同与本状态为完成，再运行最终状态/合同检查。任务关闭只代表 Goal Engine 任务单元完成，不关闭 Planner、Task Graph、Plan Review 或 Milestone 2。
+等待用户人工验收 Goal Engine 的信息层级、风险文案、键盘全流程、200% 缩放和 Windows 原生窗口行为；同时提交新增尺寸证据并重跑同提交 Windows/macOS CI 与 artifacts。两项通过后才能勾选任务合同、更新本状态为完成并运行最终状态/合同检查。任务关闭只代表 Goal Engine 任务单元完成，不关闭 Planner、Task Graph、Plan Review 或 Milestone 2。
 
 ## 8. 更新规则
 
