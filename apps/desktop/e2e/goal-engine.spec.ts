@@ -527,6 +527,30 @@ test("Planner repairs once, fails safely, cancels, rejects stale facts, and rest
       (await getPlannerOperation(page, failureCorporation.id))?.plan,
     ).toBeUndefined();
 
+    await openPlannerForCorporation(page, failureCorporation.name);
+    await expect(
+      page.getByRole("heading", {
+        name: "重新选择模型服务商和准确模型",
+      }),
+    ).toBeVisible();
+    const retryButton = page.getByRole("button", {
+      name: "重新生成并验证计划",
+    });
+    await expect(retryButton).toBeDisabled();
+    await selectPlannerProvider(page, "Planner Matrix Provider · goal-model");
+    await expect(retryButton).toBeEnabled();
+    expect(fixture.generationCalls() - callsBeforeFailure).toBe(2);
+    fixture.enqueue(plannerOutput());
+    await retryButton.click();
+    await expect(
+      page.getByRole("heading", { name: "计划已通过本地验证" }),
+    ).toBeVisible();
+    expect(fixture.generationCalls() - callsBeforeFailure).toBe(3);
+    expect(
+      (await getPlannerOperation(page, failureCorporation.id))?.plan
+        ?.validationStatus,
+    ).toBe("VALID");
+
     const cancelCorporation = await createApprovedGoal(
       page,
       "Planner Cancel Corporation",

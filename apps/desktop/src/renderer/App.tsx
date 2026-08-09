@@ -1795,6 +1795,9 @@ function PlannerDraftView(props: {
   const operation = props.operation;
   const plan = operation?.plan;
   const generating = operation?.status === "GENERATING";
+  const terminalWithoutPlan =
+    plan === undefined &&
+    ["FAILED", "CANCELLED", "INTERRUPTED"].includes(operation?.status ?? "");
   return (
     <>
       <header className="page-header page-header--create">
@@ -1830,68 +1833,90 @@ function PlannerDraftView(props: {
           {props.statusMessage}
         </p>
       )}
-      {plan === undefined &&
-        !["FAILED", "CANCELLED", "INTERRUPTED"].includes(
-          operation?.status ?? "",
-        ) && (
-          <section
-            className="goal-analysis"
-            aria-labelledby="planner-provider-title"
-          >
-            <h2 id="planner-provider-title">模型服务商和准确模型</h2>
-            <label className="field">
-              已验证的模型服务商 / 模型
-              <select
-                disabled={generating || props.saving}
-                onChange={(event) =>
-                  props.setSelectedProviderId(event.target.value || undefined)
-                }
-                value={props.selectedProviderId ?? ""}
-              >
-                <option value="">请明确选择</option>
-                {props.providers.map((provider) => (
-                  <option key={provider.id} value={provider.id}>
-                    {provider.name} · {provider.selectedModelId}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="disclosure-card">
-              <h3>将发送给该模型服务商的数据</h3>
-              <ul>
-                <li>当前已批准的目标合同</li>
-                <li>软件内置的能力、工具和媒体类型允许列表</li>
-              </ul>
+      {terminalWithoutPlan && (
+        <section className="error-state" role="status">
+          <div>
+            <p className="eyebrow">没有保存计划</p>
+            <h2>{internalLabel(operation?.status ?? "")}</h2>
+            {operation?.failureReason !== undefined && (
               <p>
-                不会发送：工作区路径、目录列表、文件、API Key
-                或任何未批准的目标版本。
+                原因：{plannerFailureReasonLabel(operation.failureReason)}（
+                <code>{operation.failureReason}</code>）
               </p>
-            </div>
-            <div className="analysis-actions">
+            )}
+            <p>
+              请在下方重新选择模型服务商和模型，再明确发起一次新尝试。软件不会自动重试。
+            </p>
+          </div>
+        </section>
+      )}
+      {plan === undefined && (
+        <section
+          className="goal-analysis"
+          aria-labelledby="planner-provider-title"
+        >
+          <h2 id="planner-provider-title">
+            {terminalWithoutPlan
+              ? "重新选择模型服务商和准确模型"
+              : "模型服务商和准确模型"}
+          </h2>
+          <label className="field">
+            已验证的模型服务商 / 模型
+            <select
+              disabled={generating || props.saving}
+              onChange={(event) =>
+                props.setSelectedProviderId(event.target.value || undefined)
+              }
+              value={props.selectedProviderId ?? ""}
+            >
+              <option value="">请明确选择</option>
+              {props.providers.map((provider) => (
+                <option key={provider.id} value={provider.id}>
+                  {provider.name} · {provider.selectedModelId}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="disclosure-card">
+            <h3>将发送给该模型服务商的数据</h3>
+            <ul>
+              <li>当前已批准的目标合同</li>
+              <li>软件内置的能力、工具和媒体类型允许列表</li>
+            </ul>
+            <p>
+              不会发送：工作区路径、目录列表、文件、API Key
+              或任何未批准的目标版本。
+            </p>
+          </div>
+          <div className="analysis-actions">
+            <button
+              className="primary-button"
+              disabled={
+                props.selectedProviderId === undefined ||
+                generating ||
+                props.saving
+              }
+              onClick={() => void props.onStart()}
+              type="button"
+            >
+              {generating
+                ? "正在生成…"
+                : terminalWithoutPlan
+                  ? "重新生成并验证计划"
+                  : "生成并验证计划"}
+            </button>
+            {generating && (
               <button
-                className="primary-button"
-                disabled={
-                  props.selectedProviderId === undefined ||
-                  generating ||
-                  props.saving
-                }
-                onClick={() => void props.onStart()}
+                className="secondary-button"
+                onClick={() => void props.onCancel()}
                 type="button"
               >
-                {generating ? "正在生成…" : "生成并验证计划"}
+                取消
               </button>
-              {generating && (
-                <button
-                  className="secondary-button"
-                  onClick={() => void props.onCancel()}
-                  type="button"
-                >
-                  取消
-                </button>
-              )}
-            </div>
-          </section>
-        )}
+            )}
+          </div>
+        </section>
+      )}
       {plan !== undefined && (
         <>
           {plan.validationStatus === "PENDING" && (
@@ -1988,23 +2013,6 @@ function PlannerDraftView(props: {
             </div>
           </section>
         </>
-      )}
-      {["FAILED", "CANCELLED", "INTERRUPTED"].includes(
-        operation?.status ?? "",
-      ) && (
-        <section className="error-state" role="status">
-          <div>
-            <p className="eyebrow">没有保存计划</p>
-            <h2>{internalLabel(operation?.status ?? "")}</h2>
-            {operation?.failureReason !== undefined && (
-              <p>
-                原因：{plannerFailureReasonLabel(operation.failureReason)}（
-                <code>{operation.failureReason}</code>）
-              </p>
-            )}
-            <p>请返回已批准的目标，再明确发起一次新的尝试。</p>
-          </div>
-        </section>
       )}
     </>
   );

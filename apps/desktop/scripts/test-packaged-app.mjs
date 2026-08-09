@@ -617,6 +617,36 @@ try {
     );
   }
 
+  await openPlannerForCorporation(page, failureCorporation.name);
+  await page
+    .getByRole("heading", { name: "重新选择模型服务商和准确模型" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  const retryButton = page.getByRole("button", {
+    name: "重新生成并验证计划",
+  });
+  if (await retryButton.isEnabled()) {
+    throw new Error("Packaged Planner retry did not require model selection");
+  }
+  await selectPlannerProvider(page);
+  if (providerFixture.generationCalls() - callsBeforeFailure !== 2) {
+    throw new Error("Packaged Planner automatically retried after recovery");
+  }
+  providerFixture.enqueue(packagedPlannerOutput());
+  await retryButton.click();
+  await page
+    .getByRole("heading", { name: "计划已通过本地验证" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  const retriedPlanner = await getPlannerOperation(page, failureCorporation.id);
+  if (
+    providerFixture.generationCalls() - callsBeforeFailure !== 3 ||
+    retriedPlanner?.status !== "PLAN_SAVED" ||
+    retriedPlanner.plan?.validationStatus !== "VALID"
+  ) {
+    throw new Error(
+      "Packaged Planner explicit retry did not save a valid Plan",
+    );
+  }
+
   const cancelCorporation = await createApprovedGoal(
     page,
     "Packaged Planner Cancel Corporation",

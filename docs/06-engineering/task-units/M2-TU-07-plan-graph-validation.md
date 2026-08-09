@@ -40,7 +40,7 @@
 - capability/tool catalog、Workspace 相对路径攻击和 process profile allowlist 验证；通过不代表授权；
 - 固定结构阈值的单 Run warning，不调用模型进行主观判断；
 - `0011` 验证报告字段、正式 `task`/`task_dependency`、同 Plan 外键与原子物化；
-- Planner 页面显示本地验证中、失败问题、已验证与 warning，并继续标注尚未组队、未批准、不可执行；软件自定义文字使用中文，外部标准称呼保持原样。
+- Planner 页面显示本地验证中、失败问题、已验证与 warning，并继续标注尚未组队、未批准、不可执行；生成失败、取消或中断后保留原因并重新提供模型服务商/模型选择和明确重试入口，不自动调用 Provider；软件自定义文字使用中文，外部标准称呼保持原样。
 
 本任务只关闭 Milestone 2 的 DAG、输入输出和验收验证，不关闭 Plan Review 编辑/批准或 Milestone 2。
 
@@ -89,7 +89,7 @@
 - [ ] VALID 原子性：复用可信 Task UUID，Task/依赖/contract/report 与 `VALIDATED/VALID` 同事务；合同逐字段映射且不创建 Artifact/Run/Agent/Approval；
 - [ ] 幂等与竞态：相同 hash 重复验证不重复 Task/依赖/report 时间；Plan/Goal/draft/version 变化或并发验证条件失败且不覆盖新事实；
 - [ ] 恢复：Planner 保存后自动验证；Renderer reload、应用重启和 SQLite 重开恢复同一结果；遗留 PENDING 只本地重试，不产生 model_call 或网络请求；
-- [ ] UI：中文显示正在本地验证、固定问题、预算/权限/warning 与已验证事实；INVALID/VALID 都继续明确尚未组队、未批准、不可执行；键盘、焦点、1024×700、1440×900 和 200% 可完成；
+- [ ] UI：中文显示正在本地验证、固定问题、预算/权限/warning 与已验证事实；生成失败、取消或中断后可重新选择模型并明确重试，恢复页面不会自动调用 Provider；INVALID/VALID 都继续明确尚未组队、未批准、不可执行；键盘、焦点、1024×700、1440×900 和 200% 可完成；
 - [ ] 安全：report、错误、日志、trace、截图和诊断不含 Goal/模型正文、绝对路径、Key、Authorization、SQL 或堆栈；路径攻击集通过；
 - [ ] 治理：协议/设计/Schema/迁移/实现/测试一致；适用 `pnpm check`、开发态与最终包真实窗口、Windows/macOS CI、artifact 和人工 UI 验收通过；P0/P1 与未执行必检项为 0。
 
