@@ -27,6 +27,7 @@ import {
   workspaceErrorMessage,
 } from "./workspace-view-model";
 import { ProviderSettings } from "./ProviderSettings";
+import { formatUiTime, internalLabel, timelineLabel } from "./ui-labels";
 import { createUuidV7 } from "./uuid-v7";
 
 type NativeCoreState =
@@ -122,9 +123,7 @@ export function App() {
         ),
       onRefreshError: (workspaceId, code) => {
         setOperationError(code);
-        setStatusMessage(
-          `Workspace ${workspaceId.slice(0, 8)} could not be verified.`,
-        );
+        setStatusMessage(`无法验证工作区 ${workspaceId.slice(0, 8)}。`);
       },
       onRefreshStart: setRefreshingIds,
       onUpdated: (updated) =>
@@ -222,7 +221,7 @@ export function App() {
   const selectWorkspace = async () => {
     setSelecting(true);
     setOperationError(undefined);
-    setStatusMessage("Opening the system folder selector.");
+    setStatusMessage("正在打开系统文件夹选择器。");
     try {
       const result = await window.desktop.workspace.select();
       if (!result.ok) {
@@ -231,15 +230,13 @@ export function App() {
         return;
       }
       if (result.value.status === "CANCELLED") {
-        setStatusMessage(
-          "Folder selection was cancelled. No authorization was saved.",
-        );
+        setStatusMessage("已取消选择文件夹，没有保存任何授权。");
         return;
       }
       const selected = result.value.workspace;
       setWorkspaces((current) => replaceWorkspace(current, selected));
       setSelectedWorkspaceId(selected.workspaceId);
-      setStatusMessage("Workspace authorized and saved.");
+      setStatusMessage("工作区授权已保存。");
     } catch {
       setOperationError("SELECTION_UNAVAILABLE");
       setStatusMessage("");
@@ -255,7 +252,7 @@ export function App() {
       const result = await window.desktop.workspace.revalidate(workspaceId);
       if (result.ok) {
         setWorkspaces((current) => replaceWorkspace(current, result.value));
-        setStatusMessage("Workspace verification updated.");
+        setStatusMessage("工作区验证结果已更新。");
       } else {
         setOperationError(result.error.code);
         setStatusMessage("");
@@ -323,7 +320,7 @@ export function App() {
       if (!saved.ok) {
         setGoalError(saved.error.code);
         setStatusMessage(
-          "Corporation was created, but its Goal Contract was not saved. Your input is retained; retry will not create another Corporation.",
+          "公司已创建，但目标合同没有保存。你输入的内容仍然保留；重试不会再创建一个公司。",
         );
         return;
       }
@@ -374,7 +371,7 @@ export function App() {
     setReviewGoal(operation.goal);
     setReviewAssumptions(operation.goal.assumptions);
     setStatusMessage(
-      `Provider Goal draft saved. Review is required before approval. ${usageLabel(operation.usage)}`,
+      `模型服务商生成的目标草稿已保存，批准前需要人工检查。${usageLabel(operation.usage)}`,
     );
     await refreshReview(corporation.id);
     setRoute("review");
@@ -560,8 +557,8 @@ export function App() {
     setStateError(undefined);
     setStatusMessage(
       corporation.status === "PAUSED"
-        ? "Restoring the persisted pre-pause state."
-        : "Pausing at the current local checkpoint.",
+        ? "正在恢复暂停前保存的状态。"
+        : "正在当前本地检查点暂停。",
     );
     try {
       const request = {
@@ -612,8 +609,8 @@ export function App() {
       }
       setStatusMessage(
         result.value.status === "PAUSED"
-          ? "Corporation paused. No Plan, Task, or execution has started."
-          : `Corporation resumed to ${result.value.status}. No command or event was replayed.`,
+          ? "公司已暂停。计划、任务和执行均未开始。"
+          : `公司已恢复到“${internalLabel(result.value.status)}”状态，没有重复执行任何命令或事件。`,
       );
     } catch {
       if (requestId === requestSequence.current) {
@@ -680,9 +677,7 @@ export function App() {
       if (refreshed.ok) setReviewCorporation(refreshed.value);
       setReviewGoal(approved.value);
       setReviewAssumptions(approved.value.assumptions);
-      setStatusMessage(
-        "Goal Contract approved. Planning and execution have not started.",
-      );
+      setStatusMessage("目标合同已批准。规划和执行尚未开始。");
       await refreshReview(corporation.id);
     } catch {
       setGoalError("STORAGE_UNAVAILABLE");
@@ -779,8 +774,8 @@ export function App() {
       setPlannerOperation(result.value);
       setStatusMessage(
         result.value.status === "PLAN_SAVED"
-          ? "Plan draft saved. DAG, references, inputs, outputs, acceptance, budget, and permissions are still pending validation."
-          : "Plan generation stopped without a saved draft.",
+          ? "计划草稿已保存。DAG（有向无环图）、引用、输入、输出、验收条件、预算和权限仍在等待验证。"
+          : "计划生成已停止，没有保存草稿。",
       );
     } catch {
       setPlannerError("STORAGE_UNAVAILABLE");
@@ -802,7 +797,7 @@ export function App() {
   };
 
   const leaveCreate = () => {
-    if (dirty && !window.confirm("Discard the unsaved Goal Contract input?")) {
+    if (dirty && !window.confirm("要放弃尚未保存的目标合同内容吗？")) {
       return;
     }
     setDirty(false);
@@ -926,7 +921,7 @@ function Sidebar(props: {
   readonly versions: { readonly chrome: string; readonly electron: string };
 }) {
   return (
-    <aside className="sidebar" aria-label="Application navigation">
+    <aside className="sidebar" aria-label="软件导航">
       <div>
         <p className="brand-mark" aria-label="AI Corporation">
           AC
@@ -939,13 +934,13 @@ function Sidebar(props: {
             onClick={props.onDashboard}
             type="button"
           >
-            Dashboard
+            控制台
           </button>
           <button className="nav-button" disabled type="button">
-            Running
+            运行中
           </button>
           <button className="nav-button" disabled type="button">
-            Approvals
+            待批准
           </button>
           <button
             aria-current={props.route === "settings" ? "page" : undefined}
@@ -953,7 +948,7 @@ function Sidebar(props: {
             onClick={props.onSettings}
             type="button"
           >
-            Settings
+            设置
           </button>
         </nav>
       </div>
@@ -996,31 +991,25 @@ function Dashboard(props: {
     <>
       <header className="page-header">
         <div>
-          <p className="eyebrow">Local-first workspace</p>
-          <h1>Dashboard</h1>
-          <p>
-            Create and restore Corporation Goal Contracts inside explicitly
-            authorized local workspaces.
-          </p>
+          <p className="eyebrow">本地优先的工作区</p>
+          <h1>控制台</h1>
+          <p>在你明确授权的本地工作区中创建和恢复公司的目标合同。</p>
         </div>
         <button
           className="primary-button"
           onClick={props.onCreate}
           type="button"
         >
-          New Corporation
+          新建公司
         </button>
       </header>
       {props.loadError !== undefined && (
-        <WorkspaceError
-          code={props.loadError}
-          title="Saved workspaces are unavailable"
-        />
+        <WorkspaceError code={props.loadError} title="无法使用已保存的工作区" />
       )}
       {props.operationError !== undefined && (
         <WorkspaceError
           code={props.operationError}
-          title="Workspace verification needs attention"
+          title="工作区验证需要处理"
         />
       )}
       {props.stateError !== undefined && (
@@ -1032,23 +1021,20 @@ function Dashboard(props: {
         </p>
       )}
       {props.loading ? (
-        <section aria-busy="true" aria-label="Loading workspaces">
+        <section aria-busy="true" aria-label="正在加载工作区">
           <div className="skeleton-card" />
         </section>
       ) : props.workspaces.length === 0 && props.loadError === undefined ? (
         <section className="empty-state" aria-labelledby="empty-title">
-          <p className="empty-kicker">No authorized workspaces</p>
-          <h2 id="empty-title">Create your first Corporation</h2>
-          <p>
-            Start by selecting one local folder. The app verifies its real
-            access before saving the authorization.
-          </p>
+          <p className="empty-kicker">还没有已授权的工作区</p>
+          <h2 id="empty-title">创建第一个公司</h2>
+          <p>请先选择一个本地文件夹。软件会先验证实际访问权限，再保存授权。</p>
           <button
             className="primary-button"
             onClick={props.onCreate}
             type="button"
           >
-            Select a workspace
+            选择工作区
           </button>
         </section>
       ) : (
@@ -1057,8 +1043,8 @@ function Dashboard(props: {
             <section aria-labelledby="corporation-list-title">
               <div className="section-heading">
                 <div>
-                  <p className="eyebrow">Restored from SQLite</p>
-                  <h2 id="corporation-list-title">Corporations</h2>
+                  <p className="eyebrow">已从 SQLite 恢复</p>
+                  <h2 id="corporation-list-title">公司</h2>
                 </div>
                 <span>{props.corporations.length}</span>
               </div>
@@ -1070,22 +1056,23 @@ function Dashboard(props: {
                   >
                     <div className="workspace-card__top">
                       <span className="status-badge status-badge--neutral">
-                        {summary.corporation.status}
+                        {internalLabel(summary.corporation.status)}
                       </span>
                       <span className="permission-label">
-                        Corporation v{summary.corporation.version}
+                        公司版本 {summary.corporation.version}
                       </span>
                     </div>
                     <h3>{summary.corporation.name}</h3>
                     <p>
                       {summary.goal === null
-                        ? "Corporation exists; its Goal Contract still needs to be saved."
-                        : `Goal v${summary.goal.version}: ${summary.goal.statement}`}
+                        ? "公司已经创建，但还需要保存目标合同。"
+                        : `目标版本 ${summary.goal.version}：${summary.goal.statement}`}
                     </p>
                     {summary.corporation.status === "PAUSED" && (
                       <p>
-                        Paused from {summary.corporation.pausedFrom} at{" "}
-                        {summary.corporation.pausedAt}.
+                        从“{internalLabel(summary.corporation.pausedFrom ?? "")}
+                        ”状态暂停，时间：
+                        {formatUiTime(summary.corporation.pausedAt ?? "")}。
                       </p>
                     )}
                     <button
@@ -1098,11 +1085,11 @@ function Dashboard(props: {
                     >
                       {props.statePending
                         ? summary.corporation.status === "PAUSED"
-                          ? "Resuming…"
-                          : "Pausing…"
+                          ? "正在继续…"
+                          : "正在暂停…"
                         : summary.corporation.status === "PAUSED"
-                          ? "Resume Corporation"
-                          : "Pause Corporation"}
+                          ? "继续运行公司"
+                          : "暂停公司"}
                     </button>
                     <button
                       className="secondary-button"
@@ -1113,9 +1100,7 @@ function Dashboard(props: {
                       }
                       type="button"
                     >
-                      {summary.goal === null
-                        ? "Resume Goal creation"
-                        : "Open Goal Contract"}
+                      {summary.goal === null ? "继续创建目标" : "打开目标合同"}
                     </button>
                   </article>
                 ))}
@@ -1125,8 +1110,8 @@ function Dashboard(props: {
           <section aria-labelledby="workspace-list-title">
             <div className="section-heading">
               <div>
-                <p className="eyebrow">Authorized roots</p>
-                <h2 id="workspace-list-title">Workspaces</h2>
+                <p className="eyebrow">已授权的根目录</p>
+                <h2 id="workspace-list-title">工作区</h2>
               </div>
               <span>{props.workspaces.length}</span>
             </div>
@@ -1145,7 +1130,7 @@ function Dashboard(props: {
                       <span
                         className={`status-badge status-badge--${presentation.tone}`}
                       >
-                        {refreshing ? "Verifying" : presentation.accessLabel}
+                        {refreshing ? "正在验证" : presentation.accessLabel}
                       </span>
                       <span className="permission-label">
                         {presentation.permissionLabel}
@@ -1155,8 +1140,7 @@ function Dashboard(props: {
                       {workspace.displayPath}
                     </h3>
                     <p>
-                      {presentation.recoveryAction ??
-                        "This authorization is limited to the selected folder."}
+                      {presentation.recoveryAction ?? "该授权仅限所选文件夹。"}
                     </p>
                     <button
                       className="secondary-button"
@@ -1166,7 +1150,7 @@ function Dashboard(props: {
                       }
                       type="button"
                     >
-                      {refreshing ? "Verifying…" : "Verify again"}
+                      {refreshing ? "正在验证…" : "重新验证"}
                     </button>
                   </article>
                 );
@@ -1230,23 +1214,19 @@ function CreateCorporation(props: {
       <header className="page-header page-header--create">
         <div>
           <button className="back-button" onClick={props.onBack} type="button">
-            ← Dashboard
+            ← 控制台
           </button>
-          <p className="eyebrow">New Corporation · Goal input</p>
+          <p className="eyebrow">新建公司 · 输入目标</p>
           <h1 ref={props.headingRef} tabIndex={-1}>
-            Choose a workspace
+            选择工作区
           </h1>
           <p>
-            Select an authorized folder, name the Corporation, and define a
-            reviewable Goal Contract.
+            选择已授权的文件夹，填写公司名称，并定义一份可供检查的目标合同。
           </p>
         </div>
       </header>
       {props.error !== undefined && (
-        <WorkspaceError
-          code={props.error}
-          title="Workspace was not authorized"
-        />
+        <WorkspaceError code={props.error} title="工作区未获授权" />
       )}
       {props.goalError !== undefined && <GoalError code={props.goalError} />}
       {props.goalEngineError !== undefined && (
@@ -1254,11 +1234,9 @@ function CreateCorporation(props: {
       )}
       <section className="selection-panel" aria-labelledby="selection-title">
         <div>
-          <p className="eyebrow">Required boundary</p>
-          <h2 id="selection-title">Workspace folder</h2>
-          <p>
-            The Renderer only receives the display path and public permission.
-          </p>
+          <p className="eyebrow">必须明确的边界</p>
+          <h2 id="selection-title">工作区文件夹</h2>
+          <p>界面只能获取用于显示的路径和公开权限信息。</p>
         </div>
         <button
           className="secondary-button"
@@ -1266,25 +1244,26 @@ function CreateCorporation(props: {
           onClick={() => void props.onSelect()}
           type="button"
         >
-          {props.selecting ? "Opening selector…" : "Select folder…"}
+          {props.selecting ? "正在打开选择器…" : "选择文件夹…"}
         </button>
         {props.workspaces.length > 0 && (
           <label className="field selection-help">
-            Authorized workspace
+            已授权的工作区
             <select
               onChange={(event) =>
                 props.setSelectedWorkspaceId(event.target.value)
               }
               value={props.selectedWorkspaceId ?? ""}
             >
-              <option value="">Choose…</option>
+              <option value="">请选择…</option>
               {props.workspaces.map((workspace) => (
                 <option
                   disabled={workspace.accessStatus !== "AVAILABLE"}
                   key={workspace.workspaceId}
                   value={workspace.workspaceId}
                 >
-                  {workspace.displayPath} · {workspace.permissionMode}
+                  {workspace.displayPath} ·{" "}
+                  {internalLabel(workspace.permissionMode)}
                 </option>
               ))}
             </select>
@@ -1299,12 +1278,12 @@ function CreateCorporation(props: {
       {selected !== undefined && (
         <p className="selected-boundary">
           <strong>{selected.displayPath}</strong> ·{" "}
-          {presentWorkspace(selected).permissionLabel} · selected folder only
+          {presentWorkspace(selected).permissionLabel} · 仅限所选文件夹
         </p>
       )}
       <form className="goal-form">
         <label className="field">
-          Corporation name *
+          公司名称 *
           <input
             autoComplete="off"
             onChange={(event) =>
@@ -1314,7 +1293,7 @@ function CreateCorporation(props: {
           />
         </label>
         <label className="field field--wide">
-          Goal *
+          目标 *
           <textarea
             onChange={(event) => props.onUpdate("goal", event.target.value)}
             rows={5}
@@ -1322,7 +1301,7 @@ function CreateCorporation(props: {
           />
         </label>
         <label className="field field--wide">
-          Success criteria <span>Required for manual/Mock; one per line</span>
+          成功标准 <span>手动或 Mock 草稿必填，每行一项</span>
           <textarea
             onChange={(event) =>
               props.onUpdate("successCriteria", event.target.value)
@@ -1332,7 +1311,7 @@ function CreateCorporation(props: {
           />
         </label>
         <label className="field">
-          Expected deliverables <span>One per line</span>
+          预期交付物 <span>每行一项</span>
           <textarea
             onChange={(event) =>
               props.onUpdate("deliverables", event.target.value)
@@ -1342,7 +1321,7 @@ function CreateCorporation(props: {
           />
         </label>
         <label className="field">
-          Constraints <span>One per line</span>
+          限制条件 <span>每行一项</span>
           <textarea
             onChange={(event) =>
               props.onUpdate("constraints", event.target.value)
@@ -1352,7 +1331,7 @@ function CreateCorporation(props: {
           />
         </label>
         <label className="field">
-          Out of scope <span>One per line</span>
+          不包含的范围 <span>每行一项</span>
           <textarea
             onChange={(event) =>
               props.onUpdate("outOfScope", event.target.value)
@@ -1362,12 +1341,12 @@ function CreateCorporation(props: {
           />
         </label>
         <label className="field">
-          High-impact assumption
+          高影响假设
           <input
             onChange={(event) =>
               props.onUpdate("assumption", event.target.value)
             }
-            placeholder="Optional; confirmation happens in Review"
+            placeholder="选填；稍后需要在检查页面确认"
             value={props.form.assumption}
           />
         </label>
@@ -1376,9 +1355,9 @@ function CreateCorporation(props: {
             className="provider-disclosure"
             aria-labelledby="provider-analysis-title"
           >
-            <h2 id="provider-analysis-title">Provider Goal analysis</h2>
+            <h2 id="provider-analysis-title">模型服务商目标分析</h2>
             <label className="field">
-              Verified Provider and exact model *
+              已验证的模型服务商和准确模型 *
               <select
                 disabled={operationActive || props.saving}
                 onChange={(event) =>
@@ -1386,7 +1365,7 @@ function CreateCorporation(props: {
                 }
                 value={props.selectedProviderId ?? ""}
               >
-                <option value="">Choose explicitly…</option>
+                <option value="">请明确选择…</option>
                 {props.providers.map((provider) => (
                   <option key={provider.id} value={provider.id}>
                     {provider.name} · {provider.selectedModelId}
@@ -1395,14 +1374,13 @@ function CreateCorporation(props: {
               </select>
             </label>
             <p>
-              Sent to the selected Provider: Corporation name, Goal, optional
-              Goal hints, and clarification answers. Workspace paths, folders,
-              files, and API keys are not sent.
+              将发送给所选模型服务商：公司名称、目标、可选的目标提示和补充说明答案。
+              不会发送工作区路径、文件夹、文件或 API Key。
             </p>
             {selectedProvider !== undefined && (
               <p className="selected-boundary">
-                Selected: <strong>{selectedProvider.name}</strong> · model{" "}
-                <strong>{selectedProvider.selectedModelId}</strong> · version{" "}
+                已选择：<strong>{selectedProvider.name}</strong> · 模型{" "}
+                <strong>{selectedProvider.selectedModelId}</strong> · 配置版本{" "}
                 {selectedProvider.version}
               </p>
             )}
@@ -1419,9 +1397,7 @@ function CreateCorporation(props: {
               }}
               type="submit"
             >
-              {props.saving
-                ? "Analyzing…"
-                : "Analyze and create Provider draft"}
+              {props.saving ? "正在分析…" : "分析并创建模型服务商草稿"}
             </button>
           </section>
           {props.goalOperation !== undefined && (
@@ -1441,7 +1417,7 @@ function CreateCorporation(props: {
             onClick={(event) => submit(event, "MANUAL")}
             type="submit"
           >
-            {props.saving ? "Saving…" : "Save manual draft"}
+            {props.saving ? "正在保存…" : "保存手动草稿"}
           </button>
           <button
             aria-describedby="mock-help"
@@ -1450,11 +1426,11 @@ function CreateCorporation(props: {
             onClick={(event) => submit(event, "MOCK")}
             type="submit"
           >
-            Create local Mock draft
+            创建本地 Mock 草稿
           </button>
           <p id="mock-help">
-            Mock is a deterministic local template. It does not call a model,
-            Provider, tool, file system, or network.
+            Mock
+            是固定结果的本地模板，不会调用模型、模型服务商、工具、文件系统或网络。
           </p>
         </div>
       </form>
@@ -1480,35 +1456,32 @@ function GoalAnalysisPanel(props: {
   return (
     <section className="goal-analysis" aria-live="polite">
       <div className="workspace-card__top">
-        <h2>Goal analysis</h2>
+        <h2>目标分析</h2>
         <span className="status-badge status-badge--neutral">
-          {operation.status}
+          {internalLabel(operation.status)}
         </span>
       </div>
       <p>
-        Cycle {operation.cycleNumber} · completed clarification rounds{" "}
-        {operation.roundInCycle}/5 · {usageLabel(operation.usage)}
+        第 {operation.cycleNumber} 个周期 · 已完成补充说明{" "}
+        {operation.roundInCycle}/5 轮 · {usageLabel(operation.usage)}
       </p>
       {operation.status === "GENERATING" && (
         <>
-          <p>
-            Provider generation is in progress. No Goal is shown until
-            validated.
-          </p>
+          <p>模型服务商正在生成内容。验证通过前不会显示目标草稿。</p>
           <button
             className="secondary-button"
             disabled={false}
             onClick={() => void props.onCancel()}
             type="button"
           >
-            Cancel analysis
+            取消分析
           </button>
         </>
       )}
       {(operation.status === "CLARIFICATION_REQUIRED" ||
         operation.status === "EXTENSION_REQUIRED") && (
         <div className="clarification-list">
-          <h3>Remaining high-impact questions</h3>
+          <h3>仍需回答的高影响问题</h3>
           {operation.questions.map((question) => (
             <label className="field" key={question.questionId}>
               {question.text} *
@@ -1537,7 +1510,7 @@ function GoalAnalysisPanel(props: {
             onClick={() => void props.onAnswer()}
             type="button"
           >
-            Submit all answers
+            提交全部答案
           </button>
           <button
             className="secondary-button"
@@ -1545,15 +1518,15 @@ function GoalAnalysisPanel(props: {
             onClick={() => void props.onCancel()}
             type="button"
           >
-            Cancel
+            取消
           </button>
         </div>
       )}
       {operation.status === "EXTENSION_REQUIRED" && (
         <div className="analysis-actions">
           <p>
-            This five-round cycle reached its limit. Provider calls are stopped
-            until you explicitly choose an action.
+            本周期已达到 5
+            轮上限。你明确选择下一步之前，不会继续调用模型服务商。
           </p>
           <button
             className="primary-button"
@@ -1561,7 +1534,7 @@ function GoalAnalysisPanel(props: {
             onClick={() => void props.onResolve("CONTINUE")}
             type="button"
           >
-            Continue another 5 rounds
+            再继续 5 轮
           </button>
           <button
             className="secondary-button"
@@ -1569,7 +1542,7 @@ function GoalAnalysisPanel(props: {
             onClick={() => void props.onResolve("SAVE_DRAFT")}
             type="button"
           >
-            Save with unconfirmed HIGH assumptions
+            保存含未确认高影响假设的草稿
           </button>
           <button
             className="secondary-button"
@@ -1577,14 +1550,14 @@ function GoalAnalysisPanel(props: {
             onClick={() => void props.onResolve("CANCEL")}
             type="button"
           >
-            Cancel
+            取消
           </button>
         </div>
       )}
       {["FAILED", "CANCELLED", "INTERRUPTED"].includes(operation.status) && (
         <p>
-          Analysis did not save a Goal. Your Corporation and input remain; use
-          Analyze again for an explicit retry or choose a manual/Mock draft.
+          本次分析没有保存目标。公司和输入内容仍然保留；你可以再次明确发起分析，
+          或改用手动/Mock 草稿。
         </p>
       )}
     </section>
@@ -1616,31 +1589,28 @@ function GoalReview(props: {
       <header className="page-header page-header--create">
         <div>
           <button className="back-button" onClick={props.onBack} type="button">
-            ← Dashboard
+            ← 控制台
           </button>
           <p className="eyebrow">
-            {props.corporation.name} · Goal v{props.goal.version}
+            {props.corporation.name} · 目标版本 {props.goal.version}
           </p>
           <h1 ref={props.headingRef} tabIndex={-1}>
-            Confirm Goal Contract
+            确认目标合同
           </h1>
-          <p>
-            Approval confirms only this Goal Contract. Planning and execution
-            remain outside this action.
-          </p>
+          <p>本次操作只批准这份目标合同，不会开始规划或执行。</p>
         </div>
         <div className="status-badge-group">
           <span
-            aria-label="Corporation status"
+            aria-label="公司状态"
             className="status-badge status-badge--neutral"
           >
-            {props.corporation.status}
+            {internalLabel(props.corporation.status)}
           </span>
           <span
-            aria-label="Goal Contract status"
+            aria-label="目标合同状态"
             className="status-badge status-badge--neutral"
           >
-            {props.goal.status}
+            {internalLabel(props.goal.status)}
           </span>
         </div>
       </header>
@@ -1655,40 +1625,39 @@ function GoalReview(props: {
       )}
       {props.corporation.status === "PAUSED" && (
         <p className="inline-status">
-          Paused from {props.corporation.pausedFrom} at{" "}
-          {props.corporation.pausedAt}. No Plan, Task, or execution has started.
+          从“{internalLabel(props.corporation.pausedFrom ?? "")}
+          ”状态暂停，时间：
+          {formatUiTime(props.corporation.pausedAt ?? "")}
+          。计划、任务和执行均未开始。
         </p>
       )}
       <div className="review-grid">
-        <ReviewBlock title="Goal summary" items={[props.goal.statement]} />
+        <ReviewBlock title="目标摘要" items={[props.goal.statement]} />
+        <ReviewBlock title="成功标准" items={props.goal.successCriteria} />
         <ReviewBlock
-          title="Success criteria"
-          items={props.goal.successCriteria}
-        />
-        <ReviewBlock
-          title="In scope"
+          title="包含的范围"
           items={props.goal.inScope}
-          empty="Not specified"
+          empty="未填写"
         />
         <ReviewBlock
-          title="Out of scope"
+          title="不包含的范围"
           items={props.goal.outOfScope}
-          empty="Not specified"
+          empty="未填写"
         />
         <ReviewBlock
-          title="Constraints"
+          title="限制条件"
           items={props.goal.constraints}
-          empty="Not specified"
+          empty="未填写"
         />
         <ReviewBlock
-          title="Deliverables"
+          title="交付物"
           items={props.goal.deliverables}
-          empty="Not specified"
+          empty="未填写"
         />
         <ReviewBlock
-          title="Risk, budget, and stop conditions"
+          title="风险、预算和停止条件"
           items={[
-            `Risk: ${props.goal.riskLevel}`,
+            `风险：${internalLabel(props.goal.riskLevel)}`,
             budgetLabel(props.goal),
             ...props.goal.stopConditions,
           ]}
@@ -1697,9 +1666,9 @@ function GoalReview(props: {
           className="review-block review-block--wide"
           aria-labelledby="assumptions-title"
         >
-          <h2 id="assumptions-title">High-impact assumptions</h2>
+          <h2 id="assumptions-title">高影响假设</h2>
           {props.assumptions.length === 0 ? (
-            <p>None declared.</p>
+            <p>没有填写。</p>
           ) : (
             props.assumptions.map((assumption, index) => (
               <label
@@ -1721,7 +1690,8 @@ function GoalReview(props: {
                   type="checkbox"
                 />
                 <span>
-                  <strong>{assumption.impact}</strong> · {assumption.text}
+                  <strong>{internalLabel(assumption.impact)}</strong> ·{" "}
+                  {assumption.text}
                 </span>
               </label>
             ))
@@ -1729,10 +1699,7 @@ function GoalReview(props: {
         </section>
       </div>
       <div className="review-actions">
-        <p>
-          This action will not generate a Plan, start execution, call a model,
-          or modify workspace files.
-        </p>
+        <p>本次操作不会生成计划、开始执行、调用模型或修改工作区文件。</p>
         <button
           className="secondary-button"
           disabled={props.statePending}
@@ -1741,11 +1708,11 @@ function GoalReview(props: {
         >
           {props.statePending
             ? props.corporation.status === "PAUSED"
-              ? "Resuming…"
-              : "Pausing…"
+              ? "正在继续…"
+              : "正在暂停…"
             : props.corporation.status === "PAUSED"
-              ? "Resume Corporation"
-              : "Pause Corporation"}
+              ? "继续运行公司"
+              : "暂停公司"}
         </button>
         <button
           className="primary-button"
@@ -1757,7 +1724,7 @@ function GoalReview(props: {
           onClick={() => void props.onApprove()}
           type="button"
         >
-          {props.saving ? "Confirming…" : "Confirm Goal Contract"}
+          {props.saving ? "正在确认…" : "确认目标合同"}
         </button>
         {props.goal.status === "APPROVED" && (
           <button
@@ -1766,28 +1733,31 @@ function GoalReview(props: {
             onClick={() => void props.onPlan()}
             type="button"
           >
-            Start planning setup
+            开始规划设置
           </button>
         )}
       </div>
       <div className="history-grid">
         <section className="history-panel" aria-labelledby="versions-title">
-          <h2 id="versions-title">Versions</h2>
+          <h2 id="versions-title">历史版本</h2>
           <ol>
             {props.versions.map((version) => (
               <li key={version.version}>
-                v{version.version} · {version.status} · {version.source}
+                版本 {version.version} · {internalLabel(version.status)} ·{" "}
+                {internalLabel(version.source)}
               </li>
             ))}
           </ol>
         </section>
         <section className="history-panel" aria-labelledby="timeline-title">
-          <h2 id="timeline-title">Timeline</h2>
+          <h2 id="timeline-title">时间线</h2>
           <ol>
             {props.timeline.map((event) => (
               <li key={event.eventId}>
-                <span>{event.summary}</span>
-                <time dateTime={event.occurredAt}>{event.occurredAt}</time>
+                <span>{timelineLabel(event.eventType)}</span>
+                <time dateTime={event.occurredAt}>
+                  {formatUiTime(event.occurredAt)}
+                </time>
               </li>
             ))}
           </ol>
@@ -1820,26 +1790,24 @@ function PlannerDraftView(props: {
       <header className="page-header page-header--create">
         <div>
           <button className="back-button" onClick={props.onBack} type="button">
-            ← Goal Contract
+            ← 目标合同
           </button>
           <p className="eyebrow">
-            {props.corporation.name} · approved Goal v{props.goal.version}
+            {props.corporation.name} · 已批准目标版本 {props.goal.version}
           </p>
           <h1 ref={props.headingRef} tabIndex={-1}>
-            Generate Plan draft
+            生成计划草稿
           </h1>
-          <p>
-            Generate a structured draft only. It will remain unvalidated and
-            cannot start execution.
-          </p>
+          <p>这里只生成结构化草稿。草稿仍未验证，不能开始执行。</p>
         </div>
         <div className="status-badge-group">
           <span className="status-badge status-badge--neutral">
-            {operation?.status ?? "NOT_STARTED"}
+            {internalLabel(operation?.status ?? "NOT_STARTED")}
           </span>
           {plan !== undefined && (
             <span className="status-badge status-badge--neutral">
-              {plan.status} · {plan.validationStatus}
+              {internalLabel(plan.status)} ·{" "}
+              {internalLabel(plan.validationStatus)}
             </span>
           )}
         </div>
@@ -1858,9 +1826,9 @@ function PlannerDraftView(props: {
             className="goal-analysis"
             aria-labelledby="planner-provider-title"
           >
-            <h2 id="planner-provider-title">Provider and exact model</h2>
+            <h2 id="planner-provider-title">模型服务商和准确模型</h2>
             <label className="field">
-              Verified Provider / model
+              已验证的模型服务商 / 模型
               <select
                 disabled={generating || props.saving}
                 onChange={(event) =>
@@ -1868,7 +1836,7 @@ function PlannerDraftView(props: {
                 }
                 value={props.selectedProviderId ?? ""}
               >
-                <option value="">Choose explicitly</option>
+                <option value="">请明确选择</option>
                 {props.providers.map((provider) => (
                   <option key={provider.id} value={provider.id}>
                     {provider.name} · {provider.selectedModelId}
@@ -1877,14 +1845,14 @@ function PlannerDraftView(props: {
               </select>
             </label>
             <div className="disclosure-card">
-              <h3>Data sent to this Provider</h3>
+              <h3>将发送给该模型服务商的数据</h3>
               <ul>
-                <li>The current approved Goal Contract</li>
-                <li>Built-in capability, tool, and media-type allowlists</li>
+                <li>当前已批准的目标合同</li>
+                <li>软件内置的能力、工具和媒体类型允许列表</li>
               </ul>
               <p>
-                Not sent: Workspace path, directory listing, files, API Key, or
-                any unapproved Goal version.
+                不会发送：工作区路径、目录列表、文件、API Key
+                或任何未批准的目标版本。
               </p>
             </div>
             <div className="analysis-actions">
@@ -1898,7 +1866,7 @@ function PlannerDraftView(props: {
                 onClick={() => void props.onStart()}
                 type="button"
               >
-                {generating ? "Generating…" : "Generate unvalidated draft"}
+                {generating ? "正在生成…" : "生成尚未验证的草稿"}
               </button>
               {generating && (
                 <button
@@ -1906,7 +1874,7 @@ function PlannerDraftView(props: {
                   onClick={() => void props.onCancel()}
                   type="button"
                 >
-                  Cancel
+                  取消
                 </button>
               )}
             </div>
@@ -1915,11 +1883,10 @@ function PlannerDraftView(props: {
       {plan !== undefined && (
         <>
           <section className="warning-card" role="status">
-            <h2>Unvalidated Plan draft</h2>
+            <h2>尚未验证的计划草稿</h2>
             <p>
-              DAG, references, input/output closure, leaf acceptance, budget,
-              permissions, and task size have not been validated. No team has
-              been created and execution is unavailable.
+              DAG（有向无环图）、引用、输入输出闭合、末端任务验收、预算、权限和任务大小
+              均未验证。团队尚未创建，目前不能执行。
             </p>
           </section>
           <section
@@ -1928,37 +1895,37 @@ function PlannerDraftView(props: {
           >
             <h2 id="plan-summary-title">{plan.summary}</h2>
             <p>
-              Plan v{plan.planVersion} · {plannerUsageLabel(plan.usage)}
+              计划版本 {plan.planVersion} · {plannerUsageLabel(plan.usage)}
             </p>
             <div className="plan-task-list">
               {plan.tasks.map((task) => (
                 <article className="review-block" key={task.id}>
                   <p className="eyebrow">
-                    {task.localId} · {task.kind}
+                    {task.localId} · {internalLabel(task.kind)}
                   </p>
                   <h3>{task.title}</h3>
                   <p>{task.objective}</p>
                   <p>
-                    Suggested role: <strong>{task.suggestedRole}</strong> · not
-                    staffed
+                    建议角色：<strong>{task.suggestedRole}</strong> ·
+                    尚未安排人员
                   </p>
                   <p>
-                    Capabilities:{" "}
+                    能力要求：{" "}
                     {task.requiredCapabilities.length === 0
-                      ? "None declared"
+                      ? "没有填写"
                       : task.requiredCapabilities
                           .map(({ path }) => path)
                           .join(", ")}
                   </p>
                   <p>
-                    Outputs:{" "}
+                    预期输出：{" "}
                     {task.expectedOutputs.length === 0
-                      ? "None declared"
+                      ? "没有填写"
                       : task.expectedOutputs
                           .map(({ logicalName }) => logicalName)
                           .join(", ")}
                   </p>
-                  <p>Acceptance criteria: {task.acceptanceCriteria.length}</p>
+                  <p>验收标准：{task.acceptanceCriteria.length} 项</p>
                 </article>
               ))}
             </div>
@@ -1970,15 +1937,15 @@ function PlannerDraftView(props: {
       ) && (
         <section className="error-state" role="status">
           <div>
-            <p className="eyebrow">No Plan was saved</p>
-            <h2>{operation?.status}</h2>
+            <p className="eyebrow">没有保存计划</p>
+            <h2>{internalLabel(operation?.status ?? "")}</h2>
             {operation?.failureReason !== undefined && (
               <p>
-                Reason: {plannerFailureReasonLabel(operation.failureReason)} (
-                <code>{operation.failureReason}</code>)
+                原因：{plannerFailureReasonLabel(operation.failureReason)}（
+                <code>{operation.failureReason}</code>）
               </p>
             )}
-            <p>Return to the approved Goal and start a new explicit attempt.</p>
+            <p>请返回已批准的目标，再明确发起一次新的尝试。</p>
           </div>
         </section>
       )}
@@ -2014,7 +1981,7 @@ function WorkspaceError(props: {
   return (
     <section className="error-state" role="alert">
       <div>
-        <p className="eyebrow">Action required</p>
+        <p className="eyebrow">需要处理</p>
         <h2>{props.title}</h2>
         <p>{workspaceErrorMessage(props.code)}</p>
       </div>
@@ -2025,26 +1992,20 @@ function WorkspaceError(props: {
 
 function GoalError({ code }: { readonly code: GoalContractErrorCode }) {
   const messages: Record<GoalContractErrorCode, string> = {
-    VALIDATION_FAILED:
-      "Complete the required fields and remove duplicate or invalid values.",
-    UNAUTHORIZED_CALLER:
-      "The request did not come from the trusted app window.",
-    CORPORATION_NOT_FOUND:
-      "The Corporation no longer exists. Return to Dashboard.",
-    VERSION_CONFLICT: "The Goal Contract changed. Reload it before retrying.",
-    STATE_CONFLICT: "The Corporation state no longer permits this action.",
-    ASSUMPTION_CONFIRMATION_REQUIRED:
-      "Confirm every high-impact assumption before approving.",
-    COMMAND_CONFLICT:
-      "This command identity was already used for different input.",
-    STORAGE_UNAVAILABLE:
-      "Local storage is unavailable. Input is retained; retry after recovery.",
+    VALIDATION_FAILED: "请填写必填内容，并删除重复或无效的值。",
+    UNAUTHORIZED_CALLER: "该请求不是来自可信的软件窗口。",
+    CORPORATION_NOT_FOUND: "该公司已不存在，请返回控制台。",
+    VERSION_CONFLICT: "目标合同已经变化，请重新加载后再试。",
+    STATE_CONFLICT: "公司当前状态不允许执行此操作。",
+    ASSUMPTION_CONFIRMATION_REQUIRED: "批准前请确认每一项高影响假设。",
+    COMMAND_CONFLICT: "本次命令编号已被其他输入使用，请重新操作。",
+    STORAGE_UNAVAILABLE: "本地存储不可用，输入内容仍然保留。恢复后请重试。",
   };
   return (
     <section className="error-state" role="alert">
       <div>
-        <p className="eyebrow">Goal Contract not changed</p>
-        <h2>Action needs attention</h2>
+        <p className="eyebrow">目标合同没有改变</p>
+        <h2>此操作需要处理</h2>
         <p>{messages[code]}</p>
       </div>
       <code>{code}</code>
@@ -2055,27 +2016,22 @@ function GoalError({ code }: { readonly code: GoalContractErrorCode }) {
 function GoalEngineError({ code }: { readonly code: GoalEngineErrorCode }) {
   const messages: Record<GoalEngineErrorCode, string> = {
     VALIDATION_FAILED:
-      "Choose an available Workspace and verified Provider, then enter Corporation name and Goal.",
-    UNAUTHORIZED_CALLER:
-      "The request did not come from the trusted app window.",
-    NOT_FOUND: "The Goal analysis resource no longer exists.",
+      "请选择可用的工作区和已验证的模型服务商，然后填写公司名称和目标。",
+    UNAUTHORIZED_CALLER: "该请求不是来自可信的软件窗口。",
+    NOT_FOUND: "目标分析记录已不存在。",
     VERSION_CONFLICT:
-      "Corporation, Goal, Provider, or analysis facts changed. Reload before retrying.",
-    STATE_CONFLICT:
-      "The current Goal analysis state does not allow this action.",
-    INCOMPLETE_ANSWERS:
-      "Answer every current high-impact question before continuing.",
-    PROVIDER_UNAVAILABLE:
-      "The selected Provider, key, verification, or model is no longer available.",
-    CANCELLED: "Goal analysis was cancelled; no Goal was saved.",
-    STORAGE_UNAVAILABLE:
-      "Goal analysis storage is unavailable; no success is assumed.",
+      "公司、目标、模型服务商或分析依据已经变化，请重新加载后再试。",
+    STATE_CONFLICT: "目标分析的当前状态不允许执行此操作。",
+    INCOMPLETE_ANSWERS: "继续前请回答当前全部高影响问题。",
+    PROVIDER_UNAVAILABLE: "所选模型服务商、API Key、验证结果或模型已不可用。",
+    CANCELLED: "目标分析已取消，没有保存目标。",
+    STORAGE_UNAVAILABLE: "目标分析存储不可用，不能认为操作成功。",
   };
   return (
     <section className="error-state" role="alert">
       <div>
-        <p className="eyebrow">Goal analysis not completed</p>
-        <h2>Action needs attention</h2>
+        <p className="eyebrow">目标分析未完成</p>
+        <h2>此操作需要处理</h2>
         <p>{messages[code]}</p>
       </div>
       <code>{code}</code>
@@ -2085,28 +2041,23 @@ function GoalEngineError({ code }: { readonly code: GoalEngineErrorCode }) {
 
 function PlannerError({ code }: { readonly code: PlannerErrorCode }) {
   const messages: Record<PlannerErrorCode, string> = {
-    VALIDATION_FAILED:
-      "Choose an available verified Provider and its exact selected model.",
-    UNAUTHORIZED_CALLER:
-      "The request did not come from the trusted app window.",
-    NOT_FOUND: "The planning resource no longer exists.",
+    VALIDATION_FAILED: "请选择可用且已验证的模型服务商和准确模型。",
+    UNAUTHORIZED_CALLER: "该请求不是来自可信的软件窗口。",
+    NOT_FOUND: "规划记录已不存在。",
     VERSION_CONFLICT:
-      "The Corporation, approved Goal, Provider, or model changed. Reload before retrying.",
-    STATE_CONFLICT:
-      "Planning requires the current approved Goal and no existing active Plan.",
-    PROVIDER_UNAVAILABLE:
-      "The selected Provider, key, verification, or exact model is unavailable.",
+      "公司、已批准目标、模型服务商或模型已经变化，请重新加载后再试。",
+    STATE_CONFLICT: "开始规划需要当前已批准的目标，并且不能已有活动计划。",
+    PROVIDER_UNAVAILABLE: "所选模型服务商、API Key、验证结果或准确模型不可用。",
     INPUT_TOO_LARGE:
-      "The approved Goal exceeds the safe request limit. No data was sent and no Plan was saved.",
-    CANCELLED: "Plan generation was cancelled; no Plan was saved.",
-    STORAGE_UNAVAILABLE:
-      "Planner storage is unavailable; no saved Plan is assumed.",
+      "已批准目标超过安全请求上限。没有发送数据，也没有保存计划。",
+    CANCELLED: "计划生成已取消，没有保存计划。",
+    STORAGE_UNAVAILABLE: "规划存储不可用，不能认为计划已经保存。",
   };
   return (
     <section className="error-state" role="alert">
       <div>
-        <p className="eyebrow">Plan draft not created</p>
-        <h2>Action needs attention</h2>
+        <p className="eyebrow">没有创建计划草稿</p>
+        <h2>此操作需要处理</h2>
         <p>{messages[code]}</p>
       </div>
       <code>{code}</code>
@@ -2120,25 +2071,20 @@ function CorporationStateError({
   readonly code: CorporationErrorCode;
 }) {
   const messages: Record<CorporationErrorCode, string> = {
-    VALIDATION_FAILED: "The pause or resume request was invalid.",
-    UNAUTHORIZED_CALLER:
-      "The request did not come from the trusted app window.",
-    WORKSPACE_UNAVAILABLE:
-      "The Workspace is unavailable. Revalidate it before retrying.",
-    NOT_FOUND: "The Corporation no longer exists. Return to Dashboard.",
-    VERSION_CONFLICT:
-      "The Corporation changed. Reload its current state before retrying.",
-    STATE_CONFLICT: "The current Corporation state cannot perform this action.",
-    COMMAND_CONFLICT:
-      "This command identity was already used for different input.",
-    STORAGE_UNAVAILABLE:
-      "Local state storage is unavailable. No pause or resume was confirmed.",
+    VALIDATION_FAILED: "暂停或继续请求无效。",
+    UNAUTHORIZED_CALLER: "该请求不是来自可信的软件窗口。",
+    WORKSPACE_UNAVAILABLE: "工作区不可用，请重新验证后再试。",
+    NOT_FOUND: "该公司已不存在，请返回控制台。",
+    VERSION_CONFLICT: "公司已经变化，请重新加载当前状态后再试。",
+    STATE_CONFLICT: "公司当前状态不能执行此操作。",
+    COMMAND_CONFLICT: "本次命令编号已被其他输入使用，请重新操作。",
+    STORAGE_UNAVAILABLE: "本地状态存储不可用，无法确认暂停或继续成功。",
   };
   return (
     <section className="error-state" role="alert">
       <div>
-        <p className="eyebrow">Corporation state not changed</p>
-        <h2>Pause or resume failed</h2>
+        <p className="eyebrow">公司状态没有改变</p>
+        <h2>暂停或继续失败</h2>
         <p>{messages[code]}</p>
       </div>
       <code>{code}</code>
@@ -2148,10 +2094,8 @@ function CorporationStateError({
 
 function nativeCoreStatusLabel(state: NativeCoreState): string {
   if (state.status === "ready")
-    return `Native Core ready · v${state.result.version}`;
-  return state.status === "loading"
-    ? "Native Core starting"
-    : "Native Core unavailable";
+    return `本地核心已就绪 · 版本 ${state.result.version}`;
+  return state.status === "loading" ? "本地核心正在启动" : "本地核心不可用";
 }
 
 function lines(value: string): string[] {
@@ -2176,16 +2120,16 @@ function isGoalProviderAvailable(provider: ProviderPublic): boolean {
 function usageLabel(usage: GoalEngineOperationPublic["usage"]): string {
   const input = usage.inputTokens === undefined ? "?" : usage.inputTokens;
   const output = usage.outputTokens === undefined ? "?" : usage.outputTokens;
-  return `usage ${input} input / ${output} output tokens · cost ${
-    usage.costMicros === undefined ? "unknown" : `${usage.costMicros} µUSD`
+  return `用量：输入 ${input} / 输出 ${output} 个 token · 费用：${
+    usage.costMicros === undefined ? "未知" : `${usage.costMicros} µUSD`
   }`;
 }
 
 function plannerUsageLabel(usage: PlannerOperationPublic["usage"]): string {
   const input = usage.inputTokens === undefined ? "?" : usage.inputTokens;
   const output = usage.outputTokens === undefined ? "?" : usage.outputTokens;
-  return `${input} input / ${output} output tokens · cost ${
-    usage.costMicros === undefined ? "unknown" : `${usage.costMicros} µUSD`
+  return `输入 ${input} / 输出 ${output} 个 token · 费用：${
+    usage.costMicros === undefined ? "未知" : `${usage.costMicros} µUSD`
   }`;
 }
 
@@ -2196,13 +2140,12 @@ function plannerFailureReasonLabel(
     NonNullable<PlannerOperationPublic["failureReason"]>,
     string
   > = {
-    PROVIDER_FAILURE: "The Provider request failed",
-    INVALID_MODEL_OUTPUT: "The initial output and one repair were invalid",
-    INPUT_TOO_LARGE: "The approved Goal exceeded the safe input limit",
-    PROVIDER_UNAVAILABLE:
-      "The bound Provider or exact model became unavailable",
-    VERSION_CONFLICT: "Bound planning facts changed before the draft was saved",
-    STORAGE_UNAVAILABLE: "Local Planner storage failed",
+    PROVIDER_FAILURE: "模型服务商请求失败",
+    INVALID_MODEL_OUTPUT: "第一次输出和一次修复结果都无效",
+    INPUT_TOO_LARGE: "已批准目标超过安全输入上限",
+    PROVIDER_UNAVAILABLE: "已绑定的模型服务商或准确模型变得不可用",
+    VERSION_CONFLICT: "保存草稿前，规划依据已经变化",
+    STORAGE_UNAVAILABLE: "本地规划存储失败",
   };
   return labels[reason];
 }
@@ -2258,17 +2201,15 @@ function budgetLabel(goal: GoalContractPublic): string {
   const values = [
     goal.budget.costLimitMicros === undefined
       ? undefined
-      : `Cost ${goal.budget.costLimitMicros} μ`,
+      : `费用 ${goal.budget.costLimitMicros} μ`,
     goal.budget.durationLimitMinutes === undefined
       ? undefined
-      : `Duration ${goal.budget.durationLimitMinutes} min`,
+      : `时长 ${goal.budget.durationLimitMinutes} 分钟`,
     goal.budget.maxRevisions === undefined
       ? undefined
-      : `Revisions ${goal.budget.maxRevisions}`,
+      : `最多修改 ${goal.budget.maxRevisions} 次`,
   ].filter((value): value is string => value !== undefined);
-  return values.length === 0
-    ? "No task-level budget overrides"
-    : values.join(" · ");
+  return values.length === 0 ? "没有单独设置任务预算" : values.join(" · ");
 }
 
 function mapCorporationError(code: string): GoalContractErrorCode {

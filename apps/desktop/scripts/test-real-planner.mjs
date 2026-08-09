@@ -93,7 +93,7 @@ try {
           outOfScope: ["Execution", "Workspace access"],
           constraints: ["Do not execute tasks"],
           assumptions: [],
-          deliverables: ["Unvalidated Plan draft"],
+          deliverables: ["尚未验证的计划草稿"],
           riskLevel: "LOW",
           budget: { maxRevisions: 1 },
           stopConditions: ["Stop after saving the draft"],
@@ -128,14 +128,12 @@ try {
 
   await page.reload();
   const card = page.locator("article").filter({ hasText: smokeName });
-  await card.getByRole("button", { name: "Open Goal Contract" }).click();
-  await page.getByRole("button", { name: "Start planning setup" }).click();
+  await card.getByRole("button", { name: "打开目标合同" }).click();
+  await page.getByRole("button", { name: "开始规划设置" }).click();
   await page
-    .getByLabel("Verified Provider / model")
+    .getByLabel("已验证的模型服务商 / 模型")
     .selectOption(facts.provider.id);
-  await page
-    .getByRole("button", { name: "Generate unvalidated draft" })
-    .click();
+  await page.getByRole("button", { name: "生成尚未验证的草稿" }).click();
 
   const operation = await waitForPlannerTerminal(page, facts.corporation.id);
   if (
@@ -151,7 +149,7 @@ try {
     );
   }
   await page
-    .getByRole("heading", { name: "Unvalidated Plan draft" })
+    .getByRole("heading", { name: "尚未验证的计划草稿" })
     .waitFor({ state: "visible", timeout: 10_000 });
   const planId = operation.plan.planId;
   await page.screenshot({
@@ -167,9 +165,9 @@ try {
   await page
     .locator("article")
     .filter({ hasText: smokeName })
-    .getByRole("button", { name: "Open Goal Contract" })
+    .getByRole("button", { name: "打开目标合同" })
     .click();
-  await page.getByRole("button", { name: "Start planning setup" }).click();
+  await page.getByRole("button", { name: "开始规划设置" }).click();
   const restored = await page.evaluate(async (corporationId) => {
     const result = await window.desktop.planner.getCurrent({
       schemaVersion: "1.0",
@@ -289,9 +287,7 @@ async function waitForApplicationPage(browser) {
   while (Date.now() < deadline) {
     for (const context of browser.contexts()) {
       for (const page of context.pages()) {
-        if (
-          (await page.getByRole("heading", { name: "Dashboard" }).count()) > 0
-        ) {
+        if ((await page.getByRole("heading", { name: "控制台" }).count()) > 0) {
           return page;
         }
       }

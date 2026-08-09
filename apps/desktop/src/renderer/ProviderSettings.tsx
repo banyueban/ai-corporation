@@ -8,6 +8,7 @@ import type {
 } from "@ai-corporation/protocols";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { providerErrorMessage } from "./provider-settings-view-model";
+import { formatUiTime, internalLabel } from "./ui-labels";
 import { createUuidV7 } from "./uuid-v7";
 
 type FormState = {
@@ -112,7 +113,7 @@ export function ProviderSettings() {
     setActiveTestRequestId(requestId);
     setConnectionError(undefined);
     setShowConnectionDiagnostic(false);
-    setStatus("Testing the saved Endpoint and Key…");
+    setStatus("正在测试已保存的 API 基础 URL 和 API Key…");
     const diagnosticTimer = window.setTimeout(
       () => setShowConnectionDiagnostic(true),
       10_000,
@@ -126,9 +127,7 @@ export function ProviderSettings() {
       });
       if (!result.ok) {
         if (result.error.code === "CANCELLED") {
-          setStatus(
-            "Connection test cancelled. The previous result is unchanged.",
-          );
+          setStatus("连接测试已取消，上一次结果保持不变。");
         } else {
           setConnectionError(connectionOperationMessage(result.error.code));
           setStatus("");
@@ -140,13 +139,11 @@ export function ProviderSettings() {
       setProviders((current) => replaceProvider(current, updated));
       setStatus(
         result.value.status === "VERIFIED"
-          ? `Connection verified. ${result.value.models.length} model${result.value.models.length === 1 ? "" : "s"} found.`
+          ? `连接已验证，找到 ${result.value.models.length} 个模型。`
           : connectionFailureMessage(result.value.failure.reason),
       );
     } catch {
-      setConnectionError(
-        "The connection test could not be completed. Retry from Settings.",
-      );
+      setConnectionError("连接测试未能完成，请在设置页面重试。");
       setStatus("");
     } finally {
       window.clearTimeout(diagnosticTimer);
@@ -163,14 +160,10 @@ export function ProviderSettings() {
         requestId: activeTestRequestId,
       });
       if (!result.ok && result.error.code !== "NOT_FOUND") {
-        setConnectionError(
-          "The connection test cancellation could not be confirmed.",
-        );
+        setConnectionError("无法确认连接测试已经取消。");
       }
     } catch {
-      setConnectionError(
-        "The connection test cancellation could not be confirmed.",
-      );
+      setConnectionError("无法确认连接测试已经取消。");
     }
   };
 
@@ -182,7 +175,7 @@ export function ProviderSettings() {
     setGenerationError(undefined);
     setShowGenerationDiagnostic(false);
     setStatus(
-      `Generating a low-risk test with ${editing.selectedModelId ?? "the selected model"}…`,
+      `正在使用 ${editing.selectedModelId ?? "所选模型"} 进行低风险生成测试…`,
     );
     const diagnosticTimer = window.setTimeout(
       () => setShowGenerationDiagnostic(true),
@@ -210,9 +203,7 @@ export function ProviderSettings() {
       });
       if (!result.ok) {
         if (result.error.code === "CANCELLED") {
-          setStatus(
-            "Generation test cancelled. The previous result is unchanged.",
-          );
+          setStatus("生成测试已取消，上一次结果保持不变。");
         } else {
           setGenerationError(generationOperationMessage(result.error.code));
           setStatus("");
@@ -224,13 +215,11 @@ export function ProviderSettings() {
       setProviders((current) => replaceProvider(current, updated));
       setStatus(
         result.value.status === "SUCCEEDED"
-          ? "Generation test succeeded. Normalized usage was saved."
+          ? "生成测试成功，已保存统一格式的用量数据。"
           : generationFailureMessage(result.value.failure.reason),
       );
     } catch {
-      setGenerationError(
-        "The generation test could not be completed safely. Retry from Settings.",
-      );
+      setGenerationError("生成测试未能安全完成，请在设置页面重试。");
       setStatus("");
     } finally {
       window.clearTimeout(diagnosticTimer);
@@ -247,12 +236,10 @@ export function ProviderSettings() {
         requestId: activeGenerationRequestId,
       });
       if (!result.ok && result.error.code !== "NOT_FOUND") {
-        setGenerationError(
-          "The generation cancellation could not be confirmed.",
-        );
+        setGenerationError("无法确认生成测试已经取消。");
       }
     } catch {
-      setGenerationError("The generation cancellation could not be confirmed.");
+      setGenerationError("无法确认生成测试已经取消。");
     }
   };
 
@@ -308,7 +295,7 @@ export function ProviderSettings() {
       }));
       setShowKey(false);
       setStatus(
-        editing === undefined ? "Provider saved." : "Provider updated.",
+        editing === undefined ? "模型服务商已保存。" : "模型服务商已更新。",
       );
     } catch {
       setError("STORAGE_UNAVAILABLE");
@@ -339,7 +326,7 @@ export function ProviderSettings() {
       }
       setForm((current) => ({ ...current, key: result.value.key }));
       setShowKey(true);
-      setStatus("Key is visible for this page only.");
+      setStatus("API Key 只在当前页面临时显示。");
     } catch {
       setError("STORAGE_UNAVAILABLE");
     } finally {
@@ -352,7 +339,7 @@ export function ProviderSettings() {
       editing === undefined ||
       !editing.hasKey ||
       !window.confirm(
-        `Delete the saved Key for “${editing.name}”? The Provider will remain configured.`,
+        `要删除“${editing.name}”已保存的 API Key 吗？模型服务商配置会继续保留。`,
       )
     ) {
       return;
@@ -375,7 +362,7 @@ export function ProviderSettings() {
       setForm((current) => ({ ...current, key: "" }));
       setShowKey(false);
       setStatus(
-        "Saved Key deleted. Provider calls are blocked until a new Key is saved.",
+        "已删除保存的 API Key。保存新的 API Key 前，软件不会调用该模型服务商。",
       );
     } catch {
       setError("STORAGE_UNAVAILABLE");
@@ -388,14 +375,13 @@ export function ProviderSettings() {
     <section aria-labelledby="provider-settings-title">
       <header className="page-header page-header--create">
         <div>
-          <p className="eyebrow">Settings / Providers</p>
+          <p className="eyebrow">设置 / 模型服务商</p>
           <h1 id="provider-settings-title" ref={headingRef} tabIndex={-1}>
-            Provider credentials
+            模型服务商凭据
           </h1>
           <p>
-            Keys are encrypted by AI Corporation Desktop and stored in its local
-            SQLite database. The local encryption key is app-managed; this is
-            not OS secure storage.
+            API Key 由 AI Corporation Desktop 加密，并保存在本地 SQLite
+            数据库中。 本地加密密钥由本软件管理，不使用操作系统安全存储。
           </p>
         </div>
         <button
@@ -403,18 +389,21 @@ export function ProviderSettings() {
           onClick={startCreate}
           type="button"
         >
-          + Add Provider
+          + 添加模型服务商
         </button>
       </header>
 
       {loading ? (
-        <div aria-label="Loading Providers" className="skeleton-card" />
+        <div aria-label="正在加载模型服务商" className="skeleton-card" />
       ) : (
         <div className="provider-settings-grid">
-          <aside aria-label="Saved Providers" className="provider-list-panel">
-            <h2>Providers</h2>
+          <aside
+            aria-label="已保存的模型服务商"
+            className="provider-list-panel"
+          >
+            <h2>模型服务商</h2>
             {providers.length === 0 ? (
-              <p className="provider-empty">No Provider has been saved.</p>
+              <p className="provider-empty">还没有保存模型服务商。</p>
             ) : (
               <ul>
                 {providers.map((provider) => (
@@ -429,7 +418,7 @@ export function ProviderSettings() {
                     >
                       <strong>{provider.name}</strong>
                       <span>
-                        {provider.hasKey ? "Key saved" : "Key required"}
+                        {provider.hasKey ? "API Key 已保存" : "需要 API Key"}
                       </span>
                     </button>
                   </li>
@@ -441,34 +430,34 @@ export function ProviderSettings() {
           <form className="provider-form" onSubmit={save}>
             <div>
               <p className="eyebrow">
-                {editing === undefined ? "New Provider" : "Edit Provider"}
+                {editing === undefined ? "新建模型服务商" : "编辑模型服务商"}
               </p>
-              <h2>{editing?.name ?? "OpenAI-compatible Provider"}</h2>
+              <h2>{editing?.name ?? "兼容 OpenAI API 的模型服务商"}</h2>
             </div>
 
             {error !== undefined && (
               <div className="provider-error" role="alert">
-                <strong>Provider change was not completed.</strong>
+                <strong>模型服务商修改未完成。</strong>
                 <p>{providerErrorMessage(error)}</p>
               </div>
             )}
 
             {connectionError !== undefined && (
               <div className="provider-error" role="alert">
-                <strong>Connection test was not completed.</strong>
+                <strong>连接测试未完成。</strong>
                 <p>{connectionError}</p>
               </div>
             )}
 
             {generationError !== undefined && (
               <div className="provider-error" role="alert">
-                <strong>Generation test was not completed.</strong>
+                <strong>生成测试未完成。</strong>
                 <p>{generationError}</p>
               </div>
             )}
 
             <label className="field">
-              <span>Name</span>
+              <span>名称</span>
               <input
                 autoComplete="off"
                 maxLength={200}
@@ -478,7 +467,7 @@ export function ProviderSettings() {
               />
             </label>
             <label className="field">
-              <span>Endpoint</span>
+              <span>API 基础 URL</span>
               <input
                 aria-describedby={
                   endpointError === undefined
@@ -503,17 +492,17 @@ export function ProviderSettings() {
               )}
             </label>
             <label className="field">
-              <span>Status</span>
+              <span>状态</span>
               <select
                 onChange={(event) => update("configStatus", event.target.value)}
                 value={form.configStatus}
               >
-                <option value="ENABLED">Enabled</option>
-                <option value="DISABLED">Disabled</option>
+                <option value="ENABLED">已启用</option>
+                <option value="DISABLED">已停用</option>
               </select>
             </label>
             <label className="field">
-              <span>Model</span>
+              <span>模型</span>
               <select
                 disabled={editing?.connectionTest?.status !== "VERIFIED"}
                 onChange={(event) =>
@@ -521,7 +510,7 @@ export function ProviderSettings() {
                 }
                 value={form.selectedModelId}
               >
-                <option value="">Select a verified model</option>
+                <option value="">选择已验证的模型</option>
                 {editing?.connectionTest?.status === "VERIFIED" &&
                   editing.connectionTest.models.map((model) => (
                     <option key={model.id} value={model.id}>
@@ -530,12 +519,11 @@ export function ProviderSettings() {
                   ))}
               </select>
               <small>
-                Only models returned by the current verified connection can be
-                selected. The app never substitutes another model.
+                只能选择当前已验证连接返回的模型。软件绝不会擅自替换成其他模型。
               </small>
             </label>
             <label className="field">
-              <span>Generation timeout (seconds)</span>
+              <span>生成超时（秒）</span>
               <input
                 inputMode="numeric"
                 max={300}
@@ -548,7 +536,7 @@ export function ProviderSettings() {
                 type="number"
                 value={form.generationTimeoutSeconds}
               />
-              <small>Allowed range: 5–300 seconds. Default: 60.</small>
+              <small>可设置 5–300 秒，默认 60 秒。</small>
             </label>
             <div className="field">
               <label htmlFor="provider-api-key">API Key</label>
@@ -560,8 +548,8 @@ export function ProviderSettings() {
                   onChange={(event) => update("key", event.target.value)}
                   placeholder={
                     editing?.hasKey === true
-                      ? "Saved Key remains unchanged"
-                      : "Enter API Key"
+                      ? "留空则不修改已保存的 API Key"
+                      : "输入 API Key"
                   }
                   required={editing === undefined || editing.hasKey === false}
                   type={showKey ? "text" : "password"}
@@ -577,13 +565,12 @@ export function ProviderSettings() {
                   onClick={() => void toggleReveal()}
                   type="button"
                 >
-                  {showKey ? "Hide" : "Show"}
+                  {showKey ? "隐藏" : "查看"}
                 </button>
               </div>
               <small id="key-storage-note">
-                The Key is masked by default. Show returns the saved plaintext
-                only after your explicit action; leaving this page masks it
-                again.
+                API Key
+                默认隐藏。只有你主动点击“查看”后才显示已保存的明文；离开本页面后会再次隐藏。
               </small>
             </div>
 
@@ -594,10 +581,10 @@ export function ProviderSettings() {
                 type="submit"
               >
                 {pending
-                  ? "Saving…"
+                  ? "正在保存…"
                   : editing === undefined
-                    ? "Save Provider"
-                    : "Save changes"}
+                    ? "保存模型服务商"
+                    : "保存修改"}
               </button>
               {editing?.hasKey === true && (
                 <button
@@ -606,7 +593,7 @@ export function ProviderSettings() {
                   onClick={() => void deleteKey()}
                   type="button"
                 >
-                  Delete saved Key
+                  删除已保存的 API Key
                 </button>
               )}
             </div>
@@ -669,18 +656,17 @@ function ConnectionTestPanel(props: {
       className="provider-connection-panel"
     >
       <div>
-        <p className="eyebrow">Connection test</p>
+        <p className="eyebrow">连接测试</p>
         <h3 id="provider-connection-title">
-          {props.testing ? "Testing" : connectionLabel(props.snapshot)}
+          {props.testing ? "正在测试" : connectionLabel(props.snapshot)}
         </h3>
       </div>
       {props.testing ? (
         <>
-          <p>The app is checking the saved Endpoint, Key and model list.</p>
+          <p>软件正在检查已保存的 API 基础 URL、API Key 和模型列表。</p>
           {props.diagnostic && (
             <p role="status">
-              This is taking longer than 10 seconds. The request will time out
-              after 15 seconds; you can cancel it now.
+              已经超过 10 秒。请求会在 15 秒后超时；你现在可以取消。
             </p>
           )}
           <button
@@ -688,7 +674,7 @@ function ConnectionTestPanel(props: {
             onClick={props.onCancel}
             type="button"
           >
-            Cancel test
+            取消测试
           </button>
         </>
       ) : (
@@ -700,7 +686,7 @@ function ConnectionTestPanel(props: {
             onClick={props.onTest}
             type="button"
           >
-            Test connection
+            测试连接
           </button>
         </>
       )}
@@ -713,13 +699,13 @@ function ConnectionSnapshot(props: {
 }) {
   if (props.snapshot.status === "UNVERIFIED") {
     return (
-      <p>Not verified. Save a Key, then test before using this Provider.</p>
+      <p>尚未验证。请先保存 API Key，再进行测试，然后才能使用该模型服务商。</p>
     );
   }
   if (props.snapshot.status === "FAILED") {
     return (
       <p>
-        {connectionFailureMessage(props.snapshot.failure.reason)} Tested{" "}
+        {connectionFailureMessage(props.snapshot.failure.reason)} 测试时间：{" "}
         {formatTestTime(props.snapshot.testedAt)}.
       </p>
     );
@@ -727,9 +713,8 @@ function ConnectionSnapshot(props: {
   return (
     <div>
       <p>
-        Verified {formatTestTime(props.snapshot.testedAt)}. Found{" "}
-        {props.snapshot.models.length} model
-        {props.snapshot.models.length === 1 ? "" : "s"}.
+        已于 {formatTestTime(props.snapshot.testedAt)} 验证，找到{" "}
+        {props.snapshot.models.length} 个模型。
       </p>
       {props.snapshot.models.length > 0 && (
         <ul className="provider-model-list">
@@ -757,21 +742,20 @@ function GenerationTestPanel(props: {
       className="provider-generation-panel"
     >
       <div>
-        <p className="eyebrow">Generation test</p>
+        <p className="eyebrow">生成测试</p>
         <h3 id="provider-generation-title">
-          {props.testing ? "Generating" : generationLabel(props.snapshot)}
+          {props.testing ? "正在生成" : generationLabel(props.snapshot)}
         </h3>
       </div>
       {props.testing ? (
         <>
           <p>
-            The app is sending a fixed, non-sensitive, non-streaming test with
-            the saved Provider and exact selected model.
+            软件正在使用已保存的模型服务商和准确模型发送固定的、非敏感的非流式测试。
           </p>
           {props.diagnostic && (
             <p role="status">
-              This is taking longer than 10 seconds. The configured deadline is
-              {` ${props.timeoutSeconds} seconds`}; you can cancel it now.
+              已经超过 10 秒。当前超时设置为
+              {` ${props.timeoutSeconds} 秒`}；你现在可以取消。
             </p>
           )}
           <button
@@ -779,7 +763,7 @@ function GenerationTestPanel(props: {
             onClick={props.onCancel}
             type="button"
           >
-            Cancel generation
+            取消生成
           </button>
         </>
       ) : (
@@ -794,7 +778,7 @@ function GenerationTestPanel(props: {
             onClick={props.onTest}
             type="button"
           >
-            Test generation
+            测试生成
           </button>
         </>
       )}
@@ -807,7 +791,7 @@ function GenerationSnapshot(props: {
   readonly timeoutSeconds: number;
 }) {
   if (props.snapshot.status === "IDLE") {
-    return <p>Select and save a verified model before testing generation.</p>;
+    return <p>测试生成前，请先选择并保存一个已验证的模型。</p>;
   }
   if (props.snapshot.status === "FAILED") {
     return (
@@ -816,18 +800,19 @@ function GenerationSnapshot(props: {
           props.snapshot.failure.reason,
           props.timeoutSeconds,
         )}{" "}
-        Completed {formatTestTime(props.snapshot.completedAt)}.
+        完成时间：{formatTestTime(props.snapshot.completedAt)}。
       </p>
     );
   }
   return (
     <div className="provider-generation-result">
       <p>
-        Completed {formatTestTime(props.snapshot.completedAt)} with{" "}
-        {props.snapshot.modelId}. Stop: {props.snapshot.stopReason}.
+        已于 {formatTestTime(props.snapshot.completedAt)} 使用{" "}
+        {props.snapshot.modelId} 完成。停止原因：
+        {internalLabel(props.snapshot.stopReason)}。
       </p>
       <blockquote>{props.snapshot.outputPreview}</blockquote>
-      <p>{formatUsage(props.snapshot.usage)} Cost unknown.</p>
+      <p>{formatUsage(props.snapshot.usage)} 费用未知。</p>
     </div>
   );
 }
@@ -835,9 +820,9 @@ function GenerationSnapshot(props: {
 export function generationLabel(
   snapshot: ProviderGenerationTestSnapshot,
 ): string {
-  if (snapshot.status === "SUCCEEDED") return "Generation succeeded";
-  if (snapshot.status === "FAILED") return "Generation failed";
-  return "Not tested";
+  if (snapshot.status === "SUCCEEDED") return "生成成功";
+  if (snapshot.status === "FAILED") return "生成失败";
+  return "尚未测试";
 }
 
 export function generationFailureMessage(
@@ -845,114 +830,89 @@ export function generationFailureMessage(
   timeoutSeconds = 60,
 ): string {
   if (reason === "MODEL_NOT_FOUND") {
-    return "The exact selected model is unavailable. Test the connection and select a listed model.";
+    return "准确选择的模型不可用。请重新测试连接，并从返回列表中选择模型。";
   }
   if (reason === "CONTENT_FILTER") {
-    return "The Provider blocked the fixed test under its content policy. No output was saved.";
+    return "模型服务商根据其内容政策拦截了固定测试，没有保存输出。";
   }
   if (reason === "TIMEOUT") {
-    return `The Provider did not respond within ${timeoutSeconds} seconds. Check the network and retry.`;
+    return `模型服务商在 ${timeoutSeconds} 秒内没有响应。请检查网络后重试。`;
   }
-  return connectionFailureMessage(reason).replace("test", "generation");
+  return connectionFailureMessage(reason);
 }
 
 export function generationOperationMessage(code: string): string {
   const messages: Record<string, string> = {
-    NOT_FOUND: "The Provider no longer exists. Reload Settings.",
-    CONFLICT:
-      "The Provider changed during generation. Reload and test the current version.",
-    MISSING_KEY: "No saved Key is available. Save a Key before generating.",
-    DISABLED:
-      "This Provider is disabled. Enable and save it before generating.",
-    UNVERIFIED:
-      "The current Provider configuration is not verified. Test the connection first.",
-    MODEL_NOT_SELECTED:
-      "No model is selected. Choose and save an exact verified model.",
-    MODEL_STALE:
-      "The selected model is no longer in the verified list. Test and select again.",
-    ALREADY_GENERATING: "This generation request is already running.",
+    NOT_FOUND: "模型服务商已不存在，请重新加载设置页面。",
+    CONFLICT: "生成期间模型服务商配置发生变化，请重新加载并测试当前版本。",
+    MISSING_KEY: "没有可用的 API Key，请保存后再生成。",
+    DISABLED: "该模型服务商已停用，请启用并保存后再生成。",
+    UNVERIFIED: "当前模型服务商配置尚未验证，请先测试连接。",
+    MODEL_NOT_SELECTED: "尚未选择模型，请选择并保存一个准确的已验证模型。",
+    MODEL_STALE: "所选模型已不在验证列表中，请重新测试并选择。",
+    ALREADY_GENERATING: "该生成请求已经在运行。",
     VAULT_KEY_UNAVAILABLE:
-      "The app-managed local encryption key is unavailable. Restore it or replace the Provider Key.",
-    VAULT_INTEGRITY_FAILED:
-      "The saved Key could not be authenticated. Delete it and enter the Key again.",
-    STORAGE_UNAVAILABLE:
-      "The generation result could not be stored. No success was recorded; retry.",
+      "软件自管的本地加密密钥不可用。请恢复它，或替换模型服务商的 API Key。",
+    VAULT_INTEGRITY_FAILED: "无法验证已保存的 API Key。请删除后重新输入。",
+    STORAGE_UNAVAILABLE: "无法保存生成结果，系统没有记录成功，请重试。",
   };
-  return (
-    messages[code] ??
-    "The generation test could not be completed safely. Retry from Settings."
-  );
+  return messages[code] ?? "生成测试未能安全完成，请在设置页面重试。";
 }
 
 function formatUsage(usage: NormalizedUsage): string {
   const values = [
-    `Input ${usage.inputTokens ?? "unknown"}`,
-    `Output ${usage.outputTokens ?? "unknown"}`,
+    `输入 ${usage.inputTokens ?? "未知"}`,
+    `输出 ${usage.outputTokens ?? "未知"}`,
     ...(usage.cachedInputTokens === undefined
       ? []
-      : [`Cached input ${usage.cachedInputTokens}`]),
+      : [`缓存输入 ${usage.cachedInputTokens}`]),
     ...(usage.reasoningTokens === undefined
       ? []
-      : [`Reasoning ${usage.reasoningTokens}`]),
+      : [`推理 ${usage.reasoningTokens}`]),
   ];
-  return `${values.join(" · ")} tokens.`;
+  return `${values.join(" · ")} 个 token。`;
 }
 
 export function connectionLabel(
   snapshot: ProviderConnectionTestSnapshot,
 ): string {
-  if (snapshot.status === "VERIFIED") return "Verified";
-  if (snapshot.status === "FAILED") return "Test failed";
-  return "Not verified";
+  if (snapshot.status === "VERIFIED") return "已验证";
+  if (snapshot.status === "FAILED") return "测试失败";
+  return "尚未验证";
 }
 
 export function connectionFailureMessage(
   reason: ProviderFailureReason,
 ): string {
   const messages: Record<ProviderFailureReason, string> = {
-    AUTHENTICATION:
-      "Authentication failed. Check the saved Key and test again.",
-    PERMISSION:
-      "The Key lacks permission to list models. Check Provider access.",
-    RATE_LIMIT: "The Provider rate-limited the test. Wait, then retry.",
-    QUOTA_EXHAUSTED:
-      "Provider quota is exhausted. Increase quota or use another Provider.",
-    INVALID_REQUEST:
-      "The Endpoint or request is invalid. Check the API base URL.",
-    MODEL_NOT_FOUND:
-      "The requested model is unavailable. Select another model.",
-    CONTENT_FILTER:
-      "The Provider rejected the request under its content policy.",
-    TIMEOUT:
-      "The Provider did not respond within 15 seconds. Check the network and retry.",
-    NETWORK:
-      "The Provider could not be reached. Check the network and Endpoint.",
+    AUTHENTICATION: "身份验证失败。请检查已保存的 API Key，然后重新测试。",
+    PERMISSION: "API Key 没有读取模型列表的权限，请检查模型服务商权限。",
+    RATE_LIMIT: "模型服务商限制了请求频率，请稍后重试。",
+    QUOTA_EXHAUSTED: "模型服务商额度已用完，请增加额度或使用其他模型服务商。",
+    INVALID_REQUEST: "API 基础 URL 或请求无效，请检查 API 基础 URL。",
+    MODEL_NOT_FOUND: "请求的模型不可用，请选择其他模型。",
+    CONTENT_FILTER: "模型服务商根据其内容政策拒绝了请求。",
+    TIMEOUT: "模型服务商在 15 秒内没有响应，请检查网络后重试。",
+    NETWORK: "无法连接模型服务商，请检查网络和 API 基础 URL。",
     PROVIDER_INTERNAL:
-      "The Provider returned an invalid response or internal error. Retry or inspect the Endpoint.",
-    CANCELLED:
-      "The connection test was cancelled. The previous result is unchanged.",
+      "模型服务商返回了无效响应或内部错误，请重试或检查 API 基础 URL。",
+    CANCELLED: "连接测试已取消，上一次结果保持不变。",
   };
   return messages[reason];
 }
 
 export function connectionOperationMessage(code: string): string {
   const messages: Record<string, string> = {
-    NOT_FOUND: "The Provider no longer exists. Reload Settings.",
-    CONFLICT:
-      "The Provider changed during the test. Reload and test the current version.",
-    MISSING_KEY: "No saved Key is available. Save a Key before testing.",
-    ALREADY_TESTING: "This connection test is already running.",
+    NOT_FOUND: "模型服务商已不存在，请重新加载设置页面。",
+    CONFLICT: "测试期间模型服务商配置发生变化，请重新加载并测试当前版本。",
+    MISSING_KEY: "没有可用的 API Key，请保存后再测试。",
+    ALREADY_TESTING: "该连接测试已经在运行。",
     VAULT_KEY_UNAVAILABLE:
-      "The app-managed local encryption key is unavailable. Restore it or replace the Provider Key.",
-    VAULT_INTEGRITY_FAILED:
-      "The saved Key could not be authenticated. Delete it and enter the Key again.",
-    STORAGE_UNAVAILABLE:
-      "The connection result could not be stored. No success was recorded; retry.",
+      "软件自管的本地加密密钥不可用。请恢复它，或替换模型服务商的 API Key。",
+    VAULT_INTEGRITY_FAILED: "无法验证已保存的 API Key。请删除后重新输入。",
+    STORAGE_UNAVAILABLE: "无法保存连接结果，系统没有记录成功，请重试。",
   };
-  return (
-    messages[code] ??
-    "The connection test could not be completed safely. Retry from Settings."
-  );
+  return messages[code] ?? "连接测试未能安全完成，请在设置页面重试。";
 }
 
 export function validateProviderEndpointForUi(
@@ -962,10 +922,10 @@ export function validateProviderEndpointForUi(
   try {
     url = new URL(endpoint);
   } catch {
-    return "Enter a valid HTTP(S) API base URL.";
+    return "请输入有效的 HTTP(S) API 基础 URL。";
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") {
-    return "Only HTTP(S) API base URLs are supported.";
+    return "只支持 HTTP(S) API 基础 URL。";
   }
   if (
     url.username !== "" ||
@@ -973,7 +933,7 @@ export function validateProviderEndpointForUi(
     url.search !== "" ||
     url.hash !== ""
   ) {
-    return "Remove URL credentials, query parameters, and fragments from the Endpoint.";
+    return "请删除 URL 中的凭据、查询参数和片段。";
   }
   if (
     url.protocol === "http:" &&
@@ -981,13 +941,13 @@ export function validateProviderEndpointForUi(
       endpoint,
     )
   ) {
-    return "Remote Endpoints must use HTTPS. HTTP is allowed only for exact loopback addresses.";
+    return "远程 API 基础 URL 必须使用 HTTPS；只有准确的本机回环地址可以使用 HTTP。";
   }
   return undefined;
 }
 
 function formatTestTime(value: string): string {
-  return new Date(value).toLocaleString();
+  return formatUiTime(value);
 }
 
 function replaceProvider(

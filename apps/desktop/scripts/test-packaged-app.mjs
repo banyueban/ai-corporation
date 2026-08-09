@@ -65,40 +65,42 @@ try {
   });
 
   await page
-    .getByRole("heading", { name: "Dashboard" })
+    .getByRole("heading", { name: "控制台" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   await page
-    .getByRole("status", { name: /Native Core ready/u })
+    .getByRole("status", { name: /本地核心已就绪/u })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   await page
-    .getByRole("heading", { name: "Create your first Corporation" })
+    .getByRole("heading", { name: "创建第一个公司" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
 
-  await page.getByRole("button", { name: "Settings" }).click();
-  await page.getByLabel("Name").fill("Packaged Provider");
-  await page.getByLabel("Endpoint").fill(`${providerFixture.endpoint}/success`);
+  await page.getByRole("button", { name: "设置" }).click();
+  await page.getByLabel("名称").fill("Packaged Provider");
+  await page
+    .getByLabel("API 基础 URL")
+    .fill(`${providerFixture.endpoint}/success`);
   await page.getByLabel("API Key").fill(providerSecret);
-  await page.getByRole("button", { name: "Save Provider" }).click();
+  await page.getByRole("button", { name: "保存模型服务商" }).click();
   await page
     .locator(".provider-status")
-    .filter({ hasText: "Provider saved." })
+    .filter({ hasText: "模型服务商已保存。" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
-  await page.getByRole("button", { name: "Show" }).click();
+  await page.getByRole("button", { name: "查看" }).click();
   await waitForInputValue(
     page.getByLabel("API Key"),
     providerSecret,
     "Packaged Provider reveal returned the wrong Key",
   );
-  await page.getByRole("button", { name: "Hide" }).click();
+  await page.getByRole("button", { name: "隐藏" }).click();
   await page.getByLabel("API Key").fill(providerReplacement);
-  await page.getByRole("button", { name: "Save changes" }).click();
+  await page.getByRole("button", { name: "保存修改" }).click();
   await page
     .locator(".provider-status")
-    .filter({ hasText: "Provider updated." })
+    .filter({ hasText: "模型服务商已更新。" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
-  await page.getByRole("button", { name: "Test connection" }).click();
+  await page.getByRole("button", { name: "测试连接" }).click();
   await page
-    .getByRole("heading", { name: "Verified" })
+    .getByRole("heading", { name: "已验证" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   await page
     .locator(".provider-connection-panel")
@@ -113,16 +115,18 @@ try {
   ) {
     throw new Error("Packaged Provider connection request was not observed");
   }
-  await page.getByLabel("Model").selectOption("packaged-fixture-model");
-  await page.getByLabel("Generation timeout (seconds)").fill("60");
-  await page.getByRole("button", { name: "Save changes" }).click();
+  await page
+    .getByRole("combobox", { name: /^模型/u })
+    .selectOption("packaged-fixture-model");
+  await page.getByLabel("生成超时（秒）").fill("60");
+  await page.getByRole("button", { name: "保存修改" }).click();
   await page
     .locator(".provider-status")
-    .filter({ hasText: "Provider updated." })
+    .filter({ hasText: "模型服务商已更新。" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
-  await page.getByRole("button", { name: "Test generation" }).click();
+  await page.getByRole("button", { name: "测试生成" }).click();
   await page
-    .getByRole("heading", { name: "Generation succeeded" })
+    .getByRole("heading", { name: "生成成功" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   await page
     .getByText("Packaged fixture acknowledged.")
@@ -145,43 +149,43 @@ try {
     path: providerGenerationEvidencePath,
   });
   providerFixture.setGenerationMode("delay");
-  await page.getByRole("button", { name: "Test generation" }).click();
+  await page.getByRole("button", { name: "测试生成" }).click();
   await page
-    .getByRole("heading", { name: "Generating" })
+    .getByRole("heading", { name: "正在生成" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
-  await page.getByRole("button", { name: "Cancel generation" }).click();
+  await page.getByRole("button", { name: "取消生成" }).click();
   await page
     .locator(".provider-status")
-    .filter({ hasText: "Generation test cancelled." })
+    .filter({ hasText: "生成测试已取消，上一次结果保持不变。" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   await page
-    .getByRole("heading", { name: "Generation succeeded" })
+    .getByRole("heading", { name: "生成成功" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
 
-  await page.getByLabel("Generation timeout (seconds)").fill("5");
-  await page.getByRole("button", { name: "Save changes" }).click();
+  await page.getByLabel("生成超时（秒）").fill("5");
+  await page.getByRole("button", { name: "保存修改" }).click();
   await page
-    .getByRole("heading", { name: "Not tested" })
+    .getByRole("heading", { name: "尚未测试" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
-  await page.getByRole("button", { name: "Test generation" }).click();
+  await page.getByRole("button", { name: "测试生成" }).click();
   await page
     .locator(".provider-generation-panel")
-    .getByText(/within 5 seconds/u)
+    .getByText(/在 5 秒内没有响应/u)
     .waitFor({ state: "visible", timeout: 10_000 });
 
   providerFixture.setGenerationMode("rate-limit");
-  await page.getByRole("button", { name: "Test generation" }).click();
+  await page.getByRole("button", { name: "测试生成" }).click();
   await page
     .locator(".provider-generation-panel")
-    .getByText(/rate-limited/u)
+    .getByText(/限制了请求频率/u)
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
 
   providerFixture.setGenerationMode("success");
-  await page.getByLabel("Generation timeout (seconds)").fill("60");
-  await page.getByRole("button", { name: "Save changes" }).click();
-  await page.getByRole("button", { name: "Test generation" }).click();
+  await page.getByLabel("生成超时（秒）").fill("60");
+  await page.getByRole("button", { name: "保存修改" }).click();
+  await page.getByRole("button", { name: "测试生成" }).click();
   await page
-    .getByRole("heading", { name: "Generation succeeded" })
+    .getByRole("heading", { name: "生成成功" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   const generationCallsAfterSuccess = providerFixture.generationCalls();
   assertPackagedSecretAbsent(providerSecret);
@@ -194,16 +198,16 @@ try {
   if (!existsSync(masterKeyPath) || readFileSync(masterKeyPath).length !== 32) {
     throw new Error("Packaged app-managed encryption key is invalid");
   }
-  await page.getByRole("button", { name: "Dashboard" }).click();
+  await page.getByRole("button", { name: "控制台" }).click();
 
-  await page.getByRole("button", { name: "Select a workspace" }).click();
+  await page.getByRole("button", { name: "选择工作区" }).click();
   await page
-    .getByRole("heading", { name: "Choose a workspace" })
+    .getByRole("heading", { name: "选择工作区" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
-  await page.getByRole("button", { name: "Select folder…" }).click();
+  await page.getByRole("button", { name: "选择文件夹…" }).click();
   await page
     .getByRole("status")
-    .filter({ hasText: "Workspace authorized and saved." })
+    .filter({ hasText: "工作区授权已保存。" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   await page
     .locator(".selected-boundary")
@@ -218,31 +222,31 @@ try {
     .getByText(workspaceDirectory, { exact: true })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   await page
-    .getByText("Available")
+    .getByText("可用")
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
-  await page.getByRole("button", { name: "New Corporation" }).click();
+  await page.getByRole("button", { name: "新建公司" }).click();
   await page
-    .getByRole("heading", { name: "Choose a workspace" })
+    .getByRole("heading", { name: "选择工作区" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
-  await page.getByLabel("Corporation name *").fill("Packaged Corporation");
+  await page.getByLabel("公司名称 *").fill("Packaged Corporation");
   await page
-    .getByLabel("Goal *")
+    .getByLabel("目标 *")
     .fill("Create a verified packaged Goal Contract");
   await page
-    .getByLabel(/Success criteria/u)
+    .getByLabel(/成功标准/u)
     .fill("Goal is persisted\nTimeline is visible");
-  await page.getByLabel(/Expected deliverables/u).fill("Packaged Goal report");
+  await page.getByLabel(/预期交付物/u).fill("Packaged Goal report");
   await page
-    .getByLabel("High-impact assumption")
+    .getByLabel("高影响假设")
     .fill("The packaged workspace is the intended target");
 
   const mockButton = page.getByRole("button", {
-    name: "Create local Mock draft",
+    name: "创建本地 Mock 草稿",
   });
   await mockButton.click();
   await page
     .getByRole("status")
-    .filter({ hasText: "Corporation was created, but its Goal Contract" })
+    .filter({ hasText: "公司已创建，但目标合同没有保存" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   await page
     .getByText("STORAGE_UNAVAILABLE")
@@ -265,10 +269,10 @@ try {
 
   await mockButton.click();
   await page
-    .getByRole("heading", { name: "Confirm Goal Contract" })
+    .getByRole("heading", { name: "确认目标合同" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   const confirmButton = page.getByRole("button", {
-    name: "Confirm Goal Contract",
+    name: "确认目标合同",
   });
   await confirmButton.click();
   await page
@@ -283,18 +287,17 @@ try {
   await page
     .getByRole("status")
     .filter({
-      hasText:
-        "Goal Contract approved. Planning and execution have not started.",
+      hasText: "目标合同已批准。规划和执行尚未开始。",
     })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   await page
-    .getByText("v2 · APPROVED · MOCK")
+    .getByText("版本 2 · 已批准 · 本地模拟")
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   await page
-    .getByText("v1 · SUPERSEDED · MOCK")
+    .getByText("版本 1 · 已被新版替代 · 本地模拟")
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   await page
-    .getByText("Goal Contract approved.", { exact: true })
+    .getByText("目标合同已批准。", { exact: true })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
 
   const stored = await page.evaluate(async () => {
@@ -333,29 +336,29 @@ try {
 
   await page.reload();
   await page
-    .getByRole("heading", { name: "Dashboard" })
+    .getByRole("heading", { name: "控制台" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   await page
     .getByText("Packaged Corporation", { exact: true })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
-  await page.getByRole("button", { name: "Open Goal Contract" }).click();
+  await page.getByRole("button", { name: "打开目标合同" }).click();
   await page
-    .getByText("APPROVED", { exact: true })
+    .getByText("已批准", { exact: true })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   await page
-    .getByText("Goal Contract approved.", { exact: true })
+    .getByText("目标合同已批准。", { exact: true })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
 
-  await page.getByRole("button", { name: "Pause Corporation" }).focus();
+  await page.getByRole("button", { name: "暂停公司" }).focus();
   await page.keyboard.press("Enter");
   await page
     .getByRole("status")
     .filter({
-      hasText: "Corporation paused. No Plan, Task, or execution has started.",
+      hasText: "公司已暂停。计划、任务和执行均未开始。",
     })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   await page
-    .getByText("PAUSED", { exact: true })
+    .getByText("已暂停", { exact: true })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   const beforeRestart = await readPersistedState(page, stored.corporation.id);
   if (
@@ -367,7 +370,7 @@ try {
   }
   await page.reload();
   await page
-    .getByRole("heading", { name: "Dashboard" })
+    .getByRole("heading", { name: "控制台" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   if (
     JSON.stringify(await readPersistedState(page, stored.corporation.id)) !==
@@ -387,15 +390,15 @@ try {
     if (/^https?:/u.test(request.url())) externalRequests.push(request.url());
   });
   await page
-    .getByRole("heading", { name: "Dashboard" })
+    .getByRole("heading", { name: "控制台" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   await page
-    .getByText("PAUSED", { exact: true })
+    .getByText("已暂停", { exact: true })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
-  await page.getByRole("button", { name: "Settings" }).click();
+  await page.getByRole("button", { name: "设置" }).click();
   await page.getByRole("button", { name: /Packaged Provider/u }).click();
   await page
-    .getByRole("heading", { name: "Generation succeeded" })
+    .getByRole("heading", { name: "生成成功" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   if (providerFixture.generationCalls() !== generationCallsAfterSuccess) {
     throw new Error("Packaged restart automatically replayed generation");
@@ -403,14 +406,14 @@ try {
   if ((await page.getByLabel("API Key").inputValue()) !== "") {
     throw new Error("Packaged restart restored visible Key state");
   }
-  await page.getByRole("button", { name: "Show" }).click();
+  await page.getByRole("button", { name: "查看" }).click();
   await waitForInputValue(
     page.getByLabel("API Key"),
     providerReplacement,
     "Packaged restart could not decrypt the saved Key",
   );
-  await page.getByRole("button", { name: "Hide" }).click();
-  await page.getByRole("button", { name: "Dashboard" }).click();
+  await page.getByRole("button", { name: "隐藏" }).click();
+  await page.getByRole("button", { name: "控制台" }).click();
   const afterRestart = await readPersistedState(page, stored.corporation.id);
   if (JSON.stringify(afterRestart) !== JSON.stringify(beforeRestart)) {
     throw new Error("Packaged startup changed persisted state");
@@ -421,13 +424,12 @@ try {
   );
   await page.screenshot({ path: pausedEvidencePath });
 
-  await page.getByRole("button", { name: "Open Goal Contract" }).click();
-  await page.getByRole("button", { name: "Resume Corporation" }).click();
+  await page.getByRole("button", { name: "打开目标合同" }).click();
+  await page.getByRole("button", { name: "继续运行公司" }).click();
   await page
     .getByRole("status")
     .filter({
-      hasText:
-        "Corporation resumed to DRAFT. No command or event was replayed.",
+      hasText: "公司已恢复到“草稿”状态，没有重复执行任何命令或事件。",
     })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   const afterResume = await readPersistedState(page, stored.corporation.id);
@@ -440,7 +442,7 @@ try {
   }
   await page.reload();
   await page
-    .getByRole("heading", { name: "Dashboard" })
+    .getByRole("heading", { name: "控制台" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   if (
     JSON.stringify(await readPersistedState(page, stored.corporation.id)) !==
@@ -460,7 +462,7 @@ try {
     if (/^https?:/u.test(request.url())) externalRequests.push(request.url());
   });
   await page
-    .getByRole("heading", { name: "Dashboard" })
+    .getByRole("heading", { name: "控制台" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   if (
     JSON.stringify(await readPersistedState(page, stored.corporation.id)) !==
@@ -468,30 +470,28 @@ try {
   ) {
     throw new Error("Packaged process restart changed resumed state");
   }
-  await page.getByRole("button", { name: "Open Goal Contract" }).click();
+  await page.getByRole("button", { name: "打开目标合同" }).click();
   await page
-    .getByText("APPROVED", { exact: true })
+    .getByText("已批准", { exact: true })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
 
   providerFixture.setGenerationMode("planner");
-  await page.getByRole("button", { name: "Start planning setup" }).click();
+  await page.getByRole("button", { name: "开始规划设置" }).click();
   await page
-    .getByRole("heading", { name: "Generate Plan draft" })
+    .getByRole("heading", { name: "生成计划草稿" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   await page
-    .getByLabel("Verified Provider / model")
+    .getByLabel("已验证的模型服务商 / 模型")
     .selectOption({ label: "Packaged Provider · packaged-fixture-model" });
+  await page.getByRole("button", { name: "生成尚未验证的草稿" }).click();
   await page
-    .getByRole("button", { name: "Generate unvalidated draft" })
-    .click();
-  await page
-    .getByRole("heading", { name: "Unvalidated Plan draft" })
+    .getByRole("heading", { name: "尚未验证的计划草稿" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   await page
-    .getByText(/DRAFT · PENDING/u)
+    .getByText(/草稿 · 等待验证/u)
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   await page
-    .getByText(/Writer · not staffed/u)
+    .getByText(/Writer · 尚未安排人员/u)
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   const plannerRequest = providerFixture.requests
     .filter(({ path: requestPath }) =>
@@ -536,10 +536,10 @@ try {
     state: "visible",
     timeout: STARTUP_TIMEOUT_MS,
   });
-  await page.getByRole("button", { name: "Open Goal Contract" }).click();
-  await page.getByRole("button", { name: "Start planning setup" }).click();
+  await page.getByRole("button", { name: "打开目标合同" }).click();
+  await page.getByRole("button", { name: "开始规划设置" }).click();
   await page
-    .getByRole("heading", { name: "Unvalidated Plan draft" })
+    .getByRole("heading", { name: "尚未验证的计划草稿" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   const restoredPlannerPlanId = await page.evaluate(async (corporationId) => {
     const result = await window.desktop.planner.getCurrent({
@@ -564,11 +564,9 @@ try {
   const callsBeforeRepair = providerFixture.generationCalls();
   providerFixture.enqueue("not valid json");
   providerFixture.enqueue(packagedPlannerOutput());
+  await page.getByRole("button", { name: "生成尚未验证的草稿" }).click();
   await page
-    .getByRole("button", { name: "Generate unvalidated draft" })
-    .click();
-  await page
-    .getByRole("heading", { name: "Unvalidated Plan draft" })
+    .getByRole("heading", { name: "尚未验证的计划草稿" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   if (providerFixture.generationCalls() - callsBeforeRepair !== 2) {
     throw new Error("Packaged Planner did not perform exactly one repair");
@@ -589,11 +587,9 @@ try {
   const callsBeforeFailure = providerFixture.generationCalls();
   providerFixture.enqueue("not valid json");
   providerFixture.enqueue("still not valid json");
+  await page.getByRole("button", { name: "生成尚未验证的草稿" }).click();
   await page
-    .getByRole("button", { name: "Generate unvalidated draft" })
-    .click();
-  await page
-    .getByRole("heading", { name: "FAILED" })
+    .getByRole("heading", { name: "失败" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   await page
     .getByText("INVALID_MODEL_OUTPUT", { exact: true })
@@ -617,16 +613,16 @@ try {
   await selectPlannerProvider(page);
   providerFixture.delayNext();
   await page
-    .getByRole("button", { name: "Generate unvalidated draft" })
+    .getByRole("button", { name: "生成尚未验证的草稿" })
     .click({ noWaitAfter: true });
   await waitForCondition(
     providerFixture.hasDelayedResponse,
     "Packaged Planner cancel request did not reach the Provider",
   );
   const cancelStartedAt = Date.now();
-  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByRole("button", { name: "取消", exact: true }).click();
   await page
-    .getByRole("heading", { name: "CANCELLED" })
+    .getByRole("heading", { name: "已取消" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   if (
     Date.now() - cancelStartedAt >= 2_000 ||
@@ -646,7 +642,7 @@ try {
   await selectPlannerProvider(page);
   providerFixture.delayNext();
   await page
-    .getByRole("button", { name: "Generate unvalidated draft" })
+    .getByRole("button", { name: "生成尚未验证的草稿" })
     .click({ noWaitAfter: true });
   await waitForCondition(
     providerFixture.hasDelayedResponse,
@@ -673,7 +669,7 @@ try {
   }
   providerFixture.completeDelayed(packagedPlannerOutput());
   await page
-    .getByRole("heading", { name: "FAILED" })
+    .getByRole("heading", { name: "失败" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   await page
     .getByText("VERSION_CONFLICT", { exact: true })
@@ -695,7 +691,7 @@ try {
   await selectPlannerProvider(page);
   providerFixture.delayNext();
   await page
-    .getByRole("button", { name: "Generate unvalidated draft" })
+    .getByRole("button", { name: "生成尚未验证的草稿" })
     .click({ noWaitAfter: true });
   await waitForCondition(
     providerFixture.hasDelayedResponse,
@@ -715,10 +711,10 @@ try {
   });
   await openPlannerForCorporation(page, interruptedCorporation.name);
   await page
-    .getByRole("heading", { name: "INTERRUPTED" })
+    .getByRole("heading", { name: "已中断" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   await page
-    .getByText(/No Plan was saved/u)
+    .getByText(/没有保存计划/u)
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   if (
     providerFixture.generationCalls() !== callsBeforeRestart ||
@@ -729,29 +725,27 @@ try {
   }
 
   providerFixture.setGenerationMode("goal");
-  await page.getByRole("button", { name: "Dashboard", exact: true }).click();
-  await page.getByRole("button", { name: "New Corporation" }).click();
+  await page.getByRole("button", { name: "控制台", exact: true }).click();
+  await page.getByRole("button", { name: "新建公司" }).click();
   await page
-    .getByLabel("Corporation name *")
+    .getByLabel("公司名称 *")
     .fill("Packaged Provider Goal Corporation");
   await page
-    .getByLabel("Goal *")
+    .getByLabel("目标 *")
     .fill("Generate a Provider Goal in the final package");
   await page
-    .getByLabel(/Verified Provider and exact model/u)
+    .getByLabel(/已验证的模型服务商和准确模型/u)
     .selectOption({ label: "Packaged Provider · packaged-fixture-model" });
+  await page.getByRole("button", { name: "分析并创建模型服务商草稿" }).click();
   await page
-    .getByRole("button", { name: "Analyze and create Provider draft" })
-    .click();
-  await page
-    .getByRole("heading", { name: "Confirm Goal Contract" })
+    .getByRole("heading", { name: "确认目标合同" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   await page
-    .getByText("v1 · DRAFT · PROVIDER")
+    .getByText("版本 1 · 草稿 · 模型服务商生成")
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   await page
     .getByRole("status")
-    .filter({ hasText: /usage 13 input \/ 9 output/u })
+    .filter({ hasText: /用量：输入 13 \/ 输出 9/u })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   const goalGenerationRequest = providerFixture.requests
     .filter(({ path: requestPath }) =>
@@ -775,7 +769,7 @@ try {
   providerFixture.setGenerationMode("success");
 
   const healthText = await page
-    .getByRole("status", { name: /Native Core ready/u })
+    .getByRole("status", { name: /本地核心已就绪/u })
     .getAttribute("aria-label");
   const evidencePath = path.join(
     evidenceDirectory,
@@ -799,48 +793,54 @@ try {
     "Packaged Corporation restart journey verified: pause · reload · process restart · read-only restore · resume · reload · process restart",
   );
   console.log("Packaged Renderer external requests: 0");
-  await page.getByRole("button", { name: "Settings" }).click();
+  await page.getByRole("button", { name: "设置" }).click();
   await page.getByRole("button", { name: /Packaged Provider/u }).click();
   await page
-    .getByRole("heading", { name: "Verified" })
+    .getByRole("heading", { name: "已验证" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
 
-  await page.getByLabel("Endpoint").fill(`${providerFixture.endpoint}/auth`);
-  await page.getByRole("button", { name: "Save changes" }).click();
-  await page.getByRole("button", { name: "Test connection" }).click();
   await page
-    .getByRole("heading", { name: "Test failed" })
+    .getByLabel("API 基础 URL")
+    .fill(`${providerFixture.endpoint}/auth`);
+  await page.getByRole("button", { name: "保存修改" }).click();
+  await page.getByRole("button", { name: "测试连接" }).click();
+  await page
+    .getByRole("heading", { name: "测试失败" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   await page
     .locator(".provider-connection-panel")
-    .getByText(/Authentication failed/u)
+    .getByText(/身份验证失败/u)
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
 
-  await page.getByLabel("Endpoint").fill(`${providerFixture.endpoint}/delay`);
-  await page.getByRole("button", { name: "Save changes" }).click();
-  await page.getByRole("button", { name: "Test connection" }).click();
   await page
-    .getByText(/taking longer than 10 seconds/u)
+    .getByLabel("API 基础 URL")
+    .fill(`${providerFixture.endpoint}/delay`);
+  await page.getByRole("button", { name: "保存修改" }).click();
+  await page.getByRole("button", { name: "测试连接" }).click();
+  await page
+    .getByText(/已经超过 10 秒/u)
     .waitFor({ state: "visible", timeout: 12_000 });
   await page
-    .getByText(/did not respond within 15 seconds/u)
+    .getByText(/在 15 秒内没有响应/u)
     .first()
     .waitFor({ state: "visible", timeout: 8_000 });
-  await page.getByRole("button", { name: "Test connection" }).click();
+  await page.getByRole("button", { name: "测试连接" }).click();
   await page
-    .getByRole("heading", { name: "Testing" })
+    .getByRole("heading", { name: "正在测试" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
-  await page.getByRole("button", { name: "Cancel test" }).click();
+  await page.getByRole("button", { name: "取消测试" }).click();
   await page
     .locator(".provider-status")
-    .filter({ hasText: "Connection test cancelled." })
+    .filter({ hasText: "连接测试已取消，上一次结果保持不变。" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
 
-  await page.getByLabel("Endpoint").fill(`${providerFixture.endpoint}/success`);
-  await page.getByRole("button", { name: "Save changes" }).click();
-  await page.getByRole("button", { name: "Test connection" }).click();
   await page
-    .getByRole("heading", { name: "Verified" })
+    .getByLabel("API 基础 URL")
+    .fill(`${providerFixture.endpoint}/success`);
+  await page.getByRole("button", { name: "保存修改" }).click();
+  await page.getByRole("button", { name: "测试连接" }).click();
+  await page
+    .getByRole("heading", { name: "已验证" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   const providerConnectionEvidencePath = path.join(
     evidenceDirectory,
@@ -848,10 +848,10 @@ try {
   );
   await page.screenshot({ path: providerConnectionEvidencePath });
   page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "Delete saved Key" }).click();
+  await page.getByRole("button", { name: "删除已保存的 API Key" }).click();
   await page
     .locator(".provider-status")
-    .filter({ hasText: "Saved Key deleted." })
+    .filter({ hasText: "已删除保存的 API Key。" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   assertPackagedSecretAbsent(providerReplacement);
   console.log(
@@ -1324,13 +1324,13 @@ async function createApprovedGoal(page, name, goal, idOffset) {
 async function openPlannerForCorporation(page, corporationName) {
   await page.reload();
   const card = page.locator("article").filter({ hasText: corporationName });
-  await card.getByRole("button", { name: "Open Goal Contract" }).click();
-  await page.getByRole("button", { name: "Start planning setup" }).click();
+  await card.getByRole("button", { name: "打开目标合同" }).click();
+  await page.getByRole("button", { name: "开始规划设置" }).click();
 }
 
 async function selectPlannerProvider(page) {
   await page
-    .getByLabel("Verified Provider / model")
+    .getByLabel("已验证的模型服务商 / 模型")
     .selectOption({ label: "Packaged Provider · packaged-fixture-model" });
 }
 
@@ -1407,9 +1407,7 @@ async function waitForApplicationPage(browser) {
   while (Date.now() < deadline) {
     for (const context of browser.contexts()) {
       for (const page of context.pages()) {
-        if (
-          (await page.getByRole("heading", { name: "Dashboard" }).count()) > 0
-        ) {
+        if ((await page.getByRole("heading", { name: "控制台" }).count()) > 0) {
           return page;
         }
       }

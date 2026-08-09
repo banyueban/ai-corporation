@@ -1,16 +1,17 @@
 # M2-TU-06 Planner 结构化生成与草稿持久化垂直切片
 
-| 属性 | 值 |
-|---|---|
-| 任务单元 ID | M2-TU-06 |
-| 状态 | 进行中 |
-| 所属 Milestone | Milestone 2：Provider 与 Goal/Plan |
-| 主要结果 | 用户可从已批准 Goal 明确选择已验证 Provider/精确模型，生成严格结构化且尚待图验证的 Plan DRAFT；非法 JSON/Schema 最多修复一次 |
-| 基线提交 | `9d619eefffc8fb97ad5cb1296c2231d59b21b542` |
+| 属性           | 值                                                                                                                           |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| 任务单元 ID    | M2-TU-06                                                                                                                     |
+| 状态           | 进行中                                                                                                                       |
+| 所属 Milestone | Milestone 2：Provider 与 Goal/Plan                                                                                           |
+| 主要结果       | 用户可从已批准 Goal 明确选择已验证 Provider/精确模型，生成严格结构化且尚待图验证的 Plan DRAFT；非法 JSON/Schema 最多修复一次 |
+| 基线提交       | `9d619eefffc8fb97ad5cb1296c2231d59b21b542`                                                                                   |
 
 ## 1. 需求与设计引用
 
 - 用户决策：`1A + 2A + 3A + 4A + 5A + 6A`；
+- 用户界面语言决策：软件自行定义的按钮、标题、提示和状态尽量使用中文；`API Key`、`URL`、Provider 名称、模型 ID 等外部标准称呼或外部数据保持原样；
 - [MVP Plan：Milestone 2](../MVP-Plan.md)、[PRD 规划与组队](../../01-product/PRD.md)；
 - [Planner Protocol](../../04-protocols/Planner-Protocol.md)、[Task Protocol](../../04-protocols/Task-Protocol.md)、[Goal Contract Protocol](../../04-protocols/Goal-Contract-Protocol.md)、[Provider Generation Protocol](../../04-protocols/Provider-Generation-Protocol.md)；
 - [Task Engine](../../03-core/Task-Engine.md)、[Technical Design](../../02-architecture/Technical-Design.md)；
@@ -38,7 +39,7 @@
 - schema-valid 结果原子保存为 `task_plan DRAFT` 和 `validationStatus=PENDING`；
 - operation/model_call 检查点、usage、幂等、单活跃、取消、版本/迟到保护和启动中断恢复；
 - 只创建首个活动 Plan DRAFT；已有非 SUPERSEDED Plan 时拒绝再次生成，计划改版与 supersede 留给后续任务；
-- Goal Review 后的 Planner 生成入口、显式 Provider/模型与字段披露、生成/取消、只读草稿摘要/Task/能力/建议角色、失败与恢复 UI；
+- Goal Review 后的 Planner 生成入口、显式 Provider/模型与字段披露、生成/取消、只读草稿摘要/Task/能力/建议角色、失败与恢复 UI；软件自行定义的界面文字使用中文，外部标准称呼和外部数据保持原样；
 - Windows/macOS 开发态和最终包 loopback 窗口矩阵，以及 Windows 正式 Renderer 真实 Provider 低风险 smoke。
 
 本任务只关闭 Planner 结构化生成基础，不关闭 Task Graph 语义验证、Plan Review 完整编辑/批准、Organization 或 Milestone 2。
@@ -85,8 +86,8 @@
 - [x] 并发/取消/迟到：同 Corporation 单活跃；operation 幂等/冲突正确；取消 2 秒内传播；Goal/Provider/Corporation/operation 变化后的迟到结果不覆盖；
 - [x] 恢复：Renderer reload/SQLite 重开恢复已保存 DRAFT；应用启动把遗留 GENERATING 转 INTERRUPTED，不自动重发；可显式重试或取消；
 - [x] 安全：prompt/response/非法 JSON/隐藏推理/路径/Key/Authorization/SQL/堆栈不进入 SQLite、错误、日志、trace、截图或诊断；
-- [ ] UI：从已批准 Goal 进入 Planner，明确选择 Provider/模型、查看披露、生成/取消并只读查看 summary、Task、能力要求与 suggested role；明确标注尚未组队；
-- [ ] UI 状态与适配：Generating/Draft pending validation/Failed/Cancelled/Interrupted 由真实后端事实驱动；键盘、焦点、live region、1024×700、1440×900 和 200% 可完成；
+- [ ] UI：从已批准 Goal 进入 Planner，明确选择 Provider/模型、查看披露、生成/取消并只读查看摘要、任务、能力要求与建议角色；明确标注尚未组队；软件自行定义的文字使用中文，外部标准称呼和外部数据保持原样；
+- [ ] UI 状态与适配：生成中、草稿待验证、失败、已取消、已中断由真实后端事实驱动；键盘、焦点、实时提示、1024×700、1440×900 和 200% 可完成，窄窗口或高缩放下中文菜单不截断；
 - [x] 自动真实窗口：Windows/macOS 同提交开发态与最终包 loopback 覆盖成功、一次修复、修复失败、取消、中断/重启、版本冲突和既有回归；功能与清理独立通过；
 - [x] 本机真实 Provider：正式 Windows Renderer 使用应用 Key Vault 中已保存资源完成非敏感最小 Planner 生成；只记录脱敏状态、plan/version/usage/时间和泄密扫描；
 - [x] 治理：协议/设计/Schema/迁移/实现/测试一致；适用工程检查、secret scan、Windows/macOS CI 最终包与 artifacts 成功；P0/P1 和未执行必检项为 0。
