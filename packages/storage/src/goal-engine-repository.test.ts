@@ -163,6 +163,10 @@ describe("GoalEngineRepository", () => {
       cycleNumber: 2,
       roundInCycle: 0,
     });
+    expect(repository.cancel({ operationId, now })).toMatchObject({
+      status: "CANCELLED",
+      questions: [],
+    });
   });
 });
 

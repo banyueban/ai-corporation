@@ -312,7 +312,7 @@ export class GoalEngineRepository {
       .prepare(
         `UPDATE goal_generation_operation
         SET status = 'CANCELLED', version = version + 1,
-          updated_at = ?, completed_at = ?
+          questions_json = '[]', updated_at = ?, completed_at = ?
         WHERE operation_id = ? AND status IN (
           'GENERATING','CLARIFICATION_REQUIRED','EXTENSION_REQUIRED'
         )`,
