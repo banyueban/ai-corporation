@@ -1,20 +1,22 @@
 # AI Corporation Desktop 项目进度
 
-| 属性           | 当前值                                     |
-| -------------- | ------------------------------------------ |
-| 当前产品版本   | v0.1 MVP                                   |
-| 当前阶段       | M2-TU-06 已完成，准备建立 M2-TU-07         |
-| 当前 Milestone | Milestone 2：Provider 与 Goal/Plan         |
-| 当前任务单元   | M2-TU-06（完成）                           |
-| 总体状态       | 进行中                                     |
-| 最近更新       | 2026-08-09                                 |
-| 下一检查点     | 建立并评审 M2-TU-07 DAG 与计划验证任务合同 |
+| 属性           | 当前值                                         |
+| -------------- | ---------------------------------------------- |
+| 当前产品版本   | v0.1 MVP                                       |
+| 当前阶段       | M2-TU-07 本地计划验证与正式 Task 物化实施中    |
+| 当前 Milestone | Milestone 2：Provider 与 Goal/Plan             |
+| 当前任务单元   | M2-TU-07（进行中）                             |
+| 总体状态       | 进行中                                         |
+| 最近更新       | 2026-08-09                                     |
+| 下一检查点     | 提交 M2-TU-07 候选并取得 Windows/macOS CI 结果 |
 
 ## 1. 当前结论
 
 Milestone 0、Milestone 1 和 M2-TU-02 至 M2-TU-06 已完成。M2-TU-06 已交付 Planner 结构化生成与首个 Plan 草稿持久化：用户从当前 APPROVED Goal 进入 Planner，明确选择已验证 Provider/精确模型，只发送批准 Goal 与内置 catalogs；模型输出只提供语义内容和局部引用，Main 分配 Plan/Task 可信身份；首次 JSON/Schema 非法时最多修复一次，结果只能保存为 `DRAFT/PENDING`，不创建团队、不允许执行。
 
 当前中文界面候选的完整 `pnpm check`、Windows 开发态 Electron E2E 7/7、Windows 最终包完整真实窗口矩阵、截图检查、Windows/macOS CI 和正式 Renderer 真实 Provider 复验均已通过。用户于 2026-08-09 确认人工 UI 验收通过，M2-TU-06 的 19 项验收断言全部关闭，P0/P1 为 0。该结论只关闭 M2-TU-06 和 Planner 结构化输出，不代表 DAG 验证、Plan Review、Organization、执行或整个 Milestone 2 完成。
+
+M2-TU-07 已形成实施候选：Planner 保存后自动进行不调用 Provider 的本地确定性验证；1–20 个 Task、DAG、引用、输入输出、逐 Task 验收、叶子输出、milestone、Goal 硬预算和权限描述均由固定规则检查；验证通过时在同一事务物化正式 Task/依赖，失败时只保存受限报告；普通二进制输出映射为 `FILE`；中文 UI 明确区分验证中、失败和通过，并继续标注未批准、未组队、不可执行。该任务尚未完成跨平台 CI、最新 Windows 包和用户人工验收，DAG 项继续保持未完成。
 
 ## 2. 已完成基线
 
@@ -40,23 +42,29 @@ Planner 结构化生成基础已随 M2-TU-06 关闭。Task Graph 语义验证、
 
 ## 4. 当前任务边界
 
-M2-TU-06 只交付：
+M2-TU-07 只交付：
 
-- Planner v1 strict protocol、typed IPC、操作状态与安全错误；
-- 当前 APPROVED Goal、Corporation/Goal/Provider 版本和精确模型门禁；
-- dialect-neutral `JSON_OBJECT` 非流式生成，以及带脱敏 Schema 路径/合法枚举提示的唯一一次修复；
-- `0010_planner_generation.sql`、operation/model_call 审计、usage、取消/迟到/中断与原子 Plan DRAFT；
-- Planner 入口、发送字段披露、生成/取消、尚未验证草案、能力与 suggested role 展示，并明确“尚未组队”和“不可执行”。
+- 本地确定性 Plan validation、固定问题/warning、自动触发与 PENDING 恢复；
+- 1–20 个 Task 的 DAG、引用、输入输出、逐 Task 验收、叶子输出和 milestone 引用验证；
+- Goal 费用/时长/修订硬预算与 capability/tool/path/profile 权限描述验证；
+- `FILE` 产物类型、正式 Task/Input/Output/Acceptance 合同与 `0011_plan_validation.sql`；
+- VALID 时原子创建正式 Task/依赖，INVALID 时只保存受限报告；
+- Planner UI 的本地验证中、失败、已验证与 warning 中文状态。
 
-不包含 DAG/引用/输入输出闭合验证、Plan 编辑/批准/重规划、正式 Task、Organization、Agent 实例、Responses Adapter 或 streaming。
+不包含任何 Provider 修复/重规划、Plan 编辑/批准/开始执行、真实 Policy 授权、Artifact/Run/Agent/Organization、预算账本、Evaluation、Responses Adapter 或 streaming。
 
 ## 5. 活跃阻塞与外部条件
 
-当前没有活跃阻塞，P0/P1 为 0。M2-TU-07 任务合同尚未建立，因此下一阶段尚未进入实施。
+当前 P0/P1 为 0。最新源码的开发态验证已通过，但本机 `electron-builder` 在启动阶段无日志卡住；换新输出目录、绕过 pnpm 和目录包模式仍可复现，超时后已清理确认属于本仓库的残留构建进程，未关闭用户已安装并正在运行的软件。较早的 M2-TU-07 Windows 候选曾完成打包和最终包窗口矩阵，但截图发现并修复了“验证通过”与旧“等待验证”提示并存的问题，因此较早包不能作为最新源码的最终包证据。最新 Windows/macOS CI、最新 Windows 包和用户人工 UI 验收仍待完成。
 
 已知条件：系统 PATH 未提供 Node.js，工程验证使用 Codex bundled Node.js；正式 Key 仍只由应用自管 Key Vault 使用，未进入命令、脚本、环境变量、Git、日志或截图；费用无法从当前 Provider 响应可靠取得时保持 `UNKNOWN`。
 
 ## 6. 当前验证摘要
+
+- M2-TU-07 当前实现的 `pnpm check` 曾完整通过：Protocol 44、Provider 28、Storage 85、Desktop 120，Native Core 7、workspace Rust 7；status/task-unit、format、lint、typecheck、Rust fmt/clippy 和 secret scan 均成功；状态提示修复后受影响的 Goal/Planner Electron E2E 3/3 通过，完整检查将在提交前重跑；
+- 本地验证器专项 11/11 通过，覆盖 1/20/21 Task、合法与错误图、milestone、验收/叶子、四种媒体映射、输入输出闭合、费用/最长路径时长/修订预算、目录和路径攻击、单次运行 warning 与稳定 draft hash；Protocol strict 测试覆盖正式 Task/report 的额外字段、身份、状态、code、path、数量和去重；Storage 85/85 覆盖 `0011`、VALID 原子物化/幂等与 INVALID 不创建 Task；
+- Windows 开发态真实窗口完整矩阵曾 7/7 通过；状态提示修复后 Planner 相关 3/3 再次通过，并明确断言验证通过时不再出现旧“等待验证”提示、不合格计划只调用 Provider 一次、显示固定中文问题、刷新恢复 `DRAFT/INVALID`；
+- 较早 Windows M2-TU-07 候选的最终包真实窗口矩阵通过并生成截图，但该截图发现蓝色旧等待提示与绿色验证通过卡片冲突；源码与开发态 E2E 已修复并通过，最新源码的 Windows 包因本机 builder 卡住尚未生成，故不得把较早包算作最终候选通过；
 
 - 当前中文候选 `pnpm check` 完整通过：Protocol 41、Provider 28、Storage 83、Desktop 108、Native Core 7、workspace Rust 7；status/task-unit、format、lint、typecheck、Rust fmt/clippy 和 secret scan 均成功；
 - Windows 开发态 Electron E2E 7/7 通过。Planner 直接覆盖成功、一次修复、修复再次失败且无 Plan、2 秒内取消、Corporation 版本冲突、Renderer 重载稳定 Plan ID、进程重启转 `INTERRUPTED` 且不重发；既有 Workspace、Provider、Key Vault 和 Goal 回归同时通过；
@@ -73,7 +81,7 @@ M2-TU-06 只交付：
 
 ## 7. 下一步
 
-建立并评审 M2-TU-07 的任务合同，明确 DAG、引用、输入输出闭合和计划验证的边界与验收证据。合同达到“就绪”且歧义处理完成前，不进入实现，也不提前标记后续功能或 Milestone 2 完成。
+重跑最新源码的完整工程检查，提交并推送 M2-TU-07 候选，由 GitHub Windows/macOS CI 在干净环境执行工程检查、开发态窗口、最终包构建和最终包矩阵。CI 通过后下载 Windows artifact 进行本地包级复验并请求用户人工 UI 验收；这些证据齐全前 M2-TU-07、DAG 项和 Milestone 2 均保持未完成。Plan Review 编辑/批准仍属于后续任务。
 
 ## 8. 更新规则
 

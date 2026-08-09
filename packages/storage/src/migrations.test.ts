@@ -184,14 +184,14 @@ describe("migration runner", () => {
     database.close();
   });
 
-  it("creates the existing domain schema and Planner projection through migration 0010", () => {
+  it("creates the domain schema and Plan validation projection through migration 0011", () => {
     const database = new DatabaseSync(":memory:");
     const migrations = loadMigrations(migrationDirectory);
     applyMigrations(database, migrations);
 
     expect(
       readAppliedMigrations(database).map(({ version }) => version),
-    ).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    ).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
     expect(
       database
         .prepare(
@@ -206,6 +206,8 @@ describe("migration runner", () => {
               'goal_generation_operation',
               'planner_generation_operation',
               'task_plan',
+              'task',
+              'task_dependency',
               'model_call',
               'corporation_state_command',
               'idx_corporation_workspace_updated',
@@ -213,6 +215,7 @@ describe("migration runner", () => {
               'idx_goal_generation_active',
               'idx_planner_generation_active',
               'idx_task_plan_corporation_version',
+              'idx_task_plan_identity',
               'idx_model_call_operation',
               'idx_event_corporation_timeline',
               'domain_event_reject_update',
@@ -249,8 +252,11 @@ describe("migration runner", () => {
       "idx_model_call_operation",
       "idx_planner_generation_active",
       "idx_task_plan_corporation_version",
+      "idx_task_plan_identity",
       "model_call",
       "planner_generation_operation",
+      "task",
+      "task_dependency",
       "task_plan",
     ]);
     expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);

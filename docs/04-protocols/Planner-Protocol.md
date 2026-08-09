@@ -4,7 +4,7 @@
 
 Planner Protocol 定义把当前已批准 Goal Contract 发送给用户明确选择的 Provider/精确模型，生成结构化计划草稿并持久化为 `DRAFT` 的跨模块合同。
 
-本阶段只证明模型输出可以被严格解析、规范化并安全保存，不证明计划已经通过 DAG、输入输出、验收、预算或权限验证。后续验证器把通过验证的草稿转换为正式 `TaskContract`；Plan Review 再负责编辑、批准和开始执行。
+本阶段只证明模型输出可以被严格解析、规范化并安全保存，不证明计划已经通过 DAG、输入输出、验收、预算或权限验证。后续 [Plan Validation Protocol](Plan-Validation-Protocol.md) 使用本地确定性验证器，把通过验证的草稿转换为正式 `TaskContract`；Plan Review 再负责编辑、批准和开始执行。
 
 Planner 使用非流式、dialect-neutral `JSON_OBJECT` 生成。通用协议禁止出现 Chat Completions 专属 DTO；未来 Responses Adapter 以新增方式并存。任何 streaming 使用独立规范化事件协议，不以 Chat streaming 为基础。
 
@@ -18,7 +18,12 @@ type PlannerTaskCandidate = {
   title: string;
   objective: string;
   description?: string;
-  kind: "ANALYSIS" | "GENERATION" | "TRANSFORMATION" | "VALIDATION" | "HUMAN_DECISION";
+  kind:
+    | "ANALYSIS"
+    | "GENERATION"
+    | "TRANSFORMATION"
+    | "VALIDATION"
+    | "HUMAN_DECISION";
   priority: number;
   riskLevel: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
   suggestedRole: string;
@@ -89,7 +94,7 @@ type PlannerDraftCandidate = {
 };
 ```
 
-Schema 负责类型、必填字段、受限枚举、字符串/数组/正文大小和额外字段拒绝。局部 ID 唯一性、引用存在、DAG、入口/终点、输入输出闭合、叶子验收、预算与权限是否合理属于后续计划验证，不得在本阶段伪装为已通过。
+Schema 负责类型、必填字段、受限枚举、字符串/数组/正文大小和额外字段拒绝。Schema 接受 1–50 个候选 Task 以安全保存模型输出；计划验证只允许 1–20 个，21–50 个固定失败且不自动压缩。局部 ID 唯一性、引用存在、DAG、入口/终点、输入输出闭合、逐 Task 验收、叶子输出、预算与权限是否合理属于后续计划验证，不得在本阶段伪装为已通过。
 
 ## 3. 可信规范化与公开草稿
 
@@ -102,8 +107,9 @@ type PlannerDraftPublic = {
   corporationId: string;
   planVersion: number;
   goalVersion: number;
-  status: "DRAFT";
-  validationStatus: "PENDING";
+  status: "DRAFT" | "VALIDATED";
+  validationStatus: "PENDING" | "VALID" | "INVALID";
+  validationReport?: PlanValidationReport;
   summary: string;
   tasks: (PlannerTaskCandidate & { id: string })[];
   dependencies: PlannerDraftCandidate["dependencies"];
@@ -120,7 +126,7 @@ type PlannerDraftPublic = {
 };
 ```
 
-`DRAFT/PENDING` 明确表示尚未完成 DAG 与执行可行性验证。不得显示为 Validated、Ready、Approved 或可开始执行。
+Planner 生成提交时固定为 `DRAFT/PENDING`。M2-TU-07 可按 Plan Validation Protocol 原子转为 `VALIDATED/VALID` 或 `DRAFT/INVALID` 并附带公开 report。`PENDING` 不得显示为已验证；`VALID` 仍不表示已批准、已组队或可执行；`INVALID` 不创建正式 Task。
 
 ## 4. 命令、查询与状态
 
@@ -138,11 +144,7 @@ Operation 状态：
 
 ```ts
 type PlannerOperationStatus =
-  | "GENERATING"
-  | "PLAN_SAVED"
-  | "FAILED"
-  | "CANCELLED"
-  | "INTERRUPTED";
+  "GENERATING" | "PLAN_SAVED" | "FAILED" | "CANCELLED" | "INTERRUPTED";
 ```
 
 同一 Corporation 同时只允许一个非终态 Planner operation。相同 `operationId` 与规范化请求幂等；不同请求固定冲突。应用启动把遗留 `GENERATING` 转为 `INTERRUPTED`，不得自动重发 Provider 请求。
@@ -165,7 +167,7 @@ M2-TU-06 只创建第一个活动 Plan DRAFT。Corporation 已存在非 `SUPERSE
 
 修复输入把受限的无效输出作为不可信 `USER` 数据，并附带最多 20 条只含 Schema 字段路径、Zod issue code 和权威受限枚举合法值的安全提示；提示不包含字段值、模型正文片段或自由文本错误。不得构造 `ASSISTANT` 历史，也不得携带 Chat/Provider 私有 continuation 或 reasoning 字段。第二次仍失败则 operation 为 `FAILED`，不创建 `task_plan`。正常成功不得额外调用。
 
-局部 ID、引用、DAG、输入输出、验收、预算和权限错误不属于本阶段 JSON/Schema 修复；它们由后续验证任务返回结构化错误，不消耗本阶段修复次数。
+局部 ID、引用、DAG、输入输出、验收、预算和权限错误不属于本阶段 JSON/Schema 修复；它们由本地计划验证器返回结构化错误，不调用 Provider，也不消耗本阶段修复次数。
 
 ## 7. 持久化、审计与取消
 

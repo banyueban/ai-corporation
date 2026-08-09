@@ -168,11 +168,40 @@ CREATE TABLE task_plan (
   provider_version INTEGER NOT NULL,
   model_id TEXT NOT NULL,
   created_by_operation_id TEXT NOT NULL,
+  validation_report_json TEXT CHECK (
+    validation_report_json IS NULL OR (
+      json_valid(validation_report_json)
+      AND json_type(validation_report_json) = 'object'
+    )
+  ),
+  validator_version TEXT,
+  validated_draft_hash TEXT CHECK (
+    validated_draft_hash IS NULL OR (
+      length(validated_draft_hash) = 64
+      AND validated_draft_hash NOT GLOB '*[^0-9a-f]*'
+    )
+  ),
+  validated_at TEXT,
   created_at TEXT NOT NULL,
   UNIQUE(corporation_id, version),
   FOREIGN KEY (corporation_id, goal_version)
-    REFERENCES goal_contract_version(corporation_id, version)
+    REFERENCES goal_contract_version(corporation_id, version),
+  CHECK (
+    (validation_status = 'PENDING'
+      AND validation_report_json IS NULL
+      AND validator_version IS NULL
+      AND validated_draft_hash IS NULL
+      AND validated_at IS NULL)
+    OR (validation_status IN ('VALID','INVALID')
+      AND validation_report_json IS NOT NULL
+      AND validator_version IS NOT NULL
+      AND validated_draft_hash IS NOT NULL
+      AND validated_at IS NOT NULL)
+  )
 );
+
+CREATE UNIQUE INDEX idx_task_plan_identity
+ON task_plan(id, corporation_id);
 
 CREATE TABLE task (
   id TEXT PRIMARY KEY,
@@ -197,7 +226,10 @@ CREATE TABLE task (
   weight INTEGER NOT NULL DEFAULT 1 CHECK (weight BETWEEN 1 AND 5),
   version INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
+  updated_at TEXT NOT NULL,
+  UNIQUE(plan_id, id),
+  FOREIGN KEY (plan_id, corporation_id)
+    REFERENCES task_plan(id, corporation_id)
 );
 
 CREATE INDEX idx_task_ready
@@ -209,16 +241,21 @@ ON task(status, lease_expires_at)
 WHERE status = 'RUNNING';
 
 CREATE TABLE task_dependency (
-  upstream_task_id TEXT NOT NULL REFERENCES task(id) ON DELETE CASCADE,
-  downstream_task_id TEXT NOT NULL REFERENCES task(id) ON DELETE CASCADE,
-  condition TEXT NOT NULL CHECK (condition IN ('ON_SUCCESS','ON_COMPLETION')),
+  plan_id TEXT NOT NULL REFERENCES task_plan(id) ON DELETE CASCADE,
+  upstream_task_id TEXT NOT NULL,
+  downstream_task_id TEXT NOT NULL,
+  condition TEXT NOT NULL CHECK (condition = 'ON_SUCCESS'),
   artifact_requirements_json TEXT NOT NULL DEFAULT '[]',
-  PRIMARY KEY (upstream_task_id, downstream_task_id),
-  CHECK (upstream_task_id <> downstream_task_id)
+  PRIMARY KEY (plan_id, upstream_task_id, downstream_task_id),
+  CHECK (upstream_task_id <> downstream_task_id),
+  FOREIGN KEY (plan_id, upstream_task_id)
+    REFERENCES task(plan_id, id) ON DELETE CASCADE,
+  FOREIGN KEY (plan_id, downstream_task_id)
+    REFERENCES task(plan_id, id) ON DELETE CASCADE
 );
 ```
 
-环检测由应用层事务内完成；SQLite CHECK 无法验证整图无环。
+环检测由应用层事务内完成；SQLite CHECK 无法验证整图无环。`validation_report_json`、`validator_version`、`validated_draft_hash` 和 `validated_at` 由 `0011_plan_validation.sql` 增加；同一迁移创建正式 `task`/`task_dependency`。语义 hash 只覆盖不含动态状态、report 和时间的规范化草稿内容。Repository 必须保证 `INVALID` 没有 Task，`VALID` 的 Task/依赖/report/状态原子一致。
 
 ## 5. Agent 与 Run
 

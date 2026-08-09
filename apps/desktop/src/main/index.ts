@@ -39,6 +39,7 @@ import {
   CorporationStateRepository,
   GoalContractRepository,
   GoalEngineRepository,
+  PlanValidationRepository,
   PlannerRepository,
   ProviderRepository,
   type GoalFaultStage,
@@ -89,6 +90,7 @@ import {
   handlePlannerStart,
 } from "./planner-ipc";
 import { PlannerService } from "./planner-service";
+import { PlanValidationService } from "./plan-validation-service";
 import {
   handleProviderCancelConnectionTest,
   handleProviderCancelGenerationTest,
@@ -556,9 +558,14 @@ void app.whenReady().then(async () => {
     });
     const plannerRepository = new PlannerRepository(workspaceDatabase);
     plannerRepository.interruptGenerating(new Date().toISOString());
+    const planValidationService = new PlanValidationService({
+      repository: new PlanValidationRepository(workspaceDatabase),
+    });
+    planValidationService.recoverPending();
     plannerService = new PlannerService({
       provider: providerService,
       repository: plannerRepository,
+      validator: planValidationService,
     });
     const e2eFixturePath = resolveWorkspaceE2eFixturePath(process.env);
     workspaceDirectorySelector = createWorkspaceDirectorySelector({

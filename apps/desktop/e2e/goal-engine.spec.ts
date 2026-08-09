@@ -238,22 +238,26 @@ test("user creates and cancels real Goal Engine operations in the visible window
     await expect(page.getByText("已批准", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "开始规划设置" }).click();
     await expect(
-      page.getByRole("heading", { name: "生成计划草稿" }),
+      page.getByRole("heading", { name: "生成并验证计划" }),
     ).toBeFocused();
     await expect(page.getByText(/不会发送：工作区路径/u)).toBeVisible();
     await page
       .getByLabel("已验证的模型服务商 / 模型")
       .selectOption({ label: "Goal Fixture Provider · goal-model" });
     fixture.enqueue(plannerOutput());
-    await page.getByRole("button", { name: "生成尚未验证的草稿" }).click();
+    await page.getByRole("button", { name: "生成并验证计划" }).click();
     await expect(
-      page.getByRole("heading", { name: "尚未验证的计划草稿" }),
+      page.getByRole("heading", { name: "计划已通过本地验证" }),
     ).toBeVisible();
-    await expect(page.getByText(/草稿 · 等待验证/u)).toBeVisible();
+    await expect(page.getByText(/已验证 · 验证通过/u)).toBeVisible();
+    await expect(page.getByText(/仍在等待验证/u)).toHaveCount(0);
+    await expect(page.locator(".inline-status")).toContainText(
+      "已保存并通过本地验证",
+    );
     await expect(page.getByText(/建议角色：/u)).toContainText(
       "Writer · 尚未安排人员",
     );
-    await expect(page.getByText(/目前不能执行/u)).toBeVisible();
+    await expect(page.locator(".success-card")).toContainText("不能执行");
     const plannerRequest = fixture.generationRequests().at(-1)?.body;
     expect(plannerRequest).toMatchObject({
       max_tokens: 65_536,
@@ -268,12 +272,12 @@ test("user creates and cancels real Goal Engine operations in the visible window
       window?.setSize(1024, 700);
       window?.webContents.setZoomFactor(2);
     });
-    await expect(page.getByText(/尚未验证的计划草稿/u)).toBeVisible();
+    await expect(page.getByText(/计划已通过本地验证/u)).toBeVisible();
     await page.screenshot({
       path: path.resolve(
         __dirname,
         "../../../release",
-        `m2-tu06-dev-${process.platform}-${process.arch}-1024x700-200-percent.png`,
+        `m2-tu07-valid-dev-${process.platform}-${process.arch}-1024x700-200-percent.png`,
       ),
     });
     await app.evaluate(({ BrowserWindow }) => {
@@ -285,9 +289,49 @@ test("user creates and cancels real Goal Engine operations in the visible window
       path: path.resolve(
         __dirname,
         "../../../release",
-        `m2-tu06-dev-${process.platform}-${process.arch}-1440x900.png`,
+        `m2-tu07-valid-dev-${process.platform}-${process.arch}-1440x900.png`,
       ),
     });
+
+    const invalidCorporation = await createApprovedGoal(
+      page,
+      "Invalid Plan Corporation",
+      "Reject a locally invalid plan",
+      200,
+    );
+    await openPlannerForCorporation(page, invalidCorporation.name);
+    await selectPlannerProvider(page, "Goal Fixture Provider · goal-model");
+    const callsBeforeInvalidPlan = fixture.generationCalls();
+    fixture.enqueue(invalidPlannerOutput());
+    await page.getByRole("button", { name: "生成并验证计划" }).click();
+    await expect(
+      page.getByRole("heading", { name: "计划验证未通过" }),
+    ).toBeVisible();
+    await expect(page.locator(".error-state")).toContainText(
+      "任务缺少必须通过的验收标准",
+    );
+    await expect(page.locator(".error-state")).toContainText(
+      "没有创建正式任务",
+    );
+    await expect(page.locator(".inline-status")).toContainText(
+      "本地验证未通过",
+    );
+    await expect(page.locator(".error-state")).toContainText(
+      "未批准、未组队，也不能执行",
+    );
+    expect(fixture.generationCalls() - callsBeforeInvalidPlan).toBe(1);
+    expect(
+      await getPlannerOperation(page, invalidCorporation.id),
+    ).toMatchObject({
+      status: "PLAN_SAVED",
+      plan: { status: "DRAFT", validationStatus: "INVALID" },
+    });
+    await page.reload();
+    await openPlannerForCorporation(page, invalidCorporation.name);
+    await expect(
+      page.getByRole("heading", { name: "计划验证未通过" }),
+    ).toBeVisible();
+    expect(fixture.generationCalls() - callsBeforeInvalidPlan).toBe(1);
     expect(
       fixture.requests.some(
         ({ authorization }) => authorization === `Bearer ${secret}`,
@@ -370,7 +414,7 @@ test("user sees an interrupted Goal operation after process restart without repl
     await selectPlannerProvider(page, "Restart Goal Provider · goal-model");
     fixture.delayNext();
     await page
-      .getByRole("button", { name: "生成尚未验证的草稿" })
+      .getByRole("button", { name: "生成并验证计划" })
       .click({ noWaitAfter: true });
     await expect.poll(fixture.generationCalls).toBe(2);
     await expect.poll(fixture.hasDelayedResponse).toBe(true);
@@ -444,9 +488,9 @@ test("Planner repairs once, fails safely, cancels, rejects stale facts, and rest
     const callsBeforeRepair = fixture.generationCalls();
     fixture.enqueue("not valid json");
     fixture.enqueue(plannerOutput());
-    await page.getByRole("button", { name: "生成尚未验证的草稿" }).click();
+    await page.getByRole("button", { name: "生成并验证计划" }).click();
     await expect(
-      page.getByRole("heading", { name: "尚未验证的计划草稿" }),
+      page.getByRole("heading", { name: "计划已通过本地验证" }),
     ).toBeVisible();
     expect(fixture.generationCalls() - callsBeforeRepair).toBe(2);
     const firstRead = await getPlannerOperation(page, repairCorporation.id);
@@ -457,7 +501,7 @@ test("Planner repairs once, fails safely, cancels, rejects stale facts, and rest
     await page.reload();
     await openPlannerForCorporation(page, repairCorporation.name);
     await expect(
-      page.getByRole("heading", { name: "尚未验证的计划草稿" }),
+      page.getByRole("heading", { name: "计划已通过本地验证" }),
     ).toBeVisible();
     const restored = await getPlannerOperation(page, repairCorporation.id);
     expect(restored?.plan?.planId).toBe(stablePlanId);
@@ -473,7 +517,7 @@ test("Planner repairs once, fails safely, cancels, rejects stale facts, and rest
     const callsBeforeFailure = fixture.generationCalls();
     fixture.enqueue("not valid json");
     fixture.enqueue("still not valid json");
-    await page.getByRole("button", { name: "生成尚未验证的草稿" }).click();
+    await page.getByRole("button", { name: "生成并验证计划" }).click();
     await expect(page.getByRole("heading", { name: "失败" })).toBeVisible();
     await expect(
       page.getByText("INVALID_MODEL_OUTPUT", { exact: true }),
@@ -493,7 +537,7 @@ test("Planner repairs once, fails safely, cancels, rejects stale facts, and rest
     await selectPlannerProvider(page, "Planner Matrix Provider · goal-model");
     fixture.delayNext();
     await page
-      .getByRole("button", { name: "生成尚未验证的草稿" })
+      .getByRole("button", { name: "生成并验证计划" })
       .click({ noWaitAfter: true });
     await expect.poll(fixture.hasDelayedResponse).toBe(true);
     const cancelStartedAt = Date.now();
@@ -514,7 +558,7 @@ test("Planner repairs once, fails safely, cancels, rejects stale facts, and rest
     await selectPlannerProvider(page, "Planner Matrix Provider · goal-model");
     fixture.delayNext();
     await page
-      .getByRole("button", { name: "生成尚未验证的草稿" })
+      .getByRole("button", { name: "生成并验证计划" })
       .click({ noWaitAfter: true });
     await expect.poll(fixture.hasDelayedResponse).toBe(true);
     const update = await page.evaluate(
@@ -908,6 +952,18 @@ function plannerOutput() {
       },
     ],
   });
+}
+
+function invalidPlannerOutput() {
+  const value = JSON.parse(plannerOutput()) as {
+    tasks: {
+      acceptanceCriteria: {
+        severity: "RECOMMENDED" | "REQUIRED";
+      }[];
+    }[];
+  };
+  value.tasks[0]!.acceptanceCriteria[0]!.severity = "RECOMMENDED";
+  return JSON.stringify(value);
 }
 
 async function expectNoSeriousAxeViolations(

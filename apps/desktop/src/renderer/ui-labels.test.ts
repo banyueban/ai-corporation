@@ -1,11 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { internalLabel, timelineLabel } from "./ui-labels";
+import {
+  internalLabel,
+  planValidationFindingLabel,
+  timelineLabel,
+} from "./ui-labels";
 
 describe("中文界面标签", () => {
   it("把项目自定义状态显示为中文", () => {
     expect(internalLabel("APPROVED")).toBe("已批准");
     expect(internalLabel("PLAN_SAVED")).toBe("计划草稿已保存");
     expect(internalLabel("READ_WRITE")).toBe("可读写");
+    expect(internalLabel("VALIDATED")).toBe("已验证");
+    expect(internalLabel("INVALID")).toBe("验证未通过");
+  });
+
+  it("把计划验证问题显示为中文", () => {
+    expect(planValidationFindingLabel("CYCLE_DETECTED")).toBe(
+      "任务之间形成循环依赖",
+    );
+    expect(planValidationFindingLabel("UNKNOWN_FUTURE_CODE")).toBe(
+      "未知的计划验证问题",
+    );
   });
 
   it("保留没有中文映射的外部值", () => {

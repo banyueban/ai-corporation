@@ -103,21 +103,21 @@ RUNNING / VERIFYING
 
 ### 4.1 合法迁移
 
-| From | To | 条件 |
-|---|---|---|
-| DRAFT | BLOCKED | 合同有效但存在未完成依赖 |
-| DRAFT/BLOCKED | READY | 所有依赖满足、输入可用、验收完整 |
-| READY | RUNNING | Scheduler 成功领取租约 |
-| RUNNING | VERIFYING | Run 成功提交候选 Artifact |
-| VERIFYING | COMPLETED | 必需验收全部 PASS |
-| VERIFYING | RETRY_PENDING | 可修订问题且未达上限 |
-| 任意非终态 | WAITING_HUMAN | 缺权限、歧义或高风险决策 |
-| RETRY_PENDING | READY | 已生成新尝试上下文 |
-| 任意非终态 | REPLAN_REQUIRED | 任务合同本身不可执行 |
-| REPLAN_REQUIRED | DRAFT | 新计划版本接受该任务 |
-| 任意非终态 | FAILED | 不可恢复或资源上限达到 |
-| 任意非终态 | PAUSED | 用户或系统暂停 |
-| PAUSED | BLOCKED/READY | 根据依赖重新计算 |
+| From            | To              | 条件                             |
+| --------------- | --------------- | -------------------------------- |
+| DRAFT           | BLOCKED         | 合同有效但存在未完成依赖         |
+| DRAFT/BLOCKED   | READY           | 所有依赖满足、输入可用、验收完整 |
+| READY           | RUNNING         | Scheduler 成功领取租约           |
+| RUNNING         | VERIFYING       | Run 成功提交候选 Artifact        |
+| VERIFYING       | COMPLETED       | 必需验收全部 PASS                |
+| VERIFYING       | RETRY_PENDING   | 可修订问题且未达上限             |
+| 任意非终态      | WAITING_HUMAN   | 缺权限、歧义或高风险决策         |
+| RETRY_PENDING   | READY           | 已生成新尝试上下文               |
+| 任意非终态      | REPLAN_REQUIRED | 任务合同本身不可执行             |
+| REPLAN_REQUIRED | DRAFT           | 新计划版本接受该任务             |
+| 任意非终态      | FAILED          | 不可恢复或资源上限达到           |
+| 任意非终态      | PAUSED          | 用户或系统暂停                   |
+| PAUSED          | BLOCKED/READY   | 根据依赖重新计算                 |
 
 状态迁移必须通过 `TaskStateMachine.transition`，禁止直接更新字段。
 
@@ -149,18 +149,20 @@ M2-TU-06 只保存 `DRAFT/PENDING`，不把结构合法冒充为图已验证。�
 3. DAG 无环；
 4. 至少一个入口和一个终点；
 5. 所有输入引用存在或由上游输出；
-6. 每个叶子 Task 有验收标准；
+6. 每个 Task 至少有一条 REQUIRED 验收标准，每个叶子 Task 至少有一个必需输出；
 7. 预算合计不超过 Corporation 预算；
 8. 权限需求未超过全局硬限制；
-9. 任务数处于 2–20；超出需压缩或用户确认；
-10. 每个 Task 预估可由单个 Run 完成。
+9. 任务数处于 1–20；21–50 固定失败，不自动压缩；
+10. 单 Run 大小只按固定结构阈值产生 warning，不把不可证明的估计作为硬失败。
+
+精确验证顺序、输入输出闭合、media type 映射、预算算法、权限描述边界、warning、恢复和物化事务只由 [Plan Validation Protocol](../04-protocols/Plan-Validation-Protocol.md) 定义。
 
 ### 5.3 计划修复
 
 - JSON/Schema 问题：首次生成后最多一次 Provider Schema Repair，不进行改变语义的本地修补；
-- DAG/引用问题：由后续计划验证任务返回结构化错误；不得消耗或扩展本阶段的一次 JSON/Schema 修复额度；
+- DAG/引用问题：由本地计划验证器返回结构化错误；不得调用 Provider，不得消耗或扩展 Planner 的一次 JSON/Schema 修复额度；
 - Goal Contract 歧义：进入 `WAITING_HUMAN`；
-- DAG 重生成或重新规划的自动次数由对应后续任务合同定义；M2-TU-06 不自动执行。
+- DAG 重生成、模型修复或重新规划由后续 Plan Review/重规划任务显式定义；本地验证失败不自动修改计划。
 
 ## 6. Ready 计算
 
@@ -199,18 +201,18 @@ claimReadyTask(input: {
 
 ## 8. 失败分类与处理
 
-| 类别 | 示例 | 默认处理 |
-|---|---|---|
-| TRANSIENT_PROVIDER | 限流、网络超时 | 退避重试 |
-| INVALID_MODEL_OUTPUT | JSON 不合法 | 修复一次，再换模型/失败 |
-| TOOL_FAILURE | 命令退出码非零 | 将证据交给 Agent 修订 |
-| POLICY_DENIED | 越权访问 | 不重试，重规划或用户审批 |
-| ACCEPTANCE_FAILED | 缺章节、测试失败 | 带反馈修订 |
-| PLAN_DEFECT | 输入不存在、依赖错误 | `REPLAN_REQUIRED` |
-| CAPABILITY_GAP | 候选均不胜任 | 换 Worker 或请求用户 |
-| BUDGET_EXHAUSTED | Token/费用达上限 | 暂停并请求追加预算 |
-| CANCELLED | 用户取消 | 终止，不重试 |
-| UNKNOWN_SIDE_EFFECT | 工具结果不确定 | `WAITING_HUMAN` |
+| 类别                 | 示例                 | 默认处理                 |
+| -------------------- | -------------------- | ------------------------ |
+| TRANSIENT_PROVIDER   | 限流、网络超时       | 退避重试                 |
+| INVALID_MODEL_OUTPUT | JSON 不合法          | 修复一次，再换模型/失败  |
+| TOOL_FAILURE         | 命令退出码非零       | 将证据交给 Agent 修订    |
+| POLICY_DENIED        | 越权访问             | 不重试，重规划或用户审批 |
+| ACCEPTANCE_FAILED    | 缺章节、测试失败     | 带反馈修订               |
+| PLAN_DEFECT          | 输入不存在、依赖错误 | `REPLAN_REQUIRED`        |
+| CAPABILITY_GAP       | 候选均不胜任         | 换 Worker 或请求用户     |
+| BUDGET_EXHAUSTED     | Token/费用达上限     | 暂停并请求追加预算       |
+| CANCELLED            | 用户取消             | 终止，不重试             |
+| UNKNOWN_SIDE_EFFECT  | 工具结果不确定       | `WAITING_HUMAN`          |
 
 自动尝试总数默认 3，其中验收修订最多 2 次。重试必须改变至少一个因素：上下文、Prompt、Worker、工具策略或计划；完全相同的盲重试被禁止。
 

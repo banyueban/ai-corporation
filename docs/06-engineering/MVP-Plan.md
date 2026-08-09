@@ -88,7 +88,7 @@
 - 循环依赖和无验收 Task 被拒绝；
 - 用户可修改并批准计划。
 
-阶段边界：Planner 先生成并保存 `DRAFT/PENDING` 结构化草稿；DAG/输入输出/验收验证是后续独立任务；Plan Review 再负责编辑和批准。模型只生成语义内容与局部引用，正式 Plan/Task 身份由应用分配。每次规划前用户明确选择已验证 Provider/精确模型，Provider 输入不包含 Workspace 路径或文件内容。Milestone 2 只显示能力要求和建议角色并标注尚未组队，真实 Organization Engine 仍属于 Milestone 3。
+阶段边界：Planner 先生成并保存 `DRAFT/PENDING` 结构化草稿；独立的本地确定性验证器随后检查 1–20 个 Task 的 DAG、输入输出、逐 Task 验收、叶子输出、预算与权限描述，通过时原子创建正式 Task/依赖，失败时保存结构化问题且不调用模型、不自动修改计划；Plan Review 再负责编辑和批准。模型只生成语义内容与局部引用，正式 Plan/Task 身份由应用分配。每次规划前用户明确选择已验证 Provider/精确模型，Provider 输入不包含 Workspace 路径或文件内容。Milestone 2 只显示能力要求和建议角色并标注尚未组队，真实 Organization Engine 仍属于 Milestone 3。
 
 ## 6. Milestone 3：最小 Agent 闭环
 

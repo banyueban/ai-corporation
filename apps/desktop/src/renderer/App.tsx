@@ -7,6 +7,7 @@ import type {
   GoalEngineErrorCode,
   GoalEngineOperationPublic,
   HealthResult,
+  PlanValidationFinding,
   PlannerErrorCode,
   PlannerOperationPublic,
   ProviderPublic,
@@ -27,7 +28,12 @@ import {
   workspaceErrorMessage,
 } from "./workspace-view-model";
 import { ProviderSettings } from "./ProviderSettings";
-import { formatUiTime, internalLabel, timelineLabel } from "./ui-labels";
+import {
+  formatUiTime,
+  internalLabel,
+  planValidationFindingLabel,
+  timelineLabel,
+} from "./ui-labels";
 import { createUuidV7 } from "./uuid-v7";
 
 type NativeCoreState =
@@ -773,9 +779,13 @@ export function App() {
       }
       setPlannerOperation(result.value);
       setStatusMessage(
-        result.value.status === "PLAN_SAVED"
-          ? "计划草稿已保存。DAG（有向无环图）、引用、输入、输出、验收条件、预算和权限仍在等待验证。"
-          : "计划生成已停止，没有保存草稿。",
+        result.value.status !== "PLAN_SAVED"
+          ? "计划生成已停止，没有保存草稿。"
+          : result.value.plan?.validationStatus === "VALID"
+            ? "计划已保存并通过本地验证。仍未批准、未组队，不能执行。"
+            : result.value.plan?.validationStatus === "INVALID"
+              ? "计划草稿已保存，但本地验证未通过。没有创建正式任务。"
+              : "计划草稿已保存，正在进行本地验证。",
       );
     } catch {
       setPlannerError("STORAGE_UNAVAILABLE");
@@ -1796,9 +1806,11 @@ function PlannerDraftView(props: {
             {props.corporation.name} · 已批准目标版本 {props.goal.version}
           </p>
           <h1 ref={props.headingRef} tabIndex={-1}>
-            生成计划草稿
+            生成并验证计划
           </h1>
-          <p>这里只生成结构化草稿。草稿仍未验证，不能开始执行。</p>
+          <p>
+            软件会先生成结构化草稿，再立即进行本地验证。验证不会再次调用模型服务商。
+          </p>
         </div>
         <div className="status-badge-group">
           <span className="status-badge status-badge--neutral">
@@ -1866,7 +1878,7 @@ function PlannerDraftView(props: {
                 onClick={() => void props.onStart()}
                 type="button"
               >
-                {generating ? "正在生成…" : "生成尚未验证的草稿"}
+                {generating ? "正在生成…" : "生成并验证计划"}
               </button>
               {generating && (
                 <button
@@ -1882,13 +1894,44 @@ function PlannerDraftView(props: {
         )}
       {plan !== undefined && (
         <>
-          <section className="warning-card" role="status">
-            <h2>尚未验证的计划草稿</h2>
-            <p>
-              DAG（有向无环图）、引用、输入输出闭合、末端任务验收、预算、权限和任务大小
-              均未验证。团队尚未创建，目前不能执行。
-            </p>
-          </section>
+          {plan.validationStatus === "PENDING" && (
+            <section className="warning-card" role="status">
+              <h2>正在本地验证计划</h2>
+              <p>
+                正在检查任务关系、输入输出、验收、预算和权限。不会再次调用模型服务商。
+              </p>
+            </section>
+          )}
+          {plan.validationStatus === "INVALID" && (
+            <section className="error-state" role="alert">
+              <div>
+                <p className="eyebrow">没有创建正式任务</p>
+                <h2>计划验证未通过</h2>
+                <p>
+                  下列问题必须先解决。软件不会让模型自动重试；当前计划未批准、未组队，也不能执行。
+                </p>
+                <PlanValidationFindings
+                  findings={plan.validationReport?.issues ?? []}
+                />
+              </div>
+            </section>
+          )}
+          {plan.validationStatus === "VALID" && (
+            <section className="success-card" role="status">
+              <h2>计划已通过本地验证</h2>
+              <p>
+                正式任务和依赖关系已经创建。计划仍未批准、未组队，也不能执行。
+              </p>
+              {(plan.validationReport?.warnings.length ?? 0) > 0 && (
+                <>
+                  <h3>需要留意</h3>
+                  <PlanValidationFindings
+                    findings={plan.validationReport?.warnings ?? []}
+                  />
+                </>
+              )}
+            </section>
+          )}
           <section
             className="plan-summary"
             aria-labelledby="plan-summary-title"
@@ -1926,6 +1969,20 @@ function PlannerDraftView(props: {
                           .join(", ")}
                   </p>
                   <p>验收标准：{task.acceptanceCriteria.length} 项</p>
+                  <p>
+                    预算：成本 {task.budget.maxCostMicros ?? "未设置"} 微美元 ·{" "}
+                    时长 {task.budget.maxDurationMs ?? "未设置"} 毫秒 ·{" "}
+                    {task.retryPolicy.maxEvaluationRevisions} 次修改
+                  </p>
+                  <p>
+                    计划要求（尚未授权）：
+                    {task.permissionHints.workspaceRead
+                      ? "需要读取工作区"
+                      : "不读取工作区"}
+                    {task.permissionHints.workspaceWrite.length > 0
+                      ? ` · 需要写入 ${task.permissionHints.workspaceWrite.join(", ")}`
+                      : " · 不写入工作区"}
+                  </p>
                 </article>
               ))}
             </div>
@@ -1950,6 +2007,25 @@ function PlannerDraftView(props: {
         </section>
       )}
     </>
+  );
+}
+
+function PlanValidationFindings(props: {
+  readonly findings: readonly PlanValidationFinding[];
+}) {
+  return (
+    <ul>
+      {props.findings.map((finding, index) => (
+        <li key={`${finding.code}-${finding.path}-${index}`}>
+          {planValidationFindingLabel(finding.code)}（位置：{finding.path}
+          {finding.logicalName === undefined
+            ? ""
+            : `；名称：${finding.logicalName}`}
+          {finding.actual === undefined ? "" : `；当前值：${finding.actual}`}
+          {finding.limit === undefined ? "" : `；限制：${finding.limit}`}）
+        </li>
+      ))}
+    </ul>
   );
 }
 

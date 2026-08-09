@@ -1,5 +1,6 @@
 const internalLabels: Readonly<Record<string, string>> = {
   DRAFT: "草稿",
+  VALIDATED: "已验证",
   PLANNING: "规划中",
   ORGANIZING: "组建中",
   EXECUTING: "执行中",
@@ -19,7 +20,9 @@ const internalLabels: Readonly<Record<string, string>> = {
   PLAN_SAVED: "计划草稿已保存",
   INTERRUPTED: "已中断",
   NOT_STARTED: "尚未开始",
-  PENDING: "等待验证",
+  PENDING: "正在本地验证",
+  VALID: "验证通过",
+  INVALID: "验证未通过",
   ENABLED: "已启用",
   DISABLED: "已停用",
   VERIFIED: "已验证",
@@ -40,6 +43,35 @@ const internalLabels: Readonly<Record<string, string>> = {
   HUMAN: "人工处理",
 };
 
+const planValidationFindingLabels: Readonly<Record<string, string>> = {
+  TASK_COUNT_EXCEEDED: "任务数量超过 20 个",
+  DUPLICATE_TASK_LOCAL_ID: "任务编号重复",
+  DUPLICATE_ACCEPTANCE_LOCAL_ID: "同一任务内的验收编号重复",
+  ACCEPTANCE_EVIDENCE_MISSING: "验收标准没有填写证据标签",
+  DUPLICATE_OUTPUT_LOGICAL_NAME: "同一任务内的输出名称重复",
+  UNKNOWN_TASK_REFERENCE: "引用了不存在的任务",
+  SELF_DEPENDENCY: "任务依赖了自己",
+  DUPLICATE_DEPENDENCY: "任务依赖关系重复",
+  CYCLE_DETECTED: "任务之间形成循环依赖",
+  UNKNOWN_MILESTONE_TASK: "里程碑引用了不存在的任务",
+  DUPLICATE_MILESTONE_TASK: "里程碑重复引用同一任务",
+  TASK_MISSING_REQUIRED_ACCEPTANCE: "任务缺少必须通过的验收标准",
+  LEAF_MISSING_REQUIRED_OUTPUT: "末端任务缺少必须交付的输出",
+  TASK_OUTPUT_NOT_FOUND: "引用的任务输出不存在",
+  TASK_OUTPUT_NOT_UPSTREAM: "引用的输出不来自上游任务",
+  TASK_OUTPUT_MEDIA_TYPE_MISMATCH: "输入与上游输出的媒体类型不一致",
+  UNSUPPORTED_MEDIA_TYPE: "使用了不支持的媒体类型",
+  BUDGET_LIMIT_MISSING: "目标有预算限制，但任务没有对应限制",
+  BUDGET_COST_EXCEEDED: "任务总成本超过目标限制",
+  BUDGET_DURATION_EXCEEDED: "任务关键路径时长超过目标限制",
+  BUDGET_REVISIONS_EXCEEDED: "任务总修改次数超过目标限制",
+  UNKNOWN_CAPABILITY: "使用了能力目录中不存在的能力",
+  UNKNOWN_TOOL: "使用了工具目录中不存在的工具",
+  UNSAFE_WORKSPACE_PATH: "工作区路径不安全或不是相对路径",
+  FORBIDDEN_PROCESS_PROFILE: "使用了未允许的进程配置",
+  SINGLE_RUN_SIZE_WARNING: "单次运行的预计资源用量较大",
+};
+
 const timelineLabels: Readonly<Record<string, string>> = {
   "corporation.created": "公司已创建。",
   "corporation.name.updated": "公司名称已更新。",
@@ -52,6 +84,10 @@ const timelineLabels: Readonly<Record<string, string>> = {
 
 export function internalLabel(value: string): string {
   return internalLabels[value] ?? value;
+}
+
+export function planValidationFindingLabel(value: string): string {
+  return planValidationFindingLabels[value] ?? "未知的计划验证问题";
 }
 
 export function timelineLabel(eventType: string): string {

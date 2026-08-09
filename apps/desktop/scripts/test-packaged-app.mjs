@@ -478,18 +478,32 @@ try {
   providerFixture.setGenerationMode("planner");
   await page.getByRole("button", { name: "开始规划设置" }).click();
   await page
-    .getByRole("heading", { name: "生成计划草稿" })
+    .getByRole("heading", { name: "生成并验证计划" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   await page
     .getByLabel("已验证的模型服务商 / 模型")
     .selectOption({ label: "Packaged Provider · packaged-fixture-model" });
-  await page.getByRole("button", { name: "生成尚未验证的草稿" }).click();
+  await page.getByRole("button", { name: "生成并验证计划" }).click();
   await page
-    .getByRole("heading", { name: "尚未验证的计划草稿" })
+    .getByRole("heading", { name: "计划已通过本地验证" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   await page
-    .getByText(/草稿 · 等待验证/u)
+    .getByText(/已验证 · 验证通过/u)
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  if ((await page.getByText(/仍在等待验证/u).count()) !== 0) {
+    throw new Error("Packaged Planner displayed a stale pending message");
+  }
+  await page.locator(".inline-status").waitFor({
+    state: "visible",
+    timeout: STARTUP_TIMEOUT_MS,
+  });
+  if (
+    !(await page.locator(".inline-status").textContent())?.includes(
+      "已保存并通过本地验证",
+    )
+  ) {
+    throw new Error("Packaged Planner did not display its validated result");
+  }
   await page
     .getByText(/Writer · 尚未安排人员/u)
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
@@ -520,15 +534,15 @@ try {
   }, stored.corporation.id);
   if (
     packagedPlanner?.status !== "PLAN_SAVED" ||
-    packagedPlanner.plan?.status !== "DRAFT" ||
-    packagedPlanner.plan?.validationStatus !== "PENDING"
+    packagedPlanner.plan?.status !== "VALIDATED" ||
+    packagedPlanner.plan?.validationStatus !== "VALID"
   ) {
-    throw new Error("Packaged Planner did not persist a DRAFT/PENDING Plan");
+    throw new Error("Packaged Planner did not persist a VALIDATED/VALID Plan");
   }
   const plannerPlanId = packagedPlanner.plan.planId;
   const plannerEvidencePath = path.join(
     evidenceDirectory,
-    `m2-tu06-packaged-${process.platform}-${process.arch}-planner.png`,
+    `m2-tu07-packaged-${process.platform}-${process.arch}-planner.png`,
   );
   await page.screenshot({ path: plannerEvidencePath });
   await page.reload();
@@ -539,7 +553,7 @@ try {
   await page.getByRole("button", { name: "打开目标合同" }).click();
   await page.getByRole("button", { name: "开始规划设置" }).click();
   await page
-    .getByRole("heading", { name: "尚未验证的计划草稿" })
+    .getByRole("heading", { name: "计划已通过本地验证" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   const restoredPlannerPlanId = await page.evaluate(async (corporationId) => {
     const result = await window.desktop.planner.getCurrent({
@@ -564,9 +578,9 @@ try {
   const callsBeforeRepair = providerFixture.generationCalls();
   providerFixture.enqueue("not valid json");
   providerFixture.enqueue(packagedPlannerOutput());
-  await page.getByRole("button", { name: "生成尚未验证的草稿" }).click();
+  await page.getByRole("button", { name: "生成并验证计划" }).click();
   await page
-    .getByRole("heading", { name: "尚未验证的计划草稿" })
+    .getByRole("heading", { name: "计划已通过本地验证" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
   if (providerFixture.generationCalls() - callsBeforeRepair !== 2) {
     throw new Error("Packaged Planner did not perform exactly one repair");
@@ -587,7 +601,7 @@ try {
   const callsBeforeFailure = providerFixture.generationCalls();
   providerFixture.enqueue("not valid json");
   providerFixture.enqueue("still not valid json");
-  await page.getByRole("button", { name: "生成尚未验证的草稿" }).click();
+  await page.getByRole("button", { name: "生成并验证计划" }).click();
   await page
     .getByRole("heading", { name: "失败" })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
@@ -613,7 +627,7 @@ try {
   await selectPlannerProvider(page);
   providerFixture.delayNext();
   await page
-    .getByRole("button", { name: "生成尚未验证的草稿" })
+    .getByRole("button", { name: "生成并验证计划" })
     .click({ noWaitAfter: true });
   await waitForCondition(
     providerFixture.hasDelayedResponse,
@@ -642,7 +656,7 @@ try {
   await selectPlannerProvider(page);
   providerFixture.delayNext();
   await page
-    .getByRole("button", { name: "生成尚未验证的草稿" })
+    .getByRole("button", { name: "生成并验证计划" })
     .click({ noWaitAfter: true });
   await waitForCondition(
     providerFixture.hasDelayedResponse,
@@ -691,7 +705,7 @@ try {
   await selectPlannerProvider(page);
   providerFixture.delayNext();
   await page
-    .getByRole("button", { name: "生成尚未验证的草稿" })
+    .getByRole("button", { name: "生成并验证计划" })
     .click({ noWaitAfter: true });
   await waitForCondition(
     providerFixture.hasDelayedResponse,
@@ -787,7 +801,7 @@ try {
     `Packaged Goal Engine verified: explicit Provider/model · final-package generation · PROVIDER draft · normalized usage · screenshot ${goalEngineEvidencePath}`,
   );
   console.log(
-    `Packaged Planner verified: explicit Provider/model · normalized JSON · DRAFT/PENDING · stable reload · one repair · repair failure · prompt cancel · version conflict · interrupted restart without replay · screenshot ${plannerEvidencePath}`,
+    `Packaged Planner verified: explicit Provider/model · normalized JSON · VALIDATED/VALID · stable reload · one repair · repair failure · prompt cancel · version conflict · interrupted restart without replay · screenshot ${plannerEvidencePath}`,
   );
   console.log(
     "Packaged Corporation restart journey verified: pause · reload · process restart · read-only restore · resume · reload · process restart",

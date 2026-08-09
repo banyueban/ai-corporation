@@ -541,6 +541,15 @@ h3 {
   background: #211b10;
 }
 
+.success-card {
+  margin: 1rem 0;
+  padding: 1rem 1.15rem;
+  border: 1px solid #2f7a5a;
+  border-radius: 0.85rem;
+  color: #b8f2d4;
+  background: #10241c;
+}
+
 .review-block,
 .history-panel {
   min-width: 0;
