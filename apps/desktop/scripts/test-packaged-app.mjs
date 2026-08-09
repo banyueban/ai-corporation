@@ -553,6 +553,181 @@ try {
     throw new Error("Packaged Renderer reload changed the saved Plan identity");
   }
 
+  const repairCorporation = await createApprovedGoal(
+    page,
+    "Packaged Planner Repair Corporation",
+    "Create a repairable packaged Plan",
+    100,
+  );
+  await openPlannerForCorporation(page, repairCorporation.name);
+  await selectPlannerProvider(page);
+  const callsBeforeRepair = providerFixture.generationCalls();
+  providerFixture.enqueue("not valid json");
+  providerFixture.enqueue(packagedPlannerOutput());
+  await page
+    .getByRole("button", { name: "Generate unvalidated draft" })
+    .click();
+  await page
+    .getByRole("heading", { name: "Unvalidated Plan draft" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  if (providerFixture.generationCalls() - callsBeforeRepair !== 2) {
+    throw new Error("Packaged Planner did not perform exactly one repair");
+  }
+  const repairedPlanner = await getPlannerOperation(page, repairCorporation.id);
+  if (repairedPlanner?.status !== "PLAN_SAVED" || !repairedPlanner.plan) {
+    throw new Error("Packaged Planner repair did not save a Plan");
+  }
+
+  const failureCorporation = await createApprovedGoal(
+    page,
+    "Packaged Planner Repair Failure Corporation",
+    "Reject two invalid packaged Plan outputs",
+    110,
+  );
+  await openPlannerForCorporation(page, failureCorporation.name);
+  await selectPlannerProvider(page);
+  const callsBeforeFailure = providerFixture.generationCalls();
+  providerFixture.enqueue("not valid json");
+  providerFixture.enqueue("still not valid json");
+  await page
+    .getByRole("button", { name: "Generate unvalidated draft" })
+    .click();
+  await page
+    .getByRole("heading", { name: "FAILED" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page
+    .getByText("INVALID_MODEL_OUTPUT", { exact: true })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  if (
+    providerFixture.generationCalls() - callsBeforeFailure !== 2 ||
+    (await getPlannerOperation(page, failureCorporation.id))?.plan !== undefined
+  ) {
+    throw new Error(
+      "Packaged Planner repair failure was not terminal and safe",
+    );
+  }
+
+  const cancelCorporation = await createApprovedGoal(
+    page,
+    "Packaged Planner Cancel Corporation",
+    "Cancel this packaged Plan",
+    120,
+  );
+  await openPlannerForCorporation(page, cancelCorporation.name);
+  await selectPlannerProvider(page);
+  providerFixture.delayNext();
+  await page
+    .getByRole("button", { name: "Generate unvalidated draft" })
+    .click({ noWaitAfter: true });
+  await waitForCondition(
+    providerFixture.hasDelayedResponse,
+    "Packaged Planner cancel request did not reach the Provider",
+  );
+  const cancelStartedAt = Date.now();
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page
+    .getByRole("heading", { name: "CANCELLED" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  if (
+    Date.now() - cancelStartedAt >= 2_000 ||
+    (await getPlannerOperation(page, cancelCorporation.id))?.plan !== undefined
+  ) {
+    throw new Error("Packaged Planner cancellation was not prompt and safe");
+  }
+  providerFixture.releaseDelayed();
+
+  const conflictCorporation = await createApprovedGoal(
+    page,
+    "Packaged Planner Conflict Corporation",
+    "Reject stale packaged planning facts",
+    130,
+  );
+  await openPlannerForCorporation(page, conflictCorporation.name);
+  await selectPlannerProvider(page);
+  providerFixture.delayNext();
+  await page
+    .getByRole("button", { name: "Generate unvalidated draft" })
+    .click({ noWaitAfter: true });
+  await waitForCondition(
+    providerFixture.hasDelayedResponse,
+    "Packaged Planner conflict request did not reach the Provider",
+  );
+  const conflictUpdate = await page.evaluate(
+    async ({ corporationId, version }) =>
+      window.desktop.corporation.updateName({
+        schemaVersion: "1.0",
+        commandId: "019fa9bb-8131-7d90-a4e3-a5b0eea2a9ef",
+        corporationId,
+        expectedVersion: version,
+        name: "Packaged Planner Conflict Corporation Updated",
+      }),
+    {
+      corporationId: conflictCorporation.id,
+      version: conflictCorporation.version,
+    },
+  );
+  if (!conflictUpdate.ok) {
+    throw new Error(
+      `Packaged Planner conflict setup failed: ${conflictUpdate.error.code}`,
+    );
+  }
+  providerFixture.completeDelayed(packagedPlannerOutput());
+  await page
+    .getByRole("heading", { name: "FAILED" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page
+    .getByText("VERSION_CONFLICT", { exact: true })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  if (
+    (await getPlannerOperation(page, conflictCorporation.id))?.plan !==
+    undefined
+  ) {
+    throw new Error("Packaged Planner version conflict persisted a stale Plan");
+  }
+
+  const interruptedCorporation = await createApprovedGoal(
+    page,
+    "Packaged Planner Interrupted Corporation",
+    "Do not replay packaged Plan generation after restart",
+    140,
+  );
+  await openPlannerForCorporation(page, interruptedCorporation.name);
+  await selectPlannerProvider(page);
+  providerFixture.delayNext();
+  await page
+    .getByRole("button", { name: "Generate unvalidated draft" })
+    .click({ noWaitAfter: true });
+  await waitForCondition(
+    providerFixture.hasDelayedResponse,
+    "Packaged Planner interrupted request did not reach the Provider",
+  );
+  const callsBeforeRestart = providerFixture.generationCalls();
+  await browser.close();
+  browser = undefined;
+  await stopChild(child);
+  providerFixture.releaseDelayed();
+  ({ child, port } = await launchPackagedApplication());
+  await waitForDebugEndpoint(port, child);
+  browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
+  page = await waitForApplicationPage(browser);
+  page.on("request", (request) => {
+    if (/^https?:/u.test(request.url())) externalRequests.push(request.url());
+  });
+  await openPlannerForCorporation(page, interruptedCorporation.name);
+  await page
+    .getByRole("heading", { name: "INTERRUPTED" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page
+    .getByText(/No Plan was saved/u)
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  if (
+    providerFixture.generationCalls() !== callsBeforeRestart ||
+    (await getPlannerOperation(page, interruptedCorporation.id))?.plan !==
+      undefined
+  ) {
+    throw new Error("Packaged Planner restart replayed or persisted a Plan");
+  }
+
   providerFixture.setGenerationMode("goal");
   await page.getByRole("button", { name: "Dashboard", exact: true }).click();
   await page.getByRole("button", { name: "New Corporation" }).click();
@@ -618,7 +793,7 @@ try {
     `Packaged Goal Engine verified: explicit Provider/model · final-package generation · PROVIDER draft · normalized usage · screenshot ${goalEngineEvidencePath}`,
   );
   console.log(
-    `Packaged Planner verified: explicit Provider/model · normalized JSON · DRAFT/PENDING · stable reload · screenshot ${plannerEvidencePath}`,
+    `Packaged Planner verified: explicit Provider/model · normalized JSON · DRAFT/PENDING · stable reload · one repair · repair failure · prompt cancel · version conflict · interrupted restart without replay · screenshot ${plannerEvidencePath}`,
   );
   console.log(
     "Packaged Corporation restart journey verified: pause · reload · process restart · read-only restore · resume · reload · process restart",
@@ -734,7 +909,10 @@ try {
 
 async function startProviderFixture() {
   const requests = [];
+  const queuedGenerations = [];
   let generationMode = "success";
+  let delayNextGeneration = false;
+  let delayedResponse;
   const server = createServer((request, response) => {
     if (request.url === "/success/chat/completions") {
       const chunks = [];
@@ -746,6 +924,16 @@ async function startProviderFixture() {
           authorization: request.headers.authorization,
           body,
         });
+        if (delayNextGeneration) {
+          delayNextGeneration = false;
+          delayedResponse = response;
+          return;
+        }
+        const queuedGeneration = queuedGenerations.shift();
+        if (queuedGeneration !== undefined) {
+          sendPackagedGenerationResponse(response, queuedGeneration);
+          return;
+        }
         if (generationMode === "delay") return;
         if (generationMode === "rate-limit") {
           response.writeHead(429, { "content-type": "application/json" });
@@ -770,69 +958,7 @@ async function startProviderFixture() {
           },
           unresolvedQuestions: [],
         });
-        const plannerContent = JSON.stringify({
-          schemaVersion: "1.0",
-          summary: "Create one packaged verification report.",
-          tasks: [
-            {
-              localId: "task-one",
-              title: "Create report",
-              objective: "Create the packaged verification report.",
-              kind: "GENERATION",
-              priority: 50,
-              riskLevel: "LOW",
-              suggestedRole: "Writer",
-              requiredCapabilities: [
-                {
-                  path: "writing.document",
-                  minimumLevel: 0.7,
-                  mandatory: true,
-                },
-              ],
-              requiredTools: ["workspace.propose_write"],
-              inputs: [
-                {
-                  source: "GOAL_CONTRACT",
-                  logicalName: "approved-goal",
-                  required: true,
-                },
-              ],
-              expectedOutputs: [
-                {
-                  logicalName: "report",
-                  mediaType: "text/markdown",
-                  required: true,
-                  description: "Packaged verification report.",
-                },
-              ],
-              acceptanceCriteria: [
-                {
-                  localId: "criterion-report",
-                  description: "The report matches the approved Goal.",
-                  severity: "REQUIRED",
-                  evidenceRequired: ["report"],
-                },
-              ],
-              budget: { maxOutputTokens: 4096 },
-              retryPolicy: {
-                maxAttempts: 2,
-                maxEvaluationRevisions: 1,
-                retryableCategories: ["provider"],
-              },
-              permissionHints: {
-                workspaceRead: false,
-                workspaceWrite: [],
-                processProfiles: [],
-              },
-              assumptions: [],
-              nonGoals: [],
-            },
-          ],
-          dependencies: [],
-          milestones: [{ title: "Delivery", taskLocalIds: ["task-one"] }],
-          assumptions: [],
-          risks: [],
-        });
+        const plannerContent = packagedPlannerOutput();
         response.end(
           JSON.stringify({
             model: "packaged-fixture-model",
@@ -904,6 +1030,24 @@ async function startProviderFixture() {
       requests.filter(({ path: requestPath }) =>
         requestPath.endsWith("/chat/completions"),
       ).length,
+    enqueue: (output) => queuedGenerations.push(output),
+    delayNext: () => {
+      delayedResponse?.destroy();
+      delayedResponse = undefined;
+      delayNextGeneration = true;
+    },
+    hasDelayedResponse: () => delayedResponse !== undefined,
+    releaseDelayed: () => {
+      delayedResponse?.destroy();
+      delayedResponse = undefined;
+    },
+    completeDelayed: (output) => {
+      if (delayedResponse === undefined) {
+        throw new Error("Packaged Provider fixture has no delayed response");
+      }
+      sendPackagedGenerationResponse(delayedResponse, output);
+      delayedResponse = undefined;
+    },
     setGenerationMode: (mode) => {
       generationMode = mode;
     },
@@ -915,6 +1059,89 @@ async function startProviderFixture() {
         );
       }),
   };
+}
+
+function sendPackagedGenerationResponse(response, output) {
+  response.writeHead(200, { "content-type": "application/json" });
+  response.end(
+    JSON.stringify({
+      model: "packaged-fixture-model",
+      choices: [
+        {
+          index: 0,
+          message: { role: "assistant", content: output },
+          finish_reason: "stop",
+        },
+      ],
+      usage: {
+        prompt_tokens: 12,
+        completion_tokens: 8,
+        total_tokens: 20,
+      },
+    }),
+  );
+}
+
+function packagedPlannerOutput() {
+  return JSON.stringify({
+    schemaVersion: "1.0",
+    summary: "Create one packaged verification report.",
+    tasks: [
+      {
+        localId: "task-one",
+        title: "Create report",
+        objective: "Create the packaged verification report.",
+        kind: "GENERATION",
+        priority: 50,
+        riskLevel: "LOW",
+        suggestedRole: "Writer",
+        requiredCapabilities: [
+          { path: "writing.document", minimumLevel: 0.7, mandatory: true },
+        ],
+        requiredTools: ["workspace.propose_write"],
+        inputs: [
+          {
+            source: "GOAL_CONTRACT",
+            logicalName: "approved-goal",
+            required: true,
+          },
+        ],
+        expectedOutputs: [
+          {
+            logicalName: "report",
+            mediaType: "text/markdown",
+            required: true,
+            description: "Packaged verification report.",
+          },
+        ],
+        acceptanceCriteria: [
+          {
+            localId: "criterion-report",
+            description: "The report matches the approved Goal.",
+            severity: "REQUIRED",
+            evidenceRequired: ["report"],
+          },
+        ],
+        budget: { maxOutputTokens: 4096 },
+        retryPolicy: {
+          maxAttempts: 2,
+          maxEvaluationRevisions: 1,
+          retryableCategories: ["provider"],
+        },
+        permissionHints: {
+          workspaceRead: false,
+          workspaceWrite: [],
+          processProfiles: [],
+        },
+        assumptions: [],
+        nonGoals: [],
+      },
+    ],
+    dependencies: [],
+    milestones: [{ title: "Delivery", taskLocalIds: ["task-one"] }],
+    assumptions: [],
+    risks: [],
+  });
 }
 
 function recordDiagnostic(chunk) {
@@ -997,6 +1224,138 @@ async function readPersistedState(page, corporationId) {
       eventCount: timeline.value.items.length,
     };
   }, corporationId);
+}
+
+async function createApprovedGoal(page, name, goal, idOffset) {
+  return page.evaluate(
+    async ({ name, goal, idOffset }) => {
+      const workspaces = await window.desktop.workspace.list();
+      if (!workspaces.ok || workspaces.value[0] === undefined) {
+        throw new Error("Packaged workspace fixture is unavailable");
+      }
+      const commandId = (offset) =>
+        `019fa9bb-${(0x8000 + idOffset + offset).toString(16)}-7d90-a4e3-a5b0eea2a9ef`;
+      const created = await window.desktop.corporation.create({
+        schemaVersion: "1.0",
+        commandId: commandId(1),
+        workspaceId: workspaces.value[0].workspaceId,
+        name,
+      });
+      if (!created.ok) {
+        throw new Error(`Corporation create failed: ${created.error.code}`);
+      }
+      let drafted = await window.desktop.goalContract.saveDraft({
+        schemaVersion: "1.0",
+        commandId: commandId(2),
+        corporationId: created.value.id,
+        expectedCorporationVersion: created.value.version,
+        expectedGoalVersion: 0,
+        content: {
+          source: "MANUAL",
+          originalGoal: goal,
+          statement: goal,
+          successCriteria: ["A verifiable draft exists"],
+          inScope: ["Plan draft"],
+          outOfScope: [],
+          constraints: [],
+          assumptions: [],
+          deliverables: ["Plan draft"],
+          riskLevel: "LOW",
+          budget: {},
+          stopConditions: [],
+        },
+      });
+      if (!drafted.ok && drafted.error.code === "STORAGE_UNAVAILABLE") {
+        drafted = await window.desktop.goalContract.saveDraft({
+          schemaVersion: "1.0",
+          commandId: commandId(4),
+          corporationId: created.value.id,
+          expectedCorporationVersion: created.value.version,
+          expectedGoalVersion: 0,
+          content: {
+            source: "MANUAL",
+            originalGoal: goal,
+            statement: goal,
+            successCriteria: ["A verifiable draft exists"],
+            inScope: ["Plan draft"],
+            outOfScope: [],
+            constraints: [],
+            assumptions: [],
+            deliverables: ["Plan draft"],
+            riskLevel: "LOW",
+            budget: {},
+            stopConditions: [],
+          },
+        });
+      }
+      if (!drafted.ok) {
+        throw new Error(`Goal draft failed: ${drafted.error.code}`);
+      }
+      const afterDraft = await window.desktop.corporation.get({
+        schemaVersion: "1.0",
+        corporationId: created.value.id,
+      });
+      if (!afterDraft.ok) {
+        throw new Error(`Corporation read failed: ${afterDraft.error.code}`);
+      }
+      const approved = await window.desktop.goalContract.approve({
+        schemaVersion: "1.0",
+        commandId: commandId(3),
+        corporationId: created.value.id,
+        expectedCorporationVersion: afterDraft.value.version,
+        goalVersion: drafted.value.version,
+      });
+      if (!approved.ok) {
+        throw new Error(`Goal approve failed: ${approved.error.code}`);
+      }
+      const current = await window.desktop.corporation.get({
+        schemaVersion: "1.0",
+        corporationId: created.value.id,
+      });
+      if (!current.ok) {
+        throw new Error(`Corporation refresh failed: ${current.error.code}`);
+      }
+      return current.value;
+    },
+    { name, goal, idOffset },
+  );
+}
+
+async function openPlannerForCorporation(page, corporationName) {
+  await page.reload();
+  const card = page.locator("article").filter({ hasText: corporationName });
+  await card.getByRole("button", { name: "Open Goal Contract" }).click();
+  await page.getByRole("button", { name: "Start planning setup" }).click();
+}
+
+async function selectPlannerProvider(page) {
+  await page
+    .getByLabel("Verified Provider / model")
+    .selectOption({ label: "Packaged Provider · packaged-fixture-model" });
+}
+
+async function getPlannerOperation(page, corporationId) {
+  const result = await page.evaluate(
+    async (id) =>
+      window.desktop.planner.getCurrent({
+        schemaVersion: "1.0",
+        corporationId: id,
+      }),
+    corporationId,
+  );
+  if (!result.ok) {
+    throw new Error(`Packaged Planner read failed: ${result.error.code}`);
+  }
+  return result.value;
+}
+
+async function waitForCondition(predicate, failureMessage) {
+  const deadline = Date.now() + STARTUP_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    if (predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(failureMessage);
 }
 
 async function reservePort() {

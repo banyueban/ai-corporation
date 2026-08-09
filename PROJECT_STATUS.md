@@ -3,18 +3,18 @@
 | 属性 | 当前值 |
 |---|---|
 | 当前产品版本 | v0.1 MVP |
-| 当前阶段 | M2-TU-06 本地候选已验证，等待跨平台与人工验收 |
+| 当前阶段 | M2-TU-06 本地完整候选已验证，等待同提交跨平台与人工验收 |
 | 当前 Milestone | Milestone 2：Provider 与 Goal/Plan |
 | 当前任务单元 | M2-TU-06（进行中） |
 | 总体状态 | 进行中 |
 | 最近更新 | 2026-08-09 |
-| 下一检查点 | 提交候选并取得 Windows/macOS CI 及用户人工 UI 验收 |
+| 下一检查点 | 提交最终包复合矩阵，取得 Windows/macOS CI 及用户人工 UI 验收 |
 
 ## 1. 当前结论
 
 Milestone 0、Milestone 1 和 M2-TU-02 至 M2-TU-05 已完成。M2-TU-06 已实现 Planner 结构化生成与首个 Plan 草稿持久化：用户从当前 APPROVED Goal 进入 Planner，明确选择已验证 Provider/精确模型，只发送批准 Goal 与内置 catalogs；模型输出只提供语义内容和局部引用，Main 分配 Plan/Task 可信身份；首次 JSON/Schema 非法时最多修复一次，结果只能保存为 `DRAFT/PENDING`，不创建团队、不允许执行。
 
-本地工程检查、Windows 开发态真实窗口、Windows 最终包 loopback 和正式 Renderer 真实 Provider smoke 已通过。任务仍为“进行中”，因为 Windows/macOS 同提交 CI、最终包复合矩阵和用户人工 UI 验收尚未取得当前候选证据；不得提前标记完成。
+本地工程检查、Windows 开发态真实窗口、Windows 最终包完整 loopback 矩阵和正式 Renderer 真实 Provider smoke 已通过。任务仍为“进行中”，因为最终候选的 Windows/macOS 同提交 CI 和用户人工 UI 验收尚未取得；不得提前标记完成。
 
 ## 2. 已完成基线
 
@@ -55,7 +55,6 @@ M2-TU-06 只交付：
 当前没有代码阻塞，P0/P1 为 0。剩余验收条件是：
 
 - 候选提交的 Windows/macOS GitHub Actions 与 artifacts；
-- 最终包复合 Planner 矩阵的跨平台证据；
 - 用户对 Windows 安装包的人工 UI 验收。
 
 已知条件：系统 PATH 未提供 Node.js，工程验证使用 Codex bundled Node.js；正式 Key 仍只由应用自管 Key Vault 使用，未进入命令、脚本、环境变量、Git、日志或截图；费用无法从当前 Provider 响应可靠取得时保持 `UNKNOWN`。
@@ -64,16 +63,16 @@ M2-TU-06 只交付：
 
 - `pnpm check` 完整通过：Protocol 41、Provider 28、Storage 83、Desktop 105、Native Core 7、workspace Rust 7；status/task-unit、format、lint、typecheck、Rust fmt/clippy 和 secret scan 均成功；
 - Windows 开发态 Electron E2E 7/7 通过。Planner 直接覆盖成功、一次修复、修复再次失败且无 Plan、2 秒内取消、Corporation 版本冲突、Renderer 重载稳定 Plan ID、进程重启转 `INTERRUPTED` 且不重发；既有 Workspace、Provider、Key Vault 和 Goal 回归同时通过；
-- Windows 最终包真实窗口通过 Native Core、Workspace、Goal、Goal Engine、Planner 成功生成、`DRAFT/PENDING`、重载稳定 Plan ID、Provider/Key Vault 与外部请求隔离；
+- Windows 最终包真实窗口通过 Native Core、Workspace、Goal、Goal Engine、Provider/Key Vault 与外部请求隔离；Planner 覆盖成功生成与 `DRAFT/PENDING`、重载稳定 Plan ID、唯一一次修复成功、再次非法安全失败且无 Plan、2 秒内取消、Corporation 版本冲突拒绝落库、进程重启转 `INTERRUPTED` 且不重发；
 - 正式 Windows 最终包从 Renderer 使用应用 Key Vault 中已保存的 `deepseek-v4-flash` 完成非敏感 Planner smoke：`PLAN_SAVED`、Plan v1、`PENDING`、1 个 Task，usage 为 input 816、output 2,640、cached input 768、reasoning 2,102、cost `UNKNOWN`，完成时间 `2026-08-09T10:53:13.012Z`；重载恢复同一 Plan ID，SQLite/WAL/SHM 与进程诊断未发现符合真实 Key 长度的明文模式；
 - 真实 Provider 首次暴露的私有枚举输出没有被放宽接受；唯一修复请求改为提供安全 Schema 路径和权威合法值，回归测试证明仍只接受 `GOAL_CONTRACT | TASK_OUTPUT` 与 `ON_SUCCESS`；
 - Windows NSIS 安装包为 `release/AI Corporation Desktop Setup 0.1.0.exe`，SHA-256 `354016A14A84633D7254D27E23C2F185401EEF12D97CDE7E7178670541C74958`；`git diff --check` 通过。
 
-尚未执行或尚未取得：当前候选 Windows/macOS CI、macOS 开发态/最终包证据、用户人工 UI 验收。以上未完成项保持为任务门禁，不计为通过。
+尚未执行或尚未取得：最终候选 Windows/macOS CI、macOS 开发态/最终包证据、用户人工 UI 验收。以上未完成项保持为任务门禁，不计为通过。
 
 ## 7. 下一步
 
-提交并推送 M2-TU-06 候选，等待同提交 Windows/macOS CI 和 artifacts；补齐最终包复合 Planner 矩阵后，把 Windows 安装包交给用户人工验收。只有合同 19 项全部获得当前提交直接证据，才把 M2-TU-06 和 Milestone 2 的 Planner 项标记完成；随后才建立 DAG/Plan Review 的下一个任务合同。
+提交并推送包含最终包复合 Planner 矩阵的 M2-TU-06 候选，等待同提交 Windows/macOS CI 和 artifacts；通过后把 Windows 安装包交给用户人工验收。只有合同 19 项全部获得当前提交直接证据，才把 M2-TU-06 和 Milestone 2 的 Planner 项标记完成；随后才建立 DAG/Plan Review 的下一个任务合同。
 
 ## 8. 更新规则
 
