@@ -1,20 +1,20 @@
 # AI Corporation Desktop 项目进度
 
-| 属性           | 当前值                                                                      |
-| -------------- | --------------------------------------------------------------------------- |
-| 当前产品版本   | v0.1 MVP                                                                    |
-| 当前阶段       | M2-TU-06 中文界面候选跨平台与真实 Provider 验收已通过，等待用户人工 UI 验收 |
-| 当前 Milestone | Milestone 2：Provider 与 Goal/Plan                                          |
-| 当前任务单元   | M2-TU-06（进行中）                                                          |
-| 总体状态       | 进行中                                                                      |
-| 最近更新       | 2026-08-09                                                                  |
-| 下一检查点     | 用户安装当前 Windows 包并完成人工 UI 验收                                   |
+| 属性           | 当前值                                     |
+| -------------- | ------------------------------------------ |
+| 当前产品版本   | v0.1 MVP                                   |
+| 当前阶段       | M2-TU-06 已完成，准备建立 M2-TU-07         |
+| 当前 Milestone | Milestone 2：Provider 与 Goal/Plan         |
+| 当前任务单元   | M2-TU-06（完成）                           |
+| 总体状态       | 进行中                                     |
+| 最近更新       | 2026-08-09                                 |
+| 下一检查点     | 建立并评审 M2-TU-07 DAG 与计划验证任务合同 |
 
 ## 1. 当前结论
 
-Milestone 0、Milestone 1 和 M2-TU-02 至 M2-TU-05 已完成。M2-TU-06 已实现 Planner 结构化生成与首个 Plan 草稿持久化：用户从当前 APPROVED Goal 进入 Planner，明确选择已验证 Provider/精确模型，只发送批准 Goal 与内置 catalogs；模型输出只提供语义内容和局部引用，Main 分配 Plan/Task 可信身份；首次 JSON/Schema 非法时最多修复一次，结果只能保存为 `DRAFT/PENDING`，不创建团队、不允许执行。
+Milestone 0、Milestone 1 和 M2-TU-02 至 M2-TU-06 已完成。M2-TU-06 已交付 Planner 结构化生成与首个 Plan 草稿持久化：用户从当前 APPROVED Goal 进入 Planner，明确选择已验证 Provider/精确模型，只发送批准 Goal 与内置 catalogs；模型输出只提供语义内容和局部引用，Main 分配 Plan/Task 可信身份；首次 JSON/Schema 非法时最多修复一次，结果只能保存为 `DRAFT/PENDING`，不创建团队、不允许执行。
 
-上一版候选的本地工程检查、Windows 开发态真实窗口、Windows 最终包完整 loopback 矩阵、正式 Renderer 真实 Provider smoke，以及 Windows/macOS 同提交 CI 均已通过。用户随后明确要求把软件自行定义的界面文字改为中文，同时保留 `API Key`、`URL`、Provider 名称、模型 ID 等外部标准称呼或外部数据。当前中文界面候选的完整 `pnpm check`、Windows 开发态 Electron E2E 7/7、Windows 最终包完整真实窗口矩阵、截图检查、Windows/macOS CI 和正式 Renderer 真实 Provider 复验均已通过；用户人工 UI 验收尚未取得。任务仍为“进行中”。
+当前中文界面候选的完整 `pnpm check`、Windows 开发态 Electron E2E 7/7、Windows 最终包完整真实窗口矩阵、截图检查、Windows/macOS CI 和正式 Renderer 真实 Provider 复验均已通过。用户于 2026-08-09 确认人工 UI 验收通过，M2-TU-06 的 19 项验收断言全部关闭，P0/P1 为 0。该结论只关闭 M2-TU-06 和 Planner 结构化输出，不代表 DAG 验证、Plan Review、Organization、执行或整个 Milestone 2 完成。
 
 ## 2. 已完成基线
 
@@ -31,12 +31,12 @@ Milestone 0、Milestone 1 和 M2-TU-02 至 M2-TU-05 已完成。M2-TU-06 已实�
 - [x] OpenAI 风格 Provider + 测试专用 Mock Provider；
 - [x] 连接测试、错误归一化和用量；
 - [x] Goal Engine；
-- [ ] Planner 结构化输出与最多一次 JSON 修复；
+- [x] Planner 结构化输出与最多一次 JSON 修复；
 - [ ] DAG、输入输出和验收验证；
 - [ ] Plan Review 编辑与批准 UI；
 - [ ] Windows/macOS Milestone 级真实窗口与最终包验收。
 
-Planner 项保持未完成，直到 M2-TU-06 的跨平台、最终包复合矩阵和人工 UI 验收全部关闭。Task Graph 语义验证、正式 Task materialization、Plan Review、Organization 和执行不属于 M2-TU-06。
+Planner 结构化生成基础已随 M2-TU-06 关闭。Task Graph 语义验证、正式 Task materialization、Plan Review、Organization 和执行仍未完成，Milestone 2 不得关闭。
 
 ## 4. 当前任务边界
 
@@ -52,7 +52,7 @@ M2-TU-06 只交付：
 
 ## 5. 活跃阻塞与外部条件
 
-当前没有代码阻塞，P0/P1 为 0。当前中文界面候选只剩用户人工 UI 验收；该未完成项仍是任务门禁。
+当前没有活跃阻塞，P0/P1 为 0。M2-TU-07 任务合同尚未建立，因此下一阶段尚未进入实施。
 
 已知条件：系统 PATH 未提供 Node.js，工程验证使用 Codex bundled Node.js；正式 Key 仍只由应用自管 Key Vault 使用，未进入命令、脚本、环境变量、Git、日志或截图；费用无法从当前 Provider 响应可靠取得时保持 `UNKNOWN`。
 
@@ -69,11 +69,11 @@ M2-TU-06 只交付：
 - 最终候选提交 `0c0f1ee18581be2a2fca234540917091f2c5e7f9` 的 GitHub Actions run `31310400204` 通过：Windows job `93237236122`（5m0s）、macOS job `93237236153`（3m46s）均完成工程检查、开发态 Electron、最终包构建、最终包复合矩阵和上传；Windows artifact `9037261510`，digest `sha256:65f8d6ea4d62500b5dcc249a8a9d17455972739f61a3905f6dd941f16b632b4d`；macOS artifact `9037247450`，digest `sha256:00eec8f2f5186bf2f014a0d9b17b4f83c576903daf79c467a48dccf74e32885e`；
 - 当前提交 Windows artifact 已下载到 `release/ci-0c0f1ee-windows/AI Corporation Desktop Setup 0.1.0.exe`，大小 99,776,910 bytes，SHA-256 `A760C753A684D277A70EFA3874308A5047EDBA923555AC629588863B182A4CDA`。
 
-当前中文界面候选新增证据：Desktop 单元测试 108/108 通过；Windows 开发态 Electron E2E 7/7 通过；Windows 最终包真实窗口完整覆盖启动、Workspace、Goal、Goal Engine、Planner、暂停/恢复、Provider Key Vault、连接/生成异常矩阵和外部请求隔离；自动生成的 1024×700、1440×900、200% 和最终包截图已检查，200% 下中文侧栏首次发现截断后已修复并复验；当前提交 Windows/macOS CI 和真实 Provider 复验全部通过。尚未取得用户人工 UI 验收；该未完成项保持为任务门禁，不计为通过。CI 仅有 GitHub Actions 使用 Node.js 20 action runtime 的弃用提醒，无失败或产品 P0/P1。
+当前中文界面候选新增证据：Desktop 单元测试 108/108 通过；Windows 开发态 Electron E2E 7/7 通过；Windows 最终包真实窗口完整覆盖启动、Workspace、Goal、Goal Engine、Planner、暂停/恢复、Provider Key Vault、连接/生成异常矩阵和外部请求隔离；自动生成的 1024×700、1440×900、200% 和最终包截图已检查，200% 下中文侧栏首次发现截断后已修复并复验；当前提交 Windows/macOS CI 和真实 Provider 复验全部通过；用户于 2026-08-09 确认人工 UI 验收通过。CI 仅有 GitHub Actions 使用 Node.js 20 action runtime 的弃用提醒，无失败或产品 P0/P1。
 
 ## 7. 下一步
 
-由用户安装当前 Windows 包，验收从已批准目标进入规划、明确选择 Provider/模型与查看披露、生成/取消、只读计划内容、尚未验证/尚未组队提示，以及失败/取消/中断状态、中文文字和键盘/缩放可用性。人工验收通过后，才把 M2-TU-06 和 Milestone 2 的 Planner 项标记完成；随后才建立 DAG/Plan Review 的下一个任务合同。
+建立并评审 M2-TU-07 的任务合同，明确 DAG、引用、输入输出闭合和计划验证的边界与验收证据。合同达到“就绪”且歧义处理完成前，不进入实现，也不提前标记后续功能或 Milestone 2 完成。
 
 ## 8. 更新规则
 
