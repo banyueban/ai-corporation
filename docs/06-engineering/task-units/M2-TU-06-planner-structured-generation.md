@@ -87,9 +87,9 @@
 - [x] 安全：prompt/response/非法 JSON/隐藏推理/路径/Key/Authorization/SQL/堆栈不进入 SQLite、错误、日志、trace、截图或诊断；
 - [ ] UI：从已批准 Goal 进入 Planner，明确选择 Provider/模型、查看披露、生成/取消并只读查看 summary、Task、能力要求与 suggested role；明确标注尚未组队；
 - [ ] UI 状态与适配：Generating/Draft pending validation/Failed/Cancelled/Interrupted 由真实后端事实驱动；键盘、焦点、live region、1024×700、1440×900 和 200% 可完成；
-- [ ] 自动真实窗口：Windows/macOS 同提交开发态与最终包 loopback 覆盖成功、一次修复、修复失败、取消、中断/重启、版本冲突和既有回归；功能与清理独立通过；
+- [x] 自动真实窗口：Windows/macOS 同提交开发态与最终包 loopback 覆盖成功、一次修复、修复失败、取消、中断/重启、版本冲突和既有回归；功能与清理独立通过；
 - [x] 本机真实 Provider：正式 Windows Renderer 使用应用 Key Vault 中已保存资源完成非敏感最小 Planner 生成；只记录脱敏状态、plan/version/usage/时间和泄密扫描；
-- [ ] 治理：协议/设计/Schema/迁移/实现/测试一致；适用工程检查、secret scan、Windows/macOS CI 最终包与 artifacts 成功；P0/P1 和未执行必检项为 0。
+- [x] 治理：协议/设计/Schema/迁移/实现/测试一致；适用工程检查、secret scan、Windows/macOS CI 最终包与 artifacts 成功；P0/P1 和未执行必检项为 0。
 
 ## 8. 隔离与干扰控制
 
