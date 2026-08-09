@@ -184,14 +184,14 @@ describe("migration runner", () => {
     database.close();
   });
 
-  it("creates the existing domain schema and Goal Engine projection through migration 0009", () => {
+  it("creates the existing domain schema and Planner projection through migration 0010", () => {
     const database = new DatabaseSync(":memory:");
     const migrations = loadMigrations(migrationDirectory);
     applyMigrations(database, migrations);
 
     expect(
       readAppliedMigrations(database).map(({ version }) => version),
-    ).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    ).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
     expect(
       database
         .prepare(
@@ -204,11 +204,15 @@ describe("migration runner", () => {
               'goal_contract_version',
               'goal_contract_command',
               'goal_generation_operation',
+              'planner_generation_operation',
+              'task_plan',
               'model_call',
               'corporation_state_command',
               'idx_corporation_workspace_updated',
               'idx_goal_contract_corporation_version',
               'idx_goal_generation_active',
+              'idx_planner_generation_active',
+              'idx_task_plan_corporation_version',
               'idx_model_call_operation',
               'idx_event_corporation_timeline',
               'domain_event_reject_update',
@@ -243,8 +247,49 @@ describe("migration runner", () => {
       "idx_goal_contract_corporation_version",
       "idx_goal_generation_active",
       "idx_model_call_operation",
+      "idx_planner_generation_active",
+      "idx_task_plan_corporation_version",
       "model_call",
+      "planner_generation_operation",
+      "task_plan",
     ]);
+    expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+    database.close();
+  });
+
+  it("upgrades an existing 0009 database to strict Planner tables", () => {
+    const database = new DatabaseSync(":memory:");
+    const migrations = loadMigrations(migrationDirectory);
+    applyMigrations(database, migrations.slice(0, 9));
+    expect(
+      database
+        .prepare("SELECT name FROM sqlite_master WHERE name = 'task_plan'")
+        .get(),
+    ).toBeUndefined();
+
+    applyMigrations(database, migrations);
+
+    expect(
+      database
+        .prepare(
+          `SELECT name, strict FROM pragma_table_list
+           WHERE name IN ('task_plan', 'planner_generation_operation')
+           ORDER BY name`,
+        )
+        .all(),
+    ).toEqual([
+      { name: "planner_generation_operation", strict: 1 },
+      { name: "task_plan", strict: 1 },
+    ]);
+    expect(
+      database
+        .prepare(
+          "SELECT sql FROM sqlite_master WHERE type = 'index' AND name = 'idx_planner_generation_active'",
+        )
+        .get(),
+    ).toMatchObject({
+      sql: expect.stringContaining("WHERE status = 'GENERATING'"),
+    });
     expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
     database.close();
   });

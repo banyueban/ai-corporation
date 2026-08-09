@@ -21,7 +21,8 @@
 | Corporation | `organization` | 后续迁移增加 `corporation.active_organization_version` 并指向当前版本 |
 | Corporation | `organization_version` | `organization_version` 表，不可变 |
 | Corporation | 命令幂等回执 | 内部 `corporation_command` 与 `goal_contract_command` 表；Renderer 不可读取 |
-| Task | `task_plan` | `task_plan` 表 |
+| Task | `task_plan` | `task_plan` 表；M2-TU-06 先保存 schema-valid、语义待验证的 `draft_json` 与可信 Task ID 映射 |
+| Task | `planner_generation_operation` | `planner_generation_operation` 表；保存生成检查点、版本绑定、聚合 usage 和中断状态，不保存模型正文 |
 | Task | `task` | `task` 表 |
 | Task | `task_dependency` | `task_dependency` 表 |
 | Task | `task_input` | `task.contract_json.inputRefs` |

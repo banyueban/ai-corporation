@@ -238,6 +238,60 @@ test("user creates and cancels real Goal Engine operations in the visible window
       .check();
     await page.getByRole("button", { name: "Confirm Goal Contract" }).click();
     await expect(page.getByText("APPROVED", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Start planning setup" }).click();
+    await expect(
+      page.getByRole("heading", { name: "Generate Plan draft" }),
+    ).toBeFocused();
+    await expect(page.getByText(/Not sent: Workspace path/u)).toBeVisible();
+    await page
+      .getByLabel("Verified Provider / model")
+      .selectOption({ label: "Goal Fixture Provider · goal-model" });
+    fixture.enqueue(plannerOutput());
+    await page
+      .getByRole("button", { name: "Generate unvalidated draft" })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "Unvalidated Plan draft" }),
+    ).toBeVisible();
+    await expect(page.getByText(/DRAFT · PENDING/u)).toBeVisible();
+    await expect(page.getByText(/Suggested role:/u)).toContainText(
+      "Writer · not staffed",
+    );
+    await expect(page.getByText(/execution is unavailable/u)).toBeVisible();
+    const plannerRequest = fixture.generationRequests().at(-1)?.body;
+    expect(plannerRequest).toMatchObject({
+      max_tokens: 65_536,
+      response_format: { type: "json_object" },
+      stream: false,
+    });
+    expect(JSON.stringify(plannerRequest)).not.toContain(workspaceDirectory);
+    expect(JSON.stringify(plannerRequest)).not.toContain(secret);
+    await expectNoSeriousAxeViolations(page);
+    await app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0];
+      window?.setSize(1024, 700);
+      window?.webContents.setZoomFactor(2);
+    });
+    await expect(page.getByText(/Unvalidated Plan draft/u)).toBeVisible();
+    await page.screenshot({
+      path: path.resolve(
+        __dirname,
+        "../../../release",
+        `m2-tu06-dev-${process.platform}-${process.arch}-1024x700-200-percent.png`,
+      ),
+    });
+    await app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0];
+      window?.setSize(1440, 900);
+      window?.webContents.setZoomFactor(1);
+    });
+    await page.screenshot({
+      path: path.resolve(
+        __dirname,
+        "../../../release",
+        `m2-tu06-dev-${process.platform}-${process.arch}-1440x900.png`,
+      ),
+    });
     expect(
       fixture.requests.some(
         ({ authorization }) => authorization === `Bearer ${secret}`,
@@ -309,6 +363,39 @@ test("user sees an interrupted Goal operation after process restart without repl
     await expect(page.getByText("INTERRUPTED", { exact: true })).toBeVisible();
     await expect(page.getByText(/did not save a Goal/u)).toBeVisible();
     await expect.poll(fixture.generationCalls).toBe(1);
+
+    const plannerCorporation = await createApprovedGoal(
+      page,
+      "Interrupted Planner Corporation",
+      "Do not replay Plan generation after restart",
+      100,
+    );
+    await openPlannerForCorporation(page, plannerCorporation.name);
+    await selectPlannerProvider(page, "Restart Goal Provider · goal-model");
+    fixture.delayNext();
+    await page
+      .getByRole("button", { name: "Generate unvalidated draft" })
+      .click({ noWaitAfter: true });
+    await expect.poll(fixture.generationCalls).toBe(2);
+    await expect.poll(fixture.hasDelayedResponse).toBe(true);
+
+    const plannerProcess = app.process();
+    const plannerExited = new Promise<void>((resolve) =>
+      plannerProcess.once("exit", () => resolve()),
+    );
+    await app.evaluate(({ app: electronApp }) => {
+      setTimeout(() => electronApp.exit(1), 0);
+    });
+    await plannerExited;
+    fixture.releaseDelayed();
+    app = await launchGoalApplication(userDataDirectory, workspaceDirectory);
+    page = await app.firstWindow();
+    await openPlannerForCorporation(page, plannerCorporation.name);
+    await expect(
+      page.getByRole("heading", { name: "INTERRUPTED" }),
+    ).toBeVisible();
+    await expect(page.getByText(/No Plan was saved/u)).toBeVisible();
+    await expect.poll(fixture.generationCalls).toBe(2);
   } finally {
     fixture.releaseDelayed();
     await app.close().catch(() => undefined);
@@ -325,6 +412,155 @@ test("user sees an interrupted Goal operation after process restart without repl
       recursive: true,
       retryDelay: 200,
     });
+  }
+});
+
+test("Planner repairs once, fails safely, cancels, rejects stale facts, and restores its draft", async () => {
+  test.setTimeout(90_000);
+  const fixture = await startGoalFixture();
+  const userDataDirectory = mkdtempSync(
+    path.join(tmpdir(), "M2-TU-06-matrix-user-data-"),
+  );
+  const workspaceDirectory = mkdtempSync(
+    path.join(tmpdir(), "M2-TU-06-matrix-workspace-"),
+  );
+  const app = await launchGoalApplication(
+    userDataDirectory,
+    workspaceDirectory,
+  );
+  try {
+    const page = await app.firstWindow();
+    await configureFixtureProvider(
+      page,
+      fixture.endpoint,
+      "Planner Matrix Provider",
+    );
+    await page.getByRole("button", { name: "Dashboard", exact: true }).click();
+    await page.getByRole("button", { name: "Select a workspace" }).click();
+    await page.getByRole("button", { name: /Select folder/u }).click();
+
+    const repairCorporation = await createApprovedGoal(
+      page,
+      "Planner Repair Corporation",
+      "Create a repairable plan",
+      0,
+    );
+    await openPlannerForCorporation(page, repairCorporation.name);
+    await selectPlannerProvider(page, "Planner Matrix Provider · goal-model");
+    const callsBeforeRepair = fixture.generationCalls();
+    fixture.enqueue("not valid json");
+    fixture.enqueue(plannerOutput());
+    await page
+      .getByRole("button", { name: "Generate unvalidated draft" })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "Unvalidated Plan draft" }),
+    ).toBeVisible();
+    expect(fixture.generationCalls() - callsBeforeRepair).toBe(2);
+    const firstRead = await getPlannerOperation(page, repairCorporation.id);
+    expect(firstRead?.status).toBe("PLAN_SAVED");
+    const stablePlanId = firstRead?.plan?.planId;
+    expect(stablePlanId).toBeTruthy();
+
+    await page.reload();
+    await openPlannerForCorporation(page, repairCorporation.name);
+    await expect(
+      page.getByRole("heading", { name: "Unvalidated Plan draft" }),
+    ).toBeVisible();
+    const restored = await getPlannerOperation(page, repairCorporation.id);
+    expect(restored?.plan?.planId).toBe(stablePlanId);
+
+    const failureCorporation = await createApprovedGoal(
+      page,
+      "Planner Repair Failure Corporation",
+      "Reject two invalid outputs",
+      10,
+    );
+    await openPlannerForCorporation(page, failureCorporation.name);
+    await selectPlannerProvider(page, "Planner Matrix Provider · goal-model");
+    const callsBeforeFailure = fixture.generationCalls();
+    fixture.enqueue("not valid json");
+    fixture.enqueue("still not valid json");
+    await page
+      .getByRole("button", { name: "Generate unvalidated draft" })
+      .click();
+    await expect(page.getByRole("heading", { name: "FAILED" })).toBeVisible();
+    await expect(
+      page.getByText("INVALID_MODEL_OUTPUT", { exact: true }),
+    ).toBeVisible();
+    expect(fixture.generationCalls() - callsBeforeFailure).toBe(2);
+    expect(
+      (await getPlannerOperation(page, failureCorporation.id))?.plan,
+    ).toBeUndefined();
+
+    const cancelCorporation = await createApprovedGoal(
+      page,
+      "Planner Cancel Corporation",
+      "Cancel this plan",
+      20,
+    );
+    await openPlannerForCorporation(page, cancelCorporation.name);
+    await selectPlannerProvider(page, "Planner Matrix Provider · goal-model");
+    fixture.delayNext();
+    await page
+      .getByRole("button", { name: "Generate unvalidated draft" })
+      .click({ noWaitAfter: true });
+    await expect.poll(fixture.hasDelayedResponse).toBe(true);
+    const cancelStartedAt = Date.now();
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: "CANCELLED" }),
+    ).toBeVisible();
+    expect(Date.now() - cancelStartedAt).toBeLessThan(2_000);
+    expect(
+      (await getPlannerOperation(page, cancelCorporation.id))?.plan,
+    ).toBeUndefined();
+
+    const conflictCorporation = await createApprovedGoal(
+      page,
+      "Planner Conflict Corporation",
+      "Reject stale planning facts",
+      30,
+    );
+    await openPlannerForCorporation(page, conflictCorporation.name);
+    await selectPlannerProvider(page, "Planner Matrix Provider · goal-model");
+    fixture.delayNext();
+    await page
+      .getByRole("button", { name: "Generate unvalidated draft" })
+      .click({ noWaitAfter: true });
+    await expect.poll(fixture.hasDelayedResponse).toBe(true);
+    const update = await page.evaluate(
+      async ({ corporationId, version }) => {
+        return (
+          window as unknown as { desktop: DesktopApi }
+        ).desktop.corporation.updateName({
+          schemaVersion: "1.0",
+          commandId: "019fa9bb-8030-7d90-a4e3-a5b0eea2a9ef",
+          corporationId,
+          expectedVersion: version,
+          name: "Planner Conflict Corporation Updated",
+        });
+      },
+      {
+        corporationId: conflictCorporation.id,
+        version: conflictCorporation.version,
+      },
+    );
+    expect(update.ok).toBe(true);
+    fixture.completeDelayed(plannerOutput());
+    await expect(page.getByRole("heading", { name: "FAILED" })).toBeVisible();
+    await expect(
+      page.getByText("VERSION_CONFLICT", { exact: true }),
+    ).toBeVisible();
+    expect(
+      (await getPlannerOperation(page, conflictCorporation.id))?.plan,
+    ).toBeUndefined();
+  } finally {
+    fixture.releaseDelayed();
+    await app.close().catch(() => undefined);
+    await fixture.close();
+    rmSync(workspaceDirectory, { force: true, recursive: true });
+    rmSync(userDataDirectory, { force: true, recursive: true });
   }
 });
 
@@ -348,6 +584,132 @@ function launchGoalApplication(
       CI: "true",
     },
   });
+}
+
+async function configureFixtureProvider(
+  page: import("@playwright/test").Page,
+  endpoint: string,
+  name: string,
+) {
+  await page.getByRole("button", { name: "Settings" }).click();
+  await page.getByLabel("Name").fill(name);
+  await page.getByLabel("Endpoint").fill(endpoint);
+  await page
+    .getByLabel("API Key")
+    .fill(`M2-TU-06-${crypto.randomUUID()}-fake-key`);
+  await page.getByRole("button", { name: "Save Provider" }).click();
+  await page.getByRole("button", { name: "Test connection" }).click();
+  await expect(page.getByRole("heading", { name: "Verified" })).toBeVisible();
+  await page.getByLabel("Model").selectOption("goal-model");
+  await page.getByRole("button", { name: "Save changes" }).click();
+}
+
+async function createApprovedGoal(
+  page: import("@playwright/test").Page,
+  name: string,
+  goal: string,
+  idOffset: number,
+) {
+  return page.evaluate(
+    async ({ name, goal, idOffset }) => {
+      const desktop = (window as unknown as { desktop: DesktopApi }).desktop;
+      const workspaces = await desktop.workspace.list();
+      if (!workspaces.ok || workspaces.value[0] === undefined) {
+        throw new Error("Workspace fixture is unavailable");
+      }
+      const commandId = (offset: number) =>
+        `019fa9bb-${(0x8000 + idOffset + offset).toString(16)}-7d90-a4e3-a5b0eea2a9ef`;
+      const created = await desktop.corporation.create({
+        schemaVersion: "1.0",
+        commandId: commandId(1),
+        workspaceId: workspaces.value[0].workspaceId,
+        name,
+      });
+      if (!created.ok)
+        throw new Error(`Corporation create failed: ${created.error.code}`);
+      const drafted = await desktop.goalContract.saveDraft({
+        schemaVersion: "1.0",
+        commandId: commandId(2),
+        corporationId: created.value.id,
+        expectedCorporationVersion: created.value.version,
+        expectedGoalVersion: 0,
+        content: {
+          source: "MANUAL",
+          originalGoal: goal,
+          statement: goal,
+          successCriteria: ["A verifiable draft exists"],
+          inScope: ["Plan draft"],
+          outOfScope: [],
+          constraints: [],
+          assumptions: [],
+          deliverables: ["Plan draft"],
+          riskLevel: "LOW",
+          budget: {},
+          stopConditions: [],
+        },
+      });
+      if (!drafted.ok)
+        throw new Error(`Goal draft failed: ${drafted.error.code}`);
+      const afterDraft = await desktop.corporation.get({
+        schemaVersion: "1.0",
+        corporationId: created.value.id,
+      });
+      if (!afterDraft.ok)
+        throw new Error(`Corporation read failed: ${afterDraft.error.code}`);
+      const approved = await desktop.goalContract.approve({
+        schemaVersion: "1.0",
+        commandId: commandId(3),
+        corporationId: created.value.id,
+        expectedCorporationVersion: afterDraft.value.version,
+        goalVersion: drafted.value.version,
+      });
+      if (!approved.ok)
+        throw new Error(`Goal approve failed: ${approved.error.code}`);
+      const current = await desktop.corporation.get({
+        schemaVersion: "1.0",
+        corporationId: created.value.id,
+      });
+      if (!current.ok)
+        throw new Error(`Corporation refresh failed: ${current.error.code}`);
+      return current.value;
+    },
+    { name, goal, idOffset },
+  );
+}
+
+async function openPlannerForCorporation(
+  page: import("@playwright/test").Page,
+  corporationName: string,
+) {
+  await page.reload();
+  const card = page.locator("article").filter({ hasText: corporationName });
+  await card.getByRole("button", { name: "Open Goal Contract" }).click();
+  await page.getByRole("button", { name: "Start planning setup" }).click();
+}
+
+async function selectPlannerProvider(
+  page: import("@playwright/test").Page,
+  label: string,
+) {
+  await page.getByLabel("Verified Provider / model").selectOption({ label });
+}
+
+async function getPlannerOperation(
+  page: import("@playwright/test").Page,
+  corporationId: string,
+) {
+  const result = await page.evaluate(
+    async (id) =>
+      (window as unknown as { desktop: DesktopApi }).desktop.planner.getCurrent(
+        {
+          schemaVersion: "1.0",
+          corporationId: id,
+        },
+      ),
+    corporationId,
+  );
+  if (!result.ok) throw new Error(`Planner read failed: ${result.error.code}`);
+  return result.value;
 }
 
 async function openNewGoal(
@@ -436,6 +798,11 @@ async function startGoalFixture() {
       delayedResponse?.destroy();
       delayedResponse = undefined;
     },
+    completeDelayed: (output: string) => {
+      if (delayedResponse === undefined) throw new Error("No delayed response");
+      sendGoalResponse(delayedResponse, output);
+      delayedResponse = undefined;
+    },
     close: () =>
       new Promise<void>((resolve, reject) => {
         server.closeAllConnections();
@@ -482,6 +849,74 @@ function goalOutput(questions: readonly string[]) {
       stopConditions: [],
     },
     unresolvedQuestions: questions.map((text) => ({ text, impact: "HIGH" })),
+  });
+}
+
+function plannerOutput() {
+  return JSON.stringify({
+    schemaVersion: "1.0",
+    summary: "Create one verifiable report.",
+    tasks: [
+      {
+        localId: "task-one",
+        title: "Create report",
+        objective: "Create the requested report.",
+        kind: "GENERATION",
+        priority: 50,
+        riskLevel: "LOW",
+        suggestedRole: "Writer",
+        requiredCapabilities: [
+          { path: "writing.document", minimumLevel: 0.7, mandatory: true },
+        ],
+        requiredTools: ["workspace.propose_write"],
+        inputs: [
+          {
+            source: "GOAL_CONTRACT",
+            logicalName: "approved-goal",
+            required: true,
+          },
+        ],
+        expectedOutputs: [
+          {
+            logicalName: "report",
+            mediaType: "text/markdown",
+            required: true,
+            description: "Requested report.",
+          },
+        ],
+        acceptanceCriteria: [
+          {
+            localId: "criterion-report",
+            description: "The report matches the approved Goal.",
+            severity: "REQUIRED",
+            evidenceRequired: ["report"],
+          },
+        ],
+        budget: { maxOutputTokens: 4096 },
+        retryPolicy: {
+          maxAttempts: 2,
+          maxEvaluationRevisions: 1,
+          retryableCategories: ["provider"],
+        },
+        permissionHints: {
+          workspaceRead: false,
+          workspaceWrite: [],
+          processProfiles: [],
+        },
+        assumptions: [],
+        nonGoals: [],
+      },
+    ],
+    dependencies: [],
+    milestones: [{ title: "Delivery", taskLocalIds: ["task-one"] }],
+    assumptions: [],
+    risks: [
+      {
+        description: "Revision may be needed.",
+        level: "LOW",
+        mitigation: "Validate against explicit criteria.",
+      },
+    ],
   });
 }
 

@@ -125,7 +125,7 @@ RUNNING / VERIFYING
 
 ### 5.1 Planner 输出
 
-Planner 必须返回符合 `TaskPlanDraft` Schema 的 JSON：
+Planner 必须返回符合 [Planner Protocol](../04-protocols/Planner-Protocol.md) `PlannerDraftCandidate` Schema 的 JSON。模型只生成语义内容和局部引用；Corporation、Plan 与正式 Task 身份由可信应用层生成：
 
 ```json
 {
@@ -137,6 +137,8 @@ Planner 必须返回符合 `TaskPlanDraft` Schema 的 JSON：
   "risks": []
 }
 ```
+
+M2-TU-06 只保存 `DRAFT/PENDING`，不把结构合法冒充为图已验证。以下规则由后续计划验证任务负责。
 
 ### 5.2 计划验证器
 
@@ -155,10 +157,10 @@ Planner 必须返回符合 `TaskPlanDraft` Schema 的 JSON：
 
 ### 5.3 计划修复
 
-- 纯格式问题：本地修复或一次 Schema Repair；
-- DAG/引用问题：返回 Planner 结构化错误重新生成；
+- JSON/Schema 问题：首次生成后最多一次 Provider Schema Repair，不进行改变语义的本地修补；
+- DAG/引用问题：由后续计划验证任务返回结构化错误；不得消耗或扩展本阶段的一次 JSON/Schema 修复额度；
 - Goal Contract 歧义：进入 `WAITING_HUMAN`；
-- 最多自动修复 2 次。
+- DAG 重生成或重新规划的自动次数由对应后续任务合同定义；M2-TU-06 不自动执行。
 
 ## 6. Ready 计算
 

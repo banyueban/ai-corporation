@@ -4,6 +4,8 @@
 
 Task Protocol 是 AI Corporation 的工作合同。它使 Planner、Scheduler、Agent Runtime、Evaluation Engine 和 UI 对“做什么、使用什么输入、如何算完成”有同一理解。
 
+模型生成阶段不直接返回本协议的正式 `TaskContract`。模型候选、局部引用、可信 ID 分配和未验证 Plan DRAFT 由 [Planner Protocol](Planner-Protocol.md) 定义；只有后续计划验证通过后才转换并物化为本协议的正式合同。
+
 ## 2. Task Contract
 
 ```ts

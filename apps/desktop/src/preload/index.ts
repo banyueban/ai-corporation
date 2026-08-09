@@ -56,6 +56,17 @@ import {
   type CorporationUpdateNameRequest,
   healthResultSchema,
   NATIVE_HEALTH_IPC_CHANNEL,
+  PLANNER_CANCEL_IPC_CHANNEL,
+  PLANNER_GET_CURRENT_IPC_CHANNEL,
+  PLANNER_START_IPC_CHANNEL,
+  plannerCancelRequestSchema,
+  plannerGetCurrentRequestSchema,
+  plannerItemResultSchema,
+  plannerNullableItemResultSchema,
+  plannerStartRequestSchema,
+  type PlannerCancelRequest,
+  type PlannerGetCurrentRequest,
+  type PlannerStartRequest,
   PROVIDER_CANCEL_CONNECTION_TEST_IPC_CHANNEL,
   PROVIDER_CANCEL_GENERATION_TEST_IPC_CHANNEL,
   PROVIDER_DELETE_KEY_IPC_CHANNEL,
@@ -225,6 +236,29 @@ const desktopApi: DesktopApi = Object.freeze({
     healthResultSchema.parse(
       await ipcRenderer.invoke(NATIVE_HEALTH_IPC_CHANNEL),
     ),
+  planner: Object.freeze({
+    cancel: async (request: PlannerCancelRequest) =>
+      plannerItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          PLANNER_CANCEL_IPC_CHANNEL,
+          plannerCancelRequestSchema.parse(request),
+        ),
+      ),
+    getCurrent: async (request: PlannerGetCurrentRequest) =>
+      plannerNullableItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          PLANNER_GET_CURRENT_IPC_CHANNEL,
+          plannerGetCurrentRequestSchema.parse(request),
+        ),
+      ),
+    start: async (request: PlannerStartRequest) =>
+      plannerItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          PLANNER_START_IPC_CHANNEL,
+          plannerStartRequestSchema.parse(request),
+        ),
+      ),
+  }),
   provider: Object.freeze({
     cancelConnectionTest: async (
       request: ProviderCancelConnectionTestRequest,

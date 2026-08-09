@@ -521,6 +521,26 @@ h3 {
   gap: 1rem;
 }
 
+.plan-summary {
+  margin-top: 1rem;
+}
+
+.plan-task-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.warning-card {
+  margin: 1rem 0;
+  padding: 1rem 1.15rem;
+  border: 1px solid #765c28;
+  border-radius: 0.85rem;
+  color: #f2d899;
+  background: #211b10;
+}
+
 .review-block,
 .history-panel {
   min-width: 0;
@@ -848,6 +868,7 @@ h3 {
 
   .goal-form,
   .review-grid,
+  .plan-task-list,
   .history-grid,
   .provider-settings-grid {
     grid-template-columns: 1fr;

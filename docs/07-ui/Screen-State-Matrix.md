@@ -72,7 +72,8 @@
 |---|---|---|
 | Generating | 规划步骤，不伪造 Task | 取消 |
 | Validation failed | 图/引用/验收错误列表 | 自动修复一次或重新规划 |
-| Ready | Task、依赖、团队、预算、风险 | 确认并开始 |
+| Draft pending validation | 结构化 Task、能力要求、建议角色；明确标注尚未验证/尚未组队 | 等待验证 |
+| Ready | 已验证 Task、依赖、能力要求、建议角色、预算、风险；明确标注尚未组队 | 确认并开始 |
 | Edited | 未保存标记、局部验证结果 | 保存并重新验证 |
 | Capability gap | 缺失能力和替代方案 | 换 Provider/修改计划/请求用户 |
 | Budget over limit | 超出硬预算 | 降低范围/增加预算 |

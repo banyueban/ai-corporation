@@ -88,6 +88,8 @@
 - 循环依赖和无验收 Task 被拒绝；
 - 用户可修改并批准计划。
 
+阶段边界：Planner 先生成并保存 `DRAFT/PENDING` 结构化草稿；DAG/输入输出/验收验证是后续独立任务；Plan Review 再负责编辑和批准。模型只生成语义内容与局部引用，正式 Plan/Task 身份由应用分配。每次规划前用户明确选择已验证 Provider/精确模型，Provider 输入不包含 Workspace 路径或文件内容。Milestone 2 只显示能力要求和建议角色并标注尚未组队，真实 Organization Engine 仍属于 Milestone 3。
+
 ## 6. Milestone 3：最小 Agent 闭环
 
 目标：Planner → Executor → Artifact → Judge。

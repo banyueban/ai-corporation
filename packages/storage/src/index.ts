@@ -3,6 +3,7 @@ export * from "./corporation-state-repository";
 export * from "./goal-contract-repository";
 export * from "./goal-engine-repository";
 export * from "./migrations";
+export * from "./planner-repository";
 export * from "./provider-repository";
 export * from "./workspace-database";
 export * from "./workspace-repository";

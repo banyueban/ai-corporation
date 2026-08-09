@@ -109,7 +109,7 @@ v0.1 要验证：系统能否在明确边界内接管这些管理工作，并比
 
 1. Planner 生成 Task Graph；
 2. 系统验证图无环、输入输出闭合、每项任务可验收；
-3. Organization Engine 生成最小 Agent 集；
+3. 系统展示每个 Task 的能力要求和建议角色，并明确标注尚未组队；真实 Organization Engine 在 Milestone 3 创建最小 Agent 集；
 4. 用户可审阅计划并开始执行。
 
 验收标准：

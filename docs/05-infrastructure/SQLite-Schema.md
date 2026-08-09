@@ -158,11 +158,20 @@ CREATE TABLE organization_version (
 CREATE TABLE task_plan (
   id TEXT PRIMARY KEY,
   corporation_id TEXT NOT NULL REFERENCES corporation(id) ON DELETE CASCADE,
+  goal_version INTEGER NOT NULL,
   version INTEGER NOT NULL,
   status TEXT NOT NULL CHECK (status IN ('DRAFT','VALIDATED','APPROVED','SUPERSEDED')),
+  validation_status TEXT NOT NULL CHECK (validation_status IN ('PENDING','VALID','INVALID')),
   summary TEXT NOT NULL,
+  draft_json TEXT NOT NULL CHECK (json_valid(draft_json) AND json_type(draft_json) = 'object'),
+  provider_id TEXT NOT NULL REFERENCES provider(id),
+  provider_version INTEGER NOT NULL,
+  model_id TEXT NOT NULL,
+  created_by_operation_id TEXT NOT NULL,
   created_at TEXT NOT NULL,
-  UNIQUE(corporation_id, version)
+  UNIQUE(corporation_id, version),
+  FOREIGN KEY (corporation_id, goal_version)
+    REFERENCES goal_contract_version(corporation_id, version)
 );
 
 CREATE TABLE task (
@@ -431,6 +440,8 @@ WHERE status = 'PENDING';
 ```
 
 `model_call.response_meta_json` 使用版本化、无正文元数据。M2-TU-05 失败调用可保存固定 `failureDiagnostic` 枚举，以区分 HTTP 服务器错误、空输出、额度耗尽和非法响应结构；不得保存 Prompt、模型正文、隐藏推理、远端 request ID、Header、Key 或自由文本错误。该字段已由 `0009_goal_engine.sql` 定义为可扩展 JSON 对象，本次不修改 `0001`–`0008`，也不需要重建既有表。
+
+`0010_planner_generation.sql` 在不修改 `0001`–`0009` 的前提下增加 `task_plan` 和 `planner_generation_operation`。首个 Plan 只能以 `DRAFT/PENDING` 保存，正式 Plan/Task 身份由 Main 分配；每个 Corporation 同时最多一个 `GENERATING` 操作。操作绑定 Corporation、当前批准 Goal、Provider 版本和精确模型，并保存受限 usage、固定失败原因与 Plan 指针，不保存 Prompt、模型正文、非法 JSON、Workspace 内容、Key、Header 或远端自由文本。遗留 `GENERATING` 在应用启动时转为 `INTERRUPTED`，不得自动重发。
 
 ## 7. Artifact 与评价
 

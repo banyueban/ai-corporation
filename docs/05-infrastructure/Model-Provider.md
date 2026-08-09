@@ -178,6 +178,8 @@ Adapter 内部还可携带固定安全诊断枚举，区分 HTTP 服务器错误
 - 回退仅在允许的候选集内；
 - Planner/Executor/Judge 可配置不同策略。
 
+在默认 Planner 模型策略尚未交付前，每次 Planner 生成必须由用户明确选择已验证 Provider 和精确模型；不得静默沿用 Goal Provider、自动回退或假装默认路由已经存在。Planner Provider 输入只允许当前已批准 Goal Contract 与应用内置的版本化能力、工具和媒体类型白名单，不包含 Workspace 路径、目录或文件内容。
+
 ## 12. 测试重点
 
 - 各错误归一化；

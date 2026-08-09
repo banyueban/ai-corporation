@@ -7,6 +7,8 @@ import type {
   GoalEngineErrorCode,
   GoalEngineOperationPublic,
   HealthResult,
+  PlannerErrorCode,
+  PlannerOperationPublic,
   ProviderPublic,
   TimelineEventPublic,
   WorkspaceIpcErrorCode,
@@ -31,7 +33,7 @@ type NativeCoreState =
   | { readonly status: "loading" }
   | { readonly status: "ready"; readonly result: HealthResult }
   | { readonly status: "degraded" };
-type Route = "dashboard" | "create" | "review" | "settings";
+type Route = "dashboard" | "create" | "review" | "planner" | "settings";
 type CorporationSummary = {
   readonly corporation: CorporationPublic;
   readonly goal: GoalContractPublic | null;
@@ -71,6 +73,9 @@ export function App() {
   const [goalEngineError, setGoalEngineError] = useState<GoalEngineErrorCode>();
   const [goalOperation, setGoalOperation] =
     useState<GoalEngineOperationPublic>();
+  const [plannerError, setPlannerError] = useState<PlannerErrorCode>();
+  const [plannerOperation, setPlannerOperation] =
+    useState<PlannerOperationPublic>();
   const [providers, setProviders] = useState<readonly ProviderPublic[]>([]);
   const [selectedProviderId, setSelectedProviderId] = useState<string>();
   const [clarificationAnswers, setClarificationAnswers] = useState<
@@ -91,6 +96,7 @@ export function App() {
   >([]);
   const createHeading = useRef<HTMLHeadingElement>(null);
   const reviewHeading = useRef<HTMLHeadingElement>(null);
+  const plannerHeading = useRef<HTMLHeadingElement>(null);
   const requestSequence = useRef(0);
 
   useEffect(() => {
@@ -144,7 +150,12 @@ export function App() {
   }, [workspaces]);
 
   useEffect(() => {
-    (route === "review" ? reviewHeading : createHeading).current?.focus();
+    (route === "review"
+      ? reviewHeading
+      : route === "planner"
+        ? plannerHeading
+        : createHeading
+    ).current?.focus();
   }, [route]);
 
   useEffect(() => {
@@ -680,6 +691,116 @@ export function App() {
     }
   };
 
+  const openPlanner = async () => {
+    if (reviewCorporation === undefined || reviewGoal?.status !== "APPROVED") {
+      setPlannerError("STATE_CONFLICT");
+      return;
+    }
+    setSaving(true);
+    setPlannerError(undefined);
+    try {
+      const [corporationResult, providerResult, operationResult] =
+        await Promise.all([
+          window.desktop.corporation.get({
+            schemaVersion: "1.0",
+            corporationId: reviewCorporation.id,
+          }),
+          window.desktop.provider.list({ schemaVersion: 1 }),
+          window.desktop.planner.getCurrent({
+            schemaVersion: "1.0",
+            corporationId: reviewCorporation.id,
+          }),
+        ]);
+      if (!corporationResult.ok) {
+        setPlannerError("VERSION_CONFLICT");
+        return;
+      }
+      setReviewCorporation(corporationResult.value);
+      const available = providerResult.ok
+        ? providerResult.value.filter(isGoalProviderAvailable)
+        : [];
+      setProviders(available);
+      setSelectedProviderId(undefined);
+      if (!operationResult.ok) {
+        setPlannerError(operationResult.error.code);
+        setPlannerOperation(undefined);
+      } else {
+        setPlannerOperation(operationResult.value ?? undefined);
+      }
+      setStatusMessage("");
+      setRoute("planner");
+    } catch {
+      setPlannerError("STORAGE_UNAVAILABLE");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const startPlanner = async () => {
+    const provider = providers.find(({ id }) => id === selectedProviderId);
+    if (
+      reviewCorporation === undefined ||
+      reviewGoal?.status !== "APPROVED" ||
+      provider?.selectedModelId === undefined
+    ) {
+      setPlannerError("VALIDATION_FAILED");
+      return;
+    }
+    setSaving(true);
+    setPlannerError(undefined);
+    const operationId = createUuidV7();
+    setPlannerOperation({
+      schemaVersion: "1.0",
+      operationId,
+      corporationId: reviewCorporation.id,
+      providerId: provider.id,
+      providerVersion: provider.version,
+      modelId: provider.selectedModelId,
+      status: "GENERATING",
+      version: 1,
+      usage: { costSource: "UNKNOWN" },
+      updatedAt: new Date().toISOString(),
+    });
+    try {
+      const result = await window.desktop.planner.start({
+        schemaVersion: "1.0",
+        operationId,
+        corporationId: reviewCorporation.id,
+        expectedCorporationVersion: reviewCorporation.version,
+        goalVersion: reviewGoal.version,
+        providerId: provider.id,
+        expectedProviderVersion: provider.version,
+        modelId: provider.selectedModelId,
+      });
+      if (!result.ok) {
+        setPlannerError(result.error.code);
+        return;
+      }
+      setPlannerOperation(result.value);
+      setStatusMessage(
+        result.value.status === "PLAN_SAVED"
+          ? "Plan draft saved. DAG, references, inputs, outputs, acceptance, budget, and permissions are still pending validation."
+          : "Plan generation stopped without a saved draft.",
+      );
+    } catch {
+      setPlannerError("STORAGE_UNAVAILABLE");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const cancelPlanner = async () => {
+    if (plannerOperation === undefined) return;
+    setSaving(true);
+    const result = await window.desktop.planner.cancel({
+      schemaVersion: "1.0",
+      operationId: plannerOperation.operationId,
+    });
+    if (result.ok) setPlannerOperation(result.value);
+    else setPlannerError(result.error.code);
+    setSaving(false);
+  };
+
   const leaveCreate = () => {
     if (dirty && !window.confirm("Discard the unsaved Goal Contract input?")) {
       return;
@@ -761,11 +882,31 @@ export function App() {
               onBack={() => setRoute("dashboard")}
               onChangeAssumption={setReviewAssumptions}
               onStateChange={() => changeCorporationState(reviewCorporation)}
+              onPlan={openPlanner}
               saving={saving}
               statePending={statePending}
               statusMessage={statusMessage}
               timeline={timeline}
               versions={versionsList}
+            />
+          )}
+        {route === "planner" &&
+          reviewCorporation !== undefined &&
+          reviewGoal !== undefined && (
+            <PlannerDraftView
+              corporation={reviewCorporation}
+              error={plannerError}
+              goal={reviewGoal}
+              headingRef={plannerHeading}
+              onBack={() => setRoute("review")}
+              onCancel={cancelPlanner}
+              onStart={startPlanner}
+              operation={plannerOperation}
+              providers={providers}
+              saving={saving}
+              selectedProviderId={selectedProviderId}
+              setSelectedProviderId={setSelectedProviderId}
+              statusMessage={statusMessage}
             />
           )}
         {route === "settings" && <ProviderSettings />}
@@ -1463,6 +1604,7 @@ function GoalReview(props: {
     assumptions: GoalContractContentInput["assumptions"],
   ) => void;
   readonly onStateChange: () => Promise<void>;
+  readonly onPlan: () => Promise<void>;
   readonly saving: boolean;
   readonly statePending: boolean;
   readonly statusMessage: string;
@@ -1617,6 +1759,16 @@ function GoalReview(props: {
         >
           {props.saving ? "Confirming…" : "Confirm Goal Contract"}
         </button>
+        {props.goal.status === "APPROVED" && (
+          <button
+            className="primary-button"
+            disabled={props.saving || props.corporation.status === "PAUSED"}
+            onClick={() => void props.onPlan()}
+            type="button"
+          >
+            Start planning setup
+          </button>
+        )}
       </div>
       <div className="history-grid">
         <section className="history-panel" aria-labelledby="versions-title">
@@ -1641,6 +1793,195 @@ function GoalReview(props: {
           </ol>
         </section>
       </div>
+    </>
+  );
+}
+
+function PlannerDraftView(props: {
+  readonly corporation: CorporationPublic;
+  readonly error: PlannerErrorCode | undefined;
+  readonly goal: GoalContractPublic;
+  readonly headingRef: RefObject<HTMLHeadingElement | null>;
+  readonly onBack: () => void;
+  readonly onCancel: () => Promise<void>;
+  readonly onStart: () => Promise<void>;
+  readonly operation: PlannerOperationPublic | undefined;
+  readonly providers: readonly ProviderPublic[];
+  readonly saving: boolean;
+  readonly selectedProviderId: string | undefined;
+  readonly setSelectedProviderId: (value: string | undefined) => void;
+  readonly statusMessage: string;
+}) {
+  const operation = props.operation;
+  const plan = operation?.plan;
+  const generating = operation?.status === "GENERATING";
+  return (
+    <>
+      <header className="page-header page-header--create">
+        <div>
+          <button className="back-button" onClick={props.onBack} type="button">
+            ← Goal Contract
+          </button>
+          <p className="eyebrow">
+            {props.corporation.name} · approved Goal v{props.goal.version}
+          </p>
+          <h1 ref={props.headingRef} tabIndex={-1}>
+            Generate Plan draft
+          </h1>
+          <p>
+            Generate a structured draft only. It will remain unvalidated and
+            cannot start execution.
+          </p>
+        </div>
+        <div className="status-badge-group">
+          <span className="status-badge status-badge--neutral">
+            {operation?.status ?? "NOT_STARTED"}
+          </span>
+          {plan !== undefined && (
+            <span className="status-badge status-badge--neutral">
+              {plan.status} · {plan.validationStatus}
+            </span>
+          )}
+        </div>
+      </header>
+      {props.error !== undefined && <PlannerError code={props.error} />}
+      {props.statusMessage.length > 0 && (
+        <p className="inline-status" role="status">
+          {props.statusMessage}
+        </p>
+      )}
+      {plan === undefined &&
+        !["FAILED", "CANCELLED", "INTERRUPTED"].includes(
+          operation?.status ?? "",
+        ) && (
+          <section
+            className="goal-analysis"
+            aria-labelledby="planner-provider-title"
+          >
+            <h2 id="planner-provider-title">Provider and exact model</h2>
+            <label className="field">
+              Verified Provider / model
+              <select
+                disabled={generating || props.saving}
+                onChange={(event) =>
+                  props.setSelectedProviderId(event.target.value || undefined)
+                }
+                value={props.selectedProviderId ?? ""}
+              >
+                <option value="">Choose explicitly</option>
+                {props.providers.map((provider) => (
+                  <option key={provider.id} value={provider.id}>
+                    {provider.name} · {provider.selectedModelId}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="disclosure-card">
+              <h3>Data sent to this Provider</h3>
+              <ul>
+                <li>The current approved Goal Contract</li>
+                <li>Built-in capability, tool, and media-type allowlists</li>
+              </ul>
+              <p>
+                Not sent: Workspace path, directory listing, files, API Key, or
+                any unapproved Goal version.
+              </p>
+            </div>
+            <div className="analysis-actions">
+              <button
+                className="primary-button"
+                disabled={
+                  props.selectedProviderId === undefined ||
+                  generating ||
+                  props.saving
+                }
+                onClick={() => void props.onStart()}
+                type="button"
+              >
+                {generating ? "Generating…" : "Generate unvalidated draft"}
+              </button>
+              {generating && (
+                <button
+                  className="secondary-button"
+                  onClick={() => void props.onCancel()}
+                  type="button"
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+          </section>
+        )}
+      {plan !== undefined && (
+        <>
+          <section className="warning-card" role="status">
+            <h2>Unvalidated Plan draft</h2>
+            <p>
+              DAG, references, input/output closure, leaf acceptance, budget,
+              permissions, and task size have not been validated. No team has
+              been created and execution is unavailable.
+            </p>
+          </section>
+          <section
+            className="plan-summary"
+            aria-labelledby="plan-summary-title"
+          >
+            <h2 id="plan-summary-title">{plan.summary}</h2>
+            <p>
+              Plan v{plan.planVersion} · {plannerUsageLabel(plan.usage)}
+            </p>
+            <div className="plan-task-list">
+              {plan.tasks.map((task) => (
+                <article className="review-block" key={task.id}>
+                  <p className="eyebrow">
+                    {task.localId} · {task.kind}
+                  </p>
+                  <h3>{task.title}</h3>
+                  <p>{task.objective}</p>
+                  <p>
+                    Suggested role: <strong>{task.suggestedRole}</strong> · not
+                    staffed
+                  </p>
+                  <p>
+                    Capabilities:{" "}
+                    {task.requiredCapabilities.length === 0
+                      ? "None declared"
+                      : task.requiredCapabilities
+                          .map(({ path }) => path)
+                          .join(", ")}
+                  </p>
+                  <p>
+                    Outputs:{" "}
+                    {task.expectedOutputs.length === 0
+                      ? "None declared"
+                      : task.expectedOutputs
+                          .map(({ logicalName }) => logicalName)
+                          .join(", ")}
+                  </p>
+                  <p>Acceptance criteria: {task.acceptanceCriteria.length}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+        </>
+      )}
+      {["FAILED", "CANCELLED", "INTERRUPTED"].includes(
+        operation?.status ?? "",
+      ) && (
+        <section className="error-state" role="status">
+          <div>
+            <p className="eyebrow">No Plan was saved</p>
+            <h2>{operation?.status}</h2>
+            {operation?.failureReason !== undefined && (
+              <p>
+                Reason: {plannerFailureReasonLabel(operation.failureReason)} (
+                <code>{operation.failureReason}</code>)
+              </p>
+            )}
+            <p>Return to the approved Goal and start a new explicit attempt.</p>
+          </div>
+        </section>
+      )}
     </>
   );
 }
@@ -1742,6 +2083,37 @@ function GoalEngineError({ code }: { readonly code: GoalEngineErrorCode }) {
   );
 }
 
+function PlannerError({ code }: { readonly code: PlannerErrorCode }) {
+  const messages: Record<PlannerErrorCode, string> = {
+    VALIDATION_FAILED:
+      "Choose an available verified Provider and its exact selected model.",
+    UNAUTHORIZED_CALLER:
+      "The request did not come from the trusted app window.",
+    NOT_FOUND: "The planning resource no longer exists.",
+    VERSION_CONFLICT:
+      "The Corporation, approved Goal, Provider, or model changed. Reload before retrying.",
+    STATE_CONFLICT:
+      "Planning requires the current approved Goal and no existing active Plan.",
+    PROVIDER_UNAVAILABLE:
+      "The selected Provider, key, verification, or exact model is unavailable.",
+    INPUT_TOO_LARGE:
+      "The approved Goal exceeds the safe request limit. No data was sent and no Plan was saved.",
+    CANCELLED: "Plan generation was cancelled; no Plan was saved.",
+    STORAGE_UNAVAILABLE:
+      "Planner storage is unavailable; no saved Plan is assumed.",
+  };
+  return (
+    <section className="error-state" role="alert">
+      <div>
+        <p className="eyebrow">Plan draft not created</p>
+        <h2>Action needs attention</h2>
+        <p>{messages[code]}</p>
+      </div>
+      <code>{code}</code>
+    </section>
+  );
+}
+
 function CorporationStateError({
   code,
 }: {
@@ -1807,6 +2179,32 @@ function usageLabel(usage: GoalEngineOperationPublic["usage"]): string {
   return `usage ${input} input / ${output} output tokens · cost ${
     usage.costMicros === undefined ? "unknown" : `${usage.costMicros} µUSD`
   }`;
+}
+
+function plannerUsageLabel(usage: PlannerOperationPublic["usage"]): string {
+  const input = usage.inputTokens === undefined ? "?" : usage.inputTokens;
+  const output = usage.outputTokens === undefined ? "?" : usage.outputTokens;
+  return `${input} input / ${output} output tokens · cost ${
+    usage.costMicros === undefined ? "unknown" : `${usage.costMicros} µUSD`
+  }`;
+}
+
+function plannerFailureReasonLabel(
+  reason: NonNullable<PlannerOperationPublic["failureReason"]>,
+): string {
+  const labels: Record<
+    NonNullable<PlannerOperationPublic["failureReason"]>,
+    string
+  > = {
+    PROVIDER_FAILURE: "The Provider request failed",
+    INVALID_MODEL_OUTPUT: "The initial output and one repair were invalid",
+    INPUT_TOO_LARGE: "The approved Goal exceeded the safe input limit",
+    PROVIDER_UNAVAILABLE:
+      "The bound Provider or exact model became unavailable",
+    VERSION_CONFLICT: "Bound planning facts changed before the draft was saved",
+    STORAGE_UNAVAILABLE: "Local Planner storage failed",
+  };
+  return labels[reason];
 }
 
 function contentFromForm(

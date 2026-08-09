@@ -473,6 +473,86 @@ try {
     .getByText("APPROVED", { exact: true })
     .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
 
+  providerFixture.setGenerationMode("planner");
+  await page.getByRole("button", { name: "Start planning setup" }).click();
+  await page
+    .getByRole("heading", { name: "Generate Plan draft" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page
+    .getByLabel("Verified Provider / model")
+    .selectOption({ label: "Packaged Provider · packaged-fixture-model" });
+  await page
+    .getByRole("button", { name: "Generate unvalidated draft" })
+    .click();
+  await page
+    .getByRole("heading", { name: "Unvalidated Plan draft" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page
+    .getByText(/DRAFT · PENDING/u)
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page
+    .getByText(/Writer · not staffed/u)
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  const plannerRequest = providerFixture.requests
+    .filter(({ path: requestPath }) =>
+      requestPath.endsWith("/chat/completions"),
+    )
+    .at(-1);
+  const serializedPlannerRequest = JSON.stringify(plannerRequest?.body ?? {});
+  if (
+    plannerRequest?.body?.max_tokens !== 65_536 ||
+    plannerRequest.body?.response_format?.type !== "json_object" ||
+    plannerRequest.body?.stream !== false ||
+    serializedPlannerRequest.includes(workspaceDirectory) ||
+    serializedPlannerRequest.includes(providerReplacement)
+  ) {
+    throw new Error(
+      "Packaged Planner request violated its normalized disclosure boundary",
+    );
+  }
+  const packagedPlanner = await page.evaluate(async (corporationId) => {
+    const result = await window.desktop.planner.getCurrent({
+      schemaVersion: "1.0",
+      corporationId,
+    });
+    if (!result.ok) throw new Error(result.error.code);
+    return result.value;
+  }, stored.corporation.id);
+  if (
+    packagedPlanner?.status !== "PLAN_SAVED" ||
+    packagedPlanner.plan?.status !== "DRAFT" ||
+    packagedPlanner.plan?.validationStatus !== "PENDING"
+  ) {
+    throw new Error("Packaged Planner did not persist a DRAFT/PENDING Plan");
+  }
+  const plannerPlanId = packagedPlanner.plan.planId;
+  const plannerEvidencePath = path.join(
+    evidenceDirectory,
+    `m2-tu06-packaged-${process.platform}-${process.arch}-planner.png`,
+  );
+  await page.screenshot({ path: plannerEvidencePath });
+  await page.reload();
+  await page.getByText("Packaged Corporation", { exact: true }).waitFor({
+    state: "visible",
+    timeout: STARTUP_TIMEOUT_MS,
+  });
+  await page.getByRole("button", { name: "Open Goal Contract" }).click();
+  await page.getByRole("button", { name: "Start planning setup" }).click();
+  await page
+    .getByRole("heading", { name: "Unvalidated Plan draft" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  const restoredPlannerPlanId = await page.evaluate(async (corporationId) => {
+    const result = await window.desktop.planner.getCurrent({
+      schemaVersion: "1.0",
+      corporationId,
+    });
+    if (!result.ok) throw new Error(result.error.code);
+    return result.value?.plan?.planId;
+  }, stored.corporation.id);
+  if (restoredPlannerPlanId !== plannerPlanId) {
+    throw new Error("Packaged Renderer reload changed the saved Plan identity");
+  }
+
   providerFixture.setGenerationMode("goal");
   await page.getByRole("button", { name: "Dashboard", exact: true }).click();
   await page.getByRole("button", { name: "New Corporation" }).click();
@@ -536,6 +616,9 @@ try {
   );
   console.log(
     `Packaged Goal Engine verified: explicit Provider/model · final-package generation · PROVIDER draft · normalized usage · screenshot ${goalEngineEvidencePath}`,
+  );
+  console.log(
+    `Packaged Planner verified: explicit Provider/model · normalized JSON · DRAFT/PENDING · stable reload · screenshot ${plannerEvidencePath}`,
   );
   console.log(
     "Packaged Corporation restart journey verified: pause · reload · process restart · read-only restore · resume · reload · process restart",
@@ -687,6 +770,69 @@ async function startProviderFixture() {
           },
           unresolvedQuestions: [],
         });
+        const plannerContent = JSON.stringify({
+          schemaVersion: "1.0",
+          summary: "Create one packaged verification report.",
+          tasks: [
+            {
+              localId: "task-one",
+              title: "Create report",
+              objective: "Create the packaged verification report.",
+              kind: "GENERATION",
+              priority: 50,
+              riskLevel: "LOW",
+              suggestedRole: "Writer",
+              requiredCapabilities: [
+                {
+                  path: "writing.document",
+                  minimumLevel: 0.7,
+                  mandatory: true,
+                },
+              ],
+              requiredTools: ["workspace.propose_write"],
+              inputs: [
+                {
+                  source: "GOAL_CONTRACT",
+                  logicalName: "approved-goal",
+                  required: true,
+                },
+              ],
+              expectedOutputs: [
+                {
+                  logicalName: "report",
+                  mediaType: "text/markdown",
+                  required: true,
+                  description: "Packaged verification report.",
+                },
+              ],
+              acceptanceCriteria: [
+                {
+                  localId: "criterion-report",
+                  description: "The report matches the approved Goal.",
+                  severity: "REQUIRED",
+                  evidenceRequired: ["report"],
+                },
+              ],
+              budget: { maxOutputTokens: 4096 },
+              retryPolicy: {
+                maxAttempts: 2,
+                maxEvaluationRevisions: 1,
+                retryableCategories: ["provider"],
+              },
+              permissionHints: {
+                workspaceRead: false,
+                workspaceWrite: [],
+                processProfiles: [],
+              },
+              assumptions: [],
+              nonGoals: [],
+            },
+          ],
+          dependencies: [],
+          milestones: [{ title: "Delivery", taskLocalIds: ["task-one"] }],
+          assumptions: [],
+          risks: [],
+        });
         response.end(
           JSON.stringify({
             model: "packaged-fixture-model",
@@ -698,15 +844,32 @@ async function startProviderFixture() {
                   content:
                     generationMode === "goal"
                       ? goalContent
-                      : "Packaged fixture acknowledged.",
+                      : generationMode === "planner"
+                        ? plannerContent
+                        : "Packaged fixture acknowledged.",
                 },
                 finish_reason: "stop",
               },
             ],
             usage: {
-              prompt_tokens: generationMode === "goal" ? 13 : 11,
-              completion_tokens: generationMode === "goal" ? 9 : 3,
-              total_tokens: generationMode === "goal" ? 22 : 14,
+              prompt_tokens:
+                generationMode === "goal"
+                  ? 13
+                  : generationMode === "planner"
+                    ? 17
+                    : 11,
+              completion_tokens:
+                generationMode === "goal"
+                  ? 9
+                  : generationMode === "planner"
+                    ? 12
+                    : 3,
+              total_tokens:
+                generationMode === "goal"
+                  ? 22
+                  : generationMode === "planner"
+                    ? 29
+                    : 14,
             },
           }),
         );
