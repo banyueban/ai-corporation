@@ -67,6 +67,21 @@ import {
   type PlannerCancelRequest,
   type PlannerGetCurrentRequest,
   type PlannerStartRequest,
+  PLAN_REVIEW_APPROVE_IPC_CHANNEL,
+  PLAN_REVIEW_GET_CURRENT_IPC_CHANNEL,
+  PLAN_REVIEW_LIST_VERSIONS_IPC_CHANNEL,
+  PLAN_REVIEW_SAVE_VERSION_IPC_CHANNEL,
+  planReviewApproveRequestSchema,
+  planReviewGetCurrentRequestSchema,
+  planReviewItemResultSchema,
+  planReviewListResultSchema,
+  planReviewListVersionsRequestSchema,
+  planReviewNullableItemResultSchema,
+  planReviewSaveVersionRequestSchema,
+  type PlanReviewApproveRequest,
+  type PlanReviewGetCurrentRequest,
+  type PlanReviewListVersionsRequest,
+  type PlanReviewSaveVersionRequest,
   PROVIDER_CANCEL_CONNECTION_TEST_IPC_CHANNEL,
   PROVIDER_CANCEL_GENERATION_TEST_IPC_CHANNEL,
   PROVIDER_DELETE_KEY_IPC_CHANNEL,
@@ -256,6 +271,36 @@ const desktopApi: DesktopApi = Object.freeze({
         await ipcRenderer.invoke(
           PLANNER_START_IPC_CHANNEL,
           plannerStartRequestSchema.parse(request),
+        ),
+      ),
+  }),
+  planReview: Object.freeze({
+    approve: async (request: PlanReviewApproveRequest) =>
+      planReviewItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          PLAN_REVIEW_APPROVE_IPC_CHANNEL,
+          planReviewApproveRequestSchema.parse(request),
+        ),
+      ),
+    getCurrent: async (request: PlanReviewGetCurrentRequest) =>
+      planReviewNullableItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          PLAN_REVIEW_GET_CURRENT_IPC_CHANNEL,
+          planReviewGetCurrentRequestSchema.parse(request),
+        ),
+      ),
+    listVersions: async (request: PlanReviewListVersionsRequest) =>
+      planReviewListResultSchema.parse(
+        await ipcRenderer.invoke(
+          PLAN_REVIEW_LIST_VERSIONS_IPC_CHANNEL,
+          planReviewListVersionsRequestSchema.parse(request),
+        ),
+      ),
+    saveVersion: async (request: PlanReviewSaveVersionRequest) =>
+      planReviewItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          PLAN_REVIEW_SAVE_VERSION_IPC_CHANNEL,
+          planReviewSaveVersionRequestSchema.parse(request),
         ),
       ),
   }),

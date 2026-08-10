@@ -292,6 +292,96 @@ test("user creates and cancels real Goal Engine operations in the visible window
         `m2-tu07-valid-dev-${process.platform}-${process.arch}-1440x900.png`,
       ),
     });
+    await app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0];
+      window?.setSize(1024, 700);
+      window?.webContents.setZoomFactor(2);
+    });
+
+    const callsBeforePlanReview = fixture.generationCalls();
+    await page.getByRole("button", { name: "编辑计划" }).click();
+    await page.getByLabel("标题").fill("人工修改后的报告任务");
+    await page.getByRole("button", { name: "删除验收标准" }).click();
+    await page.getByRole("button", { name: "保存新版本" }).click();
+    await expect(
+      page.getByRole("heading", { name: "计划验证未通过" }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: /版本 2/u })).toBeVisible();
+    expect(fixture.generationCalls()).toBe(callsBeforePlanReview);
+    await page.reload();
+    await openPlannerForCorporation(page, "Assumption Corporation");
+    await expect(
+      page.getByRole("heading", { name: "计划验证未通过" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "编辑计划" }).click();
+    await page.getByRole("button", { name: "新增验收标准" }).click();
+    await page.getByLabel("内容").last().fill("报告包含人工新增的检查项");
+    await page.getByLabel("所需证据（每行一项）").last().fill("result");
+    await page.getByRole("button", { name: "保存新版本" }).click();
+    await expect(
+      page.getByRole("heading", { name: "计划已通过本地验证" }),
+    ).toBeVisible();
+    await expect(page.getByText("人工修改后的报告任务")).toBeVisible();
+    await expect(page.getByRole("button", { name: /版本 3/u })).toBeVisible();
+    expect(fixture.generationCalls()).toBe(callsBeforePlanReview);
+    await page.getByRole("button", { name: "批准计划" }).click();
+    await expect(
+      page.getByRole("heading", { name: "计划已批准" }),
+    ).toBeVisible();
+    await app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0];
+      window?.setSize(1440, 900);
+      window?.webContents.setZoomFactor(1);
+    });
+    await page.screenshot({
+      animations: "disabled",
+      fullPage: true,
+      path: path.resolve(
+        __dirname,
+        "../../../release",
+        `m2-tu08-approved-dev-${process.platform}-${process.arch}-1440x900.png`,
+      ),
+    });
+    await expect(
+      page.getByText("此版本已经冻结。没有创建团队，也没有开始执行。"),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "编辑计划" })).toHaveCount(0);
+    expect(fixture.generationCalls()).toBe(callsBeforePlanReview);
+    await page.reload();
+    await openPlannerForCorporation(page, "Assumption Corporation");
+    await expect(
+      page.getByRole("heading", { name: "计划已批准" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: /版本 1/u }).click();
+    await expect(
+      page.getByRole("heading", { name: "这是只读历史版本" }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "批准计划" })).toHaveCount(0);
+
+    const blockedDeleteCorporation = await createApprovedGoal(
+      page,
+      "Blocked Delete Corporation",
+      "Keep outputs that another task still uses",
+      150,
+    );
+    await openPlannerForCorporation(page, blockedDeleteCorporation.name);
+    await selectPlannerProvider(page, "Goal Fixture Provider · goal-model");
+    fixture.enqueue(twoTaskPlannerOutput());
+    await page.getByRole("button", { name: "生成并验证计划" }).click();
+    await expect(
+      page.getByRole("heading", { name: "计划已通过本地验证" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "编辑计划" }).click();
+    await page.getByRole("button", { name: "删除此任务" }).first().click();
+    await page.getByRole("button", { name: "保存新版本" }).click();
+    await expect(page.getByRole("alert")).toContainText(
+      "保留的任务仍在使用它的输出",
+    );
+    await expect(page.getByRole("alert")).toContainText("Use report");
+    expect(
+      (await getPlannerOperation(page, blockedDeleteCorporation.id))?.plan
+        ?.planVersion,
+    ).toBe(1);
 
     const invalidCorporation = await createApprovedGoal(
       page,
@@ -331,6 +421,14 @@ test("user creates and cancels real Goal Engine operations in the visible window
     await expect(
       page.getByRole("heading", { name: "计划验证未通过" }),
     ).toBeVisible();
+    expect(fixture.generationCalls() - callsBeforeInvalidPlan).toBe(1);
+    await page.getByRole("button", { name: "编辑计划" }).click();
+    await page.getByLabel("级别").selectOption("REQUIRED");
+    await page.getByRole("button", { name: "保存新版本" }).click();
+    await expect(
+      page.getByRole("heading", { name: "计划已通过本地验证" }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: /版本 2/u })).toBeVisible();
     expect(fixture.generationCalls() - callsBeforeInvalidPlan).toBe(1);
     expect(
       fixture.requests.some(
@@ -987,6 +1085,59 @@ function invalidPlannerOutput() {
     }[];
   };
   value.tasks[0]!.acceptanceCriteria[0]!.severity = "RECOMMENDED";
+  return JSON.stringify(value);
+}
+
+function twoTaskPlannerOutput() {
+  const value = JSON.parse(plannerOutput()) as {
+    summary: string;
+    tasks: Record<string, unknown>[];
+    dependencies: Record<string, string>[];
+    milestones: { title: string; taskLocalIds: string[] }[];
+  };
+  const source = value.tasks[0]!;
+  value.summary = "Create and use one verifiable report.";
+  value.tasks.push({
+    ...source,
+    localId: "task-two",
+    title: "Use report",
+    objective: "Use the report produced by the first task.",
+    inputs: [
+      {
+        source: "TASK_OUTPUT",
+        taskLocalId: "task-one",
+        logicalName: "report",
+        mediaType: "text/markdown",
+        required: true,
+      },
+    ],
+    expectedOutputs: [
+      {
+        logicalName: "result",
+        mediaType: "text/markdown",
+        required: true,
+        description: "Result derived from the report.",
+      },
+    ],
+    acceptanceCriteria: [
+      {
+        localId: "criterion-result",
+        description: "The result uses the report.",
+        severity: "REQUIRED",
+        evidenceRequired: ["result"],
+      },
+    ],
+  });
+  value.dependencies = [
+    {
+      upstreamLocalId: "task-one",
+      downstreamLocalId: "task-two",
+      condition: "ON_SUCCESS",
+    },
+  ];
+  value.milestones = [
+    { title: "Delivery", taskLocalIds: ["task-one", "task-two"] },
+  ];
   return JSON.stringify(value);
 }
 

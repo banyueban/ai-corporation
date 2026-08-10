@@ -21,7 +21,7 @@
 | Corporation | `organization`                 | 后续迁移增加 `corporation.active_organization_version` 并指向当前版本                                      |
 | Corporation | `organization_version`         | `organization_version` 表，不可变                                                                          |
 | Corporation | 命令幂等回执                   | 内部 `corporation_command` 与 `goal_contract_command` 表；Renderer 不可读取                                |
-| Task        | `task_plan`                    | `task_plan` 表；保存 Planner 草稿、语义草稿 hash、受限验证报告与 `PENDING/VALID/INVALID` 事实              |
+| Task        | `task_plan`                    | `task_plan` 表；保存 Planner 草稿、语义草稿 hash、受限验证报告、版本取代关系、批准时间与 `PENDING/VALID/INVALID` 事实 |
 | Task        | `planner_generation_operation` | `planner_generation_operation` 表；保存生成检查点、版本绑定、聚合 usage 和中断状态，不保存模型正文         |
 | Task        | `task`                         | `task` 表；只有 Plan 验证通过后在同一事务中从可信 Task ID 映射物化                                         |
 | Task        | `task_dependency`              | `task_dependency` 表；只保存同一 Plan 内已验证的可信 Task UUID 边                                          |
@@ -59,7 +59,7 @@
 
 Workspace 路径是敏感数据。Renderer 只获得用户主动授权的 `display_path`、Workspace ID、权限和可访问状态；`canonical_root_path` 与 `path_identity_json` 只存在于 Electron Main、Rust Core 和持久化层。
 
-Task 使用稳定 ID；计划修订可创建新 Task 或标记旧 Task 被取代，禁止改变已执行 Task 的历史合同。Agent Definition 可复用，Instance 属于 Corporation，Run 属于 Task。Artifact Version 不可变；文件内容位于 Artifact Store，数据库保存引用和哈希。
+Task 身份在一个 Plan 版本内稳定；每次计划修订创建新的 Plan UUID 和全套新 Task UUID，并保留旧版本只读，禁止改写历史合同。已批准 Plan 冻结，重新规划由后续独立任务创建新版本。Agent Definition 可复用，Instance 属于 Corporation，Run 属于 Task。Artifact Version 不可变；文件内容位于 Artifact Store，数据库保存引用和哈希。
 
 ## 3. 核心关系
 

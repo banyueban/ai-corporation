@@ -7,7 +7,9 @@ import type {
   GoalEngineErrorCode,
   GoalEngineOperationPublic,
   HealthResult,
-  PlanValidationFinding,
+  PlanReviewFailure,
+  PlanReviewSaveVersionRequest,
+  PlannerDraftPublic,
   PlannerErrorCode,
   PlannerOperationPublic,
   ProviderPublic,
@@ -28,12 +30,8 @@ import {
   workspaceErrorMessage,
 } from "./workspace-view-model";
 import { ProviderSettings } from "./ProviderSettings";
-import {
-  formatUiTime,
-  internalLabel,
-  planValidationFindingLabel,
-  timelineLabel,
-} from "./ui-labels";
+import { PlanReviewPanel } from "./PlanReviewPanel";
+import { formatUiTime, internalLabel, timelineLabel } from "./ui-labels";
 import { createUuidV7 } from "./uuid-v7";
 
 type NativeCoreState =
@@ -83,6 +81,12 @@ export function App() {
   const [plannerError, setPlannerError] = useState<PlannerErrorCode>();
   const [plannerOperation, setPlannerOperation] =
     useState<PlannerOperationPublic>();
+  const [reviewPlan, setReviewPlan] = useState<PlannerDraftPublic>();
+  const [planVersions, setPlanVersions] = useState<
+    readonly PlannerDraftPublic[]
+  >([]);
+  const [planReviewError, setPlanReviewError] =
+    useState<PlanReviewFailure["error"]>();
   const [providers, setProviders] = useState<readonly ProviderPublic[]>([]);
   const [selectedProviderId, setSelectedProviderId] = useState<string>();
   const [clarificationAnswers, setClarificationAnswers] = useState<
@@ -700,18 +704,31 @@ export function App() {
     setSaving(true);
     setPlannerError(undefined);
     try {
-      const [corporationResult, providerResult, operationResult] =
-        await Promise.all([
-          window.desktop.corporation.get({
-            schemaVersion: "1.0",
-            corporationId: reviewCorporation.id,
-          }),
-          window.desktop.provider.list({ schemaVersion: 1 }),
-          window.desktop.planner.getCurrent({
-            schemaVersion: "1.0",
-            corporationId: reviewCorporation.id,
-          }),
-        ]);
+      const [
+        corporationResult,
+        providerResult,
+        operationResult,
+        currentPlanResult,
+        planVersionsResult,
+      ] = await Promise.all([
+        window.desktop.corporation.get({
+          schemaVersion: "1.0",
+          corporationId: reviewCorporation.id,
+        }),
+        window.desktop.provider.list({ schemaVersion: 1 }),
+        window.desktop.planner.getCurrent({
+          schemaVersion: "1.0",
+          corporationId: reviewCorporation.id,
+        }),
+        window.desktop.planReview.getCurrent({
+          schemaVersion: "1.0",
+          corporationId: reviewCorporation.id,
+        }),
+        window.desktop.planReview.listVersions({
+          schemaVersion: "1.0",
+          corporationId: reviewCorporation.id,
+        }),
+      ]);
       if (!corporationResult.ok) {
         setPlannerError("VERSION_CONFLICT");
         return;
@@ -722,11 +739,24 @@ export function App() {
         : [];
       setProviders(available);
       setSelectedProviderId(undefined);
+      setPlanReviewError(undefined);
       if (!operationResult.ok) {
         setPlannerError(operationResult.error.code);
         setPlannerOperation(undefined);
       } else {
         setPlannerOperation(operationResult.value ?? undefined);
+      }
+      if (!currentPlanResult.ok) {
+        setPlanReviewError(currentPlanResult.error);
+        setReviewPlan(undefined);
+      } else {
+        setReviewPlan(currentPlanResult.value ?? undefined);
+      }
+      if (!planVersionsResult.ok) {
+        setPlanReviewError(planVersionsResult.error);
+        setPlanVersions([]);
+      } else {
+        setPlanVersions(planVersionsResult.value);
       }
       setStatusMessage("");
       setRoute("planner");
@@ -778,6 +808,10 @@ export function App() {
         return;
       }
       setPlannerOperation(result.value);
+      setReviewPlan(result.value.plan);
+      if (result.value.plan !== undefined) {
+        setPlanVersions([result.value.plan]);
+      }
       setStatusMessage(
         result.value.status !== "PLAN_SAVED"
           ? "计划生成已停止，没有保存草稿。"
@@ -804,6 +838,69 @@ export function App() {
     if (result.ok) setPlannerOperation(result.value);
     else setPlannerError(result.error.code);
     setSaving(false);
+  };
+
+  const savePlanVersion = async (request: PlanReviewSaveVersionRequest) => {
+    setSaving(true);
+    setPlanReviewError(undefined);
+    try {
+      const result = await window.desktop.planReview.saveVersion(request);
+      if (!result.ok) {
+        setPlanReviewError(result.error);
+        return;
+      }
+      setReviewPlan(result.value);
+      const versionsResult = await window.desktop.planReview.listVersions({
+        schemaVersion: "1.0",
+        corporationId: request.corporationId,
+      });
+      if (versionsResult.ok) setPlanVersions(versionsResult.value);
+      else setPlanReviewError(versionsResult.error);
+      setStatusMessage(
+        result.value.validationStatus === "VALID"
+          ? "新计划版本已保存并通过本地验证。仍未批准、未组队，也没有开始执行。"
+          : "新计划版本已保存，但验证未通过。可以继续修改，不会调用模型服务商。",
+      );
+    } catch {
+      setPlanReviewError({
+        code: "STORAGE_UNAVAILABLE",
+        message: "Plan review storage is unavailable.",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const approvePlan = async (plan: PlannerDraftPublic) => {
+    setSaving(true);
+    setPlanReviewError(undefined);
+    try {
+      const result = await window.desktop.planReview.approve({
+        schemaVersion: "1.0",
+        commandId: createUuidV7(),
+        corporationId: plan.corporationId,
+        planId: plan.planId,
+        expectedPlanVersion: plan.planVersion,
+      });
+      if (!result.ok) {
+        setPlanReviewError(result.error);
+        return;
+      }
+      setReviewPlan(result.value);
+      setPlanVersions((versions) =>
+        versions.map((version) =>
+          version.planId === result.value.planId ? result.value : version,
+        ),
+      );
+      setStatusMessage("计划已批准并冻结。软件没有创建团队，也没有开始执行。");
+    } catch {
+      setPlanReviewError({
+        code: "STORAGE_UNAVAILABLE",
+        message: "Plan review storage is unavailable.",
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const leaveCreate = () => {
@@ -907,6 +1004,11 @@ export function App() {
               onCancel={cancelPlanner}
               onStart={startPlanner}
               operation={plannerOperation}
+              plan={reviewPlan}
+              planReviewError={planReviewError}
+              planVersions={planVersions}
+              onApprovePlan={approvePlan}
+              onSaveVersion={savePlanVersion}
               providers={providers}
               saving={saving}
               selectedProviderId={selectedProviderId}
@@ -1786,6 +1888,13 @@ function PlannerDraftView(props: {
   readonly onCancel: () => Promise<void>;
   readonly onStart: () => Promise<void>;
   readonly operation: PlannerOperationPublic | undefined;
+  readonly plan: PlannerDraftPublic | undefined;
+  readonly planReviewError: PlanReviewFailure["error"] | undefined;
+  readonly planVersions: readonly PlannerDraftPublic[];
+  readonly onApprovePlan: (plan: PlannerDraftPublic) => Promise<void>;
+  readonly onSaveVersion: (
+    request: PlanReviewSaveVersionRequest,
+  ) => Promise<void>;
   readonly providers: readonly ProviderPublic[];
   readonly saving: boolean;
   readonly selectedProviderId: string | undefined;
@@ -1793,7 +1902,7 @@ function PlannerDraftView(props: {
   readonly statusMessage: string;
 }) {
   const operation = props.operation;
-  const plan = operation?.plan;
+  const plan = props.plan ?? operation?.plan;
   const generating = operation?.status === "GENERATING";
   const terminalWithoutPlan =
     plan === undefined &&
@@ -1809,10 +1918,12 @@ function PlannerDraftView(props: {
             {props.corporation.name} · 已批准目标版本 {props.goal.version}
           </p>
           <h1 ref={props.headingRef} tabIndex={-1}>
-            生成并验证计划
+            {plan === undefined ? "生成并验证计划" : "审阅和批准计划"}
           </h1>
           <p>
-            软件会先生成结构化草稿，再立即进行本地验证。验证不会再次调用模型服务商。
+            {plan === undefined
+              ? "软件会先生成结构化草稿，再立即进行本地验证。验证不会再次调用模型服务商。"
+              : "你可以有限编辑并保存新版本，也可以批准已验证版本。批准不会组队或开始执行。"}
           </p>
         </div>
         <div className="status-badge-group">
@@ -1828,6 +1939,9 @@ function PlannerDraftView(props: {
         </div>
       </header>
       {props.error !== undefined && <PlannerError code={props.error} />}
+      {props.planReviewError !== undefined && (
+        <PlanReviewError error={props.planReviewError} plan={plan} />
+      )}
       {props.statusMessage.length > 0 && (
         <p className="inline-status" role="status">
           {props.statusMessage}
@@ -1918,122 +2032,16 @@ function PlannerDraftView(props: {
         </section>
       )}
       {plan !== undefined && (
-        <>
-          {plan.validationStatus === "PENDING" && (
-            <section className="warning-card" role="status">
-              <h2>正在本地验证计划</h2>
-              <p>
-                正在检查任务关系、输入输出、验收、预算和权限。不会再次调用模型服务商。
-              </p>
-            </section>
-          )}
-          {plan.validationStatus === "INVALID" && (
-            <section className="error-state" role="alert">
-              <div>
-                <p className="eyebrow">没有创建正式任务</p>
-                <h2>计划验证未通过</h2>
-                <p>
-                  下列问题必须先解决。软件不会让模型自动重试；当前计划未批准、未组队，也不能执行。
-                </p>
-                <PlanValidationFindings
-                  findings={plan.validationReport?.issues ?? []}
-                />
-              </div>
-            </section>
-          )}
-          {plan.validationStatus === "VALID" && (
-            <section className="success-card" role="status">
-              <h2>计划已通过本地验证</h2>
-              <p>
-                正式任务和依赖关系已经创建。计划仍未批准、未组队，也不能执行。
-              </p>
-              {(plan.validationReport?.warnings.length ?? 0) > 0 && (
-                <>
-                  <h3>需要留意</h3>
-                  <PlanValidationFindings
-                    findings={plan.validationReport?.warnings ?? []}
-                  />
-                </>
-              )}
-            </section>
-          )}
-          <section
-            className="plan-summary"
-            aria-labelledby="plan-summary-title"
-          >
-            <h2 id="plan-summary-title">{plan.summary}</h2>
-            <p>
-              计划版本 {plan.planVersion} · {plannerUsageLabel(plan.usage)}
-            </p>
-            <div className="plan-task-list">
-              {plan.tasks.map((task) => (
-                <article className="review-block" key={task.id}>
-                  <p className="eyebrow">
-                    {task.localId} · {internalLabel(task.kind)}
-                  </p>
-                  <h3>{task.title}</h3>
-                  <p>{task.objective}</p>
-                  <p>
-                    建议角色：<strong>{task.suggestedRole}</strong> ·
-                    尚未安排人员
-                  </p>
-                  <p>
-                    能力要求：{" "}
-                    {task.requiredCapabilities.length === 0
-                      ? "没有填写"
-                      : task.requiredCapabilities
-                          .map(({ path }) => path)
-                          .join(", ")}
-                  </p>
-                  <p>
-                    预期输出：{" "}
-                    {task.expectedOutputs.length === 0
-                      ? "没有填写"
-                      : task.expectedOutputs
-                          .map(({ logicalName }) => logicalName)
-                          .join(", ")}
-                  </p>
-                  <p>验收标准：{task.acceptanceCriteria.length} 项</p>
-                  <p>
-                    预算：成本 {task.budget.maxCostMicros ?? "未设置"} 微美元 ·{" "}
-                    时长 {task.budget.maxDurationMs ?? "未设置"} 毫秒 ·{" "}
-                    {task.retryPolicy.maxEvaluationRevisions} 次修改
-                  </p>
-                  <p>
-                    计划要求（尚未授权）：
-                    {task.permissionHints.workspaceRead
-                      ? "需要读取工作区"
-                      : "不读取工作区"}
-                    {task.permissionHints.workspaceWrite.length > 0
-                      ? ` · 需要写入 ${task.permissionHints.workspaceWrite.join(", ")}`
-                      : " · 不写入工作区"}
-                  </p>
-                </article>
-              ))}
-            </div>
-          </section>
-        </>
+        <PlanReviewPanel
+          currentPlan={props.plan ?? plan}
+          displayedPlan={plan}
+          onApprove={props.onApprovePlan}
+          onSaveVersion={props.onSaveVersion}
+          saving={props.saving}
+          versions={props.planVersions}
+        />
       )}
     </>
-  );
-}
-
-function PlanValidationFindings(props: {
-  readonly findings: readonly PlanValidationFinding[];
-}) {
-  return (
-    <ul>
-      {props.findings.map((finding, index) => (
-        <li key={`${finding.code}-${finding.path}-${index}`}>
-          {planValidationFindingLabel(finding.code)}（位置：{finding.path}
-          {finding.logicalName === undefined
-            ? ""
-            : `；名称：${finding.logicalName}`}
-          {finding.actual === undefined ? "" : `；当前值：${finding.actual}`}
-          {finding.limit === undefined ? "" : `；限制：${finding.limit}`}）
-        </li>
-      ))}
-    </ul>
   );
 }
 
@@ -2149,6 +2157,42 @@ function PlannerError({ code }: { readonly code: PlannerErrorCode }) {
   );
 }
 
+function PlanReviewError(props: {
+  readonly error: PlanReviewFailure["error"];
+  readonly plan: PlannerDraftPublic | undefined;
+}) {
+  const messages: Record<PlanReviewFailure["error"]["code"], string> = {
+    VALIDATION_FAILED: "计划编辑内容不完整或格式不正确，请检查后再试。",
+    UNAUTHORIZED_CALLER: "该请求不是来自可信的软件窗口。",
+    NOT_FOUND: "当前计划已经不存在，请重新进入计划审阅。",
+    VERSION_CONFLICT: "计划版本已经变化，请重新加载后再操作。",
+    STATE_CONFLICT: "当前计划状态不允许保存或批准。",
+    DELETE_BLOCKED:
+      "不能删除这个任务，因为保留的任务仍在使用它的输出。请先保留该任务。",
+    STORAGE_UNAVAILABLE: "本地计划存储不可用，不能认为操作已经成功。",
+  };
+  const taskById = new Map(
+    (props.plan?.tasks ?? []).map((task) => [task.id, task.title]),
+  );
+  return (
+    <section className="error-state" role="alert">
+      <div>
+        <p className="eyebrow">计划没有改变</p>
+        <h2>此操作需要处理</h2>
+        <p>{messages[props.error.code]}</p>
+        {props.error.blockingTaskIds !== undefined && (
+          <ul>
+            {props.error.blockingTaskIds.map((taskId) => (
+              <li key={taskId}>{taskById.get(taskId) ?? "受影响任务"}</li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <code>{props.error.code}</code>
+    </section>
+  );
+}
+
 function CorporationStateError({
   code,
 }: {
@@ -2205,14 +2249,6 @@ function usageLabel(usage: GoalEngineOperationPublic["usage"]): string {
   const input = usage.inputTokens === undefined ? "?" : usage.inputTokens;
   const output = usage.outputTokens === undefined ? "?" : usage.outputTokens;
   return `用量：输入 ${input} / 输出 ${output} 个 token · 费用：${
-    usage.costMicros === undefined ? "未知" : `${usage.costMicros} µUSD`
-  }`;
-}
-
-function plannerUsageLabel(usage: PlannerOperationPublic["usage"]): string {
-  const input = usage.inputTokens === undefined ? "?" : usage.inputTokens;
-  const output = usage.outputTokens === undefined ? "?" : usage.outputTokens;
-  return `输入 ${input} / 输出 ${output} 个 token · 费用：${
     usage.costMicros === undefined ? "未知" : `${usage.costMicros} µUSD`
   }`;
 }

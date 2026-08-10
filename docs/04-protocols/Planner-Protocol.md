@@ -4,7 +4,7 @@
 
 Planner Protocol 定义把当前已批准 Goal Contract 发送给用户明确选择的 Provider/精确模型，生成结构化计划草稿并持久化为 `DRAFT` 的跨模块合同。
 
-本阶段只证明模型输出可以被严格解析、规范化并安全保存，不证明计划已经通过 DAG、输入输出、验收、预算或权限验证。后续 [Plan Validation Protocol](Plan-Validation-Protocol.md) 使用本地确定性验证器，把通过验证的草稿转换为正式 `TaskContract`；Plan Review 再负责编辑、批准和开始执行。
+本阶段只证明模型输出可以被严格解析、规范化并安全保存，不证明计划已经通过 DAG、输入输出、验收、预算或权限验证。后续 [Plan Validation Protocol](Plan-Validation-Protocol.md) 使用本地确定性验证器，把通过验证的草稿转换为正式 `TaskContract`；[Plan Review Protocol](Plan-Review-Protocol.md) 再负责有限编辑、版本保存和批准。批准不开始执行或组队。
 
 Planner 使用非流式、dialect-neutral `JSON_OBJECT` 生成。通用协议禁止出现 Chat Completions 专属 DTO；未来 Responses Adapter 以新增方式并存。任何 streaming 使用独立规范化事件协议，不以 Chat streaming 为基础。
 
@@ -107,7 +107,7 @@ type PlannerDraftPublic = {
   corporationId: string;
   planVersion: number;
   goalVersion: number;
-  status: "DRAFT" | "VALIDATED";
+  status: "DRAFT" | "VALIDATED" | "APPROVED" | "SUPERSEDED";
   validationStatus: "PENDING" | "VALID" | "INVALID";
   validationReport?: PlanValidationReport;
   summary: string;
@@ -122,11 +122,13 @@ type PlannerDraftPublic = {
     model: string;
   };
   usage: NormalizedUsage;
+  supersedesPlanId?: string;
+  approvedAt?: string;
   createdAt: string;
 };
 ```
 
-Planner 生成提交时固定为 `DRAFT/PENDING`。M2-TU-07 可按 Plan Validation Protocol 原子转为 `VALIDATED/VALID` 或 `DRAFT/INVALID` 并附带公开 report。`PENDING` 不得显示为已验证；`VALID` 仍不表示已批准、已组队或可执行；`INVALID` 不创建正式 Task。
+Planner 生成提交时固定为 `DRAFT/PENDING`。M2-TU-07 可按 Plan Validation Protocol 原子转为 `VALIDATED/VALID` 或 `DRAFT/INVALID` 并附带公开 report。Plan Review 可产生 `APPROVED/VALID` 或保留最后验证事实的 `SUPERSEDED`。`PENDING` 不得显示为已验证；`VALID` 仍不表示已组队或可执行；`INVALID` 不创建正式 Task。
 
 ## 4. 命令、查询与状态
 
@@ -149,7 +151,7 @@ type PlannerOperationStatus =
 
 同一 Corporation 同时只允许一个非终态 Planner operation。相同 `operationId` 与规范化请求幂等；不同请求固定冲突。应用启动把遗留 `GENERATING` 转为 `INTERRUPTED`，不得自动重发 Provider 请求。
 
-M2-TU-06 只创建第一个活动 Plan DRAFT。Corporation 已存在非 `SUPERSEDED` Plan 时，新的 start 返回状态冲突；计划编辑、新版本、旧版本 supersede 和重新规划由后续 Plan Review/重规划任务定义。
+M2-TU-06 只创建第一个活动 Plan DRAFT。Corporation 已存在非 `SUPERSEDED` Plan 时，新的 start 返回状态冲突；有限编辑、新版本和旧版本 supersede 由 Plan Review Protocol 定义，Provider 重新规划仍由后续独立任务定义。
 
 ## 5. Provider 与输入披露
 

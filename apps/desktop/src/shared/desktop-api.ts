@@ -28,6 +28,13 @@ import type {
   PlannerItemResult,
   PlannerNullableItemResult,
   PlannerStartRequest,
+  PlanReviewApproveRequest,
+  PlanReviewGetCurrentRequest,
+  PlanReviewItemResult,
+  PlanReviewListResult,
+  PlanReviewListVersionsRequest,
+  PlanReviewNullableItemResult,
+  PlanReviewSaveVersionRequest,
   ProviderDeleteKeyRequest,
   ProviderCancelConnectionTestRequest,
   ProviderCancelConnectionTestResult,
@@ -94,6 +101,18 @@ export interface DesktopApi {
       request: PlannerGetCurrentRequest,
     ): Promise<PlannerNullableItemResult>;
     start(request: PlannerStartRequest): Promise<PlannerItemResult>;
+  }>;
+  readonly planReview: Readonly<{
+    approve(request: PlanReviewApproveRequest): Promise<PlanReviewItemResult>;
+    getCurrent(
+      request: PlanReviewGetCurrentRequest,
+    ): Promise<PlanReviewNullableItemResult>;
+    listVersions(
+      request: PlanReviewListVersionsRequest,
+    ): Promise<PlanReviewListResult>;
+    saveVersion(
+      request: PlanReviewSaveVersionRequest,
+    ): Promise<PlanReviewItemResult>;
   }>;
   readonly provider: Readonly<{
     cancelConnectionTest(

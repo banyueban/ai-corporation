@@ -567,6 +567,84 @@ try {
     throw new Error("Packaged Renderer reload changed the saved Plan identity");
   }
 
+  const callsBeforePlanReview = providerFixture.generationCalls();
+  await page.getByRole("button", { name: "编辑计划" }).click();
+  await page.getByLabel("标题").fill("安装包人工修改后的报告任务");
+  await page.getByRole("button", { name: "删除验收标准" }).click();
+  await page.getByRole("button", { name: "保存新版本" }).click();
+  await page
+    .getByRole("heading", { name: "计划验证未通过" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page.reload();
+  await page
+    .getByRole("heading", { name: "控制台" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page.getByText("Packaged Corporation", { exact: true }).waitFor({
+    state: "visible",
+    timeout: STARTUP_TIMEOUT_MS,
+  });
+  await page.getByRole("button", { name: "打开目标合同" }).click();
+  await page.getByRole("button", { name: "开始规划设置" }).click();
+  await page
+    .getByRole("heading", { name: "计划验证未通过" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+
+  await browser.close();
+  browser = undefined;
+  await stopChild(child);
+  ({ child, port } = await launchPackagedApplication());
+  await waitForDebugEndpoint(port, child);
+  browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`);
+  page = await waitForApplicationPage(browser);
+  page.on("request", (request) => {
+    if (/^https?:/u.test(request.url())) externalRequests.push(request.url());
+  });
+  await openPlannerForCorporation(page, "Packaged Corporation");
+  await page
+    .getByRole("heading", { name: "计划验证未通过" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page.getByRole("button", { name: "编辑计划" }).click();
+  await page.getByRole("button", { name: "新增验收标准" }).click();
+  await page.getByLabel("内容").last().fill("安装包报告包含人工新增的检查项");
+  await page.getByLabel("所需证据（每行一项）").last().fill("report");
+  await page.getByRole("button", { name: "保存新版本" }).click();
+  await page
+    .getByRole("heading", { name: "计划已通过本地验证" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page.getByRole("button", { name: "批准计划" }).click();
+  await page
+    .getByRole("heading", { name: "计划已批准" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  if (providerFixture.generationCalls() !== callsBeforePlanReview) {
+    throw new Error("Packaged Plan Review unexpectedly called the Provider");
+  }
+  const planReviewEvidencePath = path.join(
+    evidenceDirectory,
+    `m2-tu08-packaged-${process.platform}-${process.arch}-approved.png`,
+  );
+  await page.screenshot({
+    animations: "disabled",
+    fullPage: true,
+    path: planReviewEvidencePath,
+  });
+  await page.reload();
+  await page.getByText("Packaged Corporation", { exact: true }).waitFor({
+    state: "visible",
+    timeout: STARTUP_TIMEOUT_MS,
+  });
+  await page.getByRole("button", { name: "打开目标合同" }).click();
+  await page.getByRole("button", { name: "开始规划设置" }).click();
+  await page
+    .getByRole("heading", { name: "计划已批准" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  await page.getByRole("button", { name: /版本 2/u }).click();
+  await page
+    .getByRole("heading", { name: "这是只读历史版本" })
+    .waitFor({ state: "visible", timeout: STARTUP_TIMEOUT_MS });
+  if ((await page.getByRole("button", { name: "编辑计划" }).count()) !== 0) {
+    throw new Error("Packaged Plan Review allowed editing a history version");
+  }
+
   const repairCorporation = await createApprovedGoal(
     page,
     "Packaged Planner Repair Corporation",
@@ -832,6 +910,9 @@ try {
   );
   console.log(
     `Packaged Planner verified: explicit Provider/model · normalized JSON · VALIDATED/VALID · stable reload · one repair · repair failure · prompt cancel · version conflict · interrupted restart without replay · screenshot ${plannerEvidencePath}`,
+  );
+  console.log(
+    `Packaged Plan Review verified: edit · invalid persistence · process restart · local recovery · approve · history read-only · zero Provider calls · screenshot ${planReviewEvidencePath}`,
   );
   console.log(
     "Packaged Corporation restart journey verified: pause · reload · process restart · read-only restore · resume · reload · process restart",

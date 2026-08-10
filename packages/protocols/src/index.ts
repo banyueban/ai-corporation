@@ -3,6 +3,7 @@ export * from "./goal-contract";
 export * from "./goal-engine";
 export * from "./health";
 export * from "./planner";
+export * from "./plan-review";
 export * from "./plan-validation";
 export * from "./provider-key-vault";
 export * from "./provider-connection-test";

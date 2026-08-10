@@ -182,6 +182,8 @@ CREATE TABLE task_plan (
     )
   ),
   validated_at TEXT,
+  supersedes_plan_id TEXT REFERENCES task_plan(id),
+  approved_at TEXT,
   created_at TEXT NOT NULL,
   UNIQUE(corporation_id, version),
   FOREIGN KEY (corporation_id, goal_version)
@@ -202,6 +204,10 @@ CREATE TABLE task_plan (
 
 CREATE UNIQUE INDEX idx_task_plan_identity
 ON task_plan(id, corporation_id);
+
+CREATE UNIQUE INDEX idx_task_plan_current
+ON task_plan(corporation_id)
+WHERE status <> 'SUPERSEDED';
 
 CREATE TABLE task (
   id TEXT PRIMARY KEY,
@@ -255,7 +261,7 @@ CREATE TABLE task_dependency (
 );
 ```
 
-环检测由应用层事务内完成；SQLite CHECK 无法验证整图无环。`validation_report_json`、`validator_version`、`validated_draft_hash` 和 `validated_at` 由 `0011_plan_validation.sql` 增加；同一迁移创建正式 `task`/`task_dependency`。语义 hash 只覆盖不含动态状态、report 和时间的规范化草稿内容。Repository 必须保证 `INVALID` 没有 Task，`VALID` 的 Task/依赖/report/状态原子一致。
+环检测由应用层事务内完成；SQLite CHECK 无法验证整图无环。`validation_report_json`、`validator_version`、`validated_draft_hash` 和 `validated_at` 由 `0011_plan_validation.sql` 增加；同一迁移创建正式 `task`/`task_dependency`。`supersedes_plan_id`、`approved_at`、每个 Corporation 唯一当前 Plan、连续版本链、旧版本只读状态和 Plan Review 命令幂等记录由 `0012_plan_review.sql` 增加。语义 hash 只覆盖不含动态状态、report 和时间的规范化草稿内容。Repository 必须保证 `INVALID` 没有 Task，`VALID` 的 Task/依赖/report/状态原子一致；保存新版本与旧版本 `SUPERSEDED` 原子一致，只有 `VALIDATED/VALID` 可转为 `APPROVED/VALID`。
 
 ## 5. Agent 与 Run
 

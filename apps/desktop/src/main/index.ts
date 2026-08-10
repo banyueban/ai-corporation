@@ -20,6 +20,10 @@ import {
   PLANNER_CANCEL_IPC_CHANNEL,
   PLANNER_GET_CURRENT_IPC_CHANNEL,
   PLANNER_START_IPC_CHANNEL,
+  PLAN_REVIEW_APPROVE_IPC_CHANNEL,
+  PLAN_REVIEW_GET_CURRENT_IPC_CHANNEL,
+  PLAN_REVIEW_LIST_VERSIONS_IPC_CHANNEL,
+  PLAN_REVIEW_SAVE_VERSION_IPC_CHANNEL,
   PROVIDER_CANCEL_CONNECTION_TEST_IPC_CHANNEL,
   PROVIDER_CANCEL_GENERATION_TEST_IPC_CHANNEL,
   PROVIDER_DELETE_KEY_IPC_CHANNEL,
@@ -40,6 +44,7 @@ import {
   GoalContractRepository,
   GoalEngineRepository,
   PlanValidationRepository,
+  PlanReviewRepository,
   PlannerRepository,
   ProviderRepository,
   type GoalFaultStage,
@@ -92,6 +97,14 @@ import {
 import { PlannerService } from "./planner-service";
 import { PlanValidationService } from "./plan-validation-service";
 import {
+  handlePlanReviewApprove,
+  handlePlanReviewGetCurrent,
+  handlePlanReviewListVersions,
+  handlePlanReviewSaveVersion,
+} from "./plan-review-ipc";
+import { PlanReviewService } from "./plan-review-service";
+import { createUuidV7 } from "./uuid-v7";
+import {
   handleProviderCancelConnectionTest,
   handleProviderCancelGenerationTest,
   handleProviderDeleteKey,
@@ -134,6 +147,7 @@ let corporationStateService: CorporationStateService | undefined;
 let goalContractService: GoalContractService | undefined;
 let goalEngineService: GoalEngineService | undefined;
 let plannerService: PlannerService | undefined;
+let planReviewService: PlanReviewService | undefined;
 let nativeCoreClient: NativeCoreClient | undefined;
 let providerService: ProviderService | undefined;
 let workspaceDatabase: DatabaseSync | undefined;
@@ -356,6 +370,42 @@ void app.whenReady().then(async () => {
       ),
   );
   ipcMain.handle(
+    PLAN_REVIEW_GET_CURRENT_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handlePlanReviewGetCurrent(
+        isTrustedRenderer(event),
+        request,
+        planReviewService,
+      ),
+  );
+  ipcMain.handle(
+    PLAN_REVIEW_LIST_VERSIONS_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handlePlanReviewListVersions(
+        isTrustedRenderer(event),
+        request,
+        planReviewService,
+      ),
+  );
+  ipcMain.handle(
+    PLAN_REVIEW_SAVE_VERSION_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handlePlanReviewSaveVersion(
+        isTrustedRenderer(event),
+        request,
+        planReviewService,
+      ),
+  );
+  ipcMain.handle(
+    PLAN_REVIEW_APPROVE_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handlePlanReviewApprove(
+        isTrustedRenderer(event),
+        request,
+        planReviewService,
+      ),
+  );
+  ipcMain.handle(
     GOAL_CONTRACT_SAVE_DRAFT_IPC_CHANNEL,
     (event: IpcMainInvokeEvent, request: unknown) =>
       handleGoalContractSaveDraft(
@@ -562,6 +612,11 @@ void app.whenReady().then(async () => {
       repository: new PlanValidationRepository(workspaceDatabase),
     });
     planValidationService.recoverPending();
+    planReviewService = new PlanReviewService({
+      createId: createUuidV7,
+      repository: new PlanReviewRepository(workspaceDatabase),
+      validator: planValidationService,
+    });
     plannerService = new PlannerService({
       provider: providerService,
       repository: plannerRepository,
@@ -584,6 +639,7 @@ void app.whenReady().then(async () => {
     goalContractService = undefined;
     goalEngineService = undefined;
     plannerService = undefined;
+    planReviewService = undefined;
     providerService = undefined;
     workspaceDirectorySelector = undefined;
     workspaceService = undefined;
@@ -637,10 +693,15 @@ app.on("before-quit", () => {
   ipcMain.removeHandler(PLANNER_START_IPC_CHANNEL);
   ipcMain.removeHandler(PLANNER_CANCEL_IPC_CHANNEL);
   ipcMain.removeHandler(PLANNER_GET_CURRENT_IPC_CHANNEL);
+  ipcMain.removeHandler(PLAN_REVIEW_GET_CURRENT_IPC_CHANNEL);
+  ipcMain.removeHandler(PLAN_REVIEW_LIST_VERSIONS_IPC_CHANNEL);
+  ipcMain.removeHandler(PLAN_REVIEW_SAVE_VERSION_IPC_CHANNEL);
+  ipcMain.removeHandler(PLAN_REVIEW_APPROVE_IPC_CHANNEL);
   corporationService = undefined;
   goalContractService = undefined;
   goalEngineService = undefined;
   plannerService = undefined;
+  planReviewService = undefined;
   providerService = undefined;
   workspaceDirectorySelector = undefined;
   workspaceService = undefined;

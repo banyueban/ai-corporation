@@ -4,6 +4,7 @@ export * from "./goal-contract-repository";
 export * from "./goal-engine-repository";
 export * from "./migrations";
 export * from "./planner-repository";
+export * from "./plan-review-repository";
 export * from "./plan-validation-repository";
 export * from "./provider-repository";
 export * from "./workspace-database";

@@ -184,14 +184,14 @@ describe("migration runner", () => {
     database.close();
   });
 
-  it("creates the domain schema and Plan validation projection through migration 0011", () => {
+  it("creates the domain schema and Plan Review projection through migration 0012", () => {
     const database = new DatabaseSync(":memory:");
     const migrations = loadMigrations(migrationDirectory);
     applyMigrations(database, migrations);
 
     expect(
       readAppliedMigrations(database).map(({ version }) => version),
-    ).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+    ).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
     expect(
       database
         .prepare(
@@ -208,6 +208,7 @@ describe("migration runner", () => {
               'task_plan',
               'task',
               'task_dependency',
+              'plan_review_command',
               'model_call',
               'corporation_state_command',
               'idx_corporation_workspace_updated',
@@ -216,6 +217,8 @@ describe("migration runner", () => {
               'idx_planner_generation_active',
               'idx_task_plan_corporation_version',
               'idx_task_plan_identity',
+              'idx_task_plan_current',
+              'idx_task_plan_supersedes',
               'idx_model_call_operation',
               'idx_event_corporation_timeline',
               'domain_event_reject_update',
@@ -224,7 +227,11 @@ describe("migration runner", () => {
               'goal_contract_reject_delete',
               'corporation_validate_active_goal',
               'corporation_validate_pause_metadata_insert',
-              'corporation_validate_pause_metadata_update'
+              'corporation_validate_pause_metadata_update',
+              'task_plan_approval_insert_guard',
+              'task_plan_approval_update_guard',
+              'task_plan_version_insert_guard',
+              'task_plan_supersede_update_guard'
             )
           ORDER BY name`,
         )
@@ -252,12 +259,19 @@ describe("migration runner", () => {
       "idx_model_call_operation",
       "idx_planner_generation_active",
       "idx_task_plan_corporation_version",
+      "idx_task_plan_current",
       "idx_task_plan_identity",
+      "idx_task_plan_supersedes",
       "model_call",
+      "plan_review_command",
       "planner_generation_operation",
       "task",
       "task_dependency",
       "task_plan",
+      "task_plan_approval_insert_guard",
+      "task_plan_approval_update_guard",
+      "task_plan_supersede_update_guard",
+      "task_plan_version_insert_guard",
     ]);
     expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
     database.close();

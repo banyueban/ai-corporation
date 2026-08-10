@@ -196,7 +196,7 @@ export const plannerDraftPublicSchema = z
     corporationId: uuidV7,
     planVersion: positiveVersion,
     goalVersion: positiveVersion,
-    status: z.enum(["DRAFT", "VALIDATED"]),
+    status: z.enum(["DRAFT", "VALIDATED", "APPROVED", "SUPERSEDED"]),
     validationStatus: z.enum(["PENDING", "VALID", "INVALID"]),
     validationReport: planValidationReportSchema.optional(),
     summary: summaryText,
@@ -213,6 +213,8 @@ export const plannerDraftPublicSchema = z
       })
       .strict(),
     usage: normalizedUsageSchema,
+    supersedesPlanId: uuidV7.optional(),
+    approvedAt: utcTimestamp.optional(),
     createdAt: utcTimestamp,
   })
   .strict()
@@ -223,11 +225,29 @@ export const plannerDraftPublicSchema = z
       value.status === "DRAFT" && value.validationStatus === "INVALID";
     const valid =
       value.status === "VALIDATED" && value.validationStatus === "VALID";
-    if (!pending && !invalid && !valid) {
+    const approved =
+      value.status === "APPROVED" && value.validationStatus === "VALID";
+    const superseded =
+      value.status === "SUPERSEDED" && value.validationStatus !== "PENDING";
+    if (!pending && !invalid && !valid && !approved && !superseded) {
       context.addIssue({
         code: "custom",
         path: ["validationStatus"],
         message: "Invalid plan state",
+      });
+    }
+    if ((value.status === "APPROVED") !== (value.approvedAt !== undefined)) {
+      context.addIssue({
+        code: "custom",
+        path: ["approvedAt"],
+        message: "Approval timestamp mismatch",
+      });
+    }
+    if ((value.planVersion === 1) !== (value.supersedesPlanId === undefined)) {
+      context.addIssue({
+        code: "custom",
+        path: ["supersedesPlanId"],
+        message: "Plan predecessor mismatch",
       });
     }
     if (
