@@ -6,15 +6,15 @@
 | 当前阶段       | M2-TU-08 Plan Review 验收中        |
 | 当前 Milestone | Milestone 2：Provider 与 Goal/Plan |
 | 当前任务单元   | M2-TU-08（进行中）                 |
-| 总体状态       | 等待 GitHub 清空额度缓存           |
+| 总体状态       | 人工验收通过，等待最新 CI          |
 | 最近更新       | 2026-08-11                         |
-| 下一检查点     | 2026-08-11 20:30 后重跑失败 job    |
+| 下一检查点     | 推送状态提交并完成跨平台 CI        |
 
 ## 1. 当前结论
 
 Milestone 0、Milestone 1 和 M2-TU-02 至 M2-TU-06 已完成。M2-TU-06 已交付 Planner 结构化生成与首个 Plan 草稿持久化：用户从当前 APPROVED Goal 进入 Planner，明确选择已验证 Provider/精确模型，只发送批准 Goal 与内置 catalogs；模型输出只提供语义内容和局部引用，Main 分配 Plan/Task 可信身份；首次 JSON/Schema 非法时最多修复一次，结果只能保存为 `DRAFT/PENDING`，不创建团队、不允许执行。
 
-当前任务为 M2-TU-08。有限编辑、不可变新版本、无效版本重启恢复、批准后冻结、删除引用处理和验收标准编辑已经实现；Protocol、Storage、Desktop、开发态真实窗口和最终 Windows 包真实窗口均已通过。当前尚缺当前提交的 Windows/macOS CI 和用户对本次安装包的人工验收，因此任务仍为“进行中”，Milestone 2 不得关闭。
+当前任务为 M2-TU-08。有限编辑、不可变新版本、无效版本重启恢复、批准后冻结、删除引用处理和验收标准编辑已经实现；Protocol、Storage、Desktop、开发态真实窗口和最终 Windows 包真实窗口均已通过，用户于 2026-08-11 明确确认本次安装包人工验收通过。当前只缺最新提交的 Windows/macOS CI 和制品上传成功，因此任务仍为“进行中”，Milestone 2 不得关闭。
 
 M2-TU-07 已完成：Planner 保存后自动进行不调用 Provider 的本地确定性验证；1–20 个 Task、DAG、引用、输入输出、逐 Task 验收、叶子输出、milestone、Goal 硬预算和权限描述均由固定规则检查；验证通过时在同一事务物化正式 Task/依赖，失败时只保存受限报告；普通二进制输出映射为 `FILE`；中文 UI 明确区分验证中、失败和通过，并继续标注未批准、未组队、不可执行。失败、取消或中断后保留原因并提供明确重试入口，恢复页面不会自动请求 Provider。完整工程检查、Windows 开发态窗口、Windows/macOS CI、最终包窗口矩阵和 artifacts 已通过，用户于 2026-08-10 明确确认人工验收通过，19 项验收断言全部关闭，P0/P1 为 0。
 
@@ -57,7 +57,7 @@ M2-TU-07 只交付：
 
 ## 5. 活跃阻塞与外部条件
 
-当前 P0/P1 为 0，无实现阻塞。M2-TU-08 基线为 `a1956e83d9d96f07ffeefd21be00332a92ad8d8a`。已按用户决策删除全部 139 个旧制品，GitHub Actions 制品清单现为空；提交 `3662e7976b8a91f0e2211dab95286ba178a24e48` 已把 CI 上传范围收窄到安装包、blockmap 和验收截图。该提交的 Windows/macOS 工程检查、开发态 Electron、最终包构建和最终包真实窗口均通过，但因最后两个旧制品刚删除，GitHub 尚未重新计算额度，上传步骤仍失败。最早在 2026-08-11 20:30 后重跑，GitHub 说明最长可能需要到 2026-08-12 02:30；之后仍需用户人工验收。
+当前 P0/P1 为 0，无实现阻塞。M2-TU-08 基线为 `a1956e83d9d96f07ffeefd21be00332a92ad8d8a`。已按用户决策删除全部 139 个旧制品，GitHub Actions 制品清单现为空；提交 `3662e7976b8a91f0e2211dab95286ba178a24e48` 已把 CI 上传范围收窄到安装包、blockmap 和验收截图。该提交的 Windows/macOS 工程检查、开发态 Electron、最终包构建和最终包真实窗口均通过，之前只因额度尚未重新计算而上传失败。现在已超过最早重跑时间，用户人工验收也已通过，等待最新 CI 完整成功。
 
 已知条件：系统 PATH 未提供 Node.js，工程验证使用 Codex bundled Node.js；正式 Key 仍只由应用自管 Key Vault 使用，未进入命令、脚本、环境变量、Git、日志或截图；费用无法从当前 Provider 响应可靠取得时保持 `UNKNOWN`。
 
@@ -68,10 +68,11 @@ M2-TU-07 只交付：
 - 当前源码重新生成的 Windows 最终包真实窗口矩阵通过。Plan Review 覆盖编辑、INVALID 持久化、应用进程重启恢复、本地修复、批准、历史只读和零次 Provider 调用；Renderer 外部请求为 0；截图为 `release/m2-tu08-packaged-win32-x64-approved.png`；
 - 当前 Windows NSIS 安装包为 `release/AI Corporation Desktop Setup 0.1.0.exe`，大小 99,793,413 bytes，SHA-256 `A3D99F99CA1263CC40ECC44CABAB523783D0DE9FB140C6190D17E1BC1DADAF08`；
 - CI 修复提交 `3662e7976b8a91f0e2211dab95286ba178a24e48` 的 run `31464479828` 中，macOS job `93694394493` 和 Windows job `93694394510` 均通过工程检查、开发态 Electron、最终包构建和最终包真实窗口，只在 `Upload installer` 因额度缓存尚未清空而失败；当前 artifact 总数为 0。第 19 项和 M2-TU-08 仍不得关闭。
+- 用户于 2026-08-11 按安装包人工验收清单完成有限编辑、无效版本恢复、再次验证、批准冻结和历史只读检查，并明确确认验收通过；该结论只关闭人工验收子项，不替代跨平台 CI 与制品上传。
 
 ## 7. 下一步
 
-等待 GitHub Actions 在最后两个旧制品删除后的 6–12 小时重新计算额度，之后重跑 run `31464479828` 的失败 job。CI 完整通过后交付本次 Windows 安装包供用户人工验收。第 19 项通过前不得关闭 M2-TU-08，Milestone 2 仍未完成。
+推送当前状态提交并完成最新 Windows/macOS CI 与制品上传。全部成功后更新任务合同第 19 项、关闭 M2-TU-08；Milestone 2 仍需单独进行 Milestone 级最终验收，不自动关闭。
 
 ## 8. 更新规则
 
