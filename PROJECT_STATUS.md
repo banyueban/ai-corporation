@@ -3,18 +3,20 @@
 | 属性           | 当前值                             |
 | -------------- | ---------------------------------- |
 | 当前产品版本   | v0.1 MVP                           |
-| 当前阶段       | Milestone 2 已完成，等待阶段复盘   |
-| 当前 Milestone | Milestone 2：Provider 与 Goal/Plan |
+| 当前阶段       | Milestone 2 复盘完成，准备 Milestone 3 |
+| 当前 Milestone | Milestone 3：最小 Agent 闭环       |
 | 当前任务单元   | M2-TU-09（完成）                   |
-| 总体状态       | Milestone 2 已完成                 |
-| 最近更新       | 2026-08-11                         |
-| 下一检查点     | 完成阶段复盘并建立 Milestone 3 首个任务合同 |
+| 总体状态       | Milestone 2 已完成，Milestone 3 尚未开始 |
+| 最近更新       | 2026-08-12                         |
+| 下一检查点     | 建立 Milestone 3 首个就绪任务合同  |
 
 ## 1. 当前结论
 
 Milestone 0、Milestone 1 和 Milestone 2 已完成。Milestone 2 已交付应用自管 Key Vault、OpenAI 风格 Provider、连接与非流式生成、Goal Engine、Planner、Plan Validation 和 Plan Review；用户可以保存并管理 Key，使用真实模型生成 Goal 与 Plan，本地拒绝非法任务图，有限编辑并批准有效计划，但尚未组队或开始执行。
 
 M2-TU-09 已按用户选择的方案 B 完成 L3 汇总验收：M2-TU-02 至 M2-TU-08 的直接证据组成交付物和验收矩阵，当前提交的 Windows/macOS 完整工程检查、开发态真实窗口、最终包真实窗口与制品上传全部通过。该结论不声称存在一条未实际执行的连续端到端测试。
+
+Milestone 2 阶段复盘已把有效改进直接落入现行规则和自动检查：纯收尾提交只有在直接父提交完整 CI 成功且文件范围仅包含当前状态、当前合同和验收证据时才能复用产品证据；夹带产品、测试、CI、依赖、协议、Schema、迁移、安全或设计变更会被拒绝。任务决策必须同时写出中文大白话行为，Milestone 最终验收必须预先明确演示方式和双平台/人工边界，CI 重跑与 artifact 前置条件也已固定。
 
 ## 2. 已完成基线
 
@@ -55,7 +57,7 @@ M2-TU-09 只交付：
 
 ## 5. 活跃阻塞与外部条件
 
-当前 P0/P1、P2/P3 和未执行必检项均为 0，无实现阻塞。M2-TU-09 基线为 `58451202f5d8c35fc0d2cf28377d75771cd846d9`。`banyueban/ai-corporation` 为公开仓库；CI 上传范围仅包含安装包、blockmap 和验收截图。不清理其他仓库制品。
+当前 P0/P1、P2/P3 和未执行必检项均为 0，无实现阻塞。Milestone 3 尚未建立首个任务合同，因此尚未开始实现。`banyueban/ai-corporation` 为公开仓库；CI 上传范围仅包含安装包、blockmap 和验收截图。不清理其他仓库制品。
 
 已知条件：系统 PATH 未提供 Node.js，工程验证使用 Codex bundled Node.js；正式 Key 仍只由应用自管 Key Vault 使用，未进入命令、脚本、环境变量、Git、日志或截图；费用无法从当前 Provider 响应可靠取得时保持 `UNKNOWN`。方案 B 使用分任务证据汇总，不声称存在单条未中断端到端测试。GitHub 提示两个 Action 的 Node.js 20 声明被 runner 强制切换到 Node.js 24；当前 CI 成功，该提示属于后续 CI 维护项，不是产品缺陷。
 
@@ -67,10 +69,11 @@ M2-TU-09 只交付：
 - Windows artifact `9108089616`（`ai-corporation-windows-x64`）大小 101,812,840 bytes；macOS artifact `9108062066`（`ai-corporation-macos-arm64`）大小 122,487,304 bytes；
 - 双平台最终包真实窗口分别覆盖 Key Vault、Provider 连接与生成、Goal Engine、Planner、Plan Validation、Plan Review 及恢复/错误路径；Renderer 外部请求为 0，测试 Key 未进入持久化明文、日志、错误、截图或诊断；
 - 用户已完成 Windows 最终安装包人工验收；该人工结论与当前 macOS 自动化证据分开记录，没有跨平台替代。
+- 纯收尾提交分类器 4 项测试和完整 `pnpm check` 通过；分类器会核对完成状态迁移、文件白名单和直接父提交 CI，Pull Request 纯收尾提交只跑状态、合同、Secret scan 与 diff 检查，其他提交和所有 `main` 推送仍执行完整 CI。
 
 ## 7. 下一步
 
-按任务单元规范完成 Milestone 2 阶段复盘，把仍有效的改进直接落入现行规范、自动检查或 Milestone 3 首个任务合同；复盘完成前不开始 Milestone 3 实现。
+按文档路由读取 Milestone 3 的 Organization、Agent、Scheduler、Runtime、Artifact 和 Evaluation 边界，发现歧义先请求用户决策；边界明确后建立首个“就绪”任务合同，再开始实现。
 
 ## 8. 更新规则
 

@@ -8,14 +8,50 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  classify:
+    name: CI scope
+    runs-on: ubuntu-latest
+    outputs:
+      full_ci: ${{ steps.scope.outputs.full_ci }}
+      closure_only: ${{ steps.scope.outputs.closure_only }}
+    steps:
+      - name: Check out repository head
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Install Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Classify completion commit
+        id: scope
+        env:
+          AI_CORPORATION_ALLOW_CLOSURE_REUSE: ${{ github.event_name == 'pull_request' }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/check-closure-scope.mjs
+
+      - name: Check closure evidence documents
+        if: steps.scope.outputs.closure_only == 'true'
+        run: |
+          node scripts/check-project-status.mjs
+          node scripts/check-task-units.mjs
+          node scripts/secret-scan.mjs
+          git diff --check HEAD^ HEAD
+
   build:
     name: ${{ matrix.name }}
+    needs: classify
+    if: needs.classify.outputs.full_ci == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
