@@ -88,6 +88,8 @@
 - 循环依赖和无验收 Task 被拒绝；
 - 用户可修改并批准计划。
 
+Milestone 2 的 L3 演示与验收采用用户确认的证据汇总方式：不为关闭里程碑新增一条从 Key 设置到 Plan 批准的连续自动化流程；由 M2-TU-02 至 M2-TU-08 各自已完成的直接证据组成交付物与用户旅程矩阵，并在当前验收提交上重新执行 Windows/macOS 开发态真实窗口、最终包真实窗口、完整工程回归和制品上传。Windows 保留用户对最终安装包的人工验收结论，macOS 使用真实 macOS CI 窗口自动化证据。证据汇总不等同于声称存在一条未中断的端到端测试；任一当前必检项失败仍阻止 Milestone 2 关闭。
+
 阶段边界：Planner 先生成并保存 `DRAFT/PENDING` 结构化草稿；独立的本地确定性验证器随后检查 1–20 个 Task 的 DAG、输入输出、逐 Task 验收、叶子输出、预算与权限描述，通过时原子创建正式 Task/依赖，失败时保存结构化问题且不调用模型、不自动修改计划；Plan Review 再负责编辑和批准。模型只生成语义内容与局部引用，正式 Plan/Task 身份由应用分配。每次规划前用户明确选择已验证 Provider/精确模型，Provider 输入不包含 Workspace 路径或文件内容。Milestone 2 只显示能力要求和建议角色并标注尚未组队，真实 Organization Engine 仍属于 Milestone 3。
 
 ## 6. Milestone 3：最小 Agent 闭环
