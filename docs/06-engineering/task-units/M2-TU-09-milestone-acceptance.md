@@ -3,7 +3,7 @@
 | 属性 | 值 |
 |---|---|
 | 任务单元 ID | M2-TU-09 |
-| 状态 | 进行中 |
+| 状态 | 完成 |
 | 所属 Milestone | Milestone 2：Provider 与 Goal/Plan |
 | 主要结果 | 以已完成任务的直接证据矩阵和当前提交的双平台最终包回归，判定 Milestone 2 是否满足关闭条件。 |
 | 基线提交 | `58451202f5d8c35fc0d2cf28377d75771cd846d9` |
@@ -90,10 +90,10 @@ M2-TU-02 至 M2-TU-08 共 123 项验收断言均已勾选，未勾选项为 0。
 - [x] 08 Plan Review 证据完整：有限编辑、不可变新版本、无效恢复、历史只读、有效版本批准与批准后冻结通过；
 - [x] 09 MVP Plan 四项验收均有直接映射：Key 不进入 SQLite 明文或日志、非法 JSON 最多修复一次、循环依赖与无验收 Task 被拒绝、用户可修改并批准计划；
 - [x] 10 当前提交 `pnpm check`、`pnpm check:status`、`pnpm check:task-units` 和 `git diff --check` 通过；
-- [ ] 11 当前提交 Windows/macOS 开发态真实窗口、最终包构建、最终包真实窗口和制品上传均成功，job、提交 SHA 与 artifact 可追踪；
-- [ ] 12 Windows 最终包人工验收结论有效；macOS 原生窗口行为由当前提交真实 macOS CI 验证，未把 Windows 证据冒充 macOS 证据；
-- [ ] 13 P0/P1 为 0，P2/P3、未执行验证和已知限制均已登记；
-- [ ] 14 `PROJECT_STATUS.md` 与证据一致，只在 01–13 全部通过后关闭 M2-TU-09 和 Milestone 2。
+- [x] 11 当前提交 Windows/macOS 开发态真实窗口、最终包构建、最终包真实窗口和制品上传均成功，job、提交 SHA 与 artifact 可追踪；
+- [x] 12 Windows 最终包人工验收结论有效；macOS 原生窗口行为由当前提交真实 macOS CI 验证，未把 Windows 证据冒充 macOS 证据；
+- [x] 13 P0/P1 为 0，P2/P3、未执行验证和已知限制均已登记；
+- [x] 14 `PROJECT_STATUS.md` 与证据一致，只在 01–13 全部通过后关闭 M2-TU-09 和 Milestone 2。
 
 ## 8. 隔离与干扰控制
 
@@ -111,6 +111,16 @@ M2-TU-02 至 M2-TU-08 共 123 项验收断言均已勾选，未勾选项为 0。
 - artifact：Windows `.exe`/blockmap/截图与 macOS `.dmg`/blockmap/截图；
 - 人工证据：用户已经确认的 Windows 最终安装包验收结论；
 - 结论矩阵：本合同第 7 节逐项勾选，并在 `PROJECT_STATUS.md` 保存当前有效摘要。
+
+当前验收证据：
+
+- 候选提交 `f945ee16af4a5c33211c229e74230529697401aa`；
+- GitHub Actions run `31508191395` 结论为 success；Windows job `93835030932` 与 macOS Apple Silicon job `93835031080` 的工程检查、开发态 Electron、最终包构建、最终包真实窗口和制品上传全部成功；
+- Windows artifact `9108089616`（`ai-corporation-windows-x64`）大小 101,812,840 bytes；
+- macOS artifact `9108062066`（`ai-corporation-macos-arm64`）大小 122,487,304 bytes；
+- 本地完整 `pnpm check` 通过；M2-TU-02 至 M2-TU-08 共 123 项断言完成且未完成项为 0；
+- 用户已完成 Windows 最终安装包人工验收；P0/P1、P2/P3 和未执行必检项均为 0；
+- GitHub 提示 `pnpm/action-setup@v4` 与 `actions/upload-artifact@v4` 的 Node.js 20 声明已被 runner 强制切换到 Node.js 24；本次 job 成功，该提示登记为后续 CI 维护项，不属于产品缺陷。
 
 ## 10. 完成规则
 
