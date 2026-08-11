@@ -1,14 +1,14 @@
 # AI Corporation Desktop 项目进度
 
-| 属性           | 当前值                                         |
-| -------------- | ---------------------------------------------- |
-| 当前产品版本   | v0.1 MVP                                       |
-| 当前阶段       | M2-TU-08 Plan Review 验收中                   |
-| 当前 Milestone | Milestone 2：Provider 与 Goal/Plan             |
-| 当前任务单元   | M2-TU-08（进行中）                             |
-| 总体状态       | 等待 GitHub 制品额度重新计算                   |
-| 最近更新       | 2026-08-11                                     |
-| 下一检查点     | 额度更新后重跑 CI，再进行用户人工验收          |
+| 属性           | 当前值                             |
+| -------------- | ---------------------------------- |
+| 当前产品版本   | v0.1 MVP                           |
+| 当前阶段       | M2-TU-08 Plan Review 验收中        |
+| 当前 Milestone | Milestone 2：Provider 与 Goal/Plan |
+| 当前任务单元   | M2-TU-08（进行中）                 |
+| 总体状态       | CI 制品上传范围修复待验证          |
+| 最近更新       | 2026-08-11                         |
+| 下一检查点     | 推送 CI 修复并完成跨平台重跑       |
 
 ## 1. 当前结论
 
@@ -57,7 +57,7 @@ M2-TU-07 只交付：
 
 ## 5. 活跃阻塞与外部条件
 
-当前 P0/P1 为 0，无实现阻塞。M2-TU-08 基线为 `a1956e83d9d96f07ffeefd21be00332a92ad8d8a`。提交 `2323fd1d55192a046a357561be7873028c7db97c` 的 Windows/macOS 功能检查和最终包真实窗口已连续两次通过，但两个 job 都因 GitHub Actions 制品存储额度已满而在最后上传步骤失败。已按用户决策删除 137 个旧制品并释放约 47.69 GiB，保留最近一次成功 CI 的两个制品；GitHub 提示额度需要 6–12 小时重新计算。额度更新后需再次运行 CI，之后仍需用户人工验收。
+当前 P0/P1 为 0，无实现阻塞。M2-TU-08 基线为 `a1956e83d9d96f07ffeefd21be00332a92ad8d8a`。提交 `2323fd1d55192a046a357561be7873028c7db97c` 和 `529ba389a439958a4e5a3bd0c11d6831594d6e34` 的 Windows/macOS 功能检查和最终包真实窗口均通过，但 job 在最后上传步骤失败。已按用户决策删除全部 139 个旧制品，GitHub Actions 制品清单现为空；CI 已改为只上传安装包、blockmap 和验收截图，不再上传可重复生成的解压应用目录。当前等待推送并验证修复，之后仍需用户人工验收。
 
 已知条件：系统 PATH 未提供 Node.js，工程验证使用 Codex bundled Node.js；正式 Key 仍只由应用自管 Key Vault 使用，未进入命令、脚本、环境变量、Git、日志或截图；费用无法从当前 Provider 响应可靠取得时保持 `UNKNOWN`。
 
@@ -67,11 +67,11 @@ M2-TU-07 只交付：
 - Windows 开发态 Electron 真实窗口 7/7 通过。Plan Review 直接覆盖有限编辑、验收标准增删、无效版本重载恢复、全新 Plan/Task 身份、批准冻结、历史只读、删除输出消费者阻断和零次额外 Provider 调用；编辑与批准旅程在 1024×700、200% 缩放下完成，批准结果在 1440×900 检查；
 - 当前源码重新生成的 Windows 最终包真实窗口矩阵通过。Plan Review 覆盖编辑、INVALID 持久化、应用进程重启恢复、本地修复、批准、历史只读和零次 Provider 调用；Renderer 外部请求为 0；截图为 `release/m2-tu08-packaged-win32-x64-approved.png`；
 - 当前 Windows NSIS 安装包为 `release/AI Corporation Desktop Setup 0.1.0.exe`，大小 99,793,413 bytes，SHA-256 `A3D99F99CA1263CC40ECC44CABAB523783D0DE9FB140C6190D17E1BC1DADAF08`；
-- 候选提交 `2323fd1d55192a046a357561be7873028c7db97c` 的 GitHub Actions run `31411278428` 中，首次 Windows job `93529680515` / macOS job `93529680608` 和清理后的第二次 Windows job `93677134481` / macOS job `93677134419` 均通过工程检查、开发态 Electron、最终包构建和最终包真实窗口；四个 job 都只在 `Upload installer` 因制品存储额度尚未重新计算而失败。GitHub 当前只保留 artifact `9040916792` 和 `9040902573`；第 19 项和 M2-TU-08 仍不得关闭。
+- 候选提交 `2323fd1d55192a046a357561be7873028c7db97c` 的 run `31411278428` 与提交 `529ba389a439958a4e5a3bd0c11d6831594d6e34` 的 run `31459859301`，共三轮 Windows/macOS job 均通过工程检查、开发态 Electron、最终包构建和最终包真实窗口，只在 `Upload installer` 失败。第三轮已超过 GitHub 提示的额度重新计算窗口仍失败，确认需要缩小上传范围并释放最后两个旧制品；第 19 项和 M2-TU-08 仍不得关闭。
 
 ## 7. 下一步
 
-等待 GitHub 在删除旧制品后的 6–12 小时额度重新计算；额度可用后重跑 run `31411278428` 的失败 job。CI 完整通过后交付本次 Windows 安装包供用户人工验收。第 19 项通过前不得关闭 M2-TU-08，Milestone 2 仍未完成。
+推送只上传安装包、blockmap 和验收截图的 CI 修复并完成 Windows/macOS 重跑。CI 完整通过后交付本次 Windows 安装包供用户人工验收。第 19 项通过前不得关闭 M2-TU-08，Milestone 2 仍未完成。
 
 ## 8. 更新规则
 
