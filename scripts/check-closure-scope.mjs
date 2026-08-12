@@ -74,6 +74,22 @@ function git(...args) {
   return execFileSync("git", args, { encoding: "utf8" }).trim();
 }
 
+function gitShowOptional(revisionPath) {
+  const separator = revisionPath.indexOf(":");
+  if (separator < 1) return "";
+  const revision = revisionPath.slice(0, separator);
+  const file = revisionPath.slice(separator + 1);
+  const existingPath = git(
+    "ls-tree",
+    "-r",
+    "--name-only",
+    revision,
+    "--",
+    file,
+  );
+  return existingPath === file ? git("show", revisionPath) : "";
+}
+
 function writeOutput(name, value) {
   if (process.env.GITHUB_OUTPUT !== undefined) {
     appendFileSync(process.env.GITHUB_OUTPUT, `${name}=${value}\n`, "utf8");
@@ -131,7 +147,7 @@ async function run() {
       ? ""
       : readFileSync(resolve(contractPath), "utf8");
   const parentContract =
-    contractPath === undefined ? "" : git("show", `HEAD^:${contractPath}`);
+    contractPath === undefined ? "" : gitShowOptional(`HEAD^:${contractPath}`);
   const result = classifyClosureScope({
     changedFiles,
     currentContract,

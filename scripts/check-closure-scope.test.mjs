@@ -57,3 +57,21 @@ test("requires full CI when no task is being completed", () => {
   });
   assert.equal(result.kind, "full");
 });
+
+test("requires full CI when a new task contract did not exist in the parent", () => {
+  const result = classifyClosureScope({
+    changedFiles: [
+      "PROJECT_STATUS.md",
+      "docs/06-engineering/task-units/M3-TU-01-example.md",
+      "apps/desktop/src/main/index.ts",
+    ],
+    currentContract: contract("进行中"),
+    currentStatus: status("进行中"),
+    parentContract: "",
+    parentStatus: "| 当前任务单元 | M2-TU-09（完成） |",
+  });
+  assert.deepEqual(result, {
+    kind: "full",
+    reason: "not a task completion transition",
+  });
+});
