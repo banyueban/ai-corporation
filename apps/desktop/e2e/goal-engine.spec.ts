@@ -91,6 +91,7 @@ test("user creates and cancels real Goal Engine operations in the visible window
       window?.setSize(1440, 900);
       window?.webContents.setZoomFactor(1);
     });
+    markJourneyStage("provider-ready");
 
     await page.getByRole("button", { name: "控制台", exact: true }).click();
     await page.getByRole("button", { name: "新建公司" }).click();
@@ -208,6 +209,7 @@ test("user creates and cancels real Goal Engine operations in the visible window
     });
     await page.getByRole("button", { name: "取消" }).click();
     await expect(page.getByText("已取消", { exact: true })).toBeVisible();
+    markJourneyStage("goal-matrix-complete");
 
     await openNewGoal(
       page,
@@ -237,6 +239,7 @@ test("user creates and cancels real Goal Engine operations in the visible window
       .check();
     await page.getByRole("button", { name: "确认目标合同" }).click();
     await expect(page.getByText("已批准", { exact: true })).toBeVisible();
+    markJourneyStage("goal-approved");
     await page.getByRole("button", { name: "开始规划设置" }).click();
     await expect(
       page.getByRole("heading", { name: "生成并验证计划" }),
@@ -341,6 +344,7 @@ test("user creates and cancels real Goal Engine operations in the visible window
     await expect(
       page.getByText("此版本已经冻结。没有创建团队，也没有开始执行。"),
     ).toBeVisible();
+    markJourneyStage("plan-approved");
     await page.getByRole("button", { name: "开始组队" }).click();
     await expect(
       page.getByText(
@@ -370,6 +374,7 @@ test("user creates and cancels real Goal Engine operations in the visible window
     });
     await expect(page.getByRole("button", { name: "编辑计划" })).toHaveCount(0);
     expect(fixture.generationCalls()).toBe(callsBeforePlanReview);
+    markJourneyStage("proposal-ready");
     await app.evaluate(({ BrowserWindow }) => {
       const window = BrowserWindow.getAllWindows()[0];
       window?.setSize(1024, 700);
@@ -423,6 +428,7 @@ test("user creates and cancels real Goal Engine operations in the visible window
         agents: [{ status: "READY" }, { status: "READY" }, { status: "READY" }],
       },
     });
+    markJourneyStage("team-activated");
     await expect(
       page.getByRole("heading", { name: "团队已激活，等待开始执行" }),
     ).toBeVisible();
@@ -470,6 +476,7 @@ test("user creates and cancels real Goal Engine operations in the visible window
       ),
     ).toBeVisible();
     await expect(page.getByText(/已创建 3 个团队成员/u)).toBeVisible();
+    markJourneyStage("activation-restored");
     await page.getByRole("button", { name: /版本 1/u }).click();
     await expect(
       page.getByRole("heading", { name: "这是只读历史版本" }),
@@ -553,6 +560,7 @@ test("user creates and cancels real Goal Engine operations in the visible window
         ({ authorization }) => authorization === `Bearer ${secret}`,
       ),
     ).toBe(true);
+    markJourneyStage("journey-complete");
   } finally {
     fixture.releaseDelayed();
     await app.close().catch(() => undefined);
@@ -561,6 +569,10 @@ test("user creates and cancels real Goal Engine operations in the visible window
     rmSync(userDataDirectory, { force: true, recursive: true });
   }
 });
+
+function markJourneyStage(stage: string): void {
+  process.stdout.write(`GOAL_E2E_STAGE:${stage}\n`);
+}
 
 test("user sees an interrupted Goal operation after process restart without replay", async () => {
   const fixture = await startGoalFixture();
