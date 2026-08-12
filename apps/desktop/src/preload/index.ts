@@ -56,6 +56,14 @@ import {
   type CorporationUpdateNameRequest,
   healthResultSchema,
   NATIVE_HEALTH_IPC_CHANNEL,
+  ORGANIZATION_ACTIVATION_ACTIVATE_IPC_CHANNEL,
+  ORGANIZATION_ACTIVATION_GET_CURRENT_IPC_CHANNEL,
+  organizationActivationGetCurrentRequestSchema,
+  organizationActivationItemResultSchema,
+  organizationActivationNullableItemResultSchema,
+  organizationActivationRequestSchema,
+  type OrganizationActivationGetCurrentRequest,
+  type OrganizationActivationRequest,
   ORGANIZATION_PROPOSAL_CREATE_IPC_CHANNEL,
   ORGANIZATION_PROPOSAL_GET_CURRENT_IPC_CHANNEL,
   organizationProposalCreateRequestSchema,
@@ -259,6 +267,22 @@ const desktopApi: DesktopApi = Object.freeze({
     healthResultSchema.parse(
       await ipcRenderer.invoke(NATIVE_HEALTH_IPC_CHANNEL),
     ),
+  organizationActivation: Object.freeze({
+    activate: async (request: OrganizationActivationRequest) =>
+      organizationActivationItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          ORGANIZATION_ACTIVATION_ACTIVATE_IPC_CHANNEL,
+          organizationActivationRequestSchema.parse(request),
+        ),
+      ),
+    getCurrent: async (request: OrganizationActivationGetCurrentRequest) =>
+      organizationActivationNullableItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          ORGANIZATION_ACTIVATION_GET_CURRENT_IPC_CHANNEL,
+          organizationActivationGetCurrentRequestSchema.parse(request),
+        ),
+      ),
+  }),
   organizationProposal: Object.freeze({
     create: async (request: OrganizationProposalCreateRequest) =>
       organizationProposalItemResultSchema.parse(

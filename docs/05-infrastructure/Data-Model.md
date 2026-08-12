@@ -18,8 +18,9 @@
 | Corporation | `goal_contract_version`        | `goal_contract_version` 表，不可变                                                                         |
 | Corporation | `goal_generation_operation`    | `goal_generation_operation` 表；保存有界澄清、周期、严格草稿、问题、答案和聚合 usage，不保存原始模型正文   |
 | Corporation | `corporation_policy`           | v0.1 使用内置、版本化 Policy Bundle；后续迁移增加 `corporation.policy_version`                             |
-| Corporation | `organization`                 | 后续迁移增加 `corporation.active_organization_version` 并指向当前版本                                      |
-| Corporation | `organization_version`         | `organization_version` 表，不可变                                                                          |
+| Corporation | `organization`                 | `corporation.active_organization_version` 指向已激活版本；未激活时为空                                      |
+| Corporation | `organization_version`         | `organization_version` 表；草案正文不可变，生命周期只允许当前 `DRAFT` 原子转为 `APPROVED`                  |
+| Corporation | `organization_activation`      | `organization_activation` 表；保存三组角色模型路由快照、可降级缺口接受事实和幂等回执引用，不保存 Key      |
 | Corporation | 命令幂等回执                   | 内部 `corporation_command` 与 `goal_contract_command` 表；Renderer 不可读取                                |
 | Task        | `task_plan`                    | `task_plan` 表；保存 Planner 草稿、语义草稿 hash、受限验证报告、版本取代关系、批准时间与 `PENDING/VALID/INVALID` 事实 |
 | Task        | `planner_generation_operation` | `planner_generation_operation` 表；保存生成检查点、版本绑定、聚合 usage 和中断状态，不保存模型正文         |
@@ -30,7 +31,7 @@
 | Task        | `acceptance_criterion`         | `task.contract_json.acceptanceCriteria`                                                                    |
 | Task        | `task_lease`                   | `task.lease_owner`、`lease_expires_at`                                                                     |
 | Agent       | `agent_definition`             | `agent_definition` 表；能力和策略在版本化 `definition_json`                                                |
-| Agent       | `agent_instance`               | `agent_instance` 表                                                                                        |
+| Agent       | `agent_instance`               | `agent_instance` 表；团队激活时从当前草案模板原子创建，保存 Definition、工具与模型路由快照                  |
 | Agent       | `agent_capability`             | `agent_definition.definition_json.capabilities`                                                            |
 | Agent       | `agent_run`                    | `agent_run` 表                                                                                             |
 | Agent       | `model_call`                   | `model_call` 表；所有调用关联 Corporation/operation/purpose，执行阶段 purpose 另外要求真实 Task/Run        |

@@ -81,7 +81,7 @@ export const organizationProposalSchema = z
     planId: uuidV7,
     planVersion: z.number().int().positive(),
     version: z.number().int().positive(),
-    status: z.literal("DRAFT"),
+    status: z.enum(["DRAFT", "APPROVED"]),
     templateSetVersion: z.literal("builtin-v1"),
     members: z.array(organizationMemberSchema).min(2).max(5),
     assignments: z.array(organizationAssignmentSchema).min(1).max(50),

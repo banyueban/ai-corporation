@@ -58,9 +58,12 @@ describe("OrganizationProposalRepository", () => {
         .get(ids.corporation),
     ).toEqual({ status: "DRAFT" });
     expect(
+      database.prepare("SELECT COUNT(*) AS count FROM agent_instance").get(),
+    ).toEqual({ count: 0 });
+    expect(
       database
         .prepare(
-          "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('agent_instance','agent_run')",
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'agent_run'",
         )
         .all(),
     ).toEqual([]);

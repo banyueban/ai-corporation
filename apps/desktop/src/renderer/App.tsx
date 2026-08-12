@@ -7,6 +7,9 @@ import type {
   GoalEngineErrorCode,
   GoalEngineOperationPublic,
   HealthResult,
+  OrganizationActivation,
+  OrganizationActivationErrorCode,
+  OrganizationActivationRequest,
   OrganizationProposal,
   OrganizationProposalErrorCode,
   PlanReviewFailure,
@@ -93,6 +96,10 @@ export function App() {
     useState<OrganizationProposal>();
   const [organizationError, setOrganizationError] =
     useState<OrganizationProposalErrorCode>();
+  const [organizationActivation, setOrganizationActivation] =
+    useState<OrganizationActivation>();
+  const [organizationActivationError, setOrganizationActivationError] =
+    useState<OrganizationActivationErrorCode>();
   const [providers, setProviders] = useState<readonly ProviderPublic[]>([]);
   const [selectedProviderId, setSelectedProviderId] = useState<string>();
   const [clarificationAnswers, setClarificationAnswers] = useState<
@@ -717,6 +724,7 @@ export function App() {
         currentPlanResult,
         planVersionsResult,
         organizationResult,
+        activationResult,
       ] = await Promise.all([
         window.desktop.corporation.get({
           schemaVersion: "1.0",
@@ -736,6 +744,10 @@ export function App() {
           corporationId: reviewCorporation.id,
         }),
         window.desktop.organizationProposal.getCurrent({
+          schemaVersion: "1.0",
+          corporationId: reviewCorporation.id,
+        }),
+        window.desktop.organizationActivation.getCurrent({
           schemaVersion: "1.0",
           corporationId: reviewCorporation.id,
         }),
@@ -775,6 +787,13 @@ export function App() {
       } else {
         setOrganizationProposal(undefined);
         setOrganizationError(organizationResult.error.code);
+      }
+      if (activationResult.ok) {
+        setOrganizationActivation(activationResult.value ?? undefined);
+        setOrganizationActivationError(undefined);
+      } else {
+        setOrganizationActivation(undefined);
+        setOrganizationActivationError(activationResult.error.code);
       }
       setStatusMessage("");
       setRoute("planner");
@@ -937,9 +956,33 @@ export function App() {
         return;
       }
       setOrganizationProposal(result.value);
+      setOrganizationActivation(undefined);
       setStatusMessage("团队草案已保存。尚未激活，也没有开始执行。");
     } catch {
       setOrganizationError("STORAGE_FAILURE");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const activateOrganization = async (
+    request: OrganizationActivationRequest,
+  ) => {
+    setSaving(true);
+    setOrganizationActivationError(undefined);
+    try {
+      const result =
+        await window.desktop.organizationActivation.activate(request);
+      if (!result.ok) {
+        setOrganizationActivationError(result.error.code);
+        return;
+      }
+      setOrganizationActivation(result.value);
+      setStatusMessage(
+        "团队已激活，等待开始执行。当前没有运行任务，也没有调用模型。",
+      );
+    } catch {
+      setOrganizationActivationError("STORAGE_FAILURE");
     } finally {
       setSaving(false);
     }
@@ -1051,8 +1094,11 @@ export function App() {
               planVersions={planVersions}
               onApprovePlan={approvePlan}
               onCreateOrganization={createOrganizationProposal}
+              onActivateOrganization={activateOrganization}
               onSaveVersion={savePlanVersion}
               organizationError={organizationError}
+              organizationActivation={organizationActivation}
+              organizationActivationError={organizationActivationError}
               organizationProposal={organizationProposal}
               providers={providers}
               saving={saving}
@@ -1938,11 +1984,17 @@ function PlannerDraftView(props: {
   readonly planVersions: readonly PlannerDraftPublic[];
   readonly onApprovePlan: (plan: PlannerDraftPublic) => Promise<void>;
   readonly onCreateOrganization: (plan: PlannerDraftPublic) => Promise<void>;
+  readonly onActivateOrganization: (
+    request: OrganizationActivationRequest,
+  ) => Promise<void>;
   readonly onSaveVersion: (
     request: PlanReviewSaveVersionRequest,
   ) => Promise<void>;
   readonly providers: readonly ProviderPublic[];
   readonly organizationError: OrganizationProposalErrorCode | undefined;
+  readonly organizationActivation: OrganizationActivation | undefined;
+  readonly organizationActivationError:
+    OrganizationActivationErrorCode | undefined;
   readonly organizationProposal: OrganizationProposal | undefined;
   readonly saving: boolean;
   readonly selectedProviderId: string | undefined;
@@ -1992,6 +2044,11 @@ function PlannerDraftView(props: {
       )}
       {props.organizationError !== undefined && (
         <OrganizationProposalError code={props.organizationError} />
+      )}
+      {props.organizationActivationError !== undefined && (
+        <OrganizationActivationErrorView
+          code={props.organizationActivationError}
+        />
       )}
       {props.statusMessage.length > 0 && (
         <p className="inline-status" role="status">
@@ -2088,8 +2145,11 @@ function PlannerDraftView(props: {
           displayedPlan={plan}
           onApprove={props.onApprovePlan}
           onCreateOrganization={props.onCreateOrganization}
+          onActivateOrganization={props.onActivateOrganization}
           onSaveVersion={props.onSaveVersion}
           organizationProposal={props.organizationProposal}
+          organizationActivation={props.organizationActivation}
+          providers={props.providers}
           saving={props.saving}
           versions={props.planVersions}
         />
@@ -2268,6 +2328,36 @@ function OrganizationProposalError(props: {
           软件不会自动重试，也没有激活团队或开始执行。请确认计划后再次点击“开始组队”。
         </p>
       </div>
+    </section>
+  );
+}
+
+function OrganizationActivationErrorView(props: {
+  readonly code: OrganizationActivationErrorCode;
+}) {
+  const messages: Record<OrganizationActivationErrorCode, string> = {
+    VALIDATION_FAILED: "团队配置不完整或格式不正确。",
+    UNAUTHORIZED_CALLER: "该请求不是来自可信的软件窗口。",
+    ORGANIZATION_NOT_FOUND: "没有找到当前团队草案。",
+    ORGANIZATION_NOT_DRAFT: "该团队已经激活或不再是可激活草案。",
+    ORGANIZATION_CHANGED: "团队草案已经变化，请重新加载后再确认。",
+    BLOCKING_CAPABILITY_GAP: "团队仍有阻断能力缺口，不能激活。",
+    DEGRADED_GAP_ACCEPTANCE_REQUIRED: "请先明确接受可降级能力缺口。",
+    PROVIDER_NOT_READY: "所选模型服务商未启用、没有 API Key 或连接验证已失效。",
+    PROVIDER_CHANGED: "所选模型服务商配置已经变化，请重新选择。",
+    MODEL_NOT_AVAILABLE: "所选模型已不在当前验证模型列表中。",
+    COMMAND_CONFLICT: "这次操作编号已用于其他请求，请重新点击确认。",
+    STORAGE_FAILURE: "本地团队激活存储不可用，不能认为团队已经激活。",
+  };
+  return (
+    <section className="error-state" role="alert">
+      <div>
+        <p className="eyebrow">团队没有激活</p>
+        <h2>确认团队失败</h2>
+        <p>{messages[props.code]}</p>
+        <p>软件不会自动重试，也没有开始执行任务。</p>
+      </div>
+      <code>{props.code}</code>
     </section>
   );
 }

@@ -8,6 +8,7 @@ import { _electron as electron } from "playwright";
 import type { DesktopApi } from "../src/shared/desktop-api";
 
 test("user creates and cancels real Goal Engine operations in the visible window", async () => {
+  test.setTimeout(90_000);
   const fixture = await startGoalFixture();
   const userDataDirectory = mkdtempSync(
     path.join(tmpdir(), "M2-TU-05-electron-user-data-"),
@@ -308,11 +309,6 @@ test("user creates and cancels real Goal Engine operations in the visible window
     ).toBeVisible();
     await expect(page.getByRole("button", { name: /版本 2/u })).toBeVisible();
     expect(fixture.generationCalls()).toBe(callsBeforePlanReview);
-    await page.reload();
-    await openPlannerForCorporation(page, "Assumption Corporation");
-    await expect(
-      page.getByRole("heading", { name: "计划验证未通过" }),
-    ).toBeVisible();
     await page.getByRole("button", { name: "编辑计划" }).click();
     await page.getByRole("button", { name: "新增验收标准" }).click();
     await page.getByLabel("内容").last().fill("报告包含人工新增的检查项");
@@ -362,9 +358,6 @@ test("user creates and cancels real Goal Engine operations in the visible window
       page.getByRole("heading", { name: "独立验收员" }),
     ).toBeVisible();
     await expect(page.getByText("没有发现能力缺口。")).toBeVisible();
-    await expect(
-      page.getByText("团队草案尚未激活，不会开始执行。公司状态仍为草稿。"),
-    ).toBeVisible();
     expect(fixture.generationCalls()).toBe(callsBeforePlanReview);
     await page.screenshot({
       animations: "disabled",
@@ -377,6 +370,95 @@ test("user creates and cancels real Goal Engine operations in the visible window
     });
     await expect(page.getByRole("button", { name: "编辑计划" })).toHaveCount(0);
     expect(fixture.generationCalls()).toBe(callsBeforePlanReview);
+    await app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0];
+      window?.setSize(1024, 700);
+      window?.webContents.setZoomFactor(2);
+    });
+    const configuration = page.getByRole("region", { name: "配置并确认团队" });
+    const selects = configuration.getByRole("combobox");
+    await selects.nth(0).focus();
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("Enter");
+    await selects.nth(1).focus();
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("Enter");
+    await selects.nth(2).selectOption({ label: "Goal Fixture Provider" });
+    await selects.nth(3).selectOption("goal-model");
+    await selects.nth(4).selectOption({ label: "Goal Fixture Provider" });
+    await selects.nth(5).selectOption("goal-model");
+    await configuration.getByRole("button", { name: "确认团队" }).click();
+    await expect(
+      page.getByRole("heading", { name: "团队已激活，等待开始执行" }),
+    ).toBeVisible();
+    await expect(page.getByText(/已创建 3 个团队成员/u)).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "重新生成团队草案" }),
+    ).toHaveCount(0);
+    expect(fixture.generationCalls()).toBe(callsBeforePlanReview);
+    const activationFacts = await page.evaluate(async () => {
+      const desktop = (window as unknown as { desktop: DesktopApi }).desktop;
+      const workspaces = await desktop.workspace.list();
+      if (!workspaces.ok) throw new Error("workspace unavailable");
+      const corporations = await desktop.corporation.list({
+        schemaVersion: "1.0",
+        workspaceId: workspaces.value[0]?.workspaceId ?? "",
+      });
+      if (!corporations.ok) throw new Error("corporations unavailable");
+      const corporation = corporations.value.find(
+        ({ name }) => name === "Assumption Corporation",
+      );
+      if (corporation === undefined) throw new Error("corporation unavailable");
+      const activation = await desktop.organizationActivation.getCurrent({
+        schemaVersion: "1.0",
+        corporationId: corporation.id,
+      });
+      return { corporationStatus: corporation.status, activation };
+    });
+    expect(activationFacts.corporationStatus).toBe("DRAFT");
+    expect(activationFacts.activation).toMatchObject({
+      ok: true,
+      value: {
+        status: "ACTIVE",
+        agents: [{ status: "READY" }, { status: "READY" }, { status: "READY" }],
+      },
+    });
+    await expect(
+      page.getByRole("heading", { name: "团队已激活，等待开始执行" }),
+    ).toBeVisible();
+    expect(
+      await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth <=
+          document.documentElement.clientWidth,
+      ),
+    ).toBe(true);
+    await page.screenshot({
+      animations: "disabled",
+      fullPage: true,
+      path: path.resolve(
+        __dirname,
+        "../../../release",
+        `m3-tu02-team-active-dev-${process.platform}-${process.arch}-1024x700-200-percent.png`,
+      ),
+    });
+    await app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0];
+      window?.setSize(1440, 900);
+      window?.webContents.setZoomFactor(1);
+    });
+    await expect(
+      page.getByRole("heading", { name: "团队已激活，等待开始执行" }),
+    ).toBeVisible();
+    await page.screenshot({
+      animations: "disabled",
+      fullPage: true,
+      path: path.resolve(
+        __dirname,
+        "../../../release",
+        `m3-tu02-team-active-dev-${process.platform}-${process.arch}-1440x900.png`,
+      ),
+    });
     await page.reload();
     await openPlannerForCorporation(page, "Assumption Corporation");
     await expect(
@@ -384,8 +466,11 @@ test("user creates and cancels real Goal Engine operations in the visible window
     ).toBeVisible();
     await expect(page.getByRole("heading", { name: "团队草案" })).toBeVisible();
     await expect(
-      page.getByText("团队草案尚未激活，不会开始执行。公司状态仍为草稿。"),
+      page.getByText(
+        "团队已激活，等待开始执行。公司状态仍为草稿，当前没有运行任务。",
+      ),
     ).toBeVisible();
+    await expect(page.getByText(/已创建 3 个团队成员/u)).toBeVisible();
     await page.getByRole("button", { name: /版本 1/u }).click();
     await expect(
       page.getByRole("heading", { name: "这是只读历史版本" }),

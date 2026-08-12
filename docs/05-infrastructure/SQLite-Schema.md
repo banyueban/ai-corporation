@@ -167,6 +167,8 @@ CREATE TABLE organization_proposal_command (
 
 `0013_organization_proposal.sql` 物理实现上述团队草案表。M3-TU-01 只保存 `DRAFT` 快照和幂等命令回执；每个 Corporation 只有一个未被取代的草案。快照引用创建时的已批准 Plan，并保存固定模板、模型策略、Task 责任人、职责分离和能力缺口。该迁移不创建 `agent_instance` 或 `agent_run`，不保存精确 Provider/model，也不改变 Corporation 状态。
 
+`0014_organization_activation.sql` 增加 `corporation.active_organization_version`、内置 `agent_definition`、`organization_activation`、激活命令回执和 `agent_instance`。激活事务只允许当前 `DRAFT` organization version 转为 `APPROVED`，保存 Planner/Executor/Judge 三组 Provider ID、Provider 版本、精确模型 ID、API dialect 与策略快照，并按草案成员逐一创建 `READY` Agent Instance；不复制 Key、不创建 `agent_run`、不调用 Provider、不改变 Corporation 的 `DRAFT` 状态。当前草案、Provider 版本、连接验证或模型列表发生竞争变化时整体回滚。激活后 Provider 变化不更新历史快照和 Agent Instance；后续执行前另行校验并阻断失效配置。
+
 `0004_goal_contract.sql` 用 trigger 强制 Goal 只能以 DRAFT 插入、内容列不可更新、只允许协议规定的状态迁移、禁止删除，并验证 `corporation.active_goal_version` 只能逐版指向本 Corporation 的当前 DRAFT。复合 pointer 约束使用 trigger，是因为 SQLite 不能通过 `ALTER TABLE ... ADD COLUMN` 给已有 Corporation 表增加复合外键；Repository 仍必须在同一短事务中写 Goal、pointer、事件与回执。
 
 ## 4. 计划与任务

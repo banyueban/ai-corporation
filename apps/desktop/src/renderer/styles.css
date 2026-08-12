@@ -1015,6 +1015,58 @@ h3 {
   }
 }
 
+@media (max-width: 600px) {
+  .app-shell {
+    grid-template-columns: 4rem minmax(0, 1fr);
+  }
+
+  .sidebar {
+    padding: 1rem 0.35rem;
+  }
+
+  .brand-mark {
+    margin-inline: auto;
+  }
+
+  .brand-name,
+  .runtime-summary span:not(.status-dot),
+  .runtime-summary small {
+    display: none;
+  }
+
+  .nav-button {
+    overflow-wrap: anywhere;
+    padding-inline: 0.2rem;
+    white-space: normal;
+  }
+
+  .runtime-summary {
+    display: flex;
+    justify-content: center;
+    padding: 0.65rem;
+  }
+
+  .page {
+    padding: 1rem;
+  }
+
+  h1 {
+    overflow-wrap: anywhere;
+    font-size: 2rem;
+    line-height: 1.05;
+  }
+
+  select,
+  input,
+  textarea,
+  .plan-summary,
+  .review-block,
+  .success-card {
+    min-width: 0;
+    max-width: 100%;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

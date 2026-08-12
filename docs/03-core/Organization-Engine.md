@@ -203,6 +203,16 @@ type CapabilityGap = {
 
 ## 7. 组织版本与变更
 
+### 7.1 v0.1 团队激活边界
+
+用户确认团队时，应用为 Planner、全部 Executor、Judge 分别保存三组运行模型配置；同组成员共用配置，三组可以选择不同的 Provider 和精确模型。每个选择都必须来自当前 `ENABLED`、Key 存在、连接测试仍与当前 Provider 版本一致且状态为 `VERIFIED` 的 Provider，模型必须仍在该次验证返回的模型列表中。角色选择不修改 Provider 设置中的默认模型，也不要求或发起生成测试。
+
+确认成功只把当前 `DRAFT` organization version 激活并原子创建对应 Agent Instance；不创建 Agent Run、不调用 Provider、不开始 Task。Corporation 继续保持 `DRAFT`，界面显示“团队已激活，等待开始执行”。“开始执行”必须由后续独立用户动作和任务单元交付。
+
+存在 `BLOCKING` 能力缺口时禁止激活。存在 `DEGRADED` 缺口时，用户必须在本次确认命令中明确接受当前草案列出的全部可降级缺口；应用不得默认接受。
+
+激活时保存 Provider ID、Provider 版本、模型 ID、API dialect 和角色策略快照，但不复制 Key。激活后 Provider 被修改、禁用、删除 Key、失去有效连接验证或模型不再位于已验证列表时，已激活团队及快照仍保留且不可原地改写；后续“开始执行”必须拒绝，并要求用户重新配置后生成和激活新的 organization version。
+
 组织变更触发：
 
 - Task Plan 新版本；

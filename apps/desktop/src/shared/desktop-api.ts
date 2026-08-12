@@ -23,6 +23,10 @@ import type {
   GoalEngineResolveExtensionRequest,
   GoalEngineStartRequest,
   HealthResult,
+  OrganizationActivationGetCurrentRequest,
+  OrganizationActivationItemResult,
+  OrganizationActivationNullableItemResult,
+  OrganizationActivationRequest,
   OrganizationProposalCreateRequest,
   OrganizationProposalGetCurrentRequest,
   OrganizationProposalItemResult,
@@ -99,6 +103,14 @@ export interface DesktopApi {
     start(request: GoalEngineStartRequest): Promise<GoalEngineItemResult>;
   }>;
   health(): Promise<HealthResult>;
+  readonly organizationActivation: Readonly<{
+    activate(
+      request: OrganizationActivationRequest,
+    ): Promise<OrganizationActivationItemResult>;
+    getCurrent(
+      request: OrganizationActivationGetCurrentRequest,
+    ): Promise<OrganizationActivationNullableItemResult>;
+  }>;
   readonly organizationProposal: Readonly<{
     create(
       request: OrganizationProposalCreateRequest,

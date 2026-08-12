@@ -22,12 +22,14 @@ export class OrganizationProposalRepository {
   getCurrent(corporationId: string): OrganizationProposal | undefined {
     const row = this.#database
       .prepare(
-        `SELECT snapshot_json FROM organization_version
+        `SELECT snapshot_json, status FROM organization_version
        WHERE corporation_id = ? AND status <> 'SUPERSEDED'
        ORDER BY version DESC LIMIT 1`,
       )
       .get(corporationId);
-    return row === undefined ? undefined : parseProposal(row.snapshot_json);
+    return row === undefined
+      ? undefined
+      : parseProposal(row.snapshot_json, row.status);
   }
 
   getApprovedPlan(input: {
@@ -84,10 +86,12 @@ export class OrganizationProposalRepository {
     if (typeof row.result_organization_id !== "string")
       throw new OrganizationProposalDataError();
     const result = this.#database
-      .prepare("SELECT snapshot_json FROM organization_version WHERE id = ?")
+      .prepare(
+        "SELECT snapshot_json, status FROM organization_version WHERE id = ?",
+      )
       .get(row.result_organization_id);
     if (result === undefined) throw new OrganizationProposalDataError();
-    return parseProposal(result.snapshot_json);
+    return parseProposal(result.snapshot_json, result.status);
   }
 
   save(input: {
@@ -166,10 +170,13 @@ export class OrganizationProposalRepository {
   }
 }
 
-function parseProposal(value: unknown): OrganizationProposal {
+function parseProposal(value: unknown, status?: unknown): OrganizationProposal {
   if (typeof value !== "string") throw new OrganizationProposalDataError();
   try {
-    return organizationProposalSchema.parse(JSON.parse(value) as unknown);
+    const parsed = organizationProposalSchema.parse(
+      JSON.parse(value) as unknown,
+    );
+    return status === "APPROVED" ? { ...parsed, status: "APPROVED" } : parsed;
   } catch {
     throw new OrganizationProposalDataError();
   }

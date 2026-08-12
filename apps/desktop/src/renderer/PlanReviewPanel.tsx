@@ -1,7 +1,10 @@
 import type {
+  OrganizationActivation,
+  OrganizationActivationRequest,
   OrganizationProposal,
   PlanReviewSaveVersionRequest,
   PlannerDraftPublic,
+  ProviderPublic,
 } from "@ai-corporation/protocols";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { createUuidV7 } from "./uuid-v7";
@@ -30,11 +33,16 @@ export function PlanReviewPanel(props: {
   readonly displayedPlan: PlannerDraftPublic;
   readonly onApprove: (plan: PlannerDraftPublic) => Promise<void>;
   readonly onCreateOrganization: (plan: PlannerDraftPublic) => Promise<void>;
+  readonly onActivateOrganization: (
+    request: OrganizationActivationRequest,
+  ) => Promise<void>;
   readonly onSaveVersion: (
     request: PlanReviewSaveVersionRequest,
   ) => Promise<void>;
   readonly saving: boolean;
   readonly organizationProposal: OrganizationProposal | undefined;
+  readonly organizationActivation: OrganizationActivation | undefined;
+  readonly providers: readonly ProviderPublic[];
   readonly versions: readonly PlannerDraftPublic[];
 }) {
   const [selectedPlanId, setSelectedPlanId] = useState(
@@ -135,6 +143,9 @@ export function PlanReviewPanel(props: {
           organizationProposal={
             isCurrent ? props.organizationProposal : undefined
           }
+          organizationActivation={
+            isCurrent ? props.organizationActivation : undefined
+          }
           plan={displayedPlan}
         />
 
@@ -233,27 +244,33 @@ export function PlanReviewPanel(props: {
                   {props.saving ? "正在批准…" : "批准计划"}
                 </button>
               )}
-              {isCurrent && displayedPlan.status === "APPROVED" && (
-                <button
-                  className="primary-button"
-                  disabled={props.saving}
-                  onClick={() =>
-                    void props.onCreateOrganization(props.currentPlan)
-                  }
-                  type="button"
-                >
-                  {props.saving
-                    ? "正在生成团队草案…"
-                    : props.organizationProposal === undefined
-                      ? "开始组队"
-                      : "重新生成团队草案"}
-                </button>
-              )}
+              {isCurrent &&
+                displayedPlan.status === "APPROVED" &&
+                props.organizationActivation === undefined && (
+                  <button
+                    className="primary-button"
+                    disabled={props.saving}
+                    onClick={() =>
+                      void props.onCreateOrganization(props.currentPlan)
+                    }
+                    type="button"
+                  >
+                    {props.saving
+                      ? "正在生成团队草案…"
+                      : props.organizationProposal === undefined
+                        ? "开始组队"
+                        : "重新生成团队草案"}
+                  </button>
+                )}
             </div>
             {isCurrent && props.organizationProposal !== undefined && (
               <OrganizationProposalView
+                activation={props.organizationActivation}
+                onActivate={props.onActivateOrganization}
                 proposal={props.organizationProposal}
                 plan={props.currentPlan}
+                providers={props.providers}
+                saving={props.saving}
               />
             )}
           </>
@@ -262,7 +279,9 @@ export function PlanReviewPanel(props: {
           {displayedPlan.status === "APPROVED" &&
           isCurrent &&
           props.organizationProposal !== undefined
-            ? "该计划已经批准并冻结。团队草案已生成但尚未激活，也没有开始执行。"
+            ? props.organizationActivation === undefined
+              ? "该计划已经批准并冻结。团队草案已生成但尚未激活，也没有开始执行。"
+              : "团队已激活，等待开始执行。当前没有运行任务。"
             : displayedPlan.status === "APPROVED"
               ? "该计划已经批准并冻结。软件尚未组建团队，也没有开始执行。"
               : "该计划尚未组队、尚未开始执行。批准计划也不会自动执行。"}
@@ -273,8 +292,14 @@ export function PlanReviewPanel(props: {
 }
 
 function OrganizationProposalView(props: {
+  readonly activation: OrganizationActivation | undefined;
+  readonly onActivate: (
+    request: OrganizationActivationRequest,
+  ) => Promise<void>;
   readonly proposal: OrganizationProposal;
   readonly plan: PlannerDraftPublic;
+  readonly providers: readonly ProviderPublic[];
+  readonly saving: boolean;
 }) {
   const taskNames = new Map(
     props.plan.tasks.map((task) => [task.id, task.title]),
@@ -346,8 +371,23 @@ function OrganizationProposalView(props: {
         </ul>
       )}
       <p className="plan-boundary-note">
-        团队草案尚未激活，不会开始执行。公司状态仍为草稿。
+        {props.activation === undefined
+          ? "团队草案尚未激活，不会开始执行。公司状态仍为草稿。"
+          : "团队已激活，等待开始执行。公司状态仍为草稿，当前没有运行任务。"}
       </p>
+      {props.activation === undefined ? (
+        <OrganizationActivationForm
+          onActivate={props.onActivate}
+          proposal={props.proposal}
+          providers={props.providers}
+          saving={props.saving}
+        />
+      ) : (
+        <OrganizationActivationView
+          activation={props.activation}
+          providers={props.providers}
+        />
+      )}
     </section>
   );
 }
@@ -372,7 +412,195 @@ function modelStrategyLabel(
       : "均衡";
 }
 
+type RoleRouteInput = OrganizationActivationRequest["routes"]["planner"];
+
+function OrganizationActivationForm(props: {
+  readonly onActivate: (
+    request: OrganizationActivationRequest,
+  ) => Promise<void>;
+  readonly proposal: OrganizationProposal;
+  readonly providers: readonly ProviderPublic[];
+  readonly saving: boolean;
+}) {
+  const available = props.providers.filter(
+    (provider) =>
+      provider.configStatus === "ENABLED" &&
+      provider.hasKey &&
+      provider.connectionTest?.status === "VERIFIED" &&
+      provider.connectionTest.models.length > 0,
+  );
+  const emptyRoute = (): RoleRouteInput => ({
+    providerId: "",
+    providerVersion: 1,
+    modelId: "",
+  });
+  const [routes, setRoutes] = useState({
+    planner: emptyRoute(),
+    executor: emptyRoute(),
+    judge: emptyRoute(),
+  });
+  const [acceptDegraded, setAcceptDegraded] = useState(false);
+  const blocking = props.proposal.capabilityGaps.some(
+    ({ severity }) => severity === "BLOCKING",
+  );
+  const degraded = props.proposal.capabilityGaps.some(
+    ({ severity }) => severity === "DEGRADED",
+  );
+  const complete = Object.values(routes).every(
+    ({ providerId, modelId }) => providerId.length > 0 && modelId.length > 0,
+  );
+  const updateProvider = (role: keyof typeof routes, providerId: string) => {
+    const provider = available.find(({ id }) => id === providerId);
+    setRoutes((current) => ({
+      ...current,
+      [role]:
+        provider === undefined
+          ? emptyRoute()
+          : {
+              providerId: provider.id,
+              providerVersion: provider.version,
+              modelId: "",
+            },
+    }));
+  };
+  const updateModel = (role: keyof typeof routes, modelId: string) =>
+    setRoutes((current) => ({
+      ...current,
+      [role]: { ...current[role], modelId },
+    }));
+  if (blocking)
+    return (
+      <p className="field-error" role="alert">
+        当前团队存在阻断能力缺口，不能激活。请先返回并调整计划。
+      </p>
+    );
+  return (
+    <section
+      className="review-block"
+      aria-labelledby="team-configuration-title"
+    >
+      <h3 id="team-configuration-title">配置并确认团队</h3>
+      <p>分别选择三组运行模型。确认只激活团队，不调用模型，也不开始执行。</p>
+      {available.length === 0 && (
+        <p className="field-error" role="alert">
+          没有可用的模型服务商。请先启用服务商、保存 API Key 并完成连接测试。
+        </p>
+      )}
+      {(["planner", "executor", "judge"] as const).map((role) => {
+        const provider = available.find(
+          ({ id }) => id === routes[role].providerId,
+        );
+        return (
+          <div className="organization-route-row" key={role}>
+            <strong>
+              {role === "planner"
+                ? "规划负责人"
+                : role === "executor"
+                  ? "全部执行人员"
+                  : "验收负责人"}
+            </strong>
+            <label className="field">
+              模型服务商
+              <select
+                disabled={props.saving}
+                onChange={(event) => updateProvider(role, event.target.value)}
+                value={routes[role].providerId}
+              >
+                <option value="">请选择</option>
+                {available.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              精确模型
+              <select
+                disabled={props.saving || provider === undefined}
+                onChange={(event) => updateModel(role, event.target.value)}
+                value={routes[role].modelId}
+              >
+                <option value="">请选择</option>
+                {provider?.connectionTest?.status === "VERIFIED" &&
+                  provider.connectionTest.models.map((model) => (
+                    <option key={model.id} value={model.id}>
+                      {model.displayName}
+                    </option>
+                  ))}
+              </select>
+            </label>
+          </div>
+        );
+      })}
+      {degraded && (
+        <label className="checkbox-row">
+          <input
+            checked={acceptDegraded}
+            disabled={props.saving}
+            onChange={(event) => setAcceptDegraded(event.target.checked)}
+            type="checkbox"
+          />
+          我接受上方列出的可降级能力缺口及其影响
+        </label>
+      )}
+      <button
+        className="primary-button"
+        disabled={props.saving || !complete || (degraded && !acceptDegraded)}
+        onClick={() =>
+          void props.onActivate({
+            schemaVersion: "1.0",
+            commandId: createUuidV7(),
+            corporationId: props.proposal.corporationId,
+            organizationId: props.proposal.organizationId,
+            expectedOrganizationVersion: props.proposal.version,
+            routes,
+            acceptDegradedGaps: degraded && acceptDegraded,
+          })
+        }
+        type="button"
+      >
+        {props.saving ? "正在确认团队…" : "确认团队"}
+      </button>
+    </section>
+  );
+}
+
+function OrganizationActivationView(props: {
+  readonly activation: OrganizationActivation;
+  readonly providers: readonly ProviderPublic[];
+}) {
+  const providerName = (id: string) =>
+    props.providers.find((provider) => provider.id === id)?.name ??
+    "已保存的模型服务商";
+  return (
+    <section className="success-card" aria-labelledby="active-team-title">
+      <h3 id="active-team-title">团队已激活，等待开始执行</h3>
+      <ul>
+        <li>
+          规划负责人：{providerName(props.activation.routes.planner.providerId)}{" "}
+          · {props.activation.routes.planner.modelId}
+        </li>
+        <li>
+          全部执行人员：
+          {providerName(props.activation.routes.executor.providerId)} ·{" "}
+          {props.activation.routes.executor.modelId}
+        </li>
+        <li>
+          验收负责人：{providerName(props.activation.routes.judge.providerId)} ·{" "}
+          {props.activation.routes.judge.modelId}
+        </li>
+      </ul>
+      <p>
+        已创建 {props.activation.agents.length}{" "}
+        个团队成员。没有创建运行记录，没有调用模型，也没有开始任务。
+      </p>
+    </section>
+  );
+}
+
 function PlanState(props: {
+  readonly organizationActivation: OrganizationActivation | undefined;
   readonly organizationProposal: OrganizationProposal | undefined;
   readonly plan: PlannerDraftPublic;
 }) {
@@ -390,7 +618,9 @@ function PlanState(props: {
         <p>
           {props.organizationProposal === undefined
             ? "此版本已经冻结。没有创建团队，也没有开始执行。"
-            : "此版本已经冻结。团队草案已生成但尚未激活，也没有开始执行。"}
+            : props.organizationActivation === undefined
+              ? "此版本已经冻结。团队草案已生成但尚未激活，也没有开始执行。"
+              : "此版本已经冻结。团队已激活，等待开始执行。"}
         </p>
       </section>
     );

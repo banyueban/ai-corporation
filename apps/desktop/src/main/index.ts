@@ -17,6 +17,8 @@ import {
   GOAL_ENGINE_RESOLVE_EXTENSION_IPC_CHANNEL,
   GOAL_ENGINE_START_IPC_CHANNEL,
   NATIVE_HEALTH_IPC_CHANNEL,
+  ORGANIZATION_ACTIVATION_ACTIVATE_IPC_CHANNEL,
+  ORGANIZATION_ACTIVATION_GET_CURRENT_IPC_CHANNEL,
   ORGANIZATION_PROPOSAL_CREATE_IPC_CHANNEL,
   ORGANIZATION_PROPOSAL_GET_CURRENT_IPC_CHANNEL,
   PLANNER_CANCEL_IPC_CHANNEL,
@@ -45,6 +47,7 @@ import {
   CorporationStateRepository,
   GoalContractRepository,
   GoalEngineRepository,
+  OrganizationActivationRepository,
   OrganizationProposalRepository,
   PlanValidationRepository,
   PlanReviewRepository,
@@ -63,6 +66,11 @@ import {
 } from "electron";
 import type { DatabaseSync } from "node:sqlite";
 import { NativeCoreClient } from "./native-core-client";
+import {
+  handleOrganizationActivationActivate,
+  handleOrganizationActivationGetCurrent,
+} from "./organization-activation-ipc";
+import { OrganizationActivationService } from "./organization-activation-service";
 import {
   handleOrganizationProposalCreate,
   handleOrganizationProposalGetCurrent,
@@ -157,6 +165,7 @@ let goalEngineService: GoalEngineService | undefined;
 let plannerService: PlannerService | undefined;
 let planReviewService: PlanReviewService | undefined;
 let nativeCoreClient: NativeCoreClient | undefined;
+let organizationActivationService: OrganizationActivationService | undefined;
 let organizationProposalService: OrganizationProposalService | undefined;
 let providerService: ProviderService | undefined;
 let workspaceDatabase: DatabaseSync | undefined;
@@ -245,6 +254,24 @@ async function handleNativeHealth(
 
 void app.whenReady().then(async () => {
   ipcMain.handle(NATIVE_HEALTH_IPC_CHANNEL, handleNativeHealth);
+  ipcMain.handle(
+    ORGANIZATION_ACTIVATION_ACTIVATE_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleOrganizationActivationActivate(
+        isTrustedRenderer(event),
+        request,
+        organizationActivationService,
+      ),
+  );
+  ipcMain.handle(
+    ORGANIZATION_ACTIVATION_GET_CURRENT_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleOrganizationActivationGetCurrent(
+        isTrustedRenderer(event),
+        request,
+        organizationActivationService,
+      ),
+  );
   ipcMain.handle(
     ORGANIZATION_PROPOSAL_CREATE_IPC_CHANNEL,
     (event: IpcMainInvokeEvent, request: unknown) =>
@@ -647,6 +674,10 @@ void app.whenReady().then(async () => {
     organizationProposalService = new OrganizationProposalService({
       createId: createUuidV7,
       repository: new OrganizationProposalRepository(workspaceDatabase),
+    });
+    organizationActivationService = new OrganizationActivationService({
+      createId: createUuidV7,
+      repository: new OrganizationActivationRepository(workspaceDatabase),
     });
     plannerService = new PlannerService({
       provider: providerService,
