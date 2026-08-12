@@ -3,16 +3,16 @@
 | 属性           | 当前值                             |
 | -------------- | ---------------------------------- |
 | 当前产品版本   | v0.1 MVP                           |
-| 当前阶段       | Milestone 2 复盘完成，准备 Milestone 3 |
+| 当前阶段       | Milestone 3 开发中                    |
 | 当前 Milestone | Milestone 3：最小 Agent 闭环       |
-| 当前任务单元   | M2-TU-09（完成）                   |
-| 总体状态       | Milestone 2 已完成，Milestone 3 尚未开始 |
+| 当前任务单元   | M3-TU-01（进行中）                  |
+| 总体状态       | Milestone 2 已完成，Milestone 3 首个任务进行中 |
 | 最近更新       | 2026-08-12                         |
-| 下一检查点     | 建立 Milestone 3 首个就绪任务合同  |
+| 下一检查点     | 完成团队草案协议、存储、服务与中文 UI |
 
 ## 1. 当前结论
 
-Milestone 0、Milestone 1 和 Milestone 2 已完成。Milestone 2 已交付应用自管 Key Vault、OpenAI 风格 Provider、连接与非流式生成、Goal Engine、Planner、Plan Validation 和 Plan Review；用户可以保存并管理 Key，使用真实模型生成 Goal 与 Plan，本地拒绝非法任务图，有限编辑并批准有效计划，但尚未组队或开始执行。
+Milestone 0、Milestone 1 和 Milestone 2 已完成。Milestone 3 已进入 M3-TU-01：用户将能从已批准 Plan 明确点击“开始组队”，由应用按本地固定规则生成并保存团队草案；本任务不会激活团队、开始执行或调用模型。
 
 M2-TU-09 已按用户选择的方案 B 完成 L3 汇总验收：M2-TU-02 至 M2-TU-08 的直接证据组成交付物和验收矩阵，当前提交的 Windows/macOS 完整工程检查、开发态真实窗口、最终包真实窗口与制品上传全部通过。该结论不声称存在一条未实际执行的连续端到端测试。
 
@@ -46,34 +46,32 @@ Milestone 2 的七项交付、四项验收、全部必需任务单元、Windows/
 
 ## 4. 当前任务边界
 
-M2-TU-09 只交付：
+M3-TU-01 只交付：
 
-- M2-TU-02 至 M2-TU-08 完成合同与 Milestone 交付物的证据矩阵；
-- 当前提交的完整工程检查与 Windows/macOS 最终包复验；
-- 跨平台 artifact、Windows 人工验收、缺陷和已知限制核对；
-- 只在全部门禁通过后关闭 Milestone 2。
+- 已批准 Plan 后的用户主动“开始组队”；
+- 内置 Planner/Executor/Judge 模板与确定性最小团队草案；
+- Task 分工、职责分离、能力缺口和模型策略展示；
+- 草案持久化、幂等、安全 IPC 与重启恢复。
 
-不包含新增连续 E2E、产品功能、协议、Schema、迁移、真实 Provider 调用或 Milestone 3 实现。
+不包含团队激活、Agent Run、精确 Provider/model 选择、模型调用、Scheduler、Runtime、Artifact 或 Evaluation。
 
 ## 5. 活跃阻塞与外部条件
 
-当前 P0/P1、P2/P3 和未执行必检项均为 0，无实现阻塞。Milestone 3 尚未建立首个任务合同，因此尚未开始实现。`banyueban/ai-corporation` 为公开仓库；CI 上传范围仅包含安装包、blockmap 和验收截图。不清理其他仓库制品。
+当前 P0/P1、P2/P3 均为 0，无实现阻塞。M3-TU-01 合同已建立并进入实现。`banyueban/ai-corporation` 为公开仓库；CI 上传范围仅包含安装包、blockmap 和验收截图。不清理其他仓库制品。
 
 已知条件：系统 PATH 未提供 Node.js，工程验证使用 Codex bundled Node.js；正式 Key 仍只由应用自管 Key Vault 使用，未进入命令、脚本、环境变量、Git、日志或截图；费用无法从当前 Provider 响应可靠取得时保持 `UNKNOWN`。方案 B 使用分任务证据汇总，不声称存在单条未中断端到端测试。GitHub 提示两个 Action 的 Node.js 20 声明被 runner 强制切换到 Node.js 24；当前 CI 成功，该提示属于后续 CI 维护项，不是产品缺陷。
 
 ## 6. 当前验证摘要
 
-- M2-TU-09 证据审计确认 M2-TU-02 至 M2-TU-08 共 123 项验收断言全部勾选，未完成项为 0；Milestone 2 七项交付与四项验收均已映射到直接来源合同；
-- M2-TU-09 当前候选本地 `pnpm check` 完整通过：Protocol 47、Provider 28、Storage 88、Desktop 126，Native Core 7、Workspace Rust 7；status/task-unit、format、lint、typecheck、Rust fmt/clippy、secret scan 与 `git diff --check` 均成功；
-- 候选提交 `f945ee16af4a5c33211c229e74230529697401aa` 的 GitHub Actions run `31508191395` 成功；Windows job `93835030932` 与 macOS Apple Silicon job `93835031080` 均通过工程检查、开发态 Electron、最终包构建、最终包真实窗口和制品上传；
-- Windows artifact `9108089616`（`ai-corporation-windows-x64`）大小 101,812,840 bytes；macOS artifact `9108062066`（`ai-corporation-macos-arm64`）大小 122,487,304 bytes；
-- 双平台最终包真实窗口分别覆盖 Key Vault、Provider 连接与生成、Goal Engine、Planner、Plan Validation、Plan Review 及恢复/错误路径；Renderer 外部请求为 0，测试 Key 未进入持久化明文、日志、错误、截图或诊断；
-- 用户已完成 Windows 最终安装包人工验收；该人工结论与当前 macOS 自动化证据分开记录，没有跨平台替代。
-- 纯收尾提交分类器 4 项测试和完整 `pnpm check` 通过；分类器会核对完成状态迁移、文件白名单和直接父提交 CI，Pull Request 纯收尾提交只跑状态、合同、Secret scan 与 diff 检查，其他提交和所有 `main` 推送仍执行完整 CI。
+- M3-TU-01 当前本地 `pnpm check` 完整通过：Protocol 49、Provider 28、Storage 90、Desktop 130，Native Core 7、Workspace Rust 7；status/task-unit、format、lint、typecheck、Rust fmt/clippy 和 secret scan 均成功；
+- 团队草案固定分配器测试证明：用户决定 Task 归用户、三类 Executor 按需创建、Judge 与 Executor 分离、未知强制能力形成阻断缺口、草案不含精确 Provider/model，且相同输入得到相同业务结果；
+- SQLite 迁移、幂等、递增版本、命令冲突、版本冲突、事务回滚、当前草案恢复和 Corporation 保持 `DRAFT` 的测试通过；未创建 `agent_instance` 或 `agent_run`；
+- Windows 开发态真实 Electron 7 条旅程全部通过；M3-TU-01 直接覆盖批准 Plan 后明确点击“开始组队”、团队草案展示、Provider 调用次数不增加、页面重载恢复和 1440×900 截图；
+- 当前仍缺当前候选提交的 Windows/macOS CI、最终包真实窗口和用户人工验收，因此 M3-TU-01 保持“进行中”，不得标记完成。
 
 ## 7. 下一步
 
-按文档路由读取 Milestone 3 的 Organization、Agent、Scheduler、Runtime、Artifact 和 Evaluation 边界，发现歧义先请求用户决策；边界明确后建立首个“就绪”任务合同，再开始实现。
+按 M3-TU-01 合同实现团队草案协议、确定性分配、SQLite 持久化、安全 IPC 和中文 UI；完成自动检查与真实窗口验收后再请求用户人工验收。
 
 ## 8. 更新规则
 

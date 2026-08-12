@@ -79,7 +79,11 @@
 | Capability gap           | 缺失能力和替代方案                                                                              | 换 Provider/修改计划/请求用户          |
 | Budget over limit        | 超出硬预算                                                                                      | 降低范围/增加预算                      |
 | Approval pending         | 正在批准当前有效版本；不创建团队、不开始执行                                                    | 禁止重复点击                           |
-| Approved                 | 只读当前批准版本、批准时间；明确尚未组队、未开始执行                                            | 无                                     |
+| Approved                 | 只读当前批准版本、批准时间；明确尚未组队、未开始执行                                            | 开始组队                               |
+| Team proposal pending    | 正在按本地固定规则生成团队草案；明确不调用模型、不开始执行                                      | 禁止重复点击                           |
+| Team proposal ready      | 团队草案版本、Planner/Executor/Judge、Task 分工、职责分离、能力缺口和模型策略；明确未激活、未执行 | 无                                     |
+| Team proposal blocked    | 保留团队草案并列出阻断能力、受影响 Task、原因和可选处理方向；不虚构可用能力                      | 返回计划                               |
+| Team proposal failed     | 固定失败原因；批准 Plan 保持可用，不自动重试、不产生半条新版本                                  | 明确再次点击开始组队                   |
 | Superseded               | 只读旧版本                                                                                      | 查看当前版本                           |
 
 ## 7. Corporation Workspace 状态

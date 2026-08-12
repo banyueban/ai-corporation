@@ -7,6 +7,8 @@ import type {
   GoalEngineErrorCode,
   GoalEngineOperationPublic,
   HealthResult,
+  OrganizationProposal,
+  OrganizationProposalErrorCode,
   PlanReviewFailure,
   PlanReviewSaveVersionRequest,
   PlannerDraftPublic,
@@ -87,6 +89,10 @@ export function App() {
   >([]);
   const [planReviewError, setPlanReviewError] =
     useState<PlanReviewFailure["error"]>();
+  const [organizationProposal, setOrganizationProposal] =
+    useState<OrganizationProposal>();
+  const [organizationError, setOrganizationError] =
+    useState<OrganizationProposalErrorCode>();
   const [providers, setProviders] = useState<readonly ProviderPublic[]>([]);
   const [selectedProviderId, setSelectedProviderId] = useState<string>();
   const [clarificationAnswers, setClarificationAnswers] = useState<
@@ -710,6 +716,7 @@ export function App() {
         operationResult,
         currentPlanResult,
         planVersionsResult,
+        organizationResult,
       ] = await Promise.all([
         window.desktop.corporation.get({
           schemaVersion: "1.0",
@@ -725,6 +732,10 @@ export function App() {
           corporationId: reviewCorporation.id,
         }),
         window.desktop.planReview.listVersions({
+          schemaVersion: "1.0",
+          corporationId: reviewCorporation.id,
+        }),
+        window.desktop.organizationProposal.getCurrent({
           schemaVersion: "1.0",
           corporationId: reviewCorporation.id,
         }),
@@ -757,6 +768,13 @@ export function App() {
         setPlanVersions([]);
       } else {
         setPlanVersions(planVersionsResult.value);
+      }
+      if (organizationResult.ok) {
+        setOrganizationProposal(organizationResult.value ?? undefined);
+        setOrganizationError(undefined);
+      } else {
+        setOrganizationProposal(undefined);
+        setOrganizationError(organizationResult.error.code);
       }
       setStatusMessage("");
       setRoute("planner");
@@ -903,6 +921,30 @@ export function App() {
     }
   };
 
+  const createOrganizationProposal = async (plan: PlannerDraftPublic) => {
+    setSaving(true);
+    setOrganizationError(undefined);
+    try {
+      const result = await window.desktop.organizationProposal.create({
+        schemaVersion: "1.0",
+        commandId: createUuidV7(),
+        corporationId: plan.corporationId,
+        planId: plan.planId,
+        expectedPlanVersion: plan.planVersion,
+      });
+      if (!result.ok) {
+        setOrganizationError(result.error.code);
+        return;
+      }
+      setOrganizationProposal(result.value);
+      setStatusMessage("团队草案已保存。尚未激活，也没有开始执行。");
+    } catch {
+      setOrganizationError("STORAGE_FAILURE");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const leaveCreate = () => {
     if (dirty && !window.confirm("要放弃尚未保存的目标合同内容吗？")) {
       return;
@@ -1008,7 +1050,10 @@ export function App() {
               planReviewError={planReviewError}
               planVersions={planVersions}
               onApprovePlan={approvePlan}
+              onCreateOrganization={createOrganizationProposal}
               onSaveVersion={savePlanVersion}
+              organizationError={organizationError}
+              organizationProposal={organizationProposal}
               providers={providers}
               saving={saving}
               selectedProviderId={selectedProviderId}
@@ -1892,10 +1937,13 @@ function PlannerDraftView(props: {
   readonly planReviewError: PlanReviewFailure["error"] | undefined;
   readonly planVersions: readonly PlannerDraftPublic[];
   readonly onApprovePlan: (plan: PlannerDraftPublic) => Promise<void>;
+  readonly onCreateOrganization: (plan: PlannerDraftPublic) => Promise<void>;
   readonly onSaveVersion: (
     request: PlanReviewSaveVersionRequest,
   ) => Promise<void>;
   readonly providers: readonly ProviderPublic[];
+  readonly organizationError: OrganizationProposalErrorCode | undefined;
+  readonly organizationProposal: OrganizationProposal | undefined;
   readonly saving: boolean;
   readonly selectedProviderId: string | undefined;
   readonly setSelectedProviderId: (value: string | undefined) => void;
@@ -1941,6 +1989,9 @@ function PlannerDraftView(props: {
       {props.error !== undefined && <PlannerError code={props.error} />}
       {props.planReviewError !== undefined && (
         <PlanReviewError error={props.planReviewError} plan={plan} />
+      )}
+      {props.organizationError !== undefined && (
+        <OrganizationProposalError code={props.organizationError} />
       )}
       {props.statusMessage.length > 0 && (
         <p className="inline-status" role="status">
@@ -2036,7 +2087,9 @@ function PlannerDraftView(props: {
           currentPlan={props.plan ?? plan}
           displayedPlan={plan}
           onApprove={props.onApprovePlan}
+          onCreateOrganization={props.onCreateOrganization}
           onSaveVersion={props.onSaveVersion}
+          organizationProposal={props.organizationProposal}
           saving={props.saving}
           versions={props.planVersions}
         />
@@ -2189,6 +2242,32 @@ function PlanReviewError(props: {
         )}
       </div>
       <code>{props.error.code}</code>
+    </section>
+  );
+}
+
+function OrganizationProposalError(props: {
+  readonly code: OrganizationProposalErrorCode;
+}) {
+  const messages: Record<OrganizationProposalErrorCode, string> = {
+    VALIDATION_FAILED: "组队请求内容不完整或格式不正确。",
+    UNAUTHORIZED_CALLER: "该请求不是来自可信的软件窗口。",
+    PLAN_NOT_APPROVED: "当前计划尚未批准，不能开始组队。",
+    CURRENT_PLAN_CHANGED: "计划版本已经变化，请重新加载后再开始组队。",
+    COMMAND_CONFLICT: "这次操作编号已用于其他请求，请重新点击开始组队。",
+    ORGANIZATION_NOT_FOUND: "没有找到对应的计划或团队草案。",
+    STORAGE_FAILURE: "本地团队草案存储不可用，不能认为组队已经成功。",
+  };
+  return (
+    <section className="error-state" role="alert">
+      <div>
+        <p className="eyebrow">没有生成团队草案</p>
+        <h2>组队失败</h2>
+        <p>{messages[props.code]}</p>
+        <p>
+          软件不会自动重试，也没有激活团队或开始执行。请确认计划后再次点击“开始组队”。
+        </p>
+      </div>
     </section>
   );
 }

@@ -14,6 +14,20 @@ Organization Engine 根据 Goal Contract 与 Task Graph 创建“足以完成目
 
 ## 2. 输入与输出
 
+### 2.1 Milestone 3 首个切片的固定边界
+
+用户已决定首个 Organization 切片按以下方式交付：
+
+- 只有当前 Plan 为 `APPROVED/VALID` 时，界面才提供“开始组队”；用户必须明确点击，批准 Plan 不会自动组队；
+- 点击后只生成、校验、保存并展示 `DRAFT` 团队草案，展示 Task 分工、职责分离和真实能力缺口；
+- 使用应用内置且有版本号的 Planner、Executor、Judge 模板和确定性分配规则，不调用模型；
+- 草案只记录模型策略，不绑定精确 Provider 或模型；真正运行 Agent 时再由后续任务选择；
+- 本切片不创建 Agent Instance/Run，不激活团队、不开始 Task，也不改变 Corporation 的 `DRAFT` 状态。
+- `HUMAN_DECISION` Task 的责任人标记为用户，不分配给 Executor，后续执行到该 Task 时必须等待用户本人决定；
+- Executor 使用三类固定能力组：分析与文档、软件实现、质量验收。计划用到哪一类才创建哪一类，同类 Task 由同一个 Executor 负责，最多三个 Executor。
+
+这些限制只约束首个垂直切片。后续新增激活、运行时选模或其他 API 方言时，应新增任务单元，不得把它们暗中并入草案生成。
+
 输入：
 
 ```ts
@@ -112,6 +126,15 @@ similarity =
 
 大于阈值的 Task 可由同一 Executor Agent Instance 承担。
 
+Milestone 3 首个切片不使用尚未固定阈值的相似度计算。它按 Task 类型和必需能力路径映射到三个稳定能力组：
+
+- 分析与文档：`ANALYSIS`、`GENERATION`、`TRANSFORMATION`，以及 `analysis.*`、`writing.*`；
+- 软件实现：必需能力包含 `software.*` 的实现 Task；普通文档即使需要写入工作区，仍归分析与文档；
+- 质量验收：`VALIDATION` 或 `quality.*`；
+- `HUMAN_DECISION` 不进入任何 Executor 能力组，责任人固定为用户。
+
+同一 Task 命中多个能力组时，优先级为软件实现、质量验收、分析与文档。无法映射或超出内置模板能力的强制要求形成结构化能力缺口，不静默创建第四类 Executor。
+
 ### 4.3 角色合并
 
 允许：
@@ -132,7 +155,7 @@ similarity =
 v0.1 默认：
 
 - Planner：1；
-- Executor/Specialist：1–3；
+- Executor/Specialist：存在机器 Task 时 1–3，全部为 `HUMAN_DECISION` 时为 0；
 - Judge：1；
 - 活跃 Agent Instance 总数：最多 5；
 - 并行活跃 Run：最多 2。
@@ -140,6 +163,8 @@ v0.1 默认：
 超过上限进入能力缺口或请求用户确认，不静默扩大成本。
 
 ## 5. Agent Definition 选择
+
+Milestone 3 首个切片只使用应用内置且有版本号的 Planner、Executor、Judge 模板。插件定义、项目临时定义和模型生成角色说明不进入该切片；没有模板能够覆盖的能力必须如实记录为能力缺口，不能现场虚构角色。精确 Provider 和模型也不在组队草案阶段选择。
 
 选择顺序：
 
@@ -227,7 +252,7 @@ interface OrganizationEngine {
 ## 11. v0.1 模块验收断言
 
 - 常规任务创建 Planner、1–3 个 Executor、Judge；
-- 每个 Task 有且只有一个责任 Agent；
+- 每个非 `HUMAN_DECISION` Task 有且只有一个责任 Agent；`HUMAN_DECISION` Task 有且只有一个用户责任人；
 - 关键任务满足生产/验收分离；
 - 能力缺口以结构化方式阻断或降级；
 - 团队变更可版本化和追踪。

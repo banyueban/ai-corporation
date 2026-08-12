@@ -1,4 +1,5 @@
 import type {
+  OrganizationProposal,
   PlanReviewSaveVersionRequest,
   PlannerDraftPublic,
 } from "@ai-corporation/protocols";
@@ -28,10 +29,12 @@ export function PlanReviewPanel(props: {
   readonly currentPlan: PlannerDraftPublic;
   readonly displayedPlan: PlannerDraftPublic;
   readonly onApprove: (plan: PlannerDraftPublic) => Promise<void>;
+  readonly onCreateOrganization: (plan: PlannerDraftPublic) => Promise<void>;
   readonly onSaveVersion: (
     request: PlanReviewSaveVersionRequest,
   ) => Promise<void>;
   readonly saving: boolean;
+  readonly organizationProposal: OrganizationProposal | undefined;
   readonly versions: readonly PlannerDraftPublic[];
 }) {
   const [selectedPlanId, setSelectedPlanId] = useState(
@@ -128,7 +131,12 @@ export function PlanReviewPanel(props: {
       </aside>
 
       <div className="plan-review-content">
-        <PlanState plan={displayedPlan} />
+        <PlanState
+          organizationProposal={
+            isCurrent ? props.organizationProposal : undefined
+          }
+          plan={displayedPlan}
+        />
 
         {editing ? (
           <form
@@ -225,20 +233,150 @@ export function PlanReviewPanel(props: {
                   {props.saving ? "正在批准…" : "批准计划"}
                 </button>
               )}
+              {isCurrent && displayedPlan.status === "APPROVED" && (
+                <button
+                  className="primary-button"
+                  disabled={props.saving}
+                  onClick={() =>
+                    void props.onCreateOrganization(props.currentPlan)
+                  }
+                  type="button"
+                >
+                  {props.saving
+                    ? "正在生成团队草案…"
+                    : props.organizationProposal === undefined
+                      ? "开始组队"
+                      : "重新生成团队草案"}
+                </button>
+              )}
             </div>
+            {isCurrent && props.organizationProposal !== undefined && (
+              <OrganizationProposalView
+                proposal={props.organizationProposal}
+                plan={props.currentPlan}
+              />
+            )}
           </>
         )}
         <p className="plan-boundary-note">
-          {displayedPlan.status === "APPROVED"
-            ? "该计划已经批准并冻结。软件尚未组建团队，也没有开始执行。"
-            : "该计划尚未组队、尚未开始执行。批准计划也不会自动执行。"}
+          {displayedPlan.status === "APPROVED" &&
+          isCurrent &&
+          props.organizationProposal !== undefined
+            ? "该计划已经批准并冻结。团队草案已生成但尚未激活，也没有开始执行。"
+            : displayedPlan.status === "APPROVED"
+              ? "该计划已经批准并冻结。软件尚未组建团队，也没有开始执行。"
+              : "该计划尚未组队、尚未开始执行。批准计划也不会自动执行。"}
         </p>
       </div>
     </div>
   );
 }
 
-function PlanState({ plan }: { readonly plan: PlannerDraftPublic }) {
+function OrganizationProposalView(props: {
+  readonly proposal: OrganizationProposal;
+  readonly plan: PlannerDraftPublic;
+}) {
+  const taskNames = new Map(
+    props.plan.tasks.map((task) => [task.id, task.title]),
+  );
+  const memberNames = new Map(
+    props.proposal.members.map((member) => [
+      member.memberId,
+      member.displayName,
+    ]),
+  );
+  return (
+    <section
+      className="plan-summary"
+      aria-labelledby="organization-proposal-title"
+    >
+      <p className="eyebrow">
+        团队草案 v{props.proposal.version} · 模板{" "}
+        {props.proposal.templateSetVersion}
+      </p>
+      <h2 id="organization-proposal-title">团队草案</h2>
+      <p>
+        这是本地固定规则生成的草案，没有调用模型，也没有选择准确的模型服务商或模型。
+      </p>
+      <div className="plan-task-list">
+        {props.proposal.members.map((member) => (
+          <article className="review-block" key={member.memberId}>
+            <p className="eyebrow">{roleLabel(member.role)}</p>
+            <h3>{member.displayName}</h3>
+            <p>
+              模板：{member.templateId} v{member.templateVersion}
+            </p>
+            <p>模型策略：{modelStrategyLabel(member.modelStrategy)}</p>
+            <p>能力：{member.capabilities.join("、")}</p>
+          </article>
+        ))}
+      </div>
+      <h3>任务分工</h3>
+      <ul>
+        {props.proposal.assignments.map((assignment) => (
+          <li key={assignment.taskId}>
+            <strong>
+              {taskNames.get(assignment.taskId) ?? assignment.taskId}
+            </strong>
+            ：
+            {assignment.ownerType === "HUMAN"
+              ? "用户"
+              : memberNames.get(assignment.ownerId)}
+            。{assignment.reason}
+          </li>
+        ))}
+      </ul>
+      <h3>职责分离</h3>
+      <p>
+        {props.proposal.separationConstraints.length === 0
+          ? "没有机器执行任务；独立验收员仍保留在草案中。"
+          : `已确认 ${props.proposal.separationConstraints.length} 个 Executor 与独立验收员不是同一成员。`}
+      </p>
+      <h3>能力缺口</h3>
+      {props.proposal.capabilityGaps.length === 0 ? (
+        <p>没有发现能力缺口。</p>
+      ) : (
+        <ul>
+          {props.proposal.capabilityGaps.map((gap) => (
+            <li key={gap.capability}>
+              <strong>{gap.capability}</strong>：{gap.reason} 影响任务：
+              {gap.taskIds.map((id) => taskNames.get(id) ?? id).join("、")}
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="plan-boundary-note">
+        团队草案尚未激活，不会开始执行。公司状态仍为草稿。
+      </p>
+    </section>
+  );
+}
+
+function roleLabel(
+  role: OrganizationProposal["members"][number]["role"],
+): string {
+  return role === "PLANNER"
+    ? "规划负责人"
+    : role === "JUDGE"
+      ? "独立验收员"
+      : "执行员";
+}
+
+function modelStrategyLabel(
+  strategy: OrganizationProposal["members"][number]["modelStrategy"],
+): string {
+  return strategy === "HIGH_REASONING"
+    ? "高推理"
+    : strategy === "LOW_COST"
+      ? "低成本"
+      : "均衡";
+}
+
+function PlanState(props: {
+  readonly organizationProposal: OrganizationProposal | undefined;
+  readonly plan: PlannerDraftPublic;
+}) {
+  const { plan } = props;
   if (plan.status === "APPROVED") {
     return (
       <section className="success-card" role="status">
@@ -249,7 +387,11 @@ function PlanState({ plan }: { readonly plan: PlannerDraftPublic }) {
             ? "未知"
             : formatUiTime(plan.approvedAt)}
         </p>
-        <p>此版本已经冻结。没有创建团队，也没有开始执行。</p>
+        <p>
+          {props.organizationProposal === undefined
+            ? "此版本已经冻结。没有创建团队，也没有开始执行。"
+            : "此版本已经冻结。团队草案已生成但尚未激活，也没有开始执行。"}
+        </p>
       </section>
     );
   }

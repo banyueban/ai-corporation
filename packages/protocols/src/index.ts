@@ -10,3 +10,4 @@ export * from "./provider-connection-test";
 export * from "./provider-generation";
 export * from "./workspace";
 export * from "./task";
+export * from "./organization-proposal";

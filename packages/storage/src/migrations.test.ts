@@ -184,14 +184,14 @@ describe("migration runner", () => {
     database.close();
   });
 
-  it("creates the domain schema and Plan Review projection through migration 0012", () => {
+  it("creates the domain schema through the Organization Proposal migration", () => {
     const database = new DatabaseSync(":memory:");
     const migrations = loadMigrations(migrationDirectory);
     applyMigrations(database, migrations);
 
     expect(
       readAppliedMigrations(database).map(({ version }) => version),
-    ).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+    ).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
     expect(
       database
         .prepare(
@@ -209,6 +209,9 @@ describe("migration runner", () => {
               'task',
               'task_dependency',
               'plan_review_command',
+              'organization_version',
+              'organization_proposal_command',
+              'idx_organization_current',
               'model_call',
               'corporation_state_command',
               'idx_corporation_workspace_updated',
@@ -257,12 +260,15 @@ describe("migration runner", () => {
       "idx_goal_contract_corporation_version",
       "idx_goal_generation_active",
       "idx_model_call_operation",
+      "idx_organization_current",
       "idx_planner_generation_active",
       "idx_task_plan_corporation_version",
       "idx_task_plan_current",
       "idx_task_plan_identity",
       "idx_task_plan_supersedes",
       "model_call",
+      "organization_proposal_command",
+      "organization_version",
       "plan_review_command",
       "planner_generation_operation",
       "task",

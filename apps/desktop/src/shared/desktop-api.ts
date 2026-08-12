@@ -23,6 +23,10 @@ import type {
   GoalEngineResolveExtensionRequest,
   GoalEngineStartRequest,
   HealthResult,
+  OrganizationProposalCreateRequest,
+  OrganizationProposalGetCurrentRequest,
+  OrganizationProposalItemResult,
+  OrganizationProposalNullableItemResult,
   PlannerCancelRequest,
   PlannerGetCurrentRequest,
   PlannerItemResult,
@@ -95,6 +99,14 @@ export interface DesktopApi {
     start(request: GoalEngineStartRequest): Promise<GoalEngineItemResult>;
   }>;
   health(): Promise<HealthResult>;
+  readonly organizationProposal: Readonly<{
+    create(
+      request: OrganizationProposalCreateRequest,
+    ): Promise<OrganizationProposalItemResult>;
+    getCurrent(
+      request: OrganizationProposalGetCurrentRequest,
+    ): Promise<OrganizationProposalNullableItemResult>;
+  }>;
   readonly planner: Readonly<{
     cancel(request: PlannerCancelRequest): Promise<PlannerItemResult>;
     getCurrent(

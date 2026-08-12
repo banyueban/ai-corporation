@@ -140,7 +140,10 @@ ON goal_generation_operation(corporation_id)
 WHERE status IN ('GENERATING','CLARIFICATION_REQUIRED','EXTENSION_REQUIRED');
 
 CREATE TABLE organization_version (
+  id TEXT NOT NULL UNIQUE,
   corporation_id TEXT NOT NULL REFERENCES corporation(id) ON DELETE CASCADE,
+  plan_id TEXT NOT NULL REFERENCES task_plan(id) ON DELETE RESTRICT,
+  plan_version INTEGER NOT NULL,
   version INTEGER NOT NULL,
   status TEXT NOT NULL CHECK (status IN ('DRAFT','APPROVED','SUPERSEDED')),
   snapshot_json TEXT NOT NULL,
@@ -148,7 +151,21 @@ CREATE TABLE organization_version (
   created_at TEXT NOT NULL,
   PRIMARY KEY (corporation_id, version)
 );
+
+CREATE UNIQUE INDEX idx_organization_current
+ON organization_version(corporation_id)
+WHERE status <> 'SUPERSEDED';
+
+CREATE TABLE organization_proposal_command (
+  command_id TEXT PRIMARY KEY NOT NULL,
+  corporation_id TEXT NOT NULL REFERENCES corporation(id) ON DELETE CASCADE,
+  request_hash TEXT NOT NULL,
+  result_organization_id TEXT NOT NULL REFERENCES organization_version(id),
+  created_at TEXT NOT NULL
+);
 ```
+
+`0013_organization_proposal.sql` 物理实现上述团队草案表。M3-TU-01 只保存 `DRAFT` 快照和幂等命令回执；每个 Corporation 只有一个未被取代的草案。快照引用创建时的已批准 Plan，并保存固定模板、模型策略、Task 责任人、职责分离和能力缺口。该迁移不创建 `agent_instance` 或 `agent_run`，不保存精确 Provider/model，也不改变 Corporation 状态。
 
 `0004_goal_contract.sql` 用 trigger 强制 Goal 只能以 DRAFT 插入、内容列不可更新、只允许协议规定的状态迁移、禁止删除，并验证 `corporation.active_goal_version` 只能逐版指向本 Corporation 的当前 DRAFT。复合 pointer 约束使用 trigger，是因为 SQLite 不能通过 `ALTER TABLE ... ADD COLUMN` 给已有 Corporation 表增加复合外键；Repository 仍必须在同一短事务中写 Goal、pointer、事件与回执。
 

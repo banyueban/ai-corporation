@@ -96,6 +96,8 @@ Milestone 2 的 L3 演示与验收采用用户确认的证据汇总方式：不�
 
 目标：Planner → Executor → Artifact → Judge。
 
+首个垂直切片的阶段边界：Plan 通过验证并由用户批准后，只出现“开始组队”入口；批准 Plan 本身不创建团队。用户明确点击后，应用使用内置且有版本号的 Planner、Executor、Judge 模板，按固定规则生成并保存团队草案，同时展示 Task 分工、职责分离和能力缺口。Executor 固定分为分析与文档、软件实现、质量验收三类，计划用到哪类才创建哪类；需要用户决定的 Task 直接标记由用户负责，不分配给 Executor。这个切片不调用模型、不选择精确 Provider 或模型、不创建 Agent Instance/Run、不激活团队、不开始执行，Corporation 继续保持 `DRAFT`。草案只记录模型策略；真正运行 Agent 时再由后续任务选择精确 Provider 和模型。
+
 交付：
 
 - Agent Definition/Instance/Run；

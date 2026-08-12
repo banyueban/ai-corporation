@@ -345,12 +345,46 @@ test("user creates and cancels real Goal Engine operations in the visible window
     await expect(
       page.getByText("此版本已经冻结。没有创建团队，也没有开始执行。"),
     ).toBeVisible();
+    await page.getByRole("button", { name: "开始组队" }).click();
+    await expect(
+      page.getByText(
+        "此版本已经冻结。团队草案已生成但尚未激活，也没有开始执行。",
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "重新生成团队草案" }),
+    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "团队草案" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "分析与文档执行员" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "独立验收员" }),
+    ).toBeVisible();
+    await expect(page.getByText("没有发现能力缺口。")).toBeVisible();
+    await expect(
+      page.getByText("团队草案尚未激活，不会开始执行。公司状态仍为草稿。"),
+    ).toBeVisible();
+    expect(fixture.generationCalls()).toBe(callsBeforePlanReview);
+    await page.screenshot({
+      animations: "disabled",
+      fullPage: true,
+      path: path.resolve(
+        __dirname,
+        "../../../release",
+        `m3-tu01-team-proposal-dev-${process.platform}-${process.arch}-1440x900.png`,
+      ),
+    });
     await expect(page.getByRole("button", { name: "编辑计划" })).toHaveCount(0);
     expect(fixture.generationCalls()).toBe(callsBeforePlanReview);
     await page.reload();
     await openPlannerForCorporation(page, "Assumption Corporation");
     await expect(
       page.getByRole("heading", { name: "计划已批准" }),
+    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "团队草案" })).toBeVisible();
+    await expect(
+      page.getByText("团队草案尚未激活，不会开始执行。公司状态仍为草稿。"),
     ).toBeVisible();
     await page.getByRole("button", { name: /版本 1/u }).click();
     await expect(
