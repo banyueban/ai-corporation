@@ -8,7 +8,7 @@ import { _electron as electron } from "playwright";
 import type { DesktopApi } from "../src/shared/desktop-api";
 
 test("user creates and cancels real Goal Engine operations in the visible window", async () => {
-  test.setTimeout(180_000);
+  test.setTimeout(90_000);
   const fixture = await startGoalFixture();
   const userDataDirectory = mkdtempSync(
     path.join(tmpdir(), "M2-TU-05-electron-user-data-"),
