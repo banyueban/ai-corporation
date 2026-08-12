@@ -383,11 +383,11 @@ test("user creates and cancels real Goal Engine operations in the visible window
     const configuration = page.getByRole("region", { name: "配置并确认团队" });
     const selects = configuration.getByRole("combobox");
     await selects.nth(0).focus();
-    await page.keyboard.press("ArrowDown");
+    await page.keyboard.type("Goal Fixture Provider");
     await page.keyboard.press("Tab");
     await expect(selects.nth(0)).not.toHaveValue("");
     await expect(selects.nth(1)).toBeFocused();
-    await page.keyboard.press("ArrowDown");
+    await page.keyboard.type("goal-model");
     await page.keyboard.press("Tab");
     await expect(selects.nth(1)).not.toHaveValue("");
     await selects.nth(2).selectOption({ label: "Goal Fixture Provider" });
