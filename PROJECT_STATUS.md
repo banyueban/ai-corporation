@@ -5,14 +5,14 @@
 | 当前产品版本   | v0.1 MVP                           |
 | 当前阶段       | Milestone 3 开发中                    |
 | 当前 Milestone | Milestone 3：最小 Agent 闭环       |
-| 当前任务单元   | M3-TU-01（进行中）                  |
-| 总体状态       | Milestone 2 已完成，Milestone 3 首个任务进行中 |
-| 最近更新       | 2026-08-12                         |
-| 下一检查点     | 完成团队草案协议、存储、服务与中文 UI |
+| 当前任务单元   | M3-TU-01（完成）                    |
+| 总体状态       | Milestone 2 已完成，Milestone 3 首个任务已完成 |
+| 最近更新       | 2026-08-13                         |
+| 下一检查点     | 建立并评审 Milestone 3 下一任务合同 |
 
 ## 1. 当前结论
 
-Milestone 0、Milestone 1 和 Milestone 2 已完成。Milestone 3 已进入 M3-TU-01：用户将能从已批准 Plan 明确点击“开始组队”，由应用按本地固定规则生成并保存团队草案；本任务不会激活团队、开始执行或调用模型。
+Milestone 0、Milestone 1 和 Milestone 2 已完成。Milestone 3 的首个任务 M3-TU-01 已完成并经用户人工验收：用户可从已批准 Plan 明确点击“开始组队”，由应用按本地固定规则生成、保存并恢复团队草案；本任务不会激活团队、开始执行或调用模型。
 
 M2-TU-09 已按用户选择的方案 B 完成 L3 汇总验收：M2-TU-02 至 M2-TU-08 的直接证据组成交付物和验收矩阵，当前提交的 Windows/macOS 完整工程检查、开发态真实窗口、最终包真实窗口与制品上传全部通过。该结论不声称存在一条未实际执行的连续端到端测试。
 
@@ -44,9 +44,9 @@ Milestone 2 阶段复盘已把有效改进直接落入现行规则和自动检�
 
 Milestone 2 的七项交付、四项验收、全部必需任务单元、Windows/macOS 回归、最终包真实窗口、制品上传和 Windows 人工验收均已通过，P0/P1 为 0。Milestone 2 已关闭；Organization 和执行属于 Milestone 3。
 
-## 4. 当前任务边界
+## 4. 已完成任务边界
 
-M3-TU-01 只交付：
+M3-TU-01 已交付：
 
 - 已批准 Plan 后的用户主动“开始组队”；
 - 内置 Planner/Executor/Judge 模板与确定性最小团队草案；
@@ -57,7 +57,7 @@ M3-TU-01 只交付：
 
 ## 5. 活跃阻塞与外部条件
 
-当前 P0/P1、P2/P3 均为 0，无实现阻塞。M3-TU-01 合同已建立并进入实现。`banyueban/ai-corporation` 为公开仓库；CI 上传范围仅包含安装包、blockmap 和验收截图。不清理其他仓库制品。
+当前 P0/P1、P2/P3 均为 0，无实现阻塞。M3-TU-01 已完成；Milestone 3 下一任务必须先建立并评审达到“就绪”的任务合同，尚未开始实施。`banyueban/ai-corporation` 为公开仓库；CI 上传范围仅包含安装包、blockmap 和验收截图。不清理其他仓库制品。
 
 已知条件：系统 PATH 未提供 Node.js，工程验证使用 Codex bundled Node.js；正式 Key 仍只由应用自管 Key Vault 使用，未进入命令、脚本、环境变量、Git、日志或截图；费用无法从当前 Provider 响应可靠取得时保持 `UNKNOWN`。方案 B 使用分任务证据汇总，不声称存在单条未中断端到端测试。GitHub 提示两个 Action 的 Node.js 20 声明被 runner 强制切换到 Node.js 24；当前 CI 成功，该提示属于后续 CI 维护项，不是产品缺陷。
 
@@ -67,11 +67,12 @@ M3-TU-01 只交付：
 - 团队草案固定分配器测试证明：用户决定 Task 归用户、三类 Executor 按需创建、Judge 与 Executor 分离、未知强制能力形成阻断缺口、草案不含精确 Provider/model，且相同输入得到相同业务结果；
 - SQLite 迁移、幂等、递增版本、命令冲突、版本冲突、事务回滚、当前草案恢复和 Corporation 保持 `DRAFT` 的测试通过；未创建 `agent_instance` 或 `agent_run`；
 - Windows 开发态真实 Electron 7 条旅程全部通过；M3-TU-01 直接覆盖批准 Plan 后明确点击“开始组队”、团队草案展示、Provider 调用次数不增加、页面重载恢复和 1440×900 截图；
-- 当前仍缺当前候选提交的 Windows/macOS CI、最终包真实窗口和用户人工验收，因此 M3-TU-01 保持“进行中”，不得标记完成。
+- 提交 `c472165256aacfe7b8aeb15d3919980496dd2992` 的 GitHub Actions 运行 `31608146504` 完整成功：Windows x64 与 macOS Apple Silicon 的工程检查、开发态真实 Electron、未签名安装包构建、最终包真实窗口和制品上传均通过；
+- Windows 安装包已从该运行下载到本地并由用户完成人工验收，M3-TU-01 的 19 项验收全部通过。
 
 ## 7. 下一步
 
-按 M3-TU-01 合同实现团队草案协议、确定性分配、SQLite 持久化、安全 IPC 和中文 UI；完成自动检查与真实窗口验收后再请求用户人工验收。
+依据 Milestone 3 剩余范围建立下一任务合同；合同达到“就绪”并解决所有影响执行结果的歧义后，再开始下一项实现。
 
 ## 8. 更新规则
 
