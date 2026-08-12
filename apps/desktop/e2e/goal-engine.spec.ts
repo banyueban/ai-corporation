@@ -435,7 +435,6 @@ test("user creates and cancels real Goal Engine operations in the visible window
     ).toBe(true);
     await page.screenshot({
       animations: "disabled",
-      fullPage: true,
       path: path.resolve(
         __dirname,
         "../../../release",
