@@ -331,6 +331,12 @@ CREATE TABLE agent_run (
 CREATE INDEX idx_agent_run_task ON agent_run(task_id, attempt DESC);
 ```
 
+`0016_agent_runtime_model_run.sql` 增加 `agent_run_candidate` 和
+`agent_run_command`。候选表保存与 Task `expectedOutputs` 一一对应的正文、类型、
+media type 和 SHA-256；`candidate://<UUID>` 引用只由软件在读取时生成。命令表保存
+继续、重试、取消的请求哈希和结果 Run，用于防止重复模型调用。该迁移不创建
+`artifact` 或 `artifact_version`；正式交付物仍由后续任务实现。
+
 ## 6. 模型、工具与审批
 
 ```sql

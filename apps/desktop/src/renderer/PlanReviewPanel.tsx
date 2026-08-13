@@ -1,4 +1,6 @@
 import type {
+  AgentRun,
+  AgentRunErrorCode,
   OrganizationActivation,
   OrganizationActivationRequest,
   ExecutionStart,
@@ -30,6 +32,9 @@ type DependencyEdit = PlanReviewSaveVersionRequest["dependencies"][number] & {
 };
 
 export function PlanReviewPanel(props: {
+  readonly agentRun: AgentRun | undefined;
+  readonly agentRunError: AgentRunErrorCode | undefined;
+  readonly agentRunPending: boolean;
   readonly currentPlan: PlannerDraftPublic;
   readonly displayedPlan: PlannerDraftPublic;
   readonly onApprove: (plan: PlannerDraftPublic) => Promise<void>;
@@ -43,6 +48,9 @@ export function PlanReviewPanel(props: {
   readonly saving: boolean;
   readonly executionStart: ExecutionStart | undefined;
   readonly onStartExecution: () => Promise<void>;
+  readonly onCancelAgentRun: () => Promise<void>;
+  readonly onContinueAgentRun: () => Promise<void>;
+  readonly onRetryAgentRun: () => Promise<void>;
   readonly organizationProposal: OrganizationProposal | undefined;
   readonly organizationActivation: OrganizationActivation | undefined;
   readonly providers: readonly ProviderPublic[];
@@ -270,9 +278,15 @@ export function PlanReviewPanel(props: {
             {isCurrent && props.organizationProposal !== undefined && (
               <OrganizationProposalView
                 activation={props.organizationActivation}
+                agentRun={props.agentRun}
+                agentRunError={props.agentRunError}
+                agentRunPending={props.agentRunPending}
                 executionStart={props.executionStart}
                 onActivate={props.onActivateOrganization}
                 onStartExecution={props.onStartExecution}
+                onCancelAgentRun={props.onCancelAgentRun}
+                onContinueAgentRun={props.onContinueAgentRun}
+                onRetryAgentRun={props.onRetryAgentRun}
                 proposal={props.organizationProposal}
                 plan={props.currentPlan}
                 providers={props.providers}
@@ -303,11 +317,17 @@ export function PlanReviewPanel(props: {
 
 function OrganizationProposalView(props: {
   readonly activation: OrganizationActivation | undefined;
+  readonly agentRun: AgentRun | undefined;
+  readonly agentRunError: AgentRunErrorCode | undefined;
+  readonly agentRunPending: boolean;
   readonly executionStart: ExecutionStart | undefined;
   readonly onActivate: (
     request: OrganizationActivationRequest,
   ) => Promise<void>;
   readonly onStartExecution: () => Promise<void>;
+  readonly onCancelAgentRun: () => Promise<void>;
+  readonly onContinueAgentRun: () => Promise<void>;
+  readonly onRetryAgentRun: () => Promise<void>;
   readonly proposal: OrganizationProposal;
   readonly plan: PlannerDraftPublic;
   readonly providers: readonly ProviderPublic[];
@@ -414,7 +434,15 @@ function OrganizationProposalView(props: {
               {props.saving ? "正在开始执行…" : "开始执行"}
             </button>
           ) : (
-            <ExecutionStartView result={props.executionStart} />
+            <ExecutionStartView
+              agentRun={props.agentRun}
+              error={props.agentRunError}
+              onCancel={props.onCancelAgentRun}
+              onContinue={props.onContinueAgentRun}
+              onRetry={props.onRetryAgentRun}
+              pending={props.agentRunPending}
+              result={props.executionStart}
+            />
           )}
         </>
       )}
@@ -629,7 +657,16 @@ function OrganizationActivationView(props: {
   );
 }
 
-function ExecutionStartView(props: { readonly result: ExecutionStart }) {
+function ExecutionStartView(props: {
+  readonly agentRun: AgentRun | undefined;
+  readonly error: AgentRunErrorCode | undefined;
+  readonly onCancel: () => Promise<void>;
+  readonly onContinue: () => Promise<void>;
+  readonly onRetry: () => Promise<void>;
+  readonly pending: boolean;
+  readonly result: ExecutionStart;
+}) {
+  const run = props.agentRun;
   return (
     <section className="success-card" aria-labelledby="execution-start-title">
       <h3 id="execution-start-title">
@@ -643,8 +680,72 @@ function ExecutionStartView(props: { readonly result: ExecutionStart }) {
       <p>
         {props.result.run === undefined
           ? "这是人工决定任务，没有创建运行记录，也没有调用模型。"
-          : "已经创建首个运行记录，但尚未调用模型。"}
+          : run === undefined || run.status === "CREATED"
+            ? "已经创建首个运行记录，等待你继续执行。"
+            : `当前状态：${internalLabel(run.status)}，第 ${run.attempt} 次尝试。`}
       </p>
+      {props.error !== undefined && (
+        <p className="field-error" role="alert">
+          运行操作失败（{props.error}）。软件没有把它标记为成功。
+        </p>
+      )}
+      {run !== undefined && run.status === "CREATED" && (
+        <button
+          className="primary-button"
+          disabled={props.pending}
+          onClick={() => void props.onContinue()}
+          type="button"
+        >
+          {props.pending ? "正在运行…" : "继续执行"}
+        </button>
+      )}
+      {run !== undefined &&
+        ["PREPARING", "READY", "RUNNING"].includes(run.status) && (
+          <button
+            className="secondary-button"
+            onClick={() => void props.onCancel()}
+            type="button"
+          >
+            取消运行
+          </button>
+        )}
+      {run !== undefined && ["FAILED", "CANCELLED"].includes(run.status) && (
+        <button
+          className="primary-button"
+          disabled={props.pending}
+          onClick={() => void props.onRetry()}
+          type="button"
+        >
+          {props.pending ? "正在重新尝试…" : "重新尝试"}
+        </button>
+      )}
+      {run?.failureReason !== undefined && <p>失败原因：{run.failureReason}</p>}
+      {run !== undefined && run.outputs.length > 0 && (
+        <section
+          className="review-block"
+          aria-labelledby="candidate-output-title"
+        >
+          <h4 id="candidate-output-title">模型候选内容</h4>
+          <p>
+            <strong>尚未成为正式交付物。</strong>{" "}
+            后续还要保存为正式交付物并验收。
+          </p>
+          {run.summary !== undefined && <p>{run.summary}</p>}
+          {run.outputs.map((output) => (
+            <article key={output.candidateId}>
+              <h5>{output.logicalName}</h5>
+              <p>
+                {output.artifactType} · {output.mediaType}
+              </p>
+              <pre className="candidate-content">{output.content}</pre>
+            </article>
+          ))}
+          <p>
+            输入 token：{run.usage.inputTokens ?? "未知"}；输出 token：
+            {run.usage.outputTokens ?? "未知"}
+          </p>
+        </section>
+      )}
       <ul>
         {props.result.tasks.map((task) => (
           <li key={task.taskId}>

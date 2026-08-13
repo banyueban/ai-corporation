@@ -1,4 +1,14 @@
 import {
+  AGENT_RUN_CANCEL_IPC_CHANNEL,
+  AGENT_RUN_CONTINUE_IPC_CHANNEL,
+  AGENT_RUN_GET_CURRENT_IPC_CHANNEL,
+  AGENT_RUN_RETRY_IPC_CHANNEL,
+  agentRunCommandRequestSchema,
+  agentRunGetCurrentRequestSchema,
+  agentRunNullableResultSchema,
+  agentRunResultSchema,
+  type AgentRunCommandRequest,
+  type AgentRunGetCurrentRequest,
   CORPORATION_ARCHIVE_IPC_CHANNEL,
   CORPORATION_CREATE_IPC_CHANNEL,
   CORPORATION_GET_IPC_CHANNEL,
@@ -153,6 +163,36 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { DesktopApi } from "../shared/desktop-api";
 
 const desktopApi: DesktopApi = Object.freeze({
+  agentRun: Object.freeze({
+    getCurrent: async (request: AgentRunGetCurrentRequest) =>
+      agentRunNullableResultSchema.parse(
+        await ipcRenderer.invoke(
+          AGENT_RUN_GET_CURRENT_IPC_CHANNEL,
+          agentRunGetCurrentRequestSchema.parse(request),
+        ),
+      ),
+    continue: async (request: AgentRunCommandRequest) =>
+      agentRunResultSchema.parse(
+        await ipcRenderer.invoke(
+          AGENT_RUN_CONTINUE_IPC_CHANNEL,
+          agentRunCommandRequestSchema.parse(request),
+        ),
+      ),
+    retry: async (request: AgentRunCommandRequest) =>
+      agentRunResultSchema.parse(
+        await ipcRenderer.invoke(
+          AGENT_RUN_RETRY_IPC_CHANNEL,
+          agentRunCommandRequestSchema.parse(request),
+        ),
+      ),
+    cancel: async (request: AgentRunCommandRequest) =>
+      agentRunResultSchema.parse(
+        await ipcRenderer.invoke(
+          AGENT_RUN_CANCEL_IPC_CHANNEL,
+          agentRunCommandRequestSchema.parse(request),
+        ),
+      ),
+  }),
   executionStart: Object.freeze({
     getCurrent: async (request: ExecutionStartGetCurrentRequest) =>
       executionStartNullableItemResultSchema.parse(

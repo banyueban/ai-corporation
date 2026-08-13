@@ -1,4 +1,8 @@
 import type {
+  AgentRunCommandRequest,
+  AgentRunGetCurrentRequest,
+  AgentRunNullableResult,
+  AgentRunResult,
   CorporationArchiveRequest,
   CorporationCreateRequest,
   CorporationGetRequest,
@@ -70,6 +74,14 @@ import type {
 } from "@ai-corporation/protocols";
 
 export interface DesktopApi {
+  readonly agentRun: Readonly<{
+    getCurrent(
+      request: AgentRunGetCurrentRequest,
+    ): Promise<AgentRunNullableResult>;
+    continue(request: AgentRunCommandRequest): Promise<AgentRunResult>;
+    retry(request: AgentRunCommandRequest): Promise<AgentRunResult>;
+    cancel(request: AgentRunCommandRequest): Promise<AgentRunResult>;
+  }>;
   readonly executionStart: Readonly<{
     getCurrent(
       request: ExecutionStartGetCurrentRequest,

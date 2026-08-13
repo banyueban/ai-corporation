@@ -8,55 +8,57 @@
 
 本节中的名称是逻辑实体，不等同于“一实体一张表”。每个逻辑实体必须明确映射到独立表、父表结构化字段、账本/事件投影或受管 Artifact；禁止由实现者临时选择存储位置。
 
-| 聚合        | 逻辑实体                       | v0.1 物理映射                                                                                              |
-| ----------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| Workspace   | `workspace`                    | `workspace` 表                                                                                             |
-| Workspace   | `workspace_permission`         | `workspace.permission_mode`、`access_status`、`last_verified_at`                                           |
-| Workspace   | `workspace_snapshot`           | `workspace.path_identity_json`；只保存平台身份校验的最小元数据                                             |
-| Corporation | `corporation`                  | `corporation` 表                                                                                           |
-| Corporation | `goal_contract`                | `0004` 增加 `corporation.active_goal_version` 并通过 trigger 指向本 Corporation 的当前 DRAFT，不设可变主表 |
-| Corporation | `goal_contract_version`        | `goal_contract_version` 表，不可变                                                                         |
-| Corporation | `goal_generation_operation`    | `goal_generation_operation` 表；保存有界澄清、周期、严格草稿、问题、答案和聚合 usage，不保存原始模型正文   |
-| Corporation | `corporation_policy`           | v0.1 使用内置、版本化 Policy Bundle；后续迁移增加 `corporation.policy_version`                             |
-| Corporation | `organization`                 | `corporation.active_organization_version` 指向已激活版本；未激活时为空                                      |
-| Corporation | `organization_version`         | `organization_version` 表；草案正文不可变，生命周期只允许当前 `DRAFT` 原子转为 `APPROVED`                  |
-| Corporation | `organization_activation`      | `organization_activation` 表；保存三组角色模型路由快照、可降级缺口接受事实和幂等回执引用，不保存 Key      |
-| Corporation | 命令幂等回执                   | 内部 `corporation_command` 与 `goal_contract_command` 表；Renderer 不可读取                                |
+| 聚合        | 逻辑实体                       | v0.1 物理映射                                                                                                         |
+| ----------- | ------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| Workspace   | `workspace`                    | `workspace` 表                                                                                                        |
+| Workspace   | `workspace_permission`         | `workspace.permission_mode`、`access_status`、`last_verified_at`                                                      |
+| Workspace   | `workspace_snapshot`           | `workspace.path_identity_json`；只保存平台身份校验的最小元数据                                                        |
+| Corporation | `corporation`                  | `corporation` 表                                                                                                      |
+| Corporation | `goal_contract`                | `0004` 增加 `corporation.active_goal_version` 并通过 trigger 指向本 Corporation 的当前 DRAFT，不设可变主表            |
+| Corporation | `goal_contract_version`        | `goal_contract_version` 表，不可变                                                                                    |
+| Corporation | `goal_generation_operation`    | `goal_generation_operation` 表；保存有界澄清、周期、严格草稿、问题、答案和聚合 usage，不保存原始模型正文              |
+| Corporation | `corporation_policy`           | v0.1 使用内置、版本化 Policy Bundle；后续迁移增加 `corporation.policy_version`                                        |
+| Corporation | `organization`                 | `corporation.active_organization_version` 指向已激活版本；未激活时为空                                                |
+| Corporation | `organization_version`         | `organization_version` 表；草案正文不可变，生命周期只允许当前 `DRAFT` 原子转为 `APPROVED`                             |
+| Corporation | `organization_activation`      | `organization_activation` 表；保存三组角色模型路由快照、可降级缺口接受事实和幂等回执引用，不保存 Key                  |
+| Corporation | 命令幂等回执                   | 内部 `corporation_command` 与 `goal_contract_command` 表；Renderer 不可读取                                           |
 | Task        | `task_plan`                    | `task_plan` 表；保存 Planner 草稿、语义草稿 hash、受限验证报告、版本取代关系、批准时间与 `PENDING/VALID/INVALID` 事实 |
-| Task        | `planner_generation_operation` | `planner_generation_operation` 表；保存生成检查点、版本绑定、聚合 usage 和中断状态，不保存模型正文         |
-| Task        | `task`                         | `task` 表；只有 Plan 验证通过后在同一事务中从可信 Task ID 映射物化                                         |
-| Task        | `task_dependency`              | `task_dependency` 表；只保存同一 Plan 内已验证的可信 Task UUID 边                                          |
-| Task        | `task_input`                   | `task.contract_json.inputRefs`                                                                             |
-| Task        | `task_output_contract`         | `task.contract_json.expectedOutputs`                                                                       |
-| Task        | `acceptance_criterion`         | `task.contract_json.acceptanceCriteria`                                                                    |
-| Task        | `task_lease`                   | `task.lease_owner`、`lease_expires_at`                                                                     |
-| Agent       | `agent_definition`             | `agent_definition` 表；能力和策略在版本化 `definition_json`                                                |
-| Agent       | `agent_instance`               | `agent_instance` 表；团队激活时从当前草案模板原子创建，保存 Definition、工具与模型路由快照                  |
-| Agent       | `agent_capability`             | `agent_definition.definition_json.capabilities`                                                            |
-| Agent       | `agent_run`                    | `agent_run` 表                                                                                             |
-| Agent       | `model_call`                   | `model_call` 表；所有调用关联 Corporation/operation/purpose，执行阶段 purpose 另外要求真实 Task/Run        |
-| Agent       | `tool_invocation`              | `tool_invocation` 表                                                                                       |
-| Artifact    | `artifact`                     | `artifact` 表                                                                                              |
-| Artifact    | `artifact_version`             | `artifact_version` 表，不可变                                                                              |
-| Artifact    | `artifact_source`              | `artifact_source` 表                                                                                       |
-| Artifact    | `change_set`                   | `artifact` 中 `CHANGE_SET` 类型及其当前 `artifact_version`                                                 |
-| Artifact    | `change_set_operation`         | Change Set 的版本化内容，按 Artifact Protocol Schema 存储                                                  |
-| Evaluation  | `evaluation_plan`              | `task.contract_json.acceptanceCriteria` 与运行时选择的 evaluator 列表                                      |
-| Evaluation  | `evaluation`                   | `evaluation` 表                                                                                            |
-| Evaluation  | `criterion_result`             | `evaluation.report_json.criterionResults`                                                                  |
-| Evaluation  | `evidence_ref`                 | `evaluation.report_json.evidenceRefs`，引用 Artifact/Run/Tool 记录                                         |
-| Evaluation  | `evaluation_issue`             | `evaluation.report_json.issues`                                                                            |
-| Governance  | `approval_request`             | `approval_request` 表                                                                                      |
-| Governance  | `budget_account`               | `budget_ledger` 的 Corporation 级投影                                                                      |
-| Governance  | `budget_reservation`           | `budget_ledger` 中成对的 `RESERVE`/`RELEASE` 条目                                                          |
-| Governance  | `budget_ledger`                | `budget_ledger` 表，只追加                                                                                 |
-| Governance  | `policy_decision`              | `domain_event` 中版本化 Policy Decision 事件                                                               |
-| Governance  | `domain_event`                 | `domain_event` 表，只追加                                                                                  |
-| Governance  | `decision_record`              | `DECISION_RECORD` Artifact                                                                                 |
-| Governance  | `provider`                     | `provider` 表                                                                                              |
-| Governance  | `model_route`                  | Agent Definition/Instance 的版本化路由引用与运行时调度记录                                                 |
-| Governance  | `memory_item`                  | `memory_item` 表                                                                                           |
-| Governance  | `capability_outcome`           | Evaluation、Agent Run 与用量记录形成的可重建投影                                                           |
+| Task        | `planner_generation_operation` | `planner_generation_operation` 表；保存生成检查点、版本绑定、聚合 usage 和中断状态，不保存模型正文                    |
+| Task        | `task`                         | `task` 表；只有 Plan 验证通过后在同一事务中从可信 Task ID 映射物化                                                    |
+| Task        | `task_dependency`              | `task_dependency` 表；只保存同一 Plan 内已验证的可信 Task UUID 边                                                     |
+| Task        | `task_input`                   | `task.contract_json.inputRefs`                                                                                        |
+| Task        | `task_output_contract`         | `task.contract_json.expectedOutputs`                                                                                  |
+| Task        | `acceptance_criterion`         | `task.contract_json.acceptanceCriteria`                                                                               |
+| Task        | `task_lease`                   | `task.lease_owner`、`lease_expires_at`                                                                                |
+| Agent       | `agent_definition`             | `agent_definition` 表；能力和策略在版本化 `definition_json`                                                           |
+| Agent       | `agent_instance`               | `agent_instance` 表；团队激活时从当前草案模板原子创建，保存 Definition、工具与模型路由快照                            |
+| Agent       | `agent_capability`             | `agent_definition.definition_json.capabilities`                                                                       |
+| Agent       | `agent_run`                    | `agent_run` 表；执行尝试、状态、检查点和汇总 usage                                                                    |
+| Agent       | `agent_run_candidate`          | `agent_run_candidate` 表；M3-TU-04 的模型候选正文与软件生成引用，不是正式 Artifact                                    |
+| Agent       | `agent_run_command`            | `agent_run_command` 表；继续、重试和取消命令的幂等回执                                                                |
+| Agent       | `model_call`                   | `model_call` 表；所有调用关联 Corporation/operation/purpose，执行阶段 purpose 另外要求真实 Task/Run                   |
+| Agent       | `tool_invocation`              | `tool_invocation` 表                                                                                                  |
+| Artifact    | `artifact`                     | `artifact` 表                                                                                                         |
+| Artifact    | `artifact_version`             | `artifact_version` 表，不可变                                                                                         |
+| Artifact    | `artifact_source`              | `artifact_source` 表                                                                                                  |
+| Artifact    | `change_set`                   | `artifact` 中 `CHANGE_SET` 类型及其当前 `artifact_version`                                                            |
+| Artifact    | `change_set_operation`         | Change Set 的版本化内容，按 Artifact Protocol Schema 存储                                                             |
+| Evaluation  | `evaluation_plan`              | `task.contract_json.acceptanceCriteria` 与运行时选择的 evaluator 列表                                                 |
+| Evaluation  | `evaluation`                   | `evaluation` 表                                                                                                       |
+| Evaluation  | `criterion_result`             | `evaluation.report_json.criterionResults`                                                                             |
+| Evaluation  | `evidence_ref`                 | `evaluation.report_json.evidenceRefs`，引用 Artifact/Run/Tool 记录                                                    |
+| Evaluation  | `evaluation_issue`             | `evaluation.report_json.issues`                                                                                       |
+| Governance  | `approval_request`             | `approval_request` 表                                                                                                 |
+| Governance  | `budget_account`               | `budget_ledger` 的 Corporation 级投影                                                                                 |
+| Governance  | `budget_reservation`           | `budget_ledger` 中成对的 `RESERVE`/`RELEASE` 条目                                                                     |
+| Governance  | `budget_ledger`                | `budget_ledger` 表，只追加                                                                                            |
+| Governance  | `policy_decision`              | `domain_event` 中版本化 Policy Decision 事件                                                                          |
+| Governance  | `domain_event`                 | `domain_event` 表，只追加                                                                                             |
+| Governance  | `decision_record`              | `DECISION_RECORD` Artifact                                                                                            |
+| Governance  | `provider`                     | `provider` 表                                                                                                         |
+| Governance  | `model_route`                  | Agent Definition/Instance 的版本化路由引用与运行时调度记录                                                            |
+| Governance  | `memory_item`                  | `memory_item` 表                                                                                                      |
+| Governance  | `capability_outcome`           | Evaluation、Agent Run 与用量记录形成的可重建投影                                                                      |
 
 Workspace 路径是敏感数据。Renderer 只获得用户主动授权的 `display_path`、Workspace ID、权限和可访问状态；`canonical_root_path` 与 `path_identity_json` 只存在于 Electron Main、Rust Core 和持久化层。
 

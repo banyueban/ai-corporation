@@ -1,5 +1,9 @@
 import path from "node:path";
 import {
+  AGENT_RUN_CANCEL_IPC_CHANNEL,
+  AGENT_RUN_CONTINUE_IPC_CHANNEL,
+  AGENT_RUN_GET_CURRENT_IPC_CHANNEL,
+  AGENT_RUN_RETRY_IPC_CHANNEL,
   CORPORATION_ARCHIVE_IPC_CHANNEL,
   CORPORATION_CREATE_IPC_CHANNEL,
   CORPORATION_GET_IPC_CHANNEL,
@@ -45,6 +49,7 @@ import {
   type HealthResult,
 } from "@ai-corporation/protocols";
 import {
+  AgentRunRepository,
   CorporationRepository,
   CorporationStateRepository,
   GoalContractRepository,
@@ -69,6 +74,13 @@ import {
 } from "electron";
 import type { DatabaseSync } from "node:sqlite";
 import { NativeCoreClient } from "./native-core-client";
+import {
+  handleAgentRunCancel,
+  handleAgentRunContinue,
+  handleAgentRunGetCurrent,
+  handleAgentRunRetry,
+} from "./agent-run-ipc";
+import { AgentRunService } from "./agent-run-service";
 import {
   handleExecutionStart,
   handleExecutionStartGetCurrent,
@@ -166,6 +178,7 @@ const rendererEntryPath = path.join(__dirname, "../../renderer/index.html");
 const preloadPath = path.join(__dirname, "../preload/index.js");
 
 let mainWindow: BrowserWindow | undefined;
+let agentRunService: AgentRunService | undefined;
 let corporationService: CorporationService | undefined;
 let corporationStateService: CorporationStateService | undefined;
 let goalContractService: GoalContractService | undefined;
@@ -262,6 +275,34 @@ async function handleNativeHealth(
 }
 
 void app.whenReady().then(async () => {
+  ipcMain.handle(
+    AGENT_RUN_GET_CURRENT_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleAgentRunGetCurrent(
+        isTrustedRenderer(event),
+        request,
+        agentRunService,
+      ),
+  );
+  ipcMain.handle(
+    AGENT_RUN_CONTINUE_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleAgentRunContinue(
+        isTrustedRenderer(event),
+        request,
+        agentRunService,
+      ),
+  );
+  ipcMain.handle(
+    AGENT_RUN_RETRY_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleAgentRunRetry(isTrustedRenderer(event), request, agentRunService),
+  );
+  ipcMain.handle(
+    AGENT_RUN_CANCEL_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleAgentRunCancel(isTrustedRenderer(event), request, agentRunService),
+  );
   ipcMain.handle(NATIVE_HEALTH_IPC_CHANNEL, handleNativeHealth);
   ipcMain.handle(
     EXECUTION_START_START_IPC_CHANNEL,
@@ -710,6 +751,11 @@ void app.whenReady().then(async () => {
       createId: createUuidV7,
       repository: new ExecutionStartRepository(workspaceDatabase),
     });
+    agentRunService = new AgentRunService({
+      createId: createUuidV7,
+      provider: providerService,
+      repository: new AgentRunRepository(workspaceDatabase),
+    });
     plannerService = new PlannerService({
       provider: providerService,
       repository: plannerRepository,
@@ -732,6 +778,7 @@ void app.whenReady().then(async () => {
     goalContractService = undefined;
     goalEngineService = undefined;
     executionStartService = undefined;
+    agentRunService = undefined;
     plannerService = undefined;
     planReviewService = undefined;
     providerService = undefined;
@@ -755,6 +802,10 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  ipcMain.removeHandler(AGENT_RUN_GET_CURRENT_IPC_CHANNEL);
+  ipcMain.removeHandler(AGENT_RUN_CONTINUE_IPC_CHANNEL);
+  ipcMain.removeHandler(AGENT_RUN_RETRY_IPC_CHANNEL);
+  ipcMain.removeHandler(AGENT_RUN_CANCEL_IPC_CHANNEL);
   ipcMain.removeHandler(NATIVE_HEALTH_IPC_CHANNEL);
   ipcMain.removeHandler(PROVIDER_LIST_IPC_CHANNEL);
   ipcMain.removeHandler(PROVIDER_TEST_CONNECTION_IPC_CHANNEL);

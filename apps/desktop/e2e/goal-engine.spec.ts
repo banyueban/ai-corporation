@@ -480,17 +480,20 @@ test("user creates and cancels real Goal Engine operations in the visible window
     await expect(page.getByText(/已创建 3 个团队成员/u)).toBeVisible();
     markJourneyStage("activation-restored");
     const callsBeforeExecutionStart = fixture.generationCalls();
+    fixture.enqueue(agentCandidateOutput());
     await page.getByRole("button", { name: "开始执行" }).focus();
     await page.keyboard.press("Enter");
     await expect(
       page.getByRole("heading", { name: "执行已开始" }),
     ).toBeVisible();
     await expect(
-      page.getByText(/已经创建首个运行记录，但尚未调用模型/u),
+      page.getByRole("heading", { name: "模型候选内容" }),
     ).toBeVisible();
+    await expect(page.getByText("尚未成为正式交付物。")).toBeVisible();
+    await expect(page.getByText("候选报告正文")).toBeVisible();
     await expect(page.getByText(/人工修改后的报告任务：执行中/u)).toBeVisible();
     await expect(page.getByText(/当前没有运行任务/u)).toHaveCount(0);
-    expect(fixture.generationCalls()).toBe(callsBeforeExecutionStart);
+    expect(fixture.generationCalls()).toBe(callsBeforeExecutionStart + 1);
     const executionFacts = await page.evaluate(async () => {
       const desktop = (window as unknown as { desktop: DesktopApi }).desktop;
       const workspaces = await desktop.workspace.list();
@@ -508,12 +511,20 @@ test("user creates and cancels real Goal Engine operations in the visible window
         schemaVersion: "1.0",
         corporationId: corporation.id,
       });
-      return { corporation, execution };
+      const run = await desktop.agentRun.getCurrent({
+        schemaVersion: "1.0",
+        corporationId: corporation.id,
+      });
+      return { corporation, execution, run };
     });
     expect(executionFacts.corporation.status).toBe("EXECUTING");
     expect(executionFacts.execution).toMatchObject({
       ok: true,
       value: { corporationStatus: "EXECUTING", run: { status: "CREATED" } },
+    });
+    expect(executionFacts.run).toMatchObject({
+      ok: true,
+      value: { status: "PRODUCED", outputs: [{ content: "候选报告正文" }] },
     });
     await page.reload();
     await openPlannerForCorporation(page, "Assumption Corporation");
@@ -521,7 +532,8 @@ test("user creates and cancels real Goal Engine operations in the visible window
       page.getByRole("heading", { name: "执行已开始" }),
     ).toBeVisible();
     await expect(page.getByRole("button", { name: "开始执行" })).toHaveCount(0);
-    expect(fixture.generationCalls()).toBe(callsBeforeExecutionStart);
+    await expect(page.getByText("候选报告正文")).toBeVisible();
+    expect(fixture.generationCalls()).toBe(callsBeforeExecutionStart + 1);
     markJourneyStage("execution-started-restored");
     await page.getByRole("button", { name: /版本 1/u }).click();
     await expect(
@@ -1200,7 +1212,7 @@ function plannerOutput() {
         requiredCapabilities: [
           { path: "writing.document", minimumLevel: 0.7, mandatory: true },
         ],
-        requiredTools: ["workspace.propose_write"],
+        requiredTools: [],
         inputs: [
           {
             source: "GOAL_CONTRACT",
@@ -1249,6 +1261,23 @@ function plannerOutput() {
         mitigation: "Validate against explicit criteria.",
       },
     ],
+  });
+}
+
+function agentCandidateOutput() {
+  return JSON.stringify({
+    summary: "报告候选内容已生成。",
+    outputs: [
+      {
+        logicalName: "report",
+        artifactType: "DOCUMENT",
+        mediaType: "text/markdown",
+        content: "候选报告正文",
+      },
+    ],
+    claims: [],
+    unresolvedIssues: [],
+    requestedFollowups: [],
   });
 }
 

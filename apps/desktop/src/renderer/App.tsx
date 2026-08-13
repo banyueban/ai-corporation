@@ -1,4 +1,6 @@
 import type {
+  AgentRun,
+  AgentRunErrorCode,
   CorporationPublic,
   CorporationErrorCode,
   GoalContractContentInput,
@@ -105,6 +107,9 @@ export function App() {
   const [executionStart, setExecutionStart] = useState<ExecutionStart>();
   const [executionStartError, setExecutionStartError] =
     useState<ExecutionStartErrorCode>();
+  const [agentRun, setAgentRun] = useState<AgentRun>();
+  const [agentRunError, setAgentRunError] = useState<AgentRunErrorCode>();
+  const [agentRunPending, setAgentRunPending] = useState(false);
   const [providers, setProviders] = useState<readonly ProviderPublic[]>([]);
   const [selectedProviderId, setSelectedProviderId] = useState<string>();
   const [clarificationAnswers, setClarificationAnswers] = useState<
@@ -731,6 +736,7 @@ export function App() {
         organizationResult,
         activationResult,
         executionResult,
+        agentRunResult,
       ] = await Promise.all([
         window.desktop.corporation.get({
           schemaVersion: "1.0",
@@ -758,6 +764,10 @@ export function App() {
           corporationId: reviewCorporation.id,
         }),
         window.desktop.executionStart.getCurrent({
+          schemaVersion: "1.0",
+          corporationId: reviewCorporation.id,
+        }),
+        window.desktop.agentRun.getCurrent({
           schemaVersion: "1.0",
           corporationId: reviewCorporation.id,
         }),
@@ -811,6 +821,13 @@ export function App() {
       } else {
         setExecutionStart(undefined);
         setExecutionStartError(executionResult.error.code);
+      }
+      if (agentRunResult.ok) {
+        setAgentRun(agentRunResult.value ?? undefined);
+        setAgentRunError(undefined);
+      } else {
+        setAgentRun(undefined);
+        setAgentRunError(agentRunResult.error.code);
       }
       setStatusMessage("");
       setRoute("planner");
@@ -1031,16 +1048,84 @@ export function App() {
               updatedAt: result.value.startedAt,
             },
       );
-      setStatusMessage(
-        result.value.run === undefined
-          ? "已进入等待人工处理，当前没有调用模型。"
-          : "执行已开始，已创建首个运行记录，但尚未调用模型。",
-      );
+      if (result.value.run === undefined) {
+        setStatusMessage("已进入等待人工处理，当前没有调用模型。");
+      } else {
+        const current = await window.desktop.agentRun.getCurrent({
+          schemaVersion: "1.0",
+          corporationId: reviewCorporation.id,
+        });
+        if (!current.ok || current.value === null) {
+          setAgentRunError(current.ok ? "RUN_NOT_FOUND" : current.error.code);
+          return;
+        }
+        setAgentRun(current.value);
+        await runAgent(current.value, false);
+      }
     } catch {
       setExecutionStartError("STORAGE_FAILURE");
     } finally {
       setSaving(false);
     }
+  };
+
+  const runAgent = async (
+    run: { readonly runId: string; readonly attempt: number },
+    retry: boolean,
+  ) => {
+    if (reviewCorporation === undefined) return;
+    setAgentRunPending(true);
+    setAgentRun((current) =>
+      current?.runId === run.runId
+        ? { ...current, status: "RUNNING" }
+        : current,
+    );
+    setAgentRunError(undefined);
+    setStatusMessage(retry ? "正在重新尝试首个任务…" : "正在运行首个任务…");
+    try {
+      const request = {
+        schemaVersion: "1.0" as const,
+        commandId: createUuidV7(),
+        corporationId: reviewCorporation.id,
+        runId: run.runId,
+        expectedAttempt: run.attempt,
+      };
+      const result = retry
+        ? await window.desktop.agentRun.retry(request)
+        : await window.desktop.agentRun.continue(request);
+      if (!result.ok) {
+        setAgentRunError(result.error.code);
+        return;
+      }
+      setAgentRun(result.value);
+      setStatusMessage(
+        result.value.status === "PRODUCED"
+          ? "模型已生成候选内容。它还不是正式交付物。"
+          : result.value.status === "FAILED"
+            ? "本次运行失败，软件没有自动重试。"
+            : "运行状态已更新。",
+      );
+    } catch {
+      setAgentRunError("PROVIDER_FAILURE");
+    } finally {
+      setAgentRunPending(false);
+    }
+  };
+
+  const cancelAgentRun = async () => {
+    if (reviewCorporation === undefined || agentRun === undefined) return;
+    setAgentRunError(undefined);
+    const result = await window.desktop.agentRun.cancel({
+      schemaVersion: "1.0",
+      commandId: createUuidV7(),
+      corporationId: reviewCorporation.id,
+      runId: agentRun.runId,
+      expectedAttempt: agentRun.attempt,
+    });
+    if (result.ok) {
+      setAgentRun(result.value);
+      setStatusMessage("本次运行已取消，未保存迟到的模型结果。");
+    } else setAgentRunError(result.error.code);
   };
 
   const leaveCreate = () => {
@@ -1156,6 +1241,20 @@ export function App() {
               organizationActivationError={organizationActivationError}
               executionStart={executionStart}
               executionStartError={executionStartError}
+              agentRun={agentRun}
+              agentRunError={agentRunError}
+              agentRunPending={agentRunPending}
+              onCancelAgentRun={cancelAgentRun}
+              onContinueAgentRun={() =>
+                agentRun === undefined
+                  ? Promise.resolve()
+                  : runAgent(agentRun, false)
+              }
+              onRetryAgentRun={() =>
+                agentRun === undefined
+                  ? Promise.resolve()
+                  : runAgent(agentRun, true)
+              }
               onStartExecution={startExecution}
               organizationProposal={organizationProposal}
               providers={providers}
@@ -2029,6 +2128,9 @@ function GoalReview(props: {
 }
 
 function PlannerDraftView(props: {
+  readonly agentRun: AgentRun | undefined;
+  readonly agentRunError: AgentRunErrorCode | undefined;
+  readonly agentRunPending: boolean;
   readonly corporation: CorporationPublic;
   readonly error: PlannerErrorCode | undefined;
   readonly goal: GoalContractPublic;
@@ -2056,6 +2158,9 @@ function PlannerDraftView(props: {
   readonly executionStart: ExecutionStart | undefined;
   readonly executionStartError: ExecutionStartErrorCode | undefined;
   readonly onStartExecution: () => Promise<void>;
+  readonly onCancelAgentRun: () => Promise<void>;
+  readonly onContinueAgentRun: () => Promise<void>;
+  readonly onRetryAgentRun: () => Promise<void>;
   readonly organizationProposal: OrganizationProposal | undefined;
   readonly saving: boolean;
   readonly selectedProviderId: string | undefined;
@@ -2211,6 +2316,12 @@ function PlannerDraftView(props: {
           onCreateOrganization={props.onCreateOrganization}
           onActivateOrganization={props.onActivateOrganization}
           executionStart={props.executionStart}
+          agentRun={props.agentRun}
+          agentRunError={props.agentRunError}
+          agentRunPending={props.agentRunPending}
+          onCancelAgentRun={props.onCancelAgentRun}
+          onContinueAgentRun={props.onContinueAgentRun}
+          onRetryAgentRun={props.onRetryAgentRun}
           onStartExecution={props.onStartExecution}
           onSaveVersion={props.onSaveVersion}
           organizationProposal={props.organizationProposal}

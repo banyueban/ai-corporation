@@ -68,31 +68,34 @@
 
 ## 6. Plan Review 状态
 
-| 状态                     | 主区域                                                                                          | 主操作                                 |
-| ------------------------ | ----------------------------------------------------------------------------------------------- | -------------------------------------- |
-| Generating               | 规划步骤，不伪造 Task                                                                           | 取消                                   |
-| 生成失败或中断           | 保留固定失败原因；重新显示模型服务商和模型选择；明确不会自动重试                                | 用户明确重新生成或更换模型             |
-| Validation failed        | 本地验证的图/引用/验收/预算/权限描述错误列表；明确标注未创建正式可执行计划                      | 编辑并保存新版本，不自动调用模型       |
-| Draft pending validation | 结构化 Task、能力要求、建议角色；明确标注正在本地验证/尚未组队                                  | 无需用户操作，不调用 Provider          |
-| Ready                    | 已验证 Task、依赖、能力要求、建议角色、预算、风险与 warning；明确标注尚未组队、未批准、不可执行 | 编辑计划 / 批准计划                    |
-| Edited                   | 未保存标记；只开放有限字段                                                                      | 保存新版本并重新验证                   |
-| Capability gap           | 缺失能力和替代方案                                                                              | 换 Provider/修改计划/请求用户          |
-| Budget over limit        | 超出硬预算                                                                                      | 降低范围/增加预算                      |
-| Approval pending         | 正在批准当前有效版本；不创建团队、不开始执行                                                    | 禁止重复点击                           |
-| Approved                 | 只读当前批准版本、批准时间；明确尚未组队、未开始执行                                            | 开始组队                               |
-| Team proposal pending    | 正在按本地固定规则生成团队草案；明确不调用模型、不开始执行                                      | 禁止重复点击                           |
-| Team proposal ready      | 团队草案版本、Planner/Executor/Judge、Task 分工、职责分离、能力缺口和模型策略；明确未激活、未执行 | 配置并确认团队（无阻断缺口时）         |
-| Team proposal blocked    | 保留团队草案并列出阻断能力、受影响 Task、原因和可选处理方向；不虚构可用能力                      | 返回计划                               |
-| Team proposal failed     | 固定失败原因；批准 Plan 保持可用，不自动重试、不产生半条新版本                                  | 明确再次点击开始组队                   |
-| Team configuring         | Planner、全部 Executor、Judge 三组分别选择已验证 Provider/精确模型；可降级缺口要求明确接受       | 确认团队 / 返回                        |
-| Team activating          | 禁止重复提交；重新核对草案、Provider 版本、连接验证与模型列表；不调用模型                         | 等待                                   |
-| Team active              | 显示三组模型配置、Agent 成员与“团队已激活，等待开始执行”；Corporation 仍为 `DRAFT`                | 开始执行                               |
-| Execution starting       | 禁止重复提交；重新核对工作区、批准计划、团队、成员、分工和模型配置；计算全部任务状态               | 等待                                   |
-| Execution started        | 显示唯一首任务和全部任务真实状态；普通任务明确 Run 已创建但尚未调用模型                            | 查看任务                               |
-| Human entry selected     | 首个人工任务和阻断原因置顶；Corporation/Task 为 `WAITING_HUMAN`，无 Run、无模型调用                | 处理决定（后续任务）                   |
-| Execution start failed   | 固定失败原因；明确公司、任务和成员未被当作已开始，不自动重试                                      | 用户明确重试或修复前置条件             |
-| Team activation failed   | 显示固定失败原因；草案保持未激活，已填写选择保留；不自动重试                                     | 用户明确重试或返回修改                 |
-| Superseded               | 只读旧版本                                                                                      | 查看当前版本                           |
+| 状态                     | 主区域                                                                                            | 主操作                           |
+| ------------------------ | ------------------------------------------------------------------------------------------------- | -------------------------------- |
+| Generating               | 规划步骤，不伪造 Task                                                                             | 取消                             |
+| 生成失败或中断           | 保留固定失败原因；重新显示模型服务商和模型选择；明确不会自动重试                                  | 用户明确重新生成或更换模型       |
+| Validation failed        | 本地验证的图/引用/验收/预算/权限描述错误列表；明确标注未创建正式可执行计划                        | 编辑并保存新版本，不自动调用模型 |
+| Draft pending validation | 结构化 Task、能力要求、建议角色；明确标注正在本地验证/尚未组队                                    | 无需用户操作，不调用 Provider    |
+| Ready                    | 已验证 Task、依赖、能力要求、建议角色、预算、风险与 warning；明确标注尚未组队、未批准、不可执行   | 编辑计划 / 批准计划              |
+| Edited                   | 未保存标记；只开放有限字段                                                                        | 保存新版本并重新验证             |
+| Capability gap           | 缺失能力和替代方案                                                                                | 换 Provider/修改计划/请求用户    |
+| Budget over limit        | 超出硬预算                                                                                        | 降低范围/增加预算                |
+| Approval pending         | 正在批准当前有效版本；不创建团队、不开始执行                                                      | 禁止重复点击                     |
+| Approved                 | 只读当前批准版本、批准时间；明确尚未组队、未开始执行                                              | 开始组队                         |
+| Team proposal pending    | 正在按本地固定规则生成团队草案；明确不调用模型、不开始执行                                        | 禁止重复点击                     |
+| Team proposal ready      | 团队草案版本、Planner/Executor/Judge、Task 分工、职责分离、能力缺口和模型策略；明确未激活、未执行 | 配置并确认团队（无阻断缺口时）   |
+| Team proposal blocked    | 保留团队草案并列出阻断能力、受影响 Task、原因和可选处理方向；不虚构可用能力                       | 返回计划                         |
+| Team proposal failed     | 固定失败原因；批准 Plan 保持可用，不自动重试、不产生半条新版本                                    | 明确再次点击开始组队             |
+| Team configuring         | Planner、全部 Executor、Judge 三组分别选择已验证 Provider/精确模型；可降级缺口要求明确接受        | 确认团队 / 返回                  |
+| Team activating          | 禁止重复提交；重新核对草案、Provider 版本、连接验证与模型列表；不调用模型                         | 等待                             |
+| Team active              | 显示三组模型配置、Agent 成员与“团队已激活，等待开始执行”；Corporation 仍为 `DRAFT`                | 开始执行                         |
+| Execution starting       | 禁止重复提交；重新核对工作区、批准计划、团队、成员、分工和模型配置；计算全部任务状态              | 等待                             |
+| Execution started        | 显示唯一首任务和全部任务真实状态；新 Run 立即运行，历史 `CREATED` Run 等待用户继续                | 查看任务 / 继续执行              |
+| Agent running            | 显示准备或运行中；不得提前显示成功                                                                | 取消运行                         |
+| Candidate produced       | 完整显示候选正文、usage 和“尚未成为正式交付物”                                                    | 查看候选                         |
+| Agent run failed         | 显示固定失败原因；Task 等待重试，软件不自动重试                                                   | 重新尝试                         |
+| Human entry selected     | 首个人工任务和阻断原因置顶；Corporation/Task 为 `WAITING_HUMAN`，无 Run、无模型调用               | 处理决定（后续任务）             |
+| Execution start failed   | 固定失败原因；明确公司、任务和成员未被当作已开始，不自动重试                                      | 用户明确重试或修复前置条件       |
+| Team activation failed   | 显示固定失败原因；草案保持未激活，已填写选择保留；不自动重试                                      | 用户明确重试或返回修改           |
+| Superseded               | 只读旧版本                                                                                        | 查看当前版本                     |
 
 ## 7. Corporation Workspace 状态
 
