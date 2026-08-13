@@ -377,7 +377,8 @@ export class AgentRunRepository {
     modelCallId: string;
     candidateIds: readonly string[];
     candidate: AgentModelCandidate;
-    usage: NormalizedUsage;
+    callUsage: NormalizedUsage;
+    runUsage: NormalizedUsage;
     now: string;
   }): AgentRun {
     this.database.exec("BEGIN IMMEDIATE");
@@ -411,7 +412,7 @@ export class AgentRunRepository {
         )
         .run(
           JSON.stringify({ schemaVersion: 1, result: "CANDIDATE_PRODUCED" }),
-          JSON.stringify(input.usage),
+          JSON.stringify(input.callUsage),
           input.now,
           input.modelCallId,
         );
@@ -420,14 +421,14 @@ export class AgentRunRepository {
           "UPDATE agent_run SET status='PRODUCED', usage_json=?, checkpoint_json=?, updated_at=? WHERE id=? AND status='RUNNING'",
         )
         .run(
-          JSON.stringify(input.usage),
+          JSON.stringify(input.runUsage),
           JSON.stringify({
             sequence: 4,
             phase: "PRODUCED",
             summary: input.candidate.summary,
             committedToolCallIds: [],
             temporaryArtifactIds: input.candidateIds,
-            usageSnapshot: input.usage,
+            usageSnapshot: input.runUsage,
           }),
           input.now,
           input.runId,
@@ -514,7 +515,8 @@ export class AgentRunRepository {
     runId: string,
     modelCallId: string,
     reason: string,
-    usage: NormalizedUsage,
+    callUsage: NormalizedUsage,
+    runUsage: NormalizedUsage,
     now: string,
   ): AgentRun {
     this.database.exec("BEGIN IMMEDIATE");
@@ -525,7 +527,7 @@ export class AgentRunRepository {
         )
         .run(
           JSON.stringify({ schemaVersion: 1, result: "FAILED" }),
-          JSON.stringify(usage),
+          JSON.stringify(callUsage),
           reason,
           now,
           modelCallId,
@@ -541,7 +543,7 @@ export class AgentRunRepository {
           "UPDATE agent_run SET status='FAILED',usage_json=?,failure_json=?,updated_at=?,ended_at=? WHERE id=?",
         )
         .run(
-          JSON.stringify(usage),
+          JSON.stringify(runUsage),
           JSON.stringify({ reason }),
           now,
           now,
@@ -593,6 +595,11 @@ export class AgentRunRepository {
         ? undefined
         : (JSON.parse(String(row.failure_json)) as { reason?: string });
     const storedUsage = JSON.parse(String(row.usage_json)) as NormalizedUsage;
+    const modelCall = this.database
+      .prepare(
+        "SELECT model_id FROM model_call WHERE run_id=? ORDER BY attempt DESC LIMIT 1",
+      )
+      .get(String(row.id)) as Row | undefined;
     return agentRunSchema.parse({
       schemaVersion: "1.0",
       runId: row.id,
@@ -602,6 +609,9 @@ export class AgentRunRepository {
       agentInstanceId: row.agent_instance_id,
       attempt: row.attempt,
       status: row.status,
+      ...(typeof modelCall?.model_id === "string"
+        ? { modelId: modelCall.model_id }
+        : {}),
       usage: {
         ...storedUsage,
         costSource: storedUsage.costSource ?? "UNKNOWN",

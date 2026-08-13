@@ -67,6 +67,7 @@ export class AgentRunService {
     const callId = this.options.createId();
     let currentCallId = callId;
     let usage = UNKNOWN;
+    let currentCallUsage = UNKNOWN;
     try {
       const inspected = this.options.repository.inspect(
         request.runId,
@@ -91,10 +92,14 @@ export class AgentRunService {
         prepared.contract.budget.maxOutputTokens ?? 4096,
         controller.signal,
       );
+      currentCallUsage = first.usage;
       usage = add(usage, first.usage);
       let parsed = parse(first);
       let finalCallId = callId;
-      if (parsed === undefined) {
+      if (
+        parsed === undefined ||
+        !matches(parsed, prepared.contract.expectedOutputs)
+      ) {
         const repairId = this.options.createId();
         currentCallId = repairId;
         finalCallId = repairId;
@@ -129,6 +134,7 @@ export class AgentRunService {
           prepared.contract.budget.maxOutputTokens ?? 4096,
           controller.signal,
         );
+        currentCallUsage = repaired.usage;
         usage = add(usage, repaired.usage);
         parsed = parse(repaired);
       }
@@ -139,6 +145,7 @@ export class AgentRunService {
             request.runId,
             finalCallId,
             "INVALID_MODEL_OUTPUT",
+            currentCallUsage,
             usage,
             this.now(),
           ),
@@ -150,6 +157,7 @@ export class AgentRunService {
             request.runId,
             finalCallId,
             "INVALID_MODEL_OUTPUT",
+            currentCallUsage,
             usage,
             this.now(),
           ),
@@ -161,7 +169,8 @@ export class AgentRunService {
           modelCallId: finalCallId,
           candidate: parsed,
           candidateIds: parsed.outputs.map(() => this.options.createId()),
-          usage,
+          callUsage: currentCallUsage,
+          runUsage: usage,
           now: this.now(),
         }),
       };
@@ -179,6 +188,7 @@ export class AgentRunService {
               request.runId,
               currentCallId,
               "PROVIDER_INTERNAL",
+              currentCallUsage,
               usage,
               this.now(),
             ),
@@ -203,6 +213,7 @@ export class AgentRunService {
               request.runId,
               currentCallId,
               error.failure.reason,
+              currentCallUsage,
               usage,
               this.now(),
             ),
