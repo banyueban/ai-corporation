@@ -16,6 +16,8 @@ import {
   GOAL_ENGINE_GET_CURRENT_IPC_CHANNEL,
   GOAL_ENGINE_RESOLVE_EXTENSION_IPC_CHANNEL,
   GOAL_ENGINE_START_IPC_CHANNEL,
+  EXECUTION_START_GET_CURRENT_IPC_CHANNEL,
+  EXECUTION_START_START_IPC_CHANNEL,
   NATIVE_HEALTH_IPC_CHANNEL,
   ORGANIZATION_ACTIVATION_ACTIVATE_IPC_CHANNEL,
   ORGANIZATION_ACTIVATION_GET_CURRENT_IPC_CHANNEL,
@@ -47,6 +49,7 @@ import {
   CorporationStateRepository,
   GoalContractRepository,
   GoalEngineRepository,
+  ExecutionStartRepository,
   OrganizationActivationRepository,
   OrganizationProposalRepository,
   PlanValidationRepository,
@@ -66,6 +69,11 @@ import {
 } from "electron";
 import type { DatabaseSync } from "node:sqlite";
 import { NativeCoreClient } from "./native-core-client";
+import {
+  handleExecutionStart,
+  handleExecutionStartGetCurrent,
+} from "./execution-start-ipc";
+import { ExecutionStartService } from "./execution-start-service";
 import {
   handleOrganizationActivationActivate,
   handleOrganizationActivationGetCurrent,
@@ -162,6 +170,7 @@ let corporationService: CorporationService | undefined;
 let corporationStateService: CorporationStateService | undefined;
 let goalContractService: GoalContractService | undefined;
 let goalEngineService: GoalEngineService | undefined;
+let executionStartService: ExecutionStartService | undefined;
 let plannerService: PlannerService | undefined;
 let planReviewService: PlanReviewService | undefined;
 let nativeCoreClient: NativeCoreClient | undefined;
@@ -254,6 +263,24 @@ async function handleNativeHealth(
 
 void app.whenReady().then(async () => {
   ipcMain.handle(NATIVE_HEALTH_IPC_CHANNEL, handleNativeHealth);
+  ipcMain.handle(
+    EXECUTION_START_START_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleExecutionStart(
+        isTrustedRenderer(event),
+        request,
+        executionStartService,
+      ),
+  );
+  ipcMain.handle(
+    EXECUTION_START_GET_CURRENT_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleExecutionStartGetCurrent(
+        isTrustedRenderer(event),
+        request,
+        executionStartService,
+      ),
+  );
   ipcMain.handle(
     ORGANIZATION_ACTIVATION_ACTIVATE_IPC_CHANNEL,
     (event: IpcMainInvokeEvent, request: unknown) =>
@@ -679,6 +706,10 @@ void app.whenReady().then(async () => {
       createId: createUuidV7,
       repository: new OrganizationActivationRepository(workspaceDatabase),
     });
+    executionStartService = new ExecutionStartService({
+      createId: createUuidV7,
+      repository: new ExecutionStartRepository(workspaceDatabase),
+    });
     plannerService = new PlannerService({
       provider: providerService,
       repository: plannerRepository,
@@ -700,6 +731,7 @@ void app.whenReady().then(async () => {
     corporationStateService = undefined;
     goalContractService = undefined;
     goalEngineService = undefined;
+    executionStartService = undefined;
     plannerService = undefined;
     planReviewService = undefined;
     providerService = undefined;

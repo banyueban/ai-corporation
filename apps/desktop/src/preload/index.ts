@@ -47,6 +47,14 @@ import {
   type GoalEngineGetCurrentRequest,
   type GoalEngineResolveExtensionRequest,
   type GoalEngineStartRequest,
+  EXECUTION_START_GET_CURRENT_IPC_CHANNEL,
+  EXECUTION_START_START_IPC_CHANNEL,
+  executionStartGetCurrentRequestSchema,
+  executionStartItemResultSchema,
+  executionStartNullableItemResultSchema,
+  executionStartRequestSchema,
+  type ExecutionStartGetCurrentRequest,
+  type ExecutionStartRequest,
   type CorporationArchiveRequest,
   type CorporationCreateRequest,
   type CorporationGetRequest,
@@ -145,6 +153,22 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { DesktopApi } from "../shared/desktop-api";
 
 const desktopApi: DesktopApi = Object.freeze({
+  executionStart: Object.freeze({
+    getCurrent: async (request: ExecutionStartGetCurrentRequest) =>
+      executionStartNullableItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          EXECUTION_START_GET_CURRENT_IPC_CHANNEL,
+          executionStartGetCurrentRequestSchema.parse(request),
+        ),
+      ),
+    start: async (request: ExecutionStartRequest) =>
+      executionStartItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          EXECUTION_START_START_IPC_CHANNEL,
+          executionStartRequestSchema.parse(request),
+        ),
+      ),
+  }),
   corporation: Object.freeze({
     archive: async (request: CorporationArchiveRequest) =>
       corporationItemResultSchema.parse(

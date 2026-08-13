@@ -51,7 +51,7 @@ export const activatedAgentInstanceSchema = z
   .object({
     instanceId: uuidV7,
     member: organizationMemberSchema,
-    status: z.literal("READY"),
+    status: z.enum(["READY", "BUSY"]),
     route: organizationActivatedRouteSchema
       .extend({
         modelStrategy: z.enum(["BALANCED", "HIGH_REASONING", "LOW_COST"]),

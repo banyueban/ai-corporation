@@ -5,14 +5,14 @@
 | 当前产品版本   | v0.1 MVP                           |
 | 当前阶段       | Milestone 3 开发中                    |
 | 当前 Milestone | Milestone 3：最小 Agent 闭环       |
-| 当前任务单元   | M3-TU-02（完成）                    |
-| 总体状态       | M3-TU-02 已完成，Milestone 3 继续开发 |
+| 当前任务单元   | M3-TU-03（进行中）                    |
+| 总体状态       | M3-TU-03 已完成决策并进入实施         |
 | 最近更新       | 2026-08-13                         |
-| 下一检查点     | 按 MVP 开发计划建立并审查下一个任务合同 |
+| 下一检查点     | 完成开始执行与首个任务调度的本地验收   |
 
 ## 1. 当前结论
 
-Milestone 0、Milestone 1 和 Milestone 2 已完成。Milestone 3 的 M3-TU-01 和 M3-TU-02 均已完成并经用户人工验收。M3-TU-02 已通过完整本地验证、当前提交的双平台 CI/最终包验收和 Windows 安装包人工验收：用户可为 Planner、全部 Executor、Judge 分别选择已验证 Provider/精确模型并确认团队；成功只激活并创建 Agent 成员，不调用模型、不创建 Run、不开始 Task，Corporation 保持 `DRAFT`。M3-TU-02 的 21 项验收全部通过；该结论不自动关闭 Milestone 3。
+Milestone 0、Milestone 1 和 Milestone 2 已完成。Milestone 3 的 M3-TU-01 和 M3-TU-02 均已完成并经用户人工验收。当前 M3-TU-03 已按用户确认的 `1A + 2A + 3A + 4A + 5A + 6A + 7A` 进入实施：用户明确点击开始后，应用原子计算全部任务状态，只按任务优先级、人工同级优先和稳定顺序认领一个首任务；普通任务只创建尚未调用模型的 `CREATED` Run，人工任务进入等待人工处理。本任务尚未完成，任何实现或测试结果都不能提前标记通过。
 
 M2-TU-09 已按用户选择的方案 B 完成 L3 汇总验收：M2-TU-02 至 M2-TU-08 的直接证据组成交付物和验收矩阵，当前提交的 Windows/macOS 完整工程检查、开发态真实窗口、最终包真实窗口与制品上传全部通过。该结论不声称存在一条未实际执行的连续端到端测试。
 
@@ -46,14 +46,15 @@ Milestone 2 的七项交付、四项验收、全部必需任务单元、Windows/
 
 ## 4. 当前任务边界
 
-M3-TU-02 只交付：
+M3-TU-03 只交付：
 
-- Planner、全部 Executor、Judge 三组独立 Provider/精确模型选择；
-- 阻断和可降级能力缺口的激活门禁；
-- 当前团队原子激活、Agent Instance 创建、幂等和重启恢复；
-- Provider 变化不改写历史快照，后续执行前可检测失效配置。
+- 用户明确开始执行与启动前可信重校验；
+- 全部任务的 `READY/BLOCKED` 计算、稳定首任务选择和唯一认领；
+- 普通首任务的 `RUNNING` Task、`BUSY` Agent 与单个 `CREATED` Run；
+- 人工首任务的 Task/Corporation `WAITING_HUMAN` 且不创建 Run；
+- 幂等、竞争、整体回滚、重载和重启恢复。
 
-不包含开始执行、Agent Run、模型调用、Scheduler、Artifact、Evaluation 或修订。
+不包含模型调用、Run 推进、完整 Scheduler 评分、Artifact、Evaluation、人工决定提交、后续任务调度或修订。
 
 ## 5. 活跃阻塞与外部条件
 
@@ -77,7 +78,7 @@ M3-TU-02 只交付：
 
 ## 7. 下一步
 
-按 MVP 开发计划建立下一个 Milestone 3 任务合同；合同达到“就绪”且不存在待决歧义后再开始实现。M3-TU-02 完成不代表 Scheduler、Agent Run、模型调用、Artifact、Evaluation 或修订已经交付。
+按 M3-TU-03 合同完成开始执行、全部任务状态计算、唯一首任务认领与 `CREATED` Run，并逐项完成本地、CI、最终包和人工验收。M3-TU-02 完成不代表 M3-TU-03 或后续模型调用、Artifact、Evaluation、修订已经交付。
 
 ## 8. 更新规则
 

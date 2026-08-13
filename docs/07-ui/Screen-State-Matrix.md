@@ -86,7 +86,11 @@
 | Team proposal failed     | 固定失败原因；批准 Plan 保持可用，不自动重试、不产生半条新版本                                  | 明确再次点击开始组队                   |
 | Team configuring         | Planner、全部 Executor、Judge 三组分别选择已验证 Provider/精确模型；可降级缺口要求明确接受       | 确认团队 / 返回                        |
 | Team activating          | 禁止重复提交；重新核对草案、Provider 版本、连接验证与模型列表；不调用模型                         | 等待                                   |
-| Team active              | 显示三组模型配置、Agent 成员与“团队已激活，等待开始执行”；Corporation 仍为 `DRAFT`                | 无（开始执行由后续任务交付）           |
+| Team active              | 显示三组模型配置、Agent 成员与“团队已激活，等待开始执行”；Corporation 仍为 `DRAFT`                | 开始执行                               |
+| Execution starting       | 禁止重复提交；重新核对工作区、批准计划、团队、成员、分工和模型配置；计算全部任务状态               | 等待                                   |
+| Execution started        | 显示唯一首任务和全部任务真实状态；普通任务明确 Run 已创建但尚未调用模型                            | 查看任务                               |
+| Human entry selected     | 首个人工任务和阻断原因置顶；Corporation/Task 为 `WAITING_HUMAN`，无 Run、无模型调用                | 处理决定（后续任务）                   |
+| Execution start failed   | 固定失败原因；明确公司、任务和成员未被当作已开始，不自动重试                                      | 用户明确重试或修复前置条件             |
 | Team activation failed   | 显示固定失败原因；草案保持未激活，已填写选择保留；不自动重试                                     | 用户明确重试或返回修改                 |
 | Superseded               | 只读旧版本                                                                                      | 查看当前版本                           |
 

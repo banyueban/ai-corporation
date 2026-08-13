@@ -6,6 +6,8 @@ import type {
   GoalContractPublic,
   GoalEngineErrorCode,
   GoalEngineOperationPublic,
+  ExecutionStart,
+  ExecutionStartErrorCode,
   HealthResult,
   OrganizationActivation,
   OrganizationActivationErrorCode,
@@ -100,6 +102,9 @@ export function App() {
     useState<OrganizationActivation>();
   const [organizationActivationError, setOrganizationActivationError] =
     useState<OrganizationActivationErrorCode>();
+  const [executionStart, setExecutionStart] = useState<ExecutionStart>();
+  const [executionStartError, setExecutionStartError] =
+    useState<ExecutionStartErrorCode>();
   const [providers, setProviders] = useState<readonly ProviderPublic[]>([]);
   const [selectedProviderId, setSelectedProviderId] = useState<string>();
   const [clarificationAnswers, setClarificationAnswers] = useState<
@@ -725,6 +730,7 @@ export function App() {
         planVersionsResult,
         organizationResult,
         activationResult,
+        executionResult,
       ] = await Promise.all([
         window.desktop.corporation.get({
           schemaVersion: "1.0",
@@ -748,6 +754,10 @@ export function App() {
           corporationId: reviewCorporation.id,
         }),
         window.desktop.organizationActivation.getCurrent({
+          schemaVersion: "1.0",
+          corporationId: reviewCorporation.id,
+        }),
+        window.desktop.executionStart.getCurrent({
           schemaVersion: "1.0",
           corporationId: reviewCorporation.id,
         }),
@@ -794,6 +804,13 @@ export function App() {
       } else {
         setOrganizationActivation(undefined);
         setOrganizationActivationError(activationResult.error.code);
+      }
+      if (executionResult.ok) {
+        setExecutionStart(executionResult.value ?? undefined);
+        setExecutionStartError(undefined);
+      } else {
+        setExecutionStart(undefined);
+        setExecutionStartError(executionResult.error.code);
       }
       setStatusMessage("");
       setRoute("planner");
@@ -988,6 +1005,44 @@ export function App() {
     }
   };
 
+  const startExecution = async () => {
+    if (reviewCorporation === undefined) return;
+    setSaving(true);
+    setExecutionStartError(undefined);
+    try {
+      const result = await window.desktop.executionStart.start({
+        schemaVersion: "1.0",
+        commandId: createUuidV7(),
+        corporationId: reviewCorporation.id,
+        expectedCorporationVersion: reviewCorporation.version,
+      });
+      if (!result.ok) {
+        setExecutionStartError(result.error.code);
+        return;
+      }
+      setExecutionStart(result.value);
+      setReviewCorporation((current) =>
+        current === undefined
+          ? current
+          : {
+              ...current,
+              status: result.value.corporationStatus,
+              version: result.value.corporationVersion,
+              updatedAt: result.value.startedAt,
+            },
+      );
+      setStatusMessage(
+        result.value.run === undefined
+          ? "已进入等待人工处理，当前没有调用模型。"
+          : "执行已开始，已创建首个运行记录，但尚未调用模型。",
+      );
+    } catch {
+      setExecutionStartError("STORAGE_FAILURE");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const leaveCreate = () => {
     if (dirty && !window.confirm("要放弃尚未保存的目标合同内容吗？")) {
       return;
@@ -1099,6 +1154,9 @@ export function App() {
               organizationError={organizationError}
               organizationActivation={organizationActivation}
               organizationActivationError={organizationActivationError}
+              executionStart={executionStart}
+              executionStartError={executionStartError}
+              onStartExecution={startExecution}
               organizationProposal={organizationProposal}
               providers={providers}
               saving={saving}
@@ -1995,6 +2053,9 @@ function PlannerDraftView(props: {
   readonly organizationActivation: OrganizationActivation | undefined;
   readonly organizationActivationError:
     OrganizationActivationErrorCode | undefined;
+  readonly executionStart: ExecutionStart | undefined;
+  readonly executionStartError: ExecutionStartErrorCode | undefined;
+  readonly onStartExecution: () => Promise<void>;
   readonly organizationProposal: OrganizationProposal | undefined;
   readonly saving: boolean;
   readonly selectedProviderId: string | undefined;
@@ -2049,6 +2110,9 @@ function PlannerDraftView(props: {
         <OrganizationActivationErrorView
           code={props.organizationActivationError}
         />
+      )}
+      {props.executionStartError !== undefined && (
+        <ExecutionStartErrorView code={props.executionStartError} />
       )}
       {props.statusMessage.length > 0 && (
         <p className="inline-status" role="status">
@@ -2146,6 +2210,8 @@ function PlannerDraftView(props: {
           onApprove={props.onApprovePlan}
           onCreateOrganization={props.onCreateOrganization}
           onActivateOrganization={props.onActivateOrganization}
+          executionStart={props.executionStart}
+          onStartExecution={props.onStartExecution}
           onSaveVersion={props.onSaveVersion}
           organizationProposal={props.organizationProposal}
           organizationActivation={props.organizationActivation}
@@ -2356,6 +2422,37 @@ function OrganizationActivationErrorView(props: {
         <h2>确认团队失败</h2>
         <p>{messages[props.code]}</p>
         <p>软件不会自动重试，也没有开始执行任务。</p>
+      </div>
+      <code>{props.code}</code>
+    </section>
+  );
+}
+
+function ExecutionStartErrorView(props: {
+  readonly code: ExecutionStartErrorCode;
+}) {
+  const messages: Record<ExecutionStartErrorCode, string> = {
+    VALIDATION_FAILED: "开始执行请求不完整或格式不正确。",
+    UNAUTHORIZED_CALLER: "该请求不是来自可信的软件窗口。",
+    CORPORATION_NOT_FOUND: "没有找到当前公司。",
+    CORPORATION_CHANGED: "公司状态已经变化，请重新加载后再试。",
+    STATE_CONFLICT: "公司已经开始运行，或当前状态不能开始执行。",
+    WORKSPACE_UNAVAILABLE: "工作区当前不可用，请重新验证后再试。",
+    PLAN_NOT_READY: "当前计划不是已批准且验证通过的版本。",
+    ORGANIZATION_NOT_READY: "当前团队尚未正确激活。",
+    PROVIDER_NOT_READY: "团队绑定的模型服务商或模型已经失效。",
+    ASSIGNMENT_INVALID: "任务分工与当前团队成员不一致。",
+    NO_ENTRY_TASK: "当前计划没有可以开始的入口任务。",
+    COMMAND_CONFLICT: "这次操作编号已用于其他请求，请重新点击。",
+    STORAGE_FAILURE: "本地执行记录保存失败，不能认为已经开始。",
+  };
+  return (
+    <section className="error-state" role="alert">
+      <div>
+        <p className="eyebrow">没有开始执行</p>
+        <h2>开始执行失败</h2>
+        <p>{messages[props.code]}</p>
+        <p>任务、成员和公司状态不会被当作已开始。软件不会自动重试。</p>
       </div>
       <code>{props.code}</code>
     </section>

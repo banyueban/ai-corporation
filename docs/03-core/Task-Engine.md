@@ -112,6 +112,8 @@ RUNNING / VERIFYING
 | VERIFYING       | COMPLETED       | 必需验收全部 PASS                |
 | VERIFYING       | RETRY_PENDING   | 可修订问题且未达上限             |
 | 任意非终态      | WAITING_HUMAN   | 缺权限、歧义或高风险决策         |
+
+首次开始执行时，Task Engine 在同一事务中计算当前批准 Plan 的全部任务：无依赖的任务进入 `READY`，存在未完成依赖的任务进入 `BLOCKED`。Scheduler 只认领一个首任务；若该任务为 `HUMAN_DECISION`，它直接进入 `WAITING_HUMAN` 且不创建 Agent Run，其他无依赖任务仍保持 `READY`。
 | RETRY_PENDING   | READY           | 已生成新尝试上下文               |
 | 任意非终态      | REPLAN_REQUIRED | 任务合同本身不可执行             |
 | REPLAN_REQUIRED | DRAFT           | 新计划版本接受该任务             |

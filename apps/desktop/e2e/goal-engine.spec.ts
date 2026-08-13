@@ -479,6 +479,50 @@ test("user creates and cancels real Goal Engine operations in the visible window
     ).toBeVisible();
     await expect(page.getByText(/已创建 3 个团队成员/u)).toBeVisible();
     markJourneyStage("activation-restored");
+    const callsBeforeExecutionStart = fixture.generationCalls();
+    await page.getByRole("button", { name: "开始执行" }).focus();
+    await page.keyboard.press("Enter");
+    await expect(
+      page.getByRole("heading", { name: "执行已开始" }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/已经创建首个运行记录，但尚未调用模型/u),
+    ).toBeVisible();
+    await expect(page.getByText(/人工修改后的报告任务：执行中/u)).toBeVisible();
+    await expect(page.getByText(/当前没有运行任务/u)).toHaveCount(0);
+    expect(fixture.generationCalls()).toBe(callsBeforeExecutionStart);
+    const executionFacts = await page.evaluate(async () => {
+      const desktop = (window as unknown as { desktop: DesktopApi }).desktop;
+      const workspaces = await desktop.workspace.list();
+      if (!workspaces.ok) throw new Error("workspace unavailable");
+      const corporations = await desktop.corporation.list({
+        schemaVersion: "1.0",
+        workspaceId: workspaces.value[0]?.workspaceId ?? "",
+      });
+      if (!corporations.ok) throw new Error("corporations unavailable");
+      const corporation = corporations.value.find(
+        ({ name }) => name === "Assumption Corporation",
+      );
+      if (corporation === undefined) throw new Error("corporation unavailable");
+      const execution = await desktop.executionStart.getCurrent({
+        schemaVersion: "1.0",
+        corporationId: corporation.id,
+      });
+      return { corporation, execution };
+    });
+    expect(executionFacts.corporation.status).toBe("EXECUTING");
+    expect(executionFacts.execution).toMatchObject({
+      ok: true,
+      value: { corporationStatus: "EXECUTING", run: { status: "CREATED" } },
+    });
+    await page.reload();
+    await openPlannerForCorporation(page, "Assumption Corporation");
+    await expect(
+      page.getByRole("heading", { name: "执行已开始" }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "开始执行" })).toHaveCount(0);
+    expect(fixture.generationCalls()).toBe(callsBeforeExecutionStart);
+    markJourneyStage("execution-started-restored");
     await page.getByRole("button", { name: /版本 1/u }).click();
     await expect(
       page.getByRole("heading", { name: "这是只读历史版本" }),

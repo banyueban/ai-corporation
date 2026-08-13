@@ -61,12 +61,8 @@ describe("OrganizationProposalRepository", () => {
       database.prepare("SELECT COUNT(*) AS count FROM agent_instance").get(),
     ).toEqual({ count: 0 });
     expect(
-      database
-        .prepare(
-          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'agent_run'",
-        )
-        .all(),
-    ).toEqual([]);
+      database.prepare("SELECT COUNT(*) AS count FROM agent_run").get(),
+    ).toEqual({ count: 0 });
   });
 
   it("supersedes the prior DRAFT for a new command and rejects command or version conflicts without losing it", () => {

@@ -22,6 +22,10 @@ import type {
   GoalEngineNullableItemResult,
   GoalEngineResolveExtensionRequest,
   GoalEngineStartRequest,
+  ExecutionStartGetCurrentRequest,
+  ExecutionStartItemResult,
+  ExecutionStartNullableItemResult,
+  ExecutionStartRequest,
   HealthResult,
   OrganizationActivationGetCurrentRequest,
   OrganizationActivationItemResult,
@@ -66,6 +70,12 @@ import type {
 } from "@ai-corporation/protocols";
 
 export interface DesktopApi {
+  readonly executionStart: Readonly<{
+    getCurrent(
+      request: ExecutionStartGetCurrentRequest,
+    ): Promise<ExecutionStartNullableItemResult>;
+    start(request: ExecutionStartRequest): Promise<ExecutionStartItemResult>;
+  }>;
   readonly corporation: Readonly<{
     archive(request: CorporationArchiveRequest): Promise<CorporationItemResult>;
     create(request: CorporationCreateRequest): Promise<CorporationItemResult>;

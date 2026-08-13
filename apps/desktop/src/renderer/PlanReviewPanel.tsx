@@ -1,6 +1,7 @@
 import type {
   OrganizationActivation,
   OrganizationActivationRequest,
+  ExecutionStart,
   OrganizationProposal,
   PlanReviewSaveVersionRequest,
   PlannerDraftPublic,
@@ -40,6 +41,8 @@ export function PlanReviewPanel(props: {
     request: PlanReviewSaveVersionRequest,
   ) => Promise<void>;
   readonly saving: boolean;
+  readonly executionStart: ExecutionStart | undefined;
+  readonly onStartExecution: () => Promise<void>;
   readonly organizationProposal: OrganizationProposal | undefined;
   readonly organizationActivation: OrganizationActivation | undefined;
   readonly providers: readonly ProviderPublic[];
@@ -140,6 +143,7 @@ export function PlanReviewPanel(props: {
 
       <div className="plan-review-content">
         <PlanState
+          executionStart={isCurrent ? props.executionStart : undefined}
           organizationProposal={
             isCurrent ? props.organizationProposal : undefined
           }
@@ -266,7 +270,9 @@ export function PlanReviewPanel(props: {
             {isCurrent && props.organizationProposal !== undefined && (
               <OrganizationProposalView
                 activation={props.organizationActivation}
+                executionStart={props.executionStart}
                 onActivate={props.onActivateOrganization}
+                onStartExecution={props.onStartExecution}
                 proposal={props.organizationProposal}
                 plan={props.currentPlan}
                 providers={props.providers}
@@ -281,7 +287,11 @@ export function PlanReviewPanel(props: {
           props.organizationProposal !== undefined
             ? props.organizationActivation === undefined
               ? "该计划已经批准并冻结。团队草案已生成但尚未激活，也没有开始执行。"
-              : "团队已激活，等待开始执行。当前没有运行任务。"
+              : props.executionStart === undefined
+                ? "团队已激活，等待开始执行。当前没有运行任务。"
+                : props.executionStart.corporationStatus === "WAITING_HUMAN"
+                  ? "公司正在等待你的决定，当前没有运行模型任务。"
+                  : "执行已经开始，首个运行记录已创建但尚未调用模型。"
             : displayedPlan.status === "APPROVED"
               ? "该计划已经批准并冻结。软件尚未组建团队，也没有开始执行。"
               : "该计划尚未组队、尚未开始执行。批准计划也不会自动执行。"}
@@ -293,9 +303,11 @@ export function PlanReviewPanel(props: {
 
 function OrganizationProposalView(props: {
   readonly activation: OrganizationActivation | undefined;
+  readonly executionStart: ExecutionStart | undefined;
   readonly onActivate: (
     request: OrganizationActivationRequest,
   ) => Promise<void>;
+  readonly onStartExecution: () => Promise<void>;
   readonly proposal: OrganizationProposal;
   readonly plan: PlannerDraftPublic;
   readonly providers: readonly ProviderPublic[];
@@ -373,7 +385,11 @@ function OrganizationProposalView(props: {
       <p className="plan-boundary-note">
         {props.activation === undefined
           ? "团队草案尚未激活，不会开始执行。公司状态仍为草稿。"
-          : "团队已激活，等待开始执行。公司状态仍为草稿，当前没有运行任务。"}
+          : props.executionStart === undefined
+            ? "团队已激活，等待开始执行。公司状态仍为草稿，当前没有运行任务。"
+            : props.executionStart.corporationStatus === "WAITING_HUMAN"
+              ? "公司正在等待你的决定，当前没有运行模型任务。"
+              : "公司已经进入执行状态，首个运行记录已创建但尚未调用模型。"}
       </p>
       {props.activation === undefined ? (
         <OrganizationActivationForm
@@ -383,10 +399,24 @@ function OrganizationProposalView(props: {
           saving={props.saving}
         />
       ) : (
-        <OrganizationActivationView
-          activation={props.activation}
-          providers={props.providers}
-        />
+        <>
+          <OrganizationActivationView
+            activation={props.activation}
+            providers={props.providers}
+          />
+          {props.executionStart === undefined ? (
+            <button
+              className="primary-button"
+              disabled={props.saving}
+              onClick={() => void props.onStartExecution()}
+              type="button"
+            >
+              {props.saving ? "正在开始执行…" : "开始执行"}
+            </button>
+          ) : (
+            <ExecutionStartView result={props.executionStart} />
+          )}
+        </>
       )}
     </section>
   );
@@ -599,7 +629,35 @@ function OrganizationActivationView(props: {
   );
 }
 
+function ExecutionStartView(props: { readonly result: ExecutionStart }) {
+  return (
+    <section className="success-card" aria-labelledby="execution-start-title">
+      <h3 id="execution-start-title">
+        {props.result.corporationStatus === "WAITING_HUMAN"
+          ? "等待你的决定"
+          : "执行已开始"}
+      </h3>
+      <p>
+        首个任务：<strong>{props.result.selectedTaskTitle}</strong>
+      </p>
+      <p>
+        {props.result.run === undefined
+          ? "这是人工决定任务，没有创建运行记录，也没有调用模型。"
+          : "已经创建首个运行记录，但尚未调用模型。"}
+      </p>
+      <ul>
+        {props.result.tasks.map((task) => (
+          <li key={task.taskId}>
+            {task.title}：{internalLabel(task.status)}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function PlanState(props: {
+  readonly executionStart: ExecutionStart | undefined;
   readonly organizationActivation: OrganizationActivation | undefined;
   readonly organizationProposal: OrganizationProposal | undefined;
   readonly plan: PlannerDraftPublic;
@@ -620,7 +678,11 @@ function PlanState(props: {
             ? "此版本已经冻结。没有创建团队，也没有开始执行。"
             : props.organizationActivation === undefined
               ? "此版本已经冻结。团队草案已生成但尚未激活，也没有开始执行。"
-              : "此版本已经冻结。团队已激活，等待开始执行。"}
+              : props.executionStart === undefined
+                ? "此版本已经冻结。团队已激活，等待开始执行。"
+                : props.executionStart.corporationStatus === "WAITING_HUMAN"
+                  ? "此版本已经冻结。公司正在等待你的决定。"
+                  : "此版本已经冻结。执行已经开始。"}
         </p>
       </section>
     );

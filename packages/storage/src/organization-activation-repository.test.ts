@@ -13,6 +13,7 @@ import {
   OrganizationActivationProviderVersionError,
   OrganizationActivationRepository,
 } from "./organization-activation-repository";
+import { ExecutionStartRepository } from "./execution-start-repository";
 
 const migrationDirectory = fileURLToPath(
   new URL("../migrations/", import.meta.url),
@@ -80,12 +81,8 @@ describe("OrganizationActivationRepository", () => {
       database.prepare("SELECT COUNT(*) AS count FROM model_call").get(),
     ).toEqual({ count: 0 });
     expect(
-      database
-        .prepare(
-          "SELECT name FROM sqlite_master WHERE type='table' AND name='agent_run'",
-        )
-        .all(),
-    ).toEqual([]);
+      database.prepare("SELECT COUNT(*) AS count FROM agent_run").get(),
+    ).toEqual({ count: 0 });
     expect(
       repository.activate({
         request,
@@ -312,6 +309,200 @@ describe("OrganizationActivationRepository", () => {
     ]);
   });
 });
+
+describe("ExecutionStartRepository", () => {
+  it("computes task states, claims exactly one agent task, and creates one CREATED run", () => {
+    materializeTask(database);
+    activateTeam();
+    const execution = new ExecutionStartRepository(database);
+    const request = {
+      schemaVersion: "1.0" as const,
+      commandId: id("40"),
+      corporationId: ids.corporation,
+      expectedCorporationVersion: 1,
+    };
+    const result = execution.start({
+      request,
+      requestHash: "1".repeat(64),
+      runId: id("41"),
+      eventId: id("42"),
+      now,
+    });
+    expect(result.corporationStatus).toBe("EXECUTING");
+    expect(result.tasks).toEqual([
+      { taskId: ids.task, title: "Create", status: "RUNNING" },
+    ]);
+    expect(result.run).toMatchObject({
+      runId: id("41"),
+      taskId: ids.task,
+      attempt: 1,
+      status: "CREATED",
+    });
+    expect(
+      database.prepare("SELECT COUNT(*) AS count FROM agent_run").get(),
+    ).toEqual({ count: 1 });
+    expect(
+      database.prepare("SELECT COUNT(*) AS count FROM model_call").get(),
+    ).toEqual({ count: 0 });
+    expect(
+      execution.start({
+        request,
+        requestHash: "1".repeat(64),
+        runId: id("50"),
+        eventId: id("51"),
+        now,
+      }),
+    ).toEqual(result);
+    expect(
+      database.prepare("SELECT COUNT(*) AS count FROM agent_run").get(),
+    ).toEqual({ count: 1 });
+  });
+
+  it("prefers an equally ranked human task and leaves the agent task ready without a run", () => {
+    materializeTask(database);
+    const humanId = id("43");
+    const base = buildProposal.plan(ids, now).tasks[0]!;
+    const humanContract = {
+      ...JSON.parse(
+        String(
+          database
+            .prepare("SELECT contract_json FROM task WHERE id=?")
+            .get(ids.task)?.contract_json,
+        ),
+      ),
+      id: humanId,
+      title: "Choose",
+      objective: "Choose direction",
+      kind: "HUMAN_DECISION",
+      expectedOutputs: [],
+    };
+    database
+      .prepare(
+        `INSERT INTO task
+      (id,corporation_id,plan_id,title,objective,kind,priority,risk_level,status,
+       contract_json,attempt,max_attempts,weight,version,created_at,updated_at)
+      VALUES (?,?,?,'Choose','Choose direction','HUMAN_DECISION',50,'LOW','DRAFT',?,0,1,1,1,?,?)`,
+      )
+      .run(
+        humanId,
+        ids.corporation,
+        ids.plan,
+        JSON.stringify(humanContract),
+        now,
+        now,
+      );
+    const row = database
+      .prepare("SELECT snapshot_json FROM organization_version WHERE id=?")
+      .get(ids.organization)!;
+    const proposal = JSON.parse(String(row.snapshot_json));
+    proposal.assignments.push({
+      taskId: humanId,
+      ownerType: "HUMAN",
+      ownerId: "human.user",
+      reason: "User decision",
+    });
+    database
+      .prepare("UPDATE organization_version SET snapshot_json=? WHERE id=?")
+      .run(JSON.stringify(proposal), ids.organization);
+    activateTeam();
+    const result = new ExecutionStartRepository(database).start({
+      request: {
+        schemaVersion: "1.0",
+        commandId: id("44"),
+        corporationId: ids.corporation,
+        expectedCorporationVersion: 1,
+      },
+      requestHash: "2".repeat(64),
+      runId: id("45"),
+      eventId: id("46"),
+      now,
+    });
+    expect(result.selectedTaskId).toBe(humanId);
+    expect(result.corporationStatus).toBe("WAITING_HUMAN");
+    expect(result.run).toBeUndefined();
+    expect(result.tasks).toEqual([
+      { taskId: ids.task, title: "Create", status: "READY" },
+      { taskId: humanId, title: "Choose", status: "WAITING_HUMAN" },
+    ]);
+    expect(
+      database.prepare("SELECT COUNT(*) AS count FROM agent_run").get(),
+    ).toEqual({ count: 0 });
+    void base;
+  });
+});
+
+function materializeTask(target: DatabaseSync) {
+  const plan = buildProposal.plan(ids, now);
+  const draftTask = plan.tasks[0]!;
+  const contract = {
+    schemaVersion: "1.0",
+    id: draftTask.id,
+    corporationId: ids.corporation,
+    planVersion: 1,
+    title: draftTask.title,
+    objective: draftTask.objective,
+    kind: draftTask.kind,
+    priority: draftTask.priority,
+    riskLevel: draftTask.riskLevel,
+    requiredCapabilities: draftTask.requiredCapabilities,
+    requiredTools: draftTask.requiredTools,
+    inputRefs: [
+      {
+        source: "GOAL_CONTRACT",
+        goalVersion: 1,
+        logicalName: "goal",
+        required: true,
+      },
+    ],
+    expectedOutputs: draftTask.expectedOutputs.map((output) => ({
+      ...output,
+      artifactType: "TEXT",
+    })),
+    acceptanceCriteria: draftTask.acceptanceCriteria.map((criterion) => ({
+      id: criterion.localId,
+      description: criterion.description,
+      severity: criterion.severity,
+      evidenceRequired: criterion.evidenceRequired,
+    })),
+    dependencies: [],
+    budget: draftTask.budget,
+    retryPolicy: draftTask.retryPolicy,
+    permissionRequest: draftTask.permissionHints,
+    assumptions: draftTask.assumptions,
+    nonGoals: draftTask.nonGoals,
+  };
+  target
+    .prepare(
+      `INSERT INTO task
+    (id,corporation_id,plan_id,title,objective,kind,priority,risk_level,status,
+     contract_json,attempt,max_attempts,weight,version,created_at,updated_at)
+    VALUES (?,?,?,?,?,?,?,?, 'DRAFT', ?,0,?,1,1,?,?)`,
+    )
+    .run(
+      ids.task,
+      ids.corporation,
+      ids.plan,
+      draftTask.title,
+      draftTask.objective,
+      draftTask.kind,
+      draftTask.priority,
+      draftTask.riskLevel,
+      JSON.stringify(contract),
+      draftTask.retryPolicy.maxAttempts,
+      now,
+      now,
+    );
+}
+
+function activateTeam() {
+  repository.activate({
+    request: activationRequest(),
+    requestHash: "a".repeat(64),
+    activationId: ids.activation,
+    agentInstanceIds: [id("10"), id("11"), id("12")],
+    activatedAt: now,
+  });
+}
 
 function activationRequest() {
   return {
