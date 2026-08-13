@@ -418,33 +418,22 @@ export class ProviderService {
     request: {
       readonly providerId: string;
       readonly expectedVersion: number;
+      readonly modelId?: string;
       readonly generation: Omit<NormalizedGenerationRequest, "modelId">;
     },
     signal: AbortSignal,
   ): Promise<NormalizedGenerationResponse> {
+    this.assertReady(
+      request.providerId,
+      request.expectedVersion,
+      request.modelId,
+    );
     const provider = this.#repository.get(request.providerId);
     if (provider === undefined)
       throw new ProviderRuntimeUnavailableError("NOT_FOUND");
-    if (provider.version !== request.expectedVersion) {
-      throw new ProviderRuntimeUnavailableError("VERSION_CONFLICT");
-    }
-    if (provider.configStatus !== "ENABLED") {
-      throw new ProviderRuntimeUnavailableError("DISABLED");
-    }
-    if (!provider.hasKey)
-      throw new ProviderRuntimeUnavailableError("MISSING_KEY");
-    if (provider.connectionTest?.status !== "VERIFIED") {
-      throw new ProviderRuntimeUnavailableError("UNVERIFIED");
-    }
-    if (provider.selectedModelId === undefined) {
+    const modelId = request.modelId ?? provider.selectedModelId;
+    if (modelId === undefined) {
       throw new ProviderRuntimeUnavailableError("MODEL_NOT_SELECTED");
-    }
-    if (
-      !provider.connectionTest.models.some(
-        ({ id }) => id === provider.selectedModelId,
-      )
-    ) {
-      throw new ProviderRuntimeUnavailableError("MODEL_STALE");
     }
     const stored = this.#repository.getEncryptedKey(request.providerId);
     const key = this.#vault.decrypt(stored.encrypted, stored.entryId);
@@ -456,9 +445,35 @@ export class ProviderService {
         key,
         generationTimeoutMs: provider.generationTimeoutMs ?? 60_000,
       },
-      { modelId: provider.selectedModelId, ...request.generation },
+      { modelId, ...request.generation },
       signal,
     );
+  }
+
+  assertReady(
+    providerId: string,
+    expectedVersion: number,
+    requestedModelId?: string,
+  ): void {
+    const provider = this.#repository.get(providerId);
+    if (provider === undefined)
+      throw new ProviderRuntimeUnavailableError("NOT_FOUND");
+    if (provider.version !== expectedVersion)
+      throw new ProviderRuntimeUnavailableError("VERSION_CONFLICT");
+    if (provider.configStatus !== "ENABLED")
+      throw new ProviderRuntimeUnavailableError("DISABLED");
+    if (!provider.hasKey)
+      throw new ProviderRuntimeUnavailableError("MISSING_KEY");
+    const connectionTest = provider.connectionTest;
+    if (connectionTest?.status !== "VERIFIED")
+      throw new ProviderRuntimeUnavailableError("UNVERIFIED");
+    const modelId = requestedModelId ?? provider.selectedModelId;
+    if (modelId === undefined)
+      throw new ProviderRuntimeUnavailableError("MODEL_NOT_SELECTED");
+    if (!connectionTest.models.some(({ id }) => id === modelId))
+      throw new ProviderRuntimeUnavailableError("MODEL_STALE");
+    const stored = this.#repository.getEncryptedKey(providerId);
+    this.#vault.decrypt(stored.encrypted, stored.entryId);
   }
 
   #rememberFinishedConnectionTest(requestId: string): void {

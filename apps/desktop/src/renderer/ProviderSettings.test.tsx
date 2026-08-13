@@ -47,7 +47,7 @@ describe("ProviderSettings connection view model", () => {
   });
 
   it("keeps connection status separate from runtime health labels", () => {
-    expect(connectionLabel({ status: "UNVERIFIED" })).toBe("Not verified");
+    expect(connectionLabel({ status: "UNVERIFIED" })).toBe("尚未验证");
     expect(
       connectionLabel({
         status: "FAILED",
@@ -56,7 +56,7 @@ describe("ProviderSettings connection view model", () => {
         failure: { reason: "NETWORK", retryable: true },
         models: [],
       }),
-    ).toBe("Test failed");
+    ).toBe("测试失败");
     expect(
       connectionLabel({
         status: "VERIFIED",
@@ -64,7 +64,7 @@ describe("ProviderSettings connection view model", () => {
         testedAt: "2026-08-02T00:00:00.000Z",
         models: [],
       }),
-    ).toBe("Verified");
+    ).toBe("已验证");
   });
 
   it("provides field-level Endpoint safety guidance", () => {
@@ -79,14 +79,14 @@ describe("ProviderSettings connection view model", () => {
     ).toMatch(/HTTPS/iu);
     expect(
       validateProviderEndpointForUi("https://user:pass@example.test/v1?x=1"),
-    ).toMatch(/credentials/iu);
+    ).toMatch(/凭据/u);
     expect(validateProviderEndpointForUi("file:///tmp/provider")).toMatch(
       /HTTP/iu,
     );
   });
 
   it("keeps generation status dialect-neutral and separate from runtime health", () => {
-    expect(generationLabel({ status: "IDLE" })).toBe("Not tested");
+    expect(generationLabel({ status: "IDLE" })).toBe("尚未测试");
     expect(
       generationLabel({
         status: "SUCCEEDED",
@@ -97,7 +97,7 @@ describe("ProviderSettings connection view model", () => {
         usage: { costSource: "UNKNOWN" },
         completedAt: "2026-08-02T04:00:00.000Z",
       }),
-    ).toBe("Generation succeeded");
+    ).toBe("生成成功");
   });
 
   it.each([

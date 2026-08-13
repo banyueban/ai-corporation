@@ -187,7 +187,7 @@ h3 {
   margin-bottom: 3rem;
 }
 
-.page-header > div {
+.page-header > div:first-child {
   min-width: 0;
   width: 100%;
   max-width: 46rem;
@@ -541,6 +541,15 @@ h3 {
   background: #211b10;
 }
 
+.success-card {
+  margin: 1rem 0;
+  padding: 1rem 1.15rem;
+  border: 1px solid #2f7a5a;
+  border-radius: 0.85rem;
+  color: #b8f2d4;
+  background: #10241c;
+}
+
 .review-block,
 .history-panel {
   min-width: 0;
@@ -817,6 +826,108 @@ h3 {
   border: 0;
 }
 
+.plan-review-layout {
+  display: grid;
+  grid-template-columns: minmax(10rem, 14rem) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.plan-version-panel,
+.plan-summary,
+.plan-task-editor {
+  padding: 1rem;
+  border: 1px solid #263850;
+  border-radius: 0.9rem;
+  background: #111b2a;
+}
+
+.plan-version-panel {
+  position: sticky;
+  top: 1rem;
+}
+
+.plan-version-panel h2,
+.plan-task-editor legend {
+  margin: 0 0 0.75rem;
+  font-weight: 700;
+}
+
+.plan-version-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.plan-version-button {
+  display: grid;
+  gap: 0.2rem;
+  width: 100%;
+  min-height: 3.25rem;
+  padding: 0.65rem 0.75rem;
+  color: #cbd6e7;
+  text-align: left;
+  border: 1px solid #32435b;
+  border-radius: 0.65rem;
+  background: #162235;
+}
+
+.plan-version-button[aria-current="true"] {
+  color: #fff;
+  border-color: #4b8ce8;
+  background: #19345a;
+}
+
+.plan-review-content,
+.plan-edit-form,
+.acceptance-editor {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.plan-task-editor {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+
+.acceptance-editor-row,
+.dependency-editor-row {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 2fr) minmax(8rem, 0.8fr) minmax(0, 1.4fr)
+    auto;
+  gap: 0.75rem;
+  align-items: end;
+  padding: 0.75rem;
+  border: 1px solid #263850;
+  border-radius: 0.7rem;
+  background: #0d1623;
+}
+
+.dependency-editor-row {
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+  margin-bottom: 0.75rem;
+}
+
+.plan-review-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.plan-boundary-note {
+  padding: 0.85rem 1rem;
+  color: #d9e7f8;
+  border-left: 0.25rem solid #5b9bf3;
+  background: #14243a;
+}
+
+.field-error {
+  color: #ffc5c1;
+}
+
 @keyframes skeleton {
   to {
     background-position: -200% 0;
@@ -825,19 +936,19 @@ h3 {
 
 @media (max-width: 1100px) {
   .app-shell {
-    grid-template-columns: 4.75rem minmax(0, 1fr);
+    grid-template-columns: 7rem minmax(0, 1fr);
   }
 
-  .brand-name,
-  .nav-button {
+  .brand-name {
     overflow: hidden;
     color: transparent;
     font-size: 0;
   }
 
-  .nav-button::first-letter {
+  .nav-button {
     color: #c8d2e1;
     font-size: 0.9rem;
+    white-space: nowrap;
   }
 
   .runtime-summary {
@@ -886,6 +997,73 @@ h3 {
 
   .page-header .primary-button {
     width: min(100%, 18rem);
+  }
+
+  .plan-review-layout,
+  .acceptance-editor-row,
+  .dependency-editor-row {
+    grid-template-columns: 1fr;
+  }
+
+  .plan-version-panel {
+    position: static;
+  }
+
+  .plan-review-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 600px) {
+  .app-shell {
+    grid-template-columns: 4rem minmax(0, 1fr);
+  }
+
+  .sidebar {
+    padding: 1rem 0.35rem;
+  }
+
+  .brand-mark {
+    margin-inline: auto;
+  }
+
+  .brand-name,
+  .runtime-summary span:not(.status-dot),
+  .runtime-summary small {
+    display: none;
+  }
+
+  .nav-button {
+    overflow-wrap: anywhere;
+    padding-inline: 0.2rem;
+    white-space: normal;
+  }
+
+  .runtime-summary {
+    display: flex;
+    justify-content: center;
+    padding: 0.65rem;
+  }
+
+  .page {
+    padding: 1rem;
+  }
+
+  h1 {
+    overflow-wrap: anywhere;
+    font-size: 2rem;
+    line-height: 1.05;
+  }
+
+  select,
+  input,
+  textarea,
+  .plan-summary,
+  .review-block,
+  .success-card {
+    min-width: 0;
+    max-width: 100%;
   }
 }
 

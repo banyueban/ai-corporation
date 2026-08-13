@@ -1,5 +1,9 @@
 import path from "node:path";
 import {
+  AGENT_RUN_CANCEL_IPC_CHANNEL,
+  AGENT_RUN_CONTINUE_IPC_CHANNEL,
+  AGENT_RUN_GET_CURRENT_IPC_CHANNEL,
+  AGENT_RUN_RETRY_IPC_CHANNEL,
   CORPORATION_ARCHIVE_IPC_CHANNEL,
   CORPORATION_CREATE_IPC_CHANNEL,
   CORPORATION_GET_IPC_CHANNEL,
@@ -16,10 +20,20 @@ import {
   GOAL_ENGINE_GET_CURRENT_IPC_CHANNEL,
   GOAL_ENGINE_RESOLVE_EXTENSION_IPC_CHANNEL,
   GOAL_ENGINE_START_IPC_CHANNEL,
+  EXECUTION_START_GET_CURRENT_IPC_CHANNEL,
+  EXECUTION_START_START_IPC_CHANNEL,
   NATIVE_HEALTH_IPC_CHANNEL,
+  ORGANIZATION_ACTIVATION_ACTIVATE_IPC_CHANNEL,
+  ORGANIZATION_ACTIVATION_GET_CURRENT_IPC_CHANNEL,
+  ORGANIZATION_PROPOSAL_CREATE_IPC_CHANNEL,
+  ORGANIZATION_PROPOSAL_GET_CURRENT_IPC_CHANNEL,
   PLANNER_CANCEL_IPC_CHANNEL,
   PLANNER_GET_CURRENT_IPC_CHANNEL,
   PLANNER_START_IPC_CHANNEL,
+  PLAN_REVIEW_APPROVE_IPC_CHANNEL,
+  PLAN_REVIEW_GET_CURRENT_IPC_CHANNEL,
+  PLAN_REVIEW_LIST_VERSIONS_IPC_CHANNEL,
+  PLAN_REVIEW_SAVE_VERSION_IPC_CHANNEL,
   PROVIDER_CANCEL_CONNECTION_TEST_IPC_CHANNEL,
   PROVIDER_CANCEL_GENERATION_TEST_IPC_CHANNEL,
   PROVIDER_DELETE_KEY_IPC_CHANNEL,
@@ -35,10 +49,16 @@ import {
   type HealthResult,
 } from "@ai-corporation/protocols";
 import {
+  AgentRunRepository,
   CorporationRepository,
   CorporationStateRepository,
   GoalContractRepository,
   GoalEngineRepository,
+  ExecutionStartRepository,
+  OrganizationActivationRepository,
+  OrganizationProposalRepository,
+  PlanValidationRepository,
+  PlanReviewRepository,
   PlannerRepository,
   ProviderRepository,
   type GoalFaultStage,
@@ -54,6 +74,28 @@ import {
 } from "electron";
 import type { DatabaseSync } from "node:sqlite";
 import { NativeCoreClient } from "./native-core-client";
+import {
+  handleAgentRunCancel,
+  handleAgentRunContinue,
+  handleAgentRunGetCurrent,
+  handleAgentRunRetry,
+} from "./agent-run-ipc";
+import { AgentRunService } from "./agent-run-service";
+import {
+  handleExecutionStart,
+  handleExecutionStartGetCurrent,
+} from "./execution-start-ipc";
+import { ExecutionStartService } from "./execution-start-service";
+import {
+  handleOrganizationActivationActivate,
+  handleOrganizationActivationGetCurrent,
+} from "./organization-activation-ipc";
+import { OrganizationActivationService } from "./organization-activation-service";
+import {
+  handleOrganizationProposalCreate,
+  handleOrganizationProposalGetCurrent,
+} from "./organization-proposal-ipc";
+import { OrganizationProposalService } from "./organization-proposal-service";
 import {
   handleCorporationArchive,
   handleCorporationCreate,
@@ -89,6 +131,15 @@ import {
   handlePlannerStart,
 } from "./planner-ipc";
 import { PlannerService } from "./planner-service";
+import { PlanValidationService } from "./plan-validation-service";
+import {
+  handlePlanReviewApprove,
+  handlePlanReviewGetCurrent,
+  handlePlanReviewListVersions,
+  handlePlanReviewSaveVersion,
+} from "./plan-review-ipc";
+import { PlanReviewService } from "./plan-review-service";
+import { createUuidV7 } from "./uuid-v7";
 import {
   handleProviderCancelConnectionTest,
   handleProviderCancelGenerationTest,
@@ -127,12 +178,17 @@ const rendererEntryPath = path.join(__dirname, "../../renderer/index.html");
 const preloadPath = path.join(__dirname, "../preload/index.js");
 
 let mainWindow: BrowserWindow | undefined;
+let agentRunService: AgentRunService | undefined;
 let corporationService: CorporationService | undefined;
 let corporationStateService: CorporationStateService | undefined;
 let goalContractService: GoalContractService | undefined;
 let goalEngineService: GoalEngineService | undefined;
+let executionStartService: ExecutionStartService | undefined;
 let plannerService: PlannerService | undefined;
+let planReviewService: PlanReviewService | undefined;
 let nativeCoreClient: NativeCoreClient | undefined;
+let organizationActivationService: OrganizationActivationService | undefined;
+let organizationProposalService: OrganizationProposalService | undefined;
 let providerService: ProviderService | undefined;
 let workspaceDatabase: DatabaseSync | undefined;
 let workspaceDirectorySelector: WorkspaceDirectorySelector | undefined;
@@ -219,7 +275,89 @@ async function handleNativeHealth(
 }
 
 void app.whenReady().then(async () => {
+  ipcMain.handle(
+    AGENT_RUN_GET_CURRENT_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleAgentRunGetCurrent(
+        isTrustedRenderer(event),
+        request,
+        agentRunService,
+      ),
+  );
+  ipcMain.handle(
+    AGENT_RUN_CONTINUE_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleAgentRunContinue(
+        isTrustedRenderer(event),
+        request,
+        agentRunService,
+      ),
+  );
+  ipcMain.handle(
+    AGENT_RUN_RETRY_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleAgentRunRetry(isTrustedRenderer(event), request, agentRunService),
+  );
+  ipcMain.handle(
+    AGENT_RUN_CANCEL_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleAgentRunCancel(isTrustedRenderer(event), request, agentRunService),
+  );
   ipcMain.handle(NATIVE_HEALTH_IPC_CHANNEL, handleNativeHealth);
+  ipcMain.handle(
+    EXECUTION_START_START_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleExecutionStart(
+        isTrustedRenderer(event),
+        request,
+        executionStartService,
+      ),
+  );
+  ipcMain.handle(
+    EXECUTION_START_GET_CURRENT_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleExecutionStartGetCurrent(
+        isTrustedRenderer(event),
+        request,
+        executionStartService,
+      ),
+  );
+  ipcMain.handle(
+    ORGANIZATION_ACTIVATION_ACTIVATE_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleOrganizationActivationActivate(
+        isTrustedRenderer(event),
+        request,
+        organizationActivationService,
+      ),
+  );
+  ipcMain.handle(
+    ORGANIZATION_ACTIVATION_GET_CURRENT_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleOrganizationActivationGetCurrent(
+        isTrustedRenderer(event),
+        request,
+        organizationActivationService,
+      ),
+  );
+  ipcMain.handle(
+    ORGANIZATION_PROPOSAL_CREATE_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleOrganizationProposalCreate(
+        isTrustedRenderer(event),
+        request,
+        organizationProposalService,
+      ),
+  );
+  ipcMain.handle(
+    ORGANIZATION_PROPOSAL_GET_CURRENT_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleOrganizationProposalGetCurrent(
+        isTrustedRenderer(event),
+        request,
+        organizationProposalService,
+      ),
+  );
   ipcMain.handle(
     PROVIDER_TEST_CONNECTION_IPC_CHANNEL,
     (event: IpcMainInvokeEvent, request: unknown) =>
@@ -351,6 +489,42 @@ void app.whenReady().then(async () => {
         isTrustedRenderer(event),
         request,
         plannerService,
+      ),
+  );
+  ipcMain.handle(
+    PLAN_REVIEW_GET_CURRENT_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handlePlanReviewGetCurrent(
+        isTrustedRenderer(event),
+        request,
+        planReviewService,
+      ),
+  );
+  ipcMain.handle(
+    PLAN_REVIEW_LIST_VERSIONS_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handlePlanReviewListVersions(
+        isTrustedRenderer(event),
+        request,
+        planReviewService,
+      ),
+  );
+  ipcMain.handle(
+    PLAN_REVIEW_SAVE_VERSION_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handlePlanReviewSaveVersion(
+        isTrustedRenderer(event),
+        request,
+        planReviewService,
+      ),
+  );
+  ipcMain.handle(
+    PLAN_REVIEW_APPROVE_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handlePlanReviewApprove(
+        isTrustedRenderer(event),
+        request,
+        planReviewService,
       ),
   );
   ipcMain.handle(
@@ -556,9 +730,36 @@ void app.whenReady().then(async () => {
     });
     const plannerRepository = new PlannerRepository(workspaceDatabase);
     plannerRepository.interruptGenerating(new Date().toISOString());
+    const planValidationService = new PlanValidationService({
+      repository: new PlanValidationRepository(workspaceDatabase),
+    });
+    planValidationService.recoverPending();
+    planReviewService = new PlanReviewService({
+      createId: createUuidV7,
+      repository: new PlanReviewRepository(workspaceDatabase),
+      validator: planValidationService,
+    });
+    organizationProposalService = new OrganizationProposalService({
+      createId: createUuidV7,
+      repository: new OrganizationProposalRepository(workspaceDatabase),
+    });
+    organizationActivationService = new OrganizationActivationService({
+      createId: createUuidV7,
+      repository: new OrganizationActivationRepository(workspaceDatabase),
+    });
+    executionStartService = new ExecutionStartService({
+      createId: createUuidV7,
+      repository: new ExecutionStartRepository(workspaceDatabase),
+    });
+    agentRunService = new AgentRunService({
+      createId: createUuidV7,
+      provider: providerService,
+      repository: new AgentRunRepository(workspaceDatabase),
+    });
     plannerService = new PlannerService({
       provider: providerService,
       repository: plannerRepository,
+      validator: planValidationService,
     });
     const e2eFixturePath = resolveWorkspaceE2eFixturePath(process.env);
     workspaceDirectorySelector = createWorkspaceDirectorySelector({
@@ -576,7 +777,10 @@ void app.whenReady().then(async () => {
     corporationStateService = undefined;
     goalContractService = undefined;
     goalEngineService = undefined;
+    executionStartService = undefined;
+    agentRunService = undefined;
     plannerService = undefined;
+    planReviewService = undefined;
     providerService = undefined;
     workspaceDirectorySelector = undefined;
     workspaceService = undefined;
@@ -598,6 +802,10 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  ipcMain.removeHandler(AGENT_RUN_GET_CURRENT_IPC_CHANNEL);
+  ipcMain.removeHandler(AGENT_RUN_CONTINUE_IPC_CHANNEL);
+  ipcMain.removeHandler(AGENT_RUN_RETRY_IPC_CHANNEL);
+  ipcMain.removeHandler(AGENT_RUN_CANCEL_IPC_CHANNEL);
   ipcMain.removeHandler(NATIVE_HEALTH_IPC_CHANNEL);
   ipcMain.removeHandler(PROVIDER_LIST_IPC_CHANNEL);
   ipcMain.removeHandler(PROVIDER_TEST_CONNECTION_IPC_CHANNEL);
@@ -630,10 +838,15 @@ app.on("before-quit", () => {
   ipcMain.removeHandler(PLANNER_START_IPC_CHANNEL);
   ipcMain.removeHandler(PLANNER_CANCEL_IPC_CHANNEL);
   ipcMain.removeHandler(PLANNER_GET_CURRENT_IPC_CHANNEL);
+  ipcMain.removeHandler(PLAN_REVIEW_GET_CURRENT_IPC_CHANNEL);
+  ipcMain.removeHandler(PLAN_REVIEW_LIST_VERSIONS_IPC_CHANNEL);
+  ipcMain.removeHandler(PLAN_REVIEW_SAVE_VERSION_IPC_CHANNEL);
+  ipcMain.removeHandler(PLAN_REVIEW_APPROVE_IPC_CHANNEL);
   corporationService = undefined;
   goalContractService = undefined;
   goalEngineService = undefined;
   plannerService = undefined;
+  planReviewService = undefined;
   providerService = undefined;
   workspaceDirectorySelector = undefined;
   workspaceService = undefined;

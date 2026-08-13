@@ -4,6 +4,8 @@
 
 按可运行的垂直切片开发，不先分别造完 UI、数据库、Rust 和 Agent 框架。每个里程碑都应产生可演示、可测试的用户价值。
 
+为加快阶段交付而主动省略、简化，但未来仍需补齐或丰富的内容，统一登记在[简化与后续增强清单](Deferred-Enhancements.md)。里程碑关闭不自动取消这些项目；拆分下一阶段任务前必须重新检查并安排。
+
 建议周期：8–10 周，小团队 2–4 人；单人开发应按依赖顺序执行，不以日历承诺为准。
 
 任何用户可见功能进入实现前，必须读取 [UI/UX 文档中心](../07-ui/README.md)。Milestone 0 的工程壳不要求达到产品高保真视觉，但从 Milestone 1 起的页面、交互和状态必须遵守 UI 基线与专项验收标准。
@@ -88,11 +90,15 @@
 - 循环依赖和无验收 Task 被拒绝；
 - 用户可修改并批准计划。
 
-阶段边界：Planner 先生成并保存 `DRAFT/PENDING` 结构化草稿；DAG/输入输出/验收验证是后续独立任务；Plan Review 再负责编辑和批准。模型只生成语义内容与局部引用，正式 Plan/Task 身份由应用分配。每次规划前用户明确选择已验证 Provider/精确模型，Provider 输入不包含 Workspace 路径或文件内容。Milestone 2 只显示能力要求和建议角色并标注尚未组队，真实 Organization Engine 仍属于 Milestone 3。
+Milestone 2 的 L3 演示与验收采用用户确认的证据汇总方式：不为关闭里程碑新增一条从 Key 设置到 Plan 批准的连续自动化流程；由 M2-TU-02 至 M2-TU-08 各自已完成的直接证据组成交付物与用户旅程矩阵，并在当前验收提交上重新执行 Windows/macOS 开发态真实窗口、最终包真实窗口、完整工程回归和制品上传。Windows 保留用户对最终安装包的人工验收结论，macOS 使用真实 macOS CI 窗口自动化证据。证据汇总不等同于声称存在一条未中断的端到端测试；任一当前必检项失败仍阻止 Milestone 2 关闭。
+
+阶段边界：Planner 先生成并保存 `DRAFT/PENDING` 结构化草稿；独立的本地确定性验证器随后检查 1–20 个 Task 的 DAG、输入输出、逐 Task 验收、叶子输出、预算与权限描述，通过时原子创建正式 Task/依赖，失败时保存结构化问题且不调用模型、不自动修改计划；Plan Review 再负责编辑和批准。模型只生成语义内容与局部引用，正式 Plan/Task 身份由应用分配。每次规划前用户明确选择已验证 Provider/精确模型，Provider 输入不包含 Workspace 路径或文件内容。Milestone 2 只显示能力要求和建议角色并标注尚未组队，真实 Organization Engine 仍属于 Milestone 3。
 
 ## 6. Milestone 3：最小 Agent 闭环
 
 目标：Planner → Executor → Artifact → Judge。
+
+首个垂直切片的阶段边界：Plan 通过验证并由用户批准后，只出现“开始组队”入口；批准 Plan 本身不创建团队。用户明确点击后，应用使用内置且有版本号的 Planner、Executor、Judge 模板，按固定规则生成并保存团队草案，同时展示 Task 分工、职责分离和能力缺口。Executor 固定分为分析与文档、软件实现、质量验收三类，计划用到哪类才创建哪类；需要用户决定的 Task 直接标记由用户负责，不分配给 Executor。这个切片不调用模型、不选择精确 Provider 或模型、不创建 Agent Instance/Run、不激活团队、不开始执行，Corporation 继续保持 `DRAFT`。草案只记录模型策略；真正运行 Agent 时再由后续任务选择精确 Provider 和模型。
 
 交付：
 

@@ -17,26 +17,26 @@ describe("Workspace UI state", () => {
   it("does not present stale permission as current access", () => {
     expect(presentWorkspace({ ...workspace, accessStatus: "MISSING" })).toEqual(
       {
-        accessLabel: "Folder missing",
-        permissionLabel: "Last verified: read and write",
-        recoveryAction: "Restore the folder or select another workspace.",
+        accessLabel: "文件夹不存在",
+        permissionLabel: "上次验证权限：可读写",
+        recoveryAction: "请恢复该文件夹，或选择另一个工作区。",
         tone: "critical",
       },
     );
     expect(
       presentWorkspace({ ...workspace, accessStatus: "UNVERIFIED" }),
     ).toMatchObject({
-      accessLabel: "Verification required",
+      accessLabel: "需要验证",
       tone: "warning",
     });
   });
 
   it("maps fixed errors to actionable messages without echoing data", () => {
     expect(workspaceErrorMessage("VERIFICATION_FAILED")).toContain(
-      "existing authorization was not changed",
+      "原有授权没有改变",
     );
     expect(workspaceErrorMessage("SELECTION_UNAVAILABLE")).toContain(
-      "folder selector",
+      "文件夹选择器",
     );
   });
 

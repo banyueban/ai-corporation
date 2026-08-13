@@ -10,6 +10,7 @@ Artifact System 管理 AI Corporation 中所有可交付、可引用、可验证
 - `JSON`：结构化结果；
 - `DOCUMENT`：Markdown 等文档；
 - `SOURCE_CODE`：源代码；
+- `FILE`：普通文件或无法进一步细分的二进制成果；
 - `PATCH`：对工作区的变更集；
 - `TEST_REPORT`：测试/构建结果；
 - `DECISION_RECORD`：决策与理由；

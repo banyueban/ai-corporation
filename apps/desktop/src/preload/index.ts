@@ -1,4 +1,14 @@
 import {
+  AGENT_RUN_CANCEL_IPC_CHANNEL,
+  AGENT_RUN_CONTINUE_IPC_CHANNEL,
+  AGENT_RUN_GET_CURRENT_IPC_CHANNEL,
+  AGENT_RUN_RETRY_IPC_CHANNEL,
+  agentRunCommandRequestSchema,
+  agentRunGetCurrentRequestSchema,
+  agentRunNullableResultSchema,
+  agentRunResultSchema,
+  type AgentRunCommandRequest,
+  type AgentRunGetCurrentRequest,
   CORPORATION_ARCHIVE_IPC_CHANNEL,
   CORPORATION_CREATE_IPC_CHANNEL,
   CORPORATION_GET_IPC_CHANNEL,
@@ -47,6 +57,14 @@ import {
   type GoalEngineGetCurrentRequest,
   type GoalEngineResolveExtensionRequest,
   type GoalEngineStartRequest,
+  EXECUTION_START_GET_CURRENT_IPC_CHANNEL,
+  EXECUTION_START_START_IPC_CHANNEL,
+  executionStartGetCurrentRequestSchema,
+  executionStartItemResultSchema,
+  executionStartNullableItemResultSchema,
+  executionStartRequestSchema,
+  type ExecutionStartGetCurrentRequest,
+  type ExecutionStartRequest,
   type CorporationArchiveRequest,
   type CorporationCreateRequest,
   type CorporationGetRequest,
@@ -56,6 +74,22 @@ import {
   type CorporationUpdateNameRequest,
   healthResultSchema,
   NATIVE_HEALTH_IPC_CHANNEL,
+  ORGANIZATION_ACTIVATION_ACTIVATE_IPC_CHANNEL,
+  ORGANIZATION_ACTIVATION_GET_CURRENT_IPC_CHANNEL,
+  organizationActivationGetCurrentRequestSchema,
+  organizationActivationItemResultSchema,
+  organizationActivationNullableItemResultSchema,
+  organizationActivationRequestSchema,
+  type OrganizationActivationGetCurrentRequest,
+  type OrganizationActivationRequest,
+  ORGANIZATION_PROPOSAL_CREATE_IPC_CHANNEL,
+  ORGANIZATION_PROPOSAL_GET_CURRENT_IPC_CHANNEL,
+  organizationProposalCreateRequestSchema,
+  organizationProposalGetCurrentRequestSchema,
+  organizationProposalItemResultSchema,
+  organizationProposalNullableItemResultSchema,
+  type OrganizationProposalCreateRequest,
+  type OrganizationProposalGetCurrentRequest,
   PLANNER_CANCEL_IPC_CHANNEL,
   PLANNER_GET_CURRENT_IPC_CHANNEL,
   PLANNER_START_IPC_CHANNEL,
@@ -67,6 +101,21 @@ import {
   type PlannerCancelRequest,
   type PlannerGetCurrentRequest,
   type PlannerStartRequest,
+  PLAN_REVIEW_APPROVE_IPC_CHANNEL,
+  PLAN_REVIEW_GET_CURRENT_IPC_CHANNEL,
+  PLAN_REVIEW_LIST_VERSIONS_IPC_CHANNEL,
+  PLAN_REVIEW_SAVE_VERSION_IPC_CHANNEL,
+  planReviewApproveRequestSchema,
+  planReviewGetCurrentRequestSchema,
+  planReviewItemResultSchema,
+  planReviewListResultSchema,
+  planReviewListVersionsRequestSchema,
+  planReviewNullableItemResultSchema,
+  planReviewSaveVersionRequestSchema,
+  type PlanReviewApproveRequest,
+  type PlanReviewGetCurrentRequest,
+  type PlanReviewListVersionsRequest,
+  type PlanReviewSaveVersionRequest,
   PROVIDER_CANCEL_CONNECTION_TEST_IPC_CHANNEL,
   PROVIDER_CANCEL_GENERATION_TEST_IPC_CHANNEL,
   PROVIDER_DELETE_KEY_IPC_CHANNEL,
@@ -114,6 +163,52 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { DesktopApi } from "../shared/desktop-api";
 
 const desktopApi: DesktopApi = Object.freeze({
+  agentRun: Object.freeze({
+    getCurrent: async (request: AgentRunGetCurrentRequest) =>
+      agentRunNullableResultSchema.parse(
+        await ipcRenderer.invoke(
+          AGENT_RUN_GET_CURRENT_IPC_CHANNEL,
+          agentRunGetCurrentRequestSchema.parse(request),
+        ),
+      ),
+    continue: async (request: AgentRunCommandRequest) =>
+      agentRunResultSchema.parse(
+        await ipcRenderer.invoke(
+          AGENT_RUN_CONTINUE_IPC_CHANNEL,
+          agentRunCommandRequestSchema.parse(request),
+        ),
+      ),
+    retry: async (request: AgentRunCommandRequest) =>
+      agentRunResultSchema.parse(
+        await ipcRenderer.invoke(
+          AGENT_RUN_RETRY_IPC_CHANNEL,
+          agentRunCommandRequestSchema.parse(request),
+        ),
+      ),
+    cancel: async (request: AgentRunCommandRequest) =>
+      agentRunResultSchema.parse(
+        await ipcRenderer.invoke(
+          AGENT_RUN_CANCEL_IPC_CHANNEL,
+          agentRunCommandRequestSchema.parse(request),
+        ),
+      ),
+  }),
+  executionStart: Object.freeze({
+    getCurrent: async (request: ExecutionStartGetCurrentRequest) =>
+      executionStartNullableItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          EXECUTION_START_GET_CURRENT_IPC_CHANNEL,
+          executionStartGetCurrentRequestSchema.parse(request),
+        ),
+      ),
+    start: async (request: ExecutionStartRequest) =>
+      executionStartItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          EXECUTION_START_START_IPC_CHANNEL,
+          executionStartRequestSchema.parse(request),
+        ),
+      ),
+  }),
   corporation: Object.freeze({
     archive: async (request: CorporationArchiveRequest) =>
       corporationItemResultSchema.parse(
@@ -236,6 +331,38 @@ const desktopApi: DesktopApi = Object.freeze({
     healthResultSchema.parse(
       await ipcRenderer.invoke(NATIVE_HEALTH_IPC_CHANNEL),
     ),
+  organizationActivation: Object.freeze({
+    activate: async (request: OrganizationActivationRequest) =>
+      organizationActivationItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          ORGANIZATION_ACTIVATION_ACTIVATE_IPC_CHANNEL,
+          organizationActivationRequestSchema.parse(request),
+        ),
+      ),
+    getCurrent: async (request: OrganizationActivationGetCurrentRequest) =>
+      organizationActivationNullableItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          ORGANIZATION_ACTIVATION_GET_CURRENT_IPC_CHANNEL,
+          organizationActivationGetCurrentRequestSchema.parse(request),
+        ),
+      ),
+  }),
+  organizationProposal: Object.freeze({
+    create: async (request: OrganizationProposalCreateRequest) =>
+      organizationProposalItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          ORGANIZATION_PROPOSAL_CREATE_IPC_CHANNEL,
+          organizationProposalCreateRequestSchema.parse(request),
+        ),
+      ),
+    getCurrent: async (request: OrganizationProposalGetCurrentRequest) =>
+      organizationProposalNullableItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          ORGANIZATION_PROPOSAL_GET_CURRENT_IPC_CHANNEL,
+          organizationProposalGetCurrentRequestSchema.parse(request),
+        ),
+      ),
+  }),
   planner: Object.freeze({
     cancel: async (request: PlannerCancelRequest) =>
       plannerItemResultSchema.parse(
@@ -256,6 +383,36 @@ const desktopApi: DesktopApi = Object.freeze({
         await ipcRenderer.invoke(
           PLANNER_START_IPC_CHANNEL,
           plannerStartRequestSchema.parse(request),
+        ),
+      ),
+  }),
+  planReview: Object.freeze({
+    approve: async (request: PlanReviewApproveRequest) =>
+      planReviewItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          PLAN_REVIEW_APPROVE_IPC_CHANNEL,
+          planReviewApproveRequestSchema.parse(request),
+        ),
+      ),
+    getCurrent: async (request: PlanReviewGetCurrentRequest) =>
+      planReviewNullableItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          PLAN_REVIEW_GET_CURRENT_IPC_CHANNEL,
+          planReviewGetCurrentRequestSchema.parse(request),
+        ),
+      ),
+    listVersions: async (request: PlanReviewListVersionsRequest) =>
+      planReviewListResultSchema.parse(
+        await ipcRenderer.invoke(
+          PLAN_REVIEW_LIST_VERSIONS_IPC_CHANNEL,
+          planReviewListVersionsRequestSchema.parse(request),
+        ),
+      ),
+    saveVersion: async (request: PlanReviewSaveVersionRequest) =>
+      planReviewItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          PLAN_REVIEW_SAVE_VERSION_IPC_CHANNEL,
+          planReviewSaveVersionRequestSchema.parse(request),
         ),
       ),
   }),

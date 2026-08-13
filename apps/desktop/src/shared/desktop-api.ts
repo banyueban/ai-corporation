@@ -1,4 +1,8 @@
 import type {
+  AgentRunCommandRequest,
+  AgentRunGetCurrentRequest,
+  AgentRunNullableResult,
+  AgentRunResult,
   CorporationArchiveRequest,
   CorporationCreateRequest,
   CorporationGetRequest,
@@ -22,12 +26,31 @@ import type {
   GoalEngineNullableItemResult,
   GoalEngineResolveExtensionRequest,
   GoalEngineStartRequest,
+  ExecutionStartGetCurrentRequest,
+  ExecutionStartItemResult,
+  ExecutionStartNullableItemResult,
+  ExecutionStartRequest,
   HealthResult,
+  OrganizationActivationGetCurrentRequest,
+  OrganizationActivationItemResult,
+  OrganizationActivationNullableItemResult,
+  OrganizationActivationRequest,
+  OrganizationProposalCreateRequest,
+  OrganizationProposalGetCurrentRequest,
+  OrganizationProposalItemResult,
+  OrganizationProposalNullableItemResult,
   PlannerCancelRequest,
   PlannerGetCurrentRequest,
   PlannerItemResult,
   PlannerNullableItemResult,
   PlannerStartRequest,
+  PlanReviewApproveRequest,
+  PlanReviewGetCurrentRequest,
+  PlanReviewItemResult,
+  PlanReviewListResult,
+  PlanReviewListVersionsRequest,
+  PlanReviewNullableItemResult,
+  PlanReviewSaveVersionRequest,
   ProviderDeleteKeyRequest,
   ProviderCancelConnectionTestRequest,
   ProviderCancelConnectionTestResult,
@@ -51,6 +74,20 @@ import type {
 } from "@ai-corporation/protocols";
 
 export interface DesktopApi {
+  readonly agentRun: Readonly<{
+    getCurrent(
+      request: AgentRunGetCurrentRequest,
+    ): Promise<AgentRunNullableResult>;
+    continue(request: AgentRunCommandRequest): Promise<AgentRunResult>;
+    retry(request: AgentRunCommandRequest): Promise<AgentRunResult>;
+    cancel(request: AgentRunCommandRequest): Promise<AgentRunResult>;
+  }>;
+  readonly executionStart: Readonly<{
+    getCurrent(
+      request: ExecutionStartGetCurrentRequest,
+    ): Promise<ExecutionStartNullableItemResult>;
+    start(request: ExecutionStartRequest): Promise<ExecutionStartItemResult>;
+  }>;
   readonly corporation: Readonly<{
     archive(request: CorporationArchiveRequest): Promise<CorporationItemResult>;
     create(request: CorporationCreateRequest): Promise<CorporationItemResult>;
@@ -88,12 +125,40 @@ export interface DesktopApi {
     start(request: GoalEngineStartRequest): Promise<GoalEngineItemResult>;
   }>;
   health(): Promise<HealthResult>;
+  readonly organizationActivation: Readonly<{
+    activate(
+      request: OrganizationActivationRequest,
+    ): Promise<OrganizationActivationItemResult>;
+    getCurrent(
+      request: OrganizationActivationGetCurrentRequest,
+    ): Promise<OrganizationActivationNullableItemResult>;
+  }>;
+  readonly organizationProposal: Readonly<{
+    create(
+      request: OrganizationProposalCreateRequest,
+    ): Promise<OrganizationProposalItemResult>;
+    getCurrent(
+      request: OrganizationProposalGetCurrentRequest,
+    ): Promise<OrganizationProposalNullableItemResult>;
+  }>;
   readonly planner: Readonly<{
     cancel(request: PlannerCancelRequest): Promise<PlannerItemResult>;
     getCurrent(
       request: PlannerGetCurrentRequest,
     ): Promise<PlannerNullableItemResult>;
     start(request: PlannerStartRequest): Promise<PlannerItemResult>;
+  }>;
+  readonly planReview: Readonly<{
+    approve(request: PlanReviewApproveRequest): Promise<PlanReviewItemResult>;
+    getCurrent(
+      request: PlanReviewGetCurrentRequest,
+    ): Promise<PlanReviewNullableItemResult>;
+    listVersions(
+      request: PlanReviewListVersionsRequest,
+    ): Promise<PlanReviewListResult>;
+    saveVersion(
+      request: PlanReviewSaveVersionRequest,
+    ): Promise<PlanReviewItemResult>;
   }>;
   readonly provider: Readonly<{
     cancelConnectionTest(
