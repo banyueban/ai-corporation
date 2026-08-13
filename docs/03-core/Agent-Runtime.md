@@ -74,14 +74,14 @@ RUNNING → PRODUCED
 PRODUCED → SUCCEEDED
 ```
 
-`PRODUCED` 表示候选 Artifact 已生成；只有持久化成功后才转 `SUCCEEDED`。
+`PRODUCED` 表示模型候选内容已经由应用验证并持久化，但不等于正式 Artifact 已生成。正式 Artifact 任务把候选内容转换为 Artifact Version 后，Run 才转 `SUCCEEDED`。模型不得生成或指定可信 `contentRef`；引用只能由应用在持久化边界生成。
 
 ## 5. Run Limits
 
 ```ts
 type RunLimits = {
-  maxModelTurns: number;       // 默认 8
-  maxToolCalls: number;        // 默认 12
+  maxModelTurns: number; // 默认 8
+  maxToolCalls: number; // 默认 12
   maxInputTokens: number;
   maxOutputTokens: number;
   maxCostMicros: string;
@@ -193,9 +193,11 @@ Agent 的最终输出必须符合 [Agent Protocol 的 `AgentOutputEnvelope`](../
 2. JSON Schema 验证；
 3. 若仅格式错误，执行一次 constrained repair；
 4. 验证 Artifact 引用和路径；
-5. 存入临时区；
-6. 创建 Artifact Version；
-7. 返回给 Task Engine 进入 `VERIFYING`。
+5. 由应用生成可信候选内容引用并持久化，Run 进入 `PRODUCED`；
+6. 后续 Artifact 任务创建 Artifact Version；
+7. Artifact 持久化成功后，Run 进入 `SUCCEEDED`，Task Engine 再进入 `VERIFYING`。
+
+M3-TU-04 只交付上述第 1–5 步。它只运行没有上游 `TASK_OUTPUT`、不需要 Workspace 文件且 `requiredTools` 为空的首任务；上下文只包含安全规则、Goal 摘要、Task 合同、Agent 职责和输出要求。上游 Artifact、Workspace 文件、Memory 和工具结果由后续任务接入。
 
 ## 10. Tool Calling
 
