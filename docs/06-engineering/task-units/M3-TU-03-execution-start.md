@@ -1,12 +1,12 @@
 # M3-TU-03 开始执行与首个任务调度
 
-| 字段 | 内容 |
-|---|---|
-| 任务单元 ID | M3-TU-03 |
-| 状态 | 进行中 |
-| 所属 Milestone | Milestone 3：最小 Agent 闭环 |
-| 主要结果 | 用户明确点击“开始执行”后，应用原子计算全部任务状态，并且只认领一个确定的首任务；普通任务创建一个尚未调用模型的 Run，人工任务则进入等待人工处理。 |
-| 基线提交 | `322e5ff187ca1b464b86a8966a11a74ba42fcd95` |
+| 字段           | 内容                                                                                                                                             |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 任务单元 ID    | M3-TU-03                                                                                                                                         |
+| 状态           | 进行中                                                                                                                                           |
+| 所属 Milestone | Milestone 3：最小 Agent 闭环                                                                                                                     |
+| 主要结果       | 用户明确点击“开始执行”后，应用原子计算全部任务状态，并且只认领一个确定的首任务；普通任务创建一个尚未调用模型的 Run，人工任务则进入等待人工处理。 |
+| 基线提交       | `322e5ff187ca1b464b86a8966a11a74ba42fcd95`                                                                                                       |
 
 ## 1. 需求与设计引用
 
@@ -46,7 +46,13 @@
 - 关键路径、解锁数、等待时间、风险惩罚、候选评分、预算预留、熔断或并发槽位；
 - 新增或编辑 Plan、团队、Provider、预算或任务优先级。
 
-## 5. 依赖与接口
+## 5. 简化与后续增强
+
+- `DE-005`：本任务一次只认领一个首任务；持续调度、并发槽位和任务完成后的下一轮调度必须由 Milestone 3 后续任务补齐；
+- `DE-006`：本任务使用简化稳定排序；关键路径、解锁数、等待老化和风险惩罚的完整评分必须由 Milestone 3 后续 Scheduler 任务补齐；
+- 统一登记与关闭条件见[简化与后续增强清单](../Deferred-Enhancements.md)。
+
+## 6. 依赖与接口
 
 - Renderer 只提交 `schemaVersion`、`commandId`、`corporationId` 和 `expectedCorporationVersion`；不得提交任务、优先级、负责人、Agent、状态、租约、Run 或时间；
 - Main 从当前批准 Plan、激活团队和可信 SQLite 读取任务、依赖和分工；
@@ -56,13 +62,13 @@
 - 成功结果公开 Corporation 状态/版本、所有任务的公开状态、选中任务、可选 Run 及开始时间，不公开 Key、数据库内部内容或完整 Provider 响应；
 - 固定错误至少包含 `VALIDATION_FAILED`、`UNAUTHORIZED_CALLER`、`CORPORATION_NOT_FOUND`、`CORPORATION_CHANGED`、`STATE_CONFLICT`、`WORKSPACE_UNAVAILABLE`、`PLAN_NOT_READY`、`ORGANIZATION_NOT_READY`、`PROVIDER_NOT_READY`、`ASSIGNMENT_INVALID`、`NO_ENTRY_TASK`、`COMMAND_CONFLICT` 和 `STORAGE_FAILURE`。
 
-## 6. 交付物与所有权
+## 7. 交付物与所有权
 
 专属修改区：Execution Start protocol、repository/service/IPC、`0015_execution_start.sql`、开始执行 UI 与专项测试。
 
 共享冲突区：Corporation/Task/Agent 状态、事件表、Storage/Main/Preload/Desktop API、Plan Review UI、核心与 UI 权威文档、`PROJECT_STATUS.md`。本任务串行修改这些文件。
 
-## 7. 验收合同
+## 8. 验收合同
 
 - [ ] 01 只有当前批准 Plan、当前激活团队、可用 Workspace 和 `DRAFT` Corporation 显示并允许“开始执行”；
 - [ ] 02 点击前不改变 Corporation/Task/Agent/Run，不调用 Provider；启动中禁止重复点击；
@@ -85,7 +91,7 @@
 - [ ] 19 Windows 开发态真实 Electron 窗口覆盖普通首任务、人工首任务、刷新恢复和零模型调用；
 - [ ] 20 当前提交 Windows/macOS CI、最终包真实窗口和制品上传通过，用户人工验收通过后方可关闭。
 
-## 8. 隔离与干扰控制
+## 9. 隔离与干扰控制
 
 - 测试使用 `M3-TU-03` 独立临时目录、SQLite、Corporation/Plan/Organization/Task/Agent/Run/command UUID；
 - 每项测试自行建立 Plan、DAG、团队分工、Agent 和 Provider 前置数据，不依赖其他任务残留；
@@ -93,7 +99,7 @@
 - 排序 fixture 同时覆盖优先级、人工同级优先和稳定顺序；
 - Electron E2E 使用独立 userData，开发态与最终包证据分开记录。
 
-## 9. 证据计划
+## 10. 证据计划
 
 - `pnpm check:status`、`pnpm check:task-units`、`pnpm check`、`git diff --check`；
 - Protocol strict Schema、固定错误和 Renderer 伪造拒绝测试；
@@ -102,6 +108,6 @@
 - Windows/macOS GitHub Actions、最终包真实窗口和 artifact；
 - 用户对当前最终包的人工开始执行验收结论。
 
-## 10. 完成规则
+## 11. 完成规则
 
 只有 20 项断言全部具备当前提交的直接证据、P0/P1 为 0、文档/协议/Schema/迁移/实现一致，并且用户完成最终包人工验收后，M3-TU-03 才可标记“完成”。代码、单元测试、构建、进程存活或窗口打开均不能单独关闭任务。
