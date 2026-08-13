@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  agentRunErrorLabel,
   internalLabel,
   planValidationFindingLabel,
   timelineLabel,
@@ -29,5 +30,15 @@ describe("中文界面标签", () => {
 
   it("按事件类型显示中文时间线", () => {
     expect(timelineLabel("goal.contract.approved")).toBe("目标合同已批准。");
+  });
+
+  it("把运行错误解释成用户能直接处理的中文", () => {
+    expect(agentRunErrorLabel("RUN_CHANGED")).toBe(
+      "运行记录已经变化，请刷新后再试。",
+    );
+    expect(agentRunErrorLabel("TASK_INPUT_UNSUPPORTED")).toContain(
+      "当前版本还不能处理",
+    );
+    expect(agentRunErrorLabel("FUTURE_ERROR")).toContain("FUTURE_ERROR");
   });
 });

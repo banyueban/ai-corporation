@@ -12,6 +12,7 @@ import type {
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { createUuidV7 } from "./uuid-v7";
 import {
+  agentRunErrorLabel,
   formatUiTime,
   internalLabel,
   planValidationFindingLabel,
@@ -441,6 +442,11 @@ function OrganizationProposalView(props: {
               onContinue={props.onContinueAgentRun}
               onRetry={props.onRetryAgentRun}
               pending={props.agentRunPending}
+              requiredTools={
+                props.plan.tasks.find(
+                  (task) => task.id === props.executionStart?.selectedTaskId,
+                )?.requiredTools ?? []
+              }
               result={props.executionStart}
             />
           )}
@@ -665,6 +671,7 @@ function ExecutionStartView(props: {
   readonly onRetry: () => Promise<void>;
   readonly pending: boolean;
   readonly result: ExecutionStart;
+  readonly requiredTools: readonly string[];
 }) {
   const run = props.agentRun;
   return (
@@ -686,7 +693,14 @@ function ExecutionStartView(props: {
       </p>
       {props.error !== undefined && (
         <p className="field-error" role="alert">
-          运行操作失败（{props.error}）。软件没有把它标记为成功。
+          {agentRunErrorLabel(props.error)}
+        </p>
+      )}
+      {props.requiredTools.length > 0 && (
+        <p className="plan-boundary-note">
+          这项任务需要工具：{props.requiredTools.join("、")}
+          。当前只生成候选内容，
+          不会调用工具，也不会读取、写入或修改文件；工具操作仍未执行。
         </p>
       )}
       {run !== undefined && run.status === "CREATED" && (

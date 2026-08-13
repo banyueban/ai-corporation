@@ -197,7 +197,7 @@ Agent 的最终输出必须符合 [Agent Protocol 的 `AgentOutputEnvelope`](../
 6. 后续 Artifact 任务创建 Artifact Version；
 7. Artifact 持久化成功后，Run 进入 `SUCCEEDED`，Task Engine 再进入 `VERIFYING`。
 
-M3-TU-04 只交付上述第 1–5 步。它只运行没有上游 `TASK_OUTPUT`、不需要 Workspace 文件且 `requiredTools` 为空的首任务；上下文只包含安全规则、Goal 摘要、Task 合同、Agent 职责和输出要求。上游 Artifact、Workspace 文件、Memory 和工具结果由后续任务接入。
+M3-TU-04 只交付上述第 1–5 步。它只运行没有上游 `TASK_OUTPUT`、不需要 Workspace 文件读取/写入或进程权限的首任务；Task 可声明 `requiredTools`，但本切片只把它视为后续工作说明。上下文包含安全规则、Goal 摘要、Task 合同、Agent 职责、输出要求，以及“工具不可用、不得声称已执行工具或读写文件”的硬限制。上游 Artifact、Workspace 文件、Memory、工具调用和工具结果由后续任务接入，UI 必须说明工具尚未执行。
 
 ## 10. Tool Calling
 

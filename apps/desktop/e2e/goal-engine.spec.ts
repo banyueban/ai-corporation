@@ -489,11 +489,21 @@ test("user creates and cancels real Goal Engine operations in the visible window
     await expect(
       page.getByRole("heading", { name: "模型候选内容" }),
     ).toBeVisible();
+    await expect(
+      page.getByText(/当前只生成候选内容.*工具操作仍未执行/u),
+    ).toBeVisible();
     await expect(page.getByText("尚未成为正式交付物。")).toBeVisible();
     await expect(page.getByText("候选报告正文")).toBeVisible();
     await expect(page.getByText(/人工修改后的报告任务：执行中/u)).toBeVisible();
     await expect(page.getByText(/当前没有运行任务/u)).toHaveCount(0);
     expect(fixture.generationCalls()).toBe(callsBeforeExecutionStart + 1);
+    const agentRequest = JSON.stringify(
+      fixture.generationRequests().at(-1)?.body,
+    );
+    expect(agentRequest).toContain("workspace.propose_write");
+    expect(agentRequest).toContain("Tools are unavailable in this run");
+    expect(agentRequest).toContain("toolCallsExecuted");
+    expect(agentRequest).toContain("workspaceWrite");
     const executionFacts = await page.evaluate(async () => {
       const desktop = (window as unknown as { desktop: DesktopApi }).desktop;
       const workspaces = await desktop.workspace.list();
@@ -1212,7 +1222,7 @@ function plannerOutput() {
         requiredCapabilities: [
           { path: "writing.document", minimumLevel: 0.7, mandatory: true },
         ],
-        requiredTools: [],
+        requiredTools: ["workspace.propose_write"],
         inputs: [
           {
             source: "GOAL_CONTRACT",

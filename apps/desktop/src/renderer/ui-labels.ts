@@ -86,6 +86,18 @@ const timelineLabels: Readonly<Record<string, string>> = {
   "corporation.resumed": "公司已继续运行。",
 };
 
+const agentRunErrorLabels: Readonly<Record<string, string>> = {
+  RUN_CHANGED: "运行记录已经变化，请刷新后再试。",
+  RUN_NOT_CONTINUABLE: "当前运行不能继续，请刷新后查看最新状态。",
+  TASK_INPUT_UNSUPPORTED:
+    "该任务需要读取工作区、上游任务结果或运行进程，当前版本还不能处理。",
+  PROVIDER_NOT_READY: "模型服务商尚未准备好，请检查模型设置。",
+  PROVIDER_FAILURE: "模型服务商请求失败，请检查连接后再试。",
+  RUN_NOT_FOUND: "没有找到这条运行记录，请刷新后再试。",
+  COMMAND_CONFLICT: "本次操作与之前的操作冲突，请重新发起。",
+  STORAGE_FAILURE: "本地数据操作失败，软件没有把本次操作标记为成功。",
+};
+
 export function internalLabel(value: string): string {
   return internalLabels[value] ?? value;
 }
@@ -96,6 +108,13 @@ export function planValidationFindingLabel(value: string): string {
 
 export function timelineLabel(eventType: string): string {
   return timelineLabels[eventType] ?? eventType;
+}
+
+export function agentRunErrorLabel(value: string): string {
+  return (
+    agentRunErrorLabels[value] ??
+    `运行操作失败（${value}），软件没有把本次操作标记为成功。`
+  );
 }
 
 export function formatUiTime(value: string): string {

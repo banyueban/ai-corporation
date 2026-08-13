@@ -1075,11 +1075,6 @@ export function App() {
   ) => {
     if (reviewCorporation === undefined) return;
     setAgentRunPending(true);
-    setAgentRun((current) =>
-      current?.runId === run.runId
-        ? { ...current, status: "RUNNING" }
-        : current,
-    );
     setAgentRunError(undefined);
     setStatusMessage(retry ? "正在重新尝试首个任务…" : "正在运行首个任务…");
     try {

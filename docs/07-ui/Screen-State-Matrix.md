@@ -90,7 +90,7 @@
 | Execution starting       | 禁止重复提交；重新核对工作区、批准计划、团队、成员、分工和模型配置；计算全部任务状态              | 等待                             |
 | Execution started        | 显示唯一首任务和全部任务真实状态；新 Run 立即运行，历史 `CREATED` Run 等待用户继续                | 查看任务 / 继续执行              |
 | Agent running            | 显示准备或运行中；不得提前显示成功                                                                | 取消运行                         |
-| Candidate produced       | 完整显示候选正文、usage 和“尚未成为正式交付物”                                                    | 查看候选                         |
+| Candidate produced       | 完整显示候选正文、usage 和“尚未成为正式交付物”；任务声明工具时显示“工具尚未执行、未读写文件”     | 查看候选                         |
 | Agent run failed         | 显示固定失败原因；Task 等待重试，软件不自动重试                                                   | 重新尝试                         |
 | Human entry selected     | 首个人工任务和阻断原因置顶；Corporation/Task 为 `WAITING_HUMAN`，无 Run、无模型调用               | 处理决定（后续任务）             |
 | Execution start failed   | 固定失败原因；明确公司、任务和成员未被当作已开始，不自动重试                                      | 用户明确重试或修复前置条件       |

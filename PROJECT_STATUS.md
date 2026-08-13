@@ -6,13 +6,13 @@
 | 当前阶段       | Milestone 3 开发中                    |
 | 当前 Milestone | Milestone 3：最小 Agent 闭环          |
 | 当前任务单元   | M3-TU-04（进行中）                    |
-| 总体状态       | M3-TU-04 功能已实现，正在完成交付验收 |
+| 总体状态       | M3-TU-04 已修复真实任务阻断，正在重新交付验收 |
 | 最近更新       | 2026-08-13                            |
 | 下一检查点     | 安装包、真实 Provider、CI 与人工验收  |
 
 ## 1. 当前结论
 
-Milestone 0、Milestone 1 和 Milestone 2 已完成。Milestone 3 的 M3-TU-01、M3-TU-02 和 M3-TU-03 均已完成并经用户人工验收。当前 M3-TU-04 已实现用户确认的 `1A + 2A + 3A + 4A + 5A + 6A`：点击“开始执行”同时授权首个模型调用，旧 `CREATED` Run 可继续；模型结果保存为候选内容，软件生成可信引用；格式最多修复一次；Provider 失败不自动重试；本任务不读取 Workspace、上游 Artifact、Memory 或工具结果。任务仍处于进行中，尚缺最终安装包、真实 Provider、CI 和用户人工验收。
+Milestone 0、Milestone 1 和 Milestone 2 已完成。Milestone 3 的 M3-TU-01、M3-TU-02 和 M3-TU-03 均已完成并经用户人工验收。当前 M3-TU-04 已实现用户确认的 `1A + 2A + 3A + 4A + 5A + 6A` 及后续方案 A：点击“开始执行”同时授权首个模型调用，旧 `CREATED` Run 可继续；模型结果保存为候选内容，软件生成可信引用；格式最多修复一次；Provider 失败不自动重试；本任务不读取 Workspace、上游 Artifact、Memory 或工具结果。Task 可声明后续所需工具，但本阶段只生成候选内容，不调用工具、不读写文件，UI 明示工具尚未执行。任务仍处于进行中，尚缺修复版最终安装包、真实 Provider、CI 和用户人工验收。
 
 M2-TU-09 已按用户选择的方案 B 完成 L3 汇总验收：M2-TU-02 至 M2-TU-08 的直接证据组成交付物和验收矩阵，当前提交的 Windows/macOS 完整工程检查、开发态真实窗口、最终包真实窗口与制品上传全部通过。该结论不声称存在一条未实际执行的连续端到端测试。
 
@@ -60,7 +60,7 @@ M3-TU-04 只交付：
 
 ## 5. 活跃阻塞与外部条件
 
-当前 P0/P1、P2/P3 均为 0，无产品实现阻塞。M3-TU-04 当前只剩真实 Provider 脱敏运行和用户人工验收，任务仍未完成。M3-TU-03 功能提交 `97d2425c74a83a612d7a4454b67871304f57f78c` 及后续治理提交 `3ae6a0fee5218da2595ee757b430996a96463778` 均通过 Windows/macOS 完整 CI、开发态真实窗口、最终包真实窗口和制品上传；用户已于 2026-08-13 确认 M3-TU-03 Windows 安装包人工验收通过。`DE-005` 持续调度与 `DE-006` 完整评分仍为待安排增强，不属于阻塞或已完成能力。`banyueban/ai-corporation` 为公开仓库；CI 上传范围仅包含安装包、blockmap 和验收截图。不清理其他仓库制品。
+当前 P0/P1、P2/P3 均为 0，无产品实现阻塞。旧安装包对声明 `workspace.propose_write` 的真实首任务错误返回 `RUN_CHANGED`，并曾把未成功的 Run 临时显示为“运行中”；修复版已允许该 Task 生成候选内容、禁止真实工具与文件操作、移除乐观成功状态并提供中文错误说明。真实 Run `019ffb79-8dbd-7f0a-a6b1-79799b3462b4` 只读检查确认仍为 `CREATED` attempt 1，可由修复版继续。M3-TU-04 当前仍需修复版真实 Provider 脱敏运行、CI 和用户人工验收，任务未完成。M3-TU-03 功能提交 `97d2425c74a83a612d7a4454b67871304f57f78c` 及后续治理提交 `3ae6a0fee5218da2595ee757b430996a96463778` 均通过 Windows/macOS 完整 CI、开发态真实窗口、最终包真实窗口和制品上传；用户已于 2026-08-13 确认 M3-TU-03 Windows 安装包人工验收通过。`DE-005` 持续调度与 `DE-006` 完整评分仍为待安排增强，不属于阻塞或已完成能力。`banyueban/ai-corporation` 为公开仓库；CI 上传范围仅包含安装包、blockmap 和验收截图。不清理其他仓库制品。
 
 已知条件：系统 PATH 未提供 Node.js，工程验证使用 Codex bundled Node.js；正式 Key 仍只由应用自管 Key Vault 使用，未进入命令、脚本、环境变量、Git、日志或截图；费用无法从当前 Provider 响应可靠取得时保持 `UNKNOWN`。方案 B 使用分任务证据汇总，不声称存在单条未中断端到端测试。GitHub 提示两个 Action 的 Node.js 20 声明被 runner 强制切换到 Node.js 24；当前 CI 成功，该提示属于后续 CI 维护项，不是产品缺陷。
 
@@ -84,10 +84,12 @@ M3-TU-04 只交付：
 - Agent Run 真实窗口旅程覆盖：点击“开始执行”立即调用 loopback 模型、保存并完整显示候选正文和 usage、明确标注“尚未成为正式交付物”、页面重载恢复且不重复调用；伪造 Renderer 字段被 strict IPC 拒绝；
 - 当前提交的 GitHub Actions 运行 `31703862379` 完整成功：Windows job `94459406571`、macOS job `94459406500` 的工程检查、开发态真实窗口、最终包真实窗口和制品上传全部通过；Windows/macOS artifact ID 分别为 `9182501113`、`9182459724`；
 - 当前 Windows 安装器已在本地生成：`release/AI Corporation Desktop Setup 0.1.0.exe`，大小 `99810157` 字节，SHA-256 为 `6F6B60F9B815B14AC1411F1D5E6B6456BD5951B91ACD7C91CFCAA1D37A602E6A`；同一构建的解包程序真实窗口健康与既有最终包矩阵通过。尚未执行当前任务的正式真实 Provider 运行，尚未取得用户人工验收结论。
+- 方案 A 修复版本地 `pnpm check` 完整通过：Protocol 55、Provider 28、Storage 99、Desktop 135，Native Core 7、Workspace Rust 7；状态/合同、格式、lint、类型、Rust fmt/clippy 和 secret scan 均成功；Windows 开发态真实 Electron 7 条旅程全部通过；
+- 带 `workspace.propose_write` 的真实窗口回归证明：Run 完成一次模型调用并保存候选正文；请求包含工具名称和“工具不可用、不得声称执行工具或读写文件”的限制；UI 显示工具仍未执行。修复代码对正式数据库中的原 Run 只读检查返回可继续，Run 仍为 `CREATED` attempt 1。尚未取得修复版最终包、当前提交 CI、正式真实 Provider 运行或用户人工验收结论。
 
 ## 7. 下一步
 
-使用应用内已保存 Provider 完成 M3-TU-04 脱敏真实模型运行；由用户验收当前 Windows 安装包。两项通过后补齐合同证据并关闭任务。
+生成并提交方案 A 修复版 Windows 安装包，等待当前提交 Windows/macOS CI；使用应用内已保存 Provider 继续原 `CREATED` Run 完成脱敏真实模型运行，并由用户人工验收。全部通过后补齐合同证据并关闭任务。
 
 ## 8. 更新规则
 

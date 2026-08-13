@@ -54,7 +54,6 @@ export class AgentRunRepository {
         JSON.parse(String(row.contract_json)),
       );
       if (
-        contract.requiredTools.length > 0 ||
         contract.permissionRequest.workspaceRead ||
         contract.permissionRequest.workspaceWrite.length > 0 ||
         contract.permissionRequest.processProfiles.length > 0 ||
@@ -341,7 +340,7 @@ export class AgentRunRepository {
           route.modelId,
           JSON.stringify({
             schemaVersion: 1,
-            promptTemplate: "executor.non-tool.v1",
+            promptTemplate: "executor.candidate-only.v2",
             repair: false,
           }),
           now,
