@@ -83,9 +83,10 @@ M3-TU-04 只交付：
 - M3-TU-04 最终功能提交 `99b2084b4f2ab731993b562ea21ef39f7065a281` 本地 `pnpm check` 完整通过：Protocol 55、Provider 28、Storage 99、Desktop 134，Native Core 7、Workspace Rust 7；Windows 开发态真实 Electron 7 条旅程全部通过；
 - Agent Run 真实窗口旅程覆盖：点击“开始执行”立即调用 loopback 模型、保存并完整显示候选正文和 usage、明确标注“尚未成为正式交付物”、页面重载恢复且不重复调用；伪造 Renderer 字段被 strict IPC 拒绝；
 - 当前提交的 GitHub Actions 运行 `31703862379` 完整成功：Windows job `94459406571`、macOS job `94459406500` 的工程检查、开发态真实窗口、最终包真实窗口和制品上传全部通过；Windows/macOS artifact ID 分别为 `9182501113`、`9182459724`；
-- 当前 Windows 安装器已在本地生成：`release/AI Corporation Desktop Setup 0.1.0.exe`，大小 `99810157` 字节，SHA-256 为 `6F6B60F9B815B14AC1411F1D5E6B6456BD5951B91ACD7C91CFCAA1D37A602E6A`；同一构建的解包程序真实窗口健康与既有最终包矩阵通过。尚未执行当前任务的正式真实 Provider 运行，尚未取得用户人工验收结论。
+- 方案 A 修复版 Windows 安装器已在本地生成：`release/AI Corporation Desktop Setup 0.1.0.exe`，大小 `99810492` 字节，SHA-256 为 `26AF85F66A775A7E6525A5DCA84EEDAD07983C214EADC83E902FC252BEB747FA`；同一构建的解包程序真实窗口健康与最终包矩阵通过。尚未执行修复版的正式真实 Provider 运行，尚未取得用户人工验收结论。
 - 方案 A 修复版本地 `pnpm check` 完整通过：Protocol 55、Provider 28、Storage 99、Desktop 135，Native Core 7、Workspace Rust 7；状态/合同、格式、lint、类型、Rust fmt/clippy 和 secret scan 均成功；Windows 开发态真实 Electron 7 条旅程全部通过；
-- 带 `workspace.propose_write` 的真实窗口回归证明：Run 完成一次模型调用并保存候选正文；请求包含工具名称和“工具不可用、不得声称执行工具或读写文件”的限制；UI 显示工具仍未执行。修复代码对正式数据库中的原 Run 只读检查返回可继续，Run 仍为 `CREATED` attempt 1。尚未取得修复版最终包、当前提交 CI、正式真实 Provider 运行或用户人工验收结论。
+- 带 `workspace.propose_write` 的真实窗口回归证明：Run 完成一次模型调用并保存候选正文；请求包含工具名称和“工具不可用、不得声称执行工具或读写文件”的限制；UI 显示工具仍未执行。修复代码对正式数据库中的原 Run 只读检查返回可继续，Run 仍为 `CREATED` attempt 1。
+- 修复提交 `ec7b2bc57c406a8df87a9ea6cdae9a979a4c1a16` 的 GitHub Actions 运行 `31716082990` 完整成功：Windows job `94501102183`、macOS job `94501102194` 的工程检查、开发态真实 Electron、未签名安装包构建、最终包真实窗口和制品上传全部通过；Windows/macOS artifact ID 分别为 `9187486721`、`9187455350`。当前剩余验证只有修复版正式真实 Provider 运行和用户人工验收。
 
 ## 7. 下一步
 
