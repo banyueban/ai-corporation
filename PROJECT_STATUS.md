@@ -60,7 +60,7 @@ M3-TU-04 只交付：
 
 ## 5. 活跃阻塞与外部条件
 
-当前 P0/P1、P2/P3 均为 0，无产品实现阻塞。M3-TU-03 功能提交 `97d2425c74a83a612d7a4454b67871304f57f78c` 及后续治理提交 `3ae6a0fee5218da2595ee757b430996a96463778` 均通过 Windows/macOS 完整 CI、开发态真实窗口、最终包真实窗口和制品上传；用户已于 2026-08-13 确认 M3-TU-03 Windows 安装包人工验收通过。`DE-005` 持续调度与 `DE-006` 完整评分仍为待安排增强，不属于阻塞或已完成能力。`banyueban/ai-corporation` 为公开仓库；CI 上传范围仅包含安装包、blockmap 和验收截图。不清理其他仓库制品。
+当前 P0/P1、P2/P3 均为 0，无产品实现阻塞。M3-TU-04 当前只剩真实 Provider 脱敏运行和用户人工验收，任务仍未完成。M3-TU-03 功能提交 `97d2425c74a83a612d7a4454b67871304f57f78c` 及后续治理提交 `3ae6a0fee5218da2595ee757b430996a96463778` 均通过 Windows/macOS 完整 CI、开发态真实窗口、最终包真实窗口和制品上传；用户已于 2026-08-13 确认 M3-TU-03 Windows 安装包人工验收通过。`DE-005` 持续调度与 `DE-006` 完整评分仍为待安排增强，不属于阻塞或已完成能力。`banyueban/ai-corporation` 为公开仓库；CI 上传范围仅包含安装包、blockmap 和验收截图。不清理其他仓库制品。
 
 已知条件：系统 PATH 未提供 Node.js，工程验证使用 Codex bundled Node.js；正式 Key 仍只由应用自管 Key Vault 使用，未进入命令、脚本、环境变量、Git、日志或截图；费用无法从当前 Provider 响应可靠取得时保持 `UNKNOWN`。方案 B 使用分任务证据汇总，不声称存在单条未中断端到端测试。GitHub 提示两个 Action 的 Node.js 20 声明被 runner 强制切换到 Node.js 24；当前 CI 成功，该提示属于后续 CI 维护项，不是产品缺陷。
 
@@ -80,10 +80,14 @@ M3-TU-04 只交付：
 - M3-TU-03 功能提交 `97d2425c74a83a612d7a4454b67871304f57f78c` 本地完整工程检查、开发态真实窗口和最终包矩阵通过；本地安装器大小 `99804738` 字节，SHA-256 为 `7E6EF66F6E23A0D937700961FDBB463CEB41876C3A989F3EC8CC16FC44CD962B`；
 - 当前父提交 `3ae6a0fee5218da2595ee757b430996a96463778` 的 GitHub Actions 运行 `31685382573` 完整成功：Windows job `94400136174`、macOS job `94400136192` 的工程检查、开发态真实窗口、最终包真实窗口和制品上传全部通过；Windows/macOS artifact ID 分别为 `9175321683`、`9175275254`；
 - 用户于 2026-08-13 确认 M3-TU-03 人工验收通过，20 项验收全部关闭；该结论不包含 Provider 模型调用、持续调度、完整评分、Artifact、Evaluation 或修订。
+- M3-TU-04 最终功能提交 `99b2084b4f2ab731993b562ea21ef39f7065a281` 本地 `pnpm check` 完整通过：Protocol 55、Provider 28、Storage 99、Desktop 134，Native Core 7、Workspace Rust 7；Windows 开发态真实 Electron 7 条旅程全部通过；
+- Agent Run 真实窗口旅程覆盖：点击“开始执行”立即调用 loopback 模型、保存并完整显示候选正文和 usage、明确标注“尚未成为正式交付物”、页面重载恢复且不重复调用；伪造 Renderer 字段被 strict IPC 拒绝；
+- 当前提交的 GitHub Actions 运行 `31703862379` 完整成功：Windows job `94459406571`、macOS job `94459406500` 的工程检查、开发态真实窗口、最终包真实窗口和制品上传全部通过；Windows/macOS artifact ID 分别为 `9182501113`、`9182459724`；
+- 当前 Windows 安装器已在本地生成：`release/AI Corporation Desktop Setup 0.1.0.exe`，大小 `99810157` 字节，SHA-256 为 `6F6B60F9B815B14AC1411F1D5E6B6456BD5951B91ACD7C91CFCAA1D37A602E6A`；同一构建的解包程序真实窗口健康与既有最终包矩阵通过。尚未执行当前任务的正式真实 Provider 运行，尚未取得用户人工验收结论。
 
 ## 7. 下一步
 
-提交并推送 M3-TU-04 功能，生成 Windows 安装包，完成真实 Provider 脱敏验证与双平台 CI；最后由用户人工验收，全部证据通过后再关闭任务。
+使用应用内已保存 Provider 完成 M3-TU-04 脱敏真实模型运行；由用户验收当前 Windows 安装包。两项通过后补齐合同证据并关闭任务。
 
 ## 8. 更新规则
 
