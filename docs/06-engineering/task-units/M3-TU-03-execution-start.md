@@ -3,7 +3,7 @@
 | 字段           | 内容                                                                                                                                             |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 任务单元 ID    | M3-TU-03                                                                                                                                         |
-| 状态           | 进行中                                                                                                                                           |
+| 状态           | 完成                                                                                                                                             |
 | 所属 Milestone | Milestone 3：最小 Agent 闭环                                                                                                                     |
 | 主要结果       | 用户明确点击“开始执行”后，应用原子计算全部任务状态，并且只认领一个确定的首任务；普通任务创建一个尚未调用模型的 Run，人工任务则进入等待人工处理。 |
 | 基线提交       | `322e5ff187ca1b464b86a8966a11a74ba42fcd95`                                                                                                       |
@@ -70,26 +70,26 @@
 
 ## 8. 验收合同
 
-- [ ] 01 只有当前批准 Plan、当前激活团队、可用 Workspace 和 `DRAFT` Corporation 显示并允许“开始执行”；
-- [ ] 02 点击前不改变 Corporation/Task/Agent/Run，不调用 Provider；启动中禁止重复点击；
-- [ ] 03 Renderer 不能指定或伪造 Task、排序、owner、Agent、Run、状态、时间或租约；
-- [ ] 04 Main 在事务内重新验证 Corporation 版本、当前批准 Plan、团队版本、Agent 和 Provider 快照；竞争或失效时无部分写入；
-- [ ] 05 所有无依赖任务变为 `READY`，有未完成依赖任务变为 `BLOCKED`，状态与当前 DAG 一致；
-- [ ] 06 首任务只从无依赖候选中选择，按 priority 降序、同级人工优先、created_at 和 task.id 稳定排序；相同输入每次结果一致；
-- [ ] 07 普通首任务只映射到草案分配的唯一 Executor/Agent Instance，Task 转 `RUNNING`、attempt 增加为 1、Agent 转 `BUSY`；
-- [ ] 08 普通首任务只创建一个 `CREATED` Run，Run 绑定 Corporation/Task/Agent/attempt 和快照限制；Provider/model/tool 调用数均为 0；
-- [ ] 09 普通路径 Corporation 原子从 `DRAFT` 转 `EXECUTING` 并写入同版本事件；其余入口任务保持 `READY`，下游保持 `BLOCKED`；
-- [ ] 10 若最高优先级首任务为 `HUMAN_DECISION`，该 Task 与 Corporation 原子转 `WAITING_HUMAN`，不创建 Run、不占用 Agent；同级普通任务保持 `READY`；
-- [ ] 11 一次启动最多认领一个 Task；不继续调度第二个任务；
-- [ ] 12 同 command 和相同输入重试返回原结果，不重复状态、事件、attempt 或 Run；同 command 不同输入返回 `COMMAND_CONFLICT`；
-- [ ] 13 任一状态、事件、Run、Agent 或回执写入失败时全部回滚，Corporation 保持 `DRAFT`、Task 保持 `DRAFT`、Agent 保持 `READY`；
-- [ ] 14 启动后 Renderer 重载和应用重启恢复相同 Corporation、任务、Agent 和 Run；启动时不自动创建新 Run或调用模型；
-- [ ] 15 中文 UI 明确显示首任务、全部任务真实状态、普通路径“已创建运行记录但尚未调用模型”或人工路径“等待你的决定”；
-- [ ] 16 固定失败 UI 说明未开始、影响和恢复动作；不把失败显示为执行中；
-- [ ] 17 键盘、焦点、1024×700、1440×900 和 200% 缩放下可开始并查看结果；
-- [ ] 18 Protocol、Storage、Desktop 单元/组件测试和迁移测试通过；
-- [ ] 19 Windows 开发态真实 Electron 窗口覆盖普通首任务、人工首任务、刷新恢复和零模型调用；
-- [ ] 20 当前提交 Windows/macOS CI、最终包真实窗口和制品上传通过，用户人工验收通过后方可关闭。
+- [x] 01 只有当前批准 Plan、当前激活团队、可用 Workspace 和 `DRAFT` Corporation 显示并允许“开始执行”；
+- [x] 02 点击前不改变 Corporation/Task/Agent/Run，不调用 Provider；启动中禁止重复点击；
+- [x] 03 Renderer 不能指定或伪造 Task、排序、owner、Agent、Run、状态、时间或租约；
+- [x] 04 Main 在事务内重新验证 Corporation 版本、当前批准 Plan、团队版本、Agent 和 Provider 快照；竞争或失效时无部分写入；
+- [x] 05 所有无依赖任务变为 `READY`，有未完成依赖任务变为 `BLOCKED`，状态与当前 DAG 一致；
+- [x] 06 首任务只从无依赖候选中选择，按 priority 降序、同级人工优先、created_at 和 task.id 稳定排序；相同输入每次结果一致；
+- [x] 07 普通首任务只映射到草案分配的唯一 Executor/Agent Instance，Task 转 `RUNNING`、attempt 增加为 1、Agent 转 `BUSY`；
+- [x] 08 普通首任务只创建一个 `CREATED` Run，Run 绑定 Corporation/Task/Agent/attempt 和快照限制；Provider/model/tool 调用数均为 0；
+- [x] 09 普通路径 Corporation 原子从 `DRAFT` 转 `EXECUTING` 并写入同版本事件；其余入口任务保持 `READY`，下游保持 `BLOCKED`；
+- [x] 10 若最高优先级首任务为 `HUMAN_DECISION`，该 Task 与 Corporation 原子转 `WAITING_HUMAN`，不创建 Run、不占用 Agent；同级普通任务保持 `READY`；
+- [x] 11 一次启动最多认领一个 Task；不继续调度第二个任务；
+- [x] 12 同 command 和相同输入重试返回原结果，不重复状态、事件、attempt 或 Run；同 command 不同输入返回 `COMMAND_CONFLICT`；
+- [x] 13 任一状态、事件、Run、Agent 或回执写入失败时全部回滚，Corporation 保持 `DRAFT`、Task 保持 `DRAFT`、Agent 保持 `READY`；
+- [x] 14 启动后 Renderer 重载和应用重启恢复相同 Corporation、任务、Agent 和 Run；启动时不自动创建新 Run或调用模型；
+- [x] 15 中文 UI 明确显示首任务、全部任务真实状态、普通路径“已创建运行记录但尚未调用模型”或人工路径“等待你的决定”；
+- [x] 16 固定失败 UI 说明未开始、影响和恢复动作；不把失败显示为执行中；
+- [x] 17 键盘、焦点、1024×700、1440×900 和 200% 缩放下可开始并查看结果；
+- [x] 18 Protocol、Storage、Desktop 单元/组件测试和迁移测试通过；
+- [x] 19 Windows 开发态真实 Electron 窗口覆盖普通首任务、人工首任务、刷新恢复和零模型调用；
+- [x] 20 当前提交 Windows/macOS CI、最终包真实窗口和制品上传通过，用户人工验收通过后方可关闭。
 
 ## 9. 隔离与干扰控制
 
@@ -108,6 +108,14 @@
 - Windows/macOS GitHub Actions、最终包真实窗口和 artifact；
 - 用户对当前最终包的人工开始执行验收结论。
 
-## 11. 完成规则
+## 11. 验收证据
+
+- 功能实现提交 `97d2425c74a83a612d7a4454b67871304f57f78c`：本地 `pnpm check`、开发态 Electron 真实窗口、Windows 最终包真实窗口矩阵和 `git diff --check` 通过；本地安装器 `AI Corporation Desktop Setup 0.1.0.exe` 大小 `99804738` 字节，SHA-256 为 `7E6EF66F6E23A0D937700961FDBB463CEB41876C3A989F3EC8CC16FC44CD962B`；
+- 同提交 GitHub Actions 运行 `31673475012` 成功，Windows x64 与 macOS Apple Silicon 的工程检查、开发态真实窗口、未签名安装包构建、最终包真实窗口和制品上传全部通过；
+- 当前父提交 `3ae6a0fee5218da2595ee757b430996a96463778` 仅增加后续增强治理文档与门禁，并重新执行完整 GitHub Actions 运行 `31685382573`：Windows job `94400136174`、macOS job `94400136192` 均成功；
+- 当前 Windows artifact `ai-corporation-windows-x64` ID `9175321683`、大小 `102639585` 字节、digest `sha256:e2ca7b4f7c18a6ccbfe196e9ada3a196947731e42c8769f4856bd67f66d0a688`；macOS artifact `ai-corporation-macos-arm64` ID `9175275254`、大小 `123503065` 字节、digest `sha256:5e0e6f96b4421dc5e7a53053c8c65cda08c57867a10183ac06c8146c27cded75`；
+- 用户于 2026-08-13 明确确认 M3-TU-03 人工验收通过。20 项断言全部关闭，P0/P1 为 0，未执行必检项为 0；`DE-005`、`DE-006` 仍保持待安排，不因本任务关闭而视为补齐。
+
+## 12. 完成规则
 
 只有 20 项断言全部具备当前提交的直接证据、P0/P1 为 0、文档/协议/Schema/迁移/实现一致，并且用户完成最终包人工验收后，M3-TU-03 才可标记“完成”。代码、单元测试、构建、进程存活或窗口打开均不能单独关闭任务。
