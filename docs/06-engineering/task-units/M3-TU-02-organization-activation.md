@@ -3,7 +3,7 @@
 | 字段 | 内容 |
 |---|---|
 | 任务单元 ID | M3-TU-02 |
-| 状态 | 进行中 |
+| 状态 | 完成 |
 | 所属 Milestone | Milestone 3：最小 Agent 闭环 |
 | 主要结果 | 用户可为团队的 Planner、全部 Executor、Judge 分别选择已验证 Provider/精确模型并确认激活；应用创建可恢复的 Agent 成员，但不调用模型、不创建 Run、不开始 Task。 |
 | 基线提交 | `e241022063e065123b8ede51dc126d09c2959859` |
@@ -65,27 +65,27 @@
 
 ## 7. 验收合同
 
-- [ ] 01 只有当前 `DRAFT` 团队草案且没有 `BLOCKING` 缺口时显示并允许“配置并确认团队”；已激活、历史或阻断草案不能激活；
-- [ ] 02 Planner、全部 Executor、Judge 三组可分别选择 Provider 和精确模型，三组既可相同也可不同；
-- [ ] 03 选择来源只包含当前 `ENABLED`、Key 存在、连接验证对当前 Provider 版本为 `VERIFIED` 且模型列表非空的 Provider；
-- [ ] 04 每个所选 model ID 必须仍在对应 Provider 的当前已验证模型列表中；任一 Provider/模型失效时整个激活拒绝；
-- [ ] 05 角色选择不修改 Provider 默认模型、连接测试或生成测试记录，激活过程 Provider 调用次数为 0；
-- [ ] 06 存在 `BLOCKING` 缺口时固定拒绝；存在 `DEGRADED` 缺口时必须由用户明确接受且默认未接受；接受事实绑定当前 organization version；
-- [ ] 07 Renderer 不能伪造成员、Task 分工、Definition、能力、工具、API dialect、策略快照、Provider 状态或模型列表；
-- [ ] 08 成功将当前 organization version 从 `DRAFT` 转为 `APPROVED`，设置 Corporation 当前团队指针并按草案成员恰好创建一个 `READY` Agent Instance；
-- [ ] 09 每个 Agent Instance 保存 Definition/版本、有效工具和对应角色的 Provider/版本/model/dialect/策略快照，不保存 Key；
-- [ ] 10 Planner、Executor、Judge 身份与职责分离保持不变，所有 Executor 共用 Executor 组配置；
-- [ ] 11 激活成功不创建 Agent Run、model call 或执行事件，不开始 Task，不改变 Corporation `DRAFT`；
-- [ ] 12 相同命令重试返回原结果；命令内容冲突、团队版本变化、Provider 版本竞争或重复激活被安全拒绝；
-- [ ] 13 任一持久化步骤失败时 organization、当前指针、激活记录和 Agent Instance 全部回滚，不留下半激活团队；
-- [ ] 14 激活后的 Provider 修改、禁用、删除 Key或模型列表变化不改写历史快照；执行前校验接口能明确报告失效配置并要求新团队版本；
-- [ ] 15 Renderer/Main/Preload IPC allowlist、strict Schema 和固定安全错误一致，错误不包含 Key、远端正文或未受控数据库内容；
-- [ ] 16 中文 UI 清楚显示三组配置、可降级缺口后果、激活中禁止重复点击、固定失败原因及“团队已激活，等待开始执行”；
-- [ ] 17 Renderer 重载和应用重启后恢复已激活团队、三组配置和成员；失败不自动重试，已填选择在当前界面保留；
-- [ ] 18 键盘、焦点、1024×700、1440×900 和 200% 缩放下可完成配置并查看激活结果；
-- [ ] 19 Protocol、Storage、Desktop 单元/组件测试和迁移测试通过；
-- [ ] 20 Windows 开发态真实 Electron 窗口完成三组选择、确认激活、零执行副作用和重启恢复旅程；
-- [ ] 21 当前提交 Windows/macOS CI、最终包真实窗口和制品上传通过，用户人工验收通过后方可关闭。
+- [x] 01 只有当前 `DRAFT` 团队草案且没有 `BLOCKING` 缺口时显示并允许“配置并确认团队”；已激活、历史或阻断草案不能激活；
+- [x] 02 Planner、全部 Executor、Judge 三组可分别选择 Provider 和精确模型，三组既可相同也可不同；
+- [x] 03 选择来源只包含当前 `ENABLED`、Key 存在、连接验证对当前 Provider 版本为 `VERIFIED` 且模型列表非空的 Provider；
+- [x] 04 每个所选 model ID 必须仍在对应 Provider 的当前已验证模型列表中；任一 Provider/模型失效时整个激活拒绝；
+- [x] 05 角色选择不修改 Provider 默认模型、连接测试或生成测试记录，激活过程 Provider 调用次数为 0；
+- [x] 06 存在 `BLOCKING` 缺口时固定拒绝；存在 `DEGRADED` 缺口时必须由用户明确接受且默认未接受；接受事实绑定当前 organization version；
+- [x] 07 Renderer 不能伪造成员、Task 分工、Definition、能力、工具、API dialect、策略快照、Provider 状态或模型列表；
+- [x] 08 成功将当前 organization version 从 `DRAFT` 转为 `APPROVED`，设置 Corporation 当前团队指针并按草案成员恰好创建一个 `READY` Agent Instance；
+- [x] 09 每个 Agent Instance 保存 Definition/版本、有效工具和对应角色的 Provider/版本/model/dialect/策略快照，不保存 Key；
+- [x] 10 Planner、Executor、Judge 身份与职责分离保持不变，所有 Executor 共用 Executor 组配置；
+- [x] 11 激活成功不创建 Agent Run、model call 或执行事件，不开始 Task，不改变 Corporation `DRAFT`；
+- [x] 12 相同命令重试返回原结果；命令内容冲突、团队版本变化、Provider 版本竞争或重复激活被安全拒绝；
+- [x] 13 任一持久化步骤失败时 organization、当前指针、激活记录和 Agent Instance 全部回滚，不留下半激活团队；
+- [x] 14 激活后的 Provider 修改、禁用、删除 Key或模型列表变化不改写历史快照；执行前校验接口能明确报告失效配置并要求新团队版本；
+- [x] 15 Renderer/Main/Preload IPC allowlist、strict Schema 和固定安全错误一致，错误不包含 Key、远端正文或未受控数据库内容；
+- [x] 16 中文 UI 清楚显示三组配置、可降级缺口后果、激活中禁止重复点击、固定失败原因及“团队已激活，等待开始执行”；
+- [x] 17 Renderer 重载和应用重启后恢复已激活团队、三组配置和成员；失败不自动重试，已填选择在当前界面保留；
+- [x] 18 键盘、焦点、1024×700、1440×900 和 200% 缩放下可完成配置并查看激活结果；
+- [x] 19 Protocol、Storage、Desktop 单元/组件测试和迁移测试通过；
+- [x] 20 Windows 开发态真实 Electron 窗口完成三组选择、确认激活、零执行副作用和重启恢复旅程；
+- [x] 21 当前提交 Windows/macOS CI、最终包真实窗口和制品上传通过，用户人工验收通过后方可关闭。
 
 ## 8. 隔离与干扰控制
 

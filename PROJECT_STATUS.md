@@ -5,14 +5,14 @@
 | 当前产品版本   | v0.1 MVP                           |
 | 当前阶段       | Milestone 3 开发中                    |
 | 当前 Milestone | Milestone 3：最小 Agent 闭环       |
-| 当前任务单元   | M3-TU-02（进行中）                  |
-| 总体状态       | Milestone 3 团队模型配置与激活任务进行中 |
+| 当前任务单元   | M3-TU-02（完成）                    |
+| 总体状态       | M3-TU-02 已完成，Milestone 3 继续开发 |
 | 最近更新       | 2026-08-13                         |
-| 下一检查点     | 完成 M3-TU-02 当前 Windows 安装包人工验收 |
+| 下一检查点     | 按 MVP 开发计划建立并审查下一个任务合同 |
 
 ## 1. 当前结论
 
-Milestone 0、Milestone 1 和 Milestone 2 已完成。Milestone 3 的 M3-TU-01 已完成并经用户人工验收。M3-TU-02 已完成候选实现、完整本地验证和当前提交的双平台 CI/最终包验收：用户可为 Planner、全部 Executor、Judge 分别选择已验证 Provider/精确模型并确认团队；成功只激活并创建 Agent 成员，不调用模型、不创建 Run、不开始 Task，Corporation 保持 `DRAFT`。当前只剩用户对当前 Windows 安装包的人工验收，因此任务保持“进行中”。
+Milestone 0、Milestone 1 和 Milestone 2 已完成。Milestone 3 的 M3-TU-01 和 M3-TU-02 均已完成并经用户人工验收。M3-TU-02 已通过完整本地验证、当前提交的双平台 CI/最终包验收和 Windows 安装包人工验收：用户可为 Planner、全部 Executor、Judge 分别选择已验证 Provider/精确模型并确认团队；成功只激活并创建 Agent 成员，不调用模型、不创建 Run、不开始 Task，Corporation 保持 `DRAFT`。M3-TU-02 的 21 项验收全部通过；该结论不自动关闭 Milestone 3。
 
 M2-TU-09 已按用户选择的方案 B 完成 L3 汇总验收：M2-TU-02 至 M2-TU-08 的直接证据组成交付物和验收矩阵，当前提交的 Windows/macOS 完整工程检查、开发态真实窗口、最终包真实窗口与制品上传全部通过。该结论不声称存在一条未实际执行的连续端到端测试。
 
@@ -57,7 +57,7 @@ M3-TU-02 只交付：
 
 ## 5. 活跃阻塞与外部条件
 
-当前 P0/P1、P2/P3 均为 0，无产品实现阻塞。M3-TU-02 候选提交 `c0601b0d81e6e92811c3b3c48bd385037cc25db8` 已通过完整本地验证；GitHub Actions 运行 `31630350081` 第 2 次尝试已完成 Windows/macOS 双平台工程检查、开发态真实窗口、最终包真实窗口和制品上传。Windows 首次打包时外部 `nsis-resources` 下载返回 503，失败作业按原提交完整重跑后通过。当前只等待用户人工验收，不把自动验证代替人工结论。`banyueban/ai-corporation` 为公开仓库；CI 上传范围仅包含安装包、blockmap 和验收截图。不清理其他仓库制品。
+当前 P0/P1、P2/P3 均为 0，无产品实现阻塞。M3-TU-02 候选提交 `c0601b0d81e6e92811c3b3c48bd385037cc25db8` 已通过完整本地验证；GitHub Actions 运行 `31630350081` 第 2 次尝试已完成 Windows/macOS 双平台工程检查、开发态真实窗口、最终包真实窗口和制品上传；用户已于 2026-08-13 确认当前 Windows 安装包人工验收通过。Windows 首次打包时外部 `nsis-resources` 下载返回 503，失败作业按原提交完整重跑后通过。`banyueban/ai-corporation` 为公开仓库；CI 上传范围仅包含安装包、blockmap 和验收截图。不清理其他仓库制品。
 
 已知条件：系统 PATH 未提供 Node.js，工程验证使用 Codex bundled Node.js；正式 Key 仍只由应用自管 Key Vault 使用，未进入命令、脚本、环境变量、Git、日志或截图；费用无法从当前 Provider 响应可靠取得时保持 `UNKNOWN`。方案 B 使用分任务证据汇总，不声称存在单条未中断端到端测试。GitHub 提示两个 Action 的 Node.js 20 声明被 runner 强制切换到 Node.js 24；当前 CI 成功，该提示属于后续 CI 维护项，不是产品缺陷。
 
@@ -73,11 +73,11 @@ M3-TU-02 只交付：
 - 激活存储测试覆盖三组独立路由、Provider 默认模型不变、零模型调用、阻断/可降级缺口、未验证/版本变化/模型缺失、命令幂等与冲突、故障注入整体回滚、不可变快照及执行前失效检测；
 - Windows 开发态真实 Electron 7 条旅程全部通过；M3-TU-02 直接覆盖 200% 缩放与键盘选模、确认激活、Corporation 保持 `DRAFT`、恰好 3 个 `READY` 成员、零执行副作用、页面重载恢复、无横向溢出及 1024×700/1440×900 截图。
 - 提交 `c0601b0d81e6e92811c3b3c48bd385037cc25db8` 的 GitHub Actions 运行 `31630350081` 第 2 次尝试完整成功：Windows x64 与 macOS Apple Silicon 的工程检查、开发态真实 Electron、未签名安装包构建、最终包真实窗口和制品上传均通过；
-- 当前 Windows 安装器已下载到本地 `release/m3-tu02-windows-c0601b0-retry/AI Corporation Desktop Setup 0.1.0.exe`，大小 `99800513` 字节，SHA-256 为 `E07A9417D3AE733C0A164717C5D28EF29CC895C9D7225EFC7B12E0F06366316B`；尚未记录用户人工验收结论。
+- 当前 Windows 安装器已下载到本地 `release/m3-tu02-windows-c0601b0-retry/AI Corporation Desktop Setup 0.1.0.exe`，大小 `99800513` 字节，SHA-256 为 `E07A9417D3AE733C0A164717C5D28EF29CC895C9D7225EFC7B12E0F06366316B`；用户于 2026-08-13 确认人工验收通过，M3-TU-02 的 21 项验收全部通过。
 
 ## 7. 下一步
 
-由用户安装并人工验收当前 Windows 安装包；验收通过后再勾选 M3-TU-02 合同、更新任务结论并提交纯收尾变更。人工验收通过前保持未完成状态。
+按 MVP 开发计划建立下一个 Milestone 3 任务合同；合同达到“就绪”且不存在待决歧义后再开始实现。M3-TU-02 完成不代表 Scheduler、Agent Run、模型调用、Artifact、Evaluation 或修订已经交付。
 
 ## 8. 更新规则
 
