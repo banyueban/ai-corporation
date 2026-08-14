@@ -458,6 +458,17 @@ h3 {
   overflow-wrap: anywhere;
 }
 
+.employee-layout > .selection-panel {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+}
+
+/* 员工页按阅读顺序纵向排列，避免复用 selection-panel 时被拆成窄列。 */
+.employee-layout > .selection-panel > * {
+  grid-column: 1;
+  min-width: 0;
+}
+
 .employee-task-panel {
   grid-column: 1 / -1;
 }

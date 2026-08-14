@@ -63,6 +63,17 @@ test("user creates and restores an independent Pi employee in the visible window
       page.getByRole("heading", { name: "等待你验收" }),
     ).toBeVisible();
     await expect(page.getByText("整理完成：测试文字。").first()).toBeVisible();
+    await expectEmployeePanelsKeepReadableWidth(page);
+    await page.bringToFront();
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
+    await page.locator(".employee-task-panel").screenshot({
+      path: test.info().outputPath("employee-task-layout.png"),
+    });
     const processDetails = page.getByText("查看完整模型和工具过程");
     await processDetails.click();
     await expect(page.getByText("模型原始输出").first()).toBeVisible();
@@ -340,4 +351,37 @@ async function expectNoSeriousAxeViolations(
     );
   });
   expect(violations).toEqual([]);
+}
+
+async function expectEmployeePanelsKeepReadableWidth(
+  page: import("@playwright/test").Page,
+) {
+  // 防止员工页的标题、卡片、表单和结果再次被两栏容器压成竖排窄条。
+  const widths = await page.evaluate(() => {
+    const panel = document.querySelector<HTMLElement>(".employee-task-panel");
+    const form = panel?.querySelector<HTMLElement>(":scope > form");
+    const task = panel?.querySelector<HTMLElement>(":scope > .pi-task");
+    const employeePanels = Array.from(
+      document.querySelectorAll<HTMLElement>(
+        ".employee-layout > .selection-panel",
+      ),
+    );
+    const panelColumnCounts = employeePanels.map(
+      (employeePanel) =>
+        window
+          .getComputedStyle(employeePanel)
+          .gridTemplateColumns.trim()
+          .split(/\s+/u).length,
+    );
+    return {
+      panel: panel?.getBoundingClientRect().width ?? 0,
+      form: form?.getBoundingClientRect().width ?? 0,
+      task: task?.getBoundingClientRect().width ?? 0,
+      panelColumnCounts,
+    };
+  });
+  expect(widths.panel).toBeGreaterThan(500);
+  expect(widths.form).toBeGreaterThan(widths.panel * 0.7);
+  expect(widths.task).toBeGreaterThan(widths.panel * 0.7);
+  expect(widths.panelColumnCounts).toEqual([1, 1, 1]);
 }

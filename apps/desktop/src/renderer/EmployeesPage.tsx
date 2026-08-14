@@ -215,13 +215,15 @@ export function EmployeesPage() {
   return (
     <section aria-labelledby="employees-heading">
       <header className="page-header page-header--create">
-        <p className="eyebrow">PI 员工</p>
-        <h1 id="employees-heading" tabIndex={-1}>
-          员工与技能
-        </h1>
-        <p>
-          每名员工保存自己的模型和技能。先把一名员工配置好，再直接交代任务。
-        </p>
+        <div>
+          <p className="eyebrow">PI 员工</p>
+          <h1 id="employees-heading" tabIndex={-1}>
+            员工与技能
+          </h1>
+          <p>
+            每名员工保存自己的模型和技能。先把一名员工配置好，再直接交代任务。
+          </p>
+        </div>
       </header>
 
       <div className="employee-layout">
