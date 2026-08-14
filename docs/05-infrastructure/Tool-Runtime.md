@@ -55,7 +55,7 @@ type ToolDescriptor = {
 
 - 不直接覆盖文件；
 - 生成 Change Set 与 diff；
-- 经过 Policy/审批后由 Artifact Service 提交；
+- 经过 Policy 后由 Artifact Service 提交；当前 Pi 任务已经由用户明确选择可写工作区时，普通文本创建和基线未变化的文本修改可以按任务级授权自动提交，其他情况仍要求审批或拒绝；
 - 创建通常中风险，更新视策略而定。
 
 ### 3.5 `process.run_profile`
@@ -134,6 +134,7 @@ Agent Tool Call
 
 - 只读工具天然可重试；
 - 写文件通过 Change Set ID 幂等；
+- 当前 Pi 任务的写入使用工具调用 ID 作为幂等键，并在执行前记录目标相对路径、基线哈希和目标哈希；
 - 命令默认不可假设幂等；
 - Tool Invocation 在执行前记录 `STARTING`；
 - 成功后记录 commit/effect evidence；

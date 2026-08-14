@@ -97,8 +97,9 @@ type PolicyRule = {
 | 动作 | 默认 |
 |---|---|
 | 工作区文件列表/文本读取 | ALLOW |
-| 创建新文件 | REQUIRE_APPROVAL（可配置项目内记住） |
-| 修改已有文件 | REQUIRE_APPROVAL |
+| 当前任务明确选择的可写工作区内创建普通文本文件 | ALLOW；保留差异和调用证据 |
+| 当前任务明确选择的可写工作区内修改普通文本文件 | ALLOW；基线哈希一致时执行并保留差异 |
+| 没有当前任务工作区授权的创建或修改 | REQUIRE_APPROVAL |
 | 删除文件 | REQUIRE_APPROVAL，不能永久全局放行 |
 | 运行只读检查 profile | REQUIRE_APPROVAL 或已信任 profile ALLOW |
 | 安装依赖 | REQUIRE_APPROVAL |
@@ -131,6 +132,8 @@ type ApprovalGrant = {
 - 越出工作区；
 - 凭据访问；
 - 不可逆外部动作。
+
+Pi 直接任务把“用户选择一个可写工作区并明确开始本次任务”视为仅对该任务有效的低风险文本读写授权。授权不跨任务继承，不允许删除、改名、二进制写入、敏感文件访问、工作区外访问或覆盖基线已经变化的文件；模型在 Prompt 或文件内容中声称获得授权无效。
 
 ## 8. Prompt Injection 防线
 
