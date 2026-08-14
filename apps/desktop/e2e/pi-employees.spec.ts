@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
-import { mkdtempSync, rmSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
@@ -12,7 +13,8 @@ test("user creates and restores an independent Pi employee in the visible window
   const userDataDirectory = mkdtempSync(
     path.join(tmpdir(), "M7-TU-01-electron-user-data-"),
   );
-  let app = await launchApplication(userDataDirectory);
+  const taskWorkspace = mkdtempSync(path.join(tmpdir(), "M8-TU-01-workspace-"));
+  let app = await launchApplication(userDataDirectory, taskWorkspace);
 
   try {
     let page = await app.firstWindow();
@@ -54,7 +56,18 @@ test("user creates and restores an independent Pi employee in the visible window
     expect(providerAfterEmployee.ok).toBe(true);
     if (!providerAfterEmployee.ok) throw new Error("Provider list failed");
     expect(providerAfterEmployee.value[0]?.selectedModelId).toBeUndefined();
-    await page.getByLabel("任务内容").fill("请把测试文字整理成一句话");
+    await page.getByRole("button", { name: "添加工作区" }).click();
+    await expect(
+      page.getByText("工作区已授权，可以用于这次任务。"),
+    ).toBeVisible();
+    writeFileSync(
+      path.join(taskWorkspace, "source.md"),
+      "需要整理的测试文字",
+      "utf8",
+    );
+    await page
+      .getByLabel("任务内容")
+      .fill("请读取 source.md，把内容整理成一句话并写入 result.md");
     await page.getByRole("button", { name: "开始任务" }).click();
     await expect(
       page.getByRole("heading", { name: "员工正在工作" }),
@@ -63,6 +76,9 @@ test("user creates and restores an independent Pi employee in the visible window
       page.getByRole("heading", { name: "等待你验收" }),
     ).toBeVisible();
     await expect(page.getByText("整理完成：测试文字。").first()).toBeVisible();
+    expect(readFileSync(path.join(taskWorkspace, "result.md"), "utf8")).toBe(
+      "整理完成：测试文字。",
+    );
     await expectEmployeePanelsKeepReadableWidth(page);
     await page.bringToFront();
     await page.evaluate(
@@ -77,8 +93,43 @@ test("user creates and restores an independent Pi employee in the visible window
     const processDetails = page.getByText("查看完整模型和工具过程");
     await processDetails.click();
     await expect(page.getByText("模型原始输出").first()).toBeVisible();
-    await expect(page.getByText("工具开始")).toBeVisible();
-    await expect(page.getByText("工具结果")).toBeVisible();
+    await expect(page.getByText("工具开始").first()).toBeVisible();
+    await expect(page.getByText("工具结果").first()).toBeVisible();
+    await app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0];
+      window?.setSize(1024, 700);
+      window?.webContents.setZoomFactor(2);
+    });
+    await waitForPaint(page);
+    await expectEmployeePanelsKeepReadableWidth(page, 220);
+    await page.locator(".employee-task-panel").scrollIntoViewIfNeeded();
+    await waitForPaint(page);
+    await page.screenshot({
+      animations: "disabled",
+      fullPage: true,
+      path: path.resolve(
+        __dirname,
+        "../../../release",
+        `m8-tu01-${process.env.AI_CORPORATION_PACKAGED_EXE === undefined ? "dev" : "packaged"}-${process.platform}-${process.arch}-1024x700-200-percent.png`,
+      ),
+    });
+    await app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0];
+      window?.setSize(1440, 900);
+      window?.webContents.setZoomFactor(1);
+    });
+    await waitForPaint(page);
+    await expectEmployeePanelsKeepReadableWidth(page);
+    await page.locator(".employee-task-panel").scrollIntoViewIfNeeded();
+    await waitForPaint(page);
+    await page.screenshot({
+      animations: "disabled",
+      path: path.resolve(
+        __dirname,
+        "../../../release",
+        `m8-tu01-${process.env.AI_CORPORATION_PACKAGED_EXE === undefined ? "dev" : "packaged"}-${process.platform}-${process.arch}-1440x900.png`,
+      ),
+    });
     await page.getByLabel("需要修改的内容").fill("再短一点");
     await page.getByRole("button", { name: "不通过，继续修改" }).click();
     await expect(
@@ -87,10 +138,27 @@ test("user creates and restores an independent Pi employee in the visible window
     await expect(
       page.getByRole("heading", { name: "等待你验收" }),
     ).toBeVisible();
+    expect(readFileSync(path.join(taskWorkspace, "result.md"), "utf8")).toBe(
+      "测试文字。",
+    );
     await page.getByText("查看完整模型和工具过程").click();
     await expect(page.getByText("用户没有验收通过：再短一点")).toBeVisible();
     await page.getByRole("button", { name: "验收通过" }).click();
     await expect(page.getByRole("heading", { name: "已完成" })).toBeVisible();
+
+    writeFileSync(
+      path.join(taskWorkspace, "result.md"),
+      "用户刚写入的新内容",
+      "utf8",
+    );
+    await page.getByLabel("任务内容").fill("触发并发冲突");
+    await page.getByRole("button", { name: "开始任务" }).click();
+    await expect(page.getByRole("heading", { name: "运行失败" })).toBeVisible();
+    expect(readFileSync(path.join(taskWorkspace, "result.md"), "utf8")).toBe(
+      "用户刚写入的新内容",
+    );
+    await page.getByText("查看完整模型和工具过程").click();
+    await expect(page.getByText("工具失败", { exact: true })).toBeVisible();
 
     await page.getByLabel("任务内容").fill("保持运行，等待我停止");
     await page.getByRole("button", { name: "开始任务" }).click();
@@ -154,6 +222,12 @@ test("user creates and restores an independent Pi employee in the visible window
       recursive: true,
       retryDelay: 200,
     });
+    rmSync(taskWorkspace, {
+      force: true,
+      maxRetries: 10,
+      recursive: true,
+      retryDelay: 200,
+    });
   }
 });
 
@@ -161,6 +235,14 @@ async function startProviderFixture() {
   let generationCalls = 0;
   let modelRequests = 0;
   let toolFailureStarted = false;
+  let revisionCalls = 0;
+  let conflictStarted = false;
+  const firstResultHash = createHash("sha256")
+    .update("整理完成：测试文字。", "utf8")
+    .digest("hex");
+  const revisionResultHash = createHash("sha256")
+    .update("测试文字。", "utf8")
+    .digest("hex");
   const server = createServer((request, response) => {
     if (request.url === "/models") {
       response.writeHead(200, { "content-type": "application/json" });
@@ -224,10 +306,142 @@ async function startProviderFixture() {
           response.end(JSON.stringify({ error: { message: "受控模型失败" } }));
           return;
         }
+        if (bodyText.includes("再短一点")) {
+          revisionCalls += 1;
+          response.writeHead(200, { "content-type": "text/event-stream" });
+          if (revisionCalls <= 2) {
+            const call =
+              revisionCalls === 1
+                ? {
+                    id: "call-read-result-for-revision",
+                    name: "workspace_read_text",
+                    arguments: '{"relativePath":"result.md"}',
+                  }
+                : {
+                    id: "call-write-revision",
+                    name: "workspace_write_text",
+                    arguments: JSON.stringify({
+                      relativePath: "result.md",
+                      content: "测试文字。",
+                      baseSha256: firstResultHash,
+                    }),
+                  };
+            sendChunk(response, {
+              choices: [
+                {
+                  index: 0,
+                  delta: {
+                    role: "assistant",
+                    tool_calls: [
+                      {
+                        index: 0,
+                        id: call.id,
+                        type: "function",
+                        function: {
+                          name: call.name,
+                          arguments: call.arguments,
+                        },
+                      },
+                    ],
+                  },
+                  finish_reason: null,
+                },
+              ],
+            });
+            sendChunk(response, {
+              choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }],
+            });
+          } else {
+            sendChunk(response, {
+              choices: [
+                {
+                  index: 0,
+                  delta: { role: "assistant", content: "修改完成。" },
+                  finish_reason: null,
+                },
+              ],
+            });
+            sendChunk(response, {
+              choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+            });
+          }
+          response.end("data: [DONE]\n\n");
+          return;
+        }
+        if (bodyText.includes("触发并发冲突")) {
+          response.writeHead(200, { "content-type": "text/event-stream" });
+          if (!conflictStarted) {
+            conflictStarted = true;
+            sendChunk(response, {
+              choices: [
+                {
+                  index: 0,
+                  delta: {
+                    role: "assistant",
+                    tool_calls: [
+                      {
+                        index: 0,
+                        id: "call-stale-write",
+                        type: "function",
+                        function: {
+                          name: "workspace_write_text",
+                          arguments: JSON.stringify({
+                            relativePath: "result.md",
+                            content: "过期内容",
+                            baseSha256: revisionResultHash,
+                          }),
+                        },
+                      },
+                    ],
+                  },
+                  finish_reason: null,
+                },
+              ],
+            });
+            sendChunk(response, {
+              choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }],
+            });
+          } else {
+            sendChunk(response, {
+              choices: [
+                {
+                  index: 0,
+                  delta: { role: "assistant", content: "不应覆盖用户内容。" },
+                  finish_reason: null,
+                },
+              ],
+            });
+            sendChunk(response, {
+              choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+            });
+          }
+          response.end("data: [DONE]\n\n");
+          return;
+        }
         if (bodyText.includes("保持运行")) return;
         generationCalls += 1;
         response.writeHead(200, { "content-type": "text/event-stream" });
-        if (generationCalls === 1) {
+        if (generationCalls <= 3) {
+          const calls = [
+            {
+              id: "call-list-workspace",
+              name: "workspace_list",
+              arguments: '{"relativePath":""}',
+            },
+            {
+              id: "call-read-source",
+              name: "workspace_read_text",
+              arguments: '{"relativePath":"source.md"}',
+            },
+            {
+              id: "call-write-result",
+              name: "workspace_write_text",
+              arguments:
+                '{"relativePath":"result.md","content":"整理完成：测试文字。"}',
+            },
+          ] as const;
+          const call = calls[generationCalls - 1];
+          if (call === undefined) throw new Error("missing tool fixture call");
           sendChunk(response, {
             choices: [
               {
@@ -237,11 +451,11 @@ async function startProviderFixture() {
                   tool_calls: [
                     {
                       index: 0,
-                      id: "call-visible-check",
+                      id: call.id,
                       type: "function",
                       function: {
-                        name: "text_summary_check",
-                        arguments: '{"text":"整理完成"}',
+                        name: call.name,
+                        arguments: call.arguments,
                       },
                     },
                   ],
@@ -295,7 +509,7 @@ async function startProviderFixture() {
   };
 }
 
-function launchApplication(userDataDirectory: string) {
+function launchApplication(userDataDirectory: string, taskWorkspace?: string) {
   const executablePath = process.env.AI_CORPORATION_PACKAGED_EXE;
   const sharedArgs = [
     "--disable-gpu",
@@ -313,7 +527,14 @@ function launchApplication(userDataDirectory: string) {
             `--user-data-dir=${userDataDirectory}`,
           ]
         : [...sharedArgs, `--user-data-dir=${userDataDirectory}`],
-    env: { ...process.env, AI_CORPORATION_E2E: "1", CI: "true" },
+    env: {
+      ...process.env,
+      AI_CORPORATION_E2E: "1",
+      CI: "true",
+      ...(taskWorkspace === undefined
+        ? {}
+        : { AI_CORPORATION_E2E_WORKSPACE_PATH: taskWorkspace }),
+    },
   });
 }
 
@@ -353,8 +574,18 @@ async function expectNoSeriousAxeViolations(
   expect(violations).toEqual([]);
 }
 
+async function waitForPaint(page: import("@playwright/test").Page) {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
+}
+
 async function expectEmployeePanelsKeepReadableWidth(
   page: import("@playwright/test").Page,
+  minimumPanelWidth = 500,
 ) {
   // 防止员工页的标题、卡片、表单和结果再次被两栏容器压成竖排窄条。
   const widths = await page.evaluate(() => {
@@ -380,7 +611,7 @@ async function expectEmployeePanelsKeepReadableWidth(
       panelColumnCounts,
     };
   });
-  expect(widths.panel).toBeGreaterThan(500);
+  expect(widths.panel).toBeGreaterThan(minimumPanelWidth);
   expect(widths.form).toBeGreaterThan(widths.panel * 0.7);
   expect(widths.task).toBeGreaterThan(widths.panel * 0.7);
   expect(widths.panelColumnCounts).toEqual([1, 1, 1]);

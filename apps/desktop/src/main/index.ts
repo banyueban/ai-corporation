@@ -756,9 +756,10 @@ void app.whenReady().then(async () => {
       runtimePaths.databasePath,
       runtimePaths.migrationDirectory,
     );
+    const workspaceRepository = new WorkspaceRepository(workspaceDatabase);
     workspaceService = new WorkspaceService({
       nativeClient: () => nativeCoreClient,
-      repository: new WorkspaceRepository(workspaceDatabase),
+      repository: workspaceRepository,
     });
     corporationService = new CorporationService({
       repository: new CorporationRepository(workspaceDatabase),
@@ -835,11 +836,12 @@ void app.whenReady().then(async () => {
       },
     });
     const piTaskRepository = new PiTaskRepository(workspaceDatabase);
-    piTaskRepository.interruptRunning(new Date().toISOString());
     piTaskService = new PiTaskService({
       employeeRepository: piEmployeeRepository,
       taskRepository: piTaskRepository,
       skillLibrary,
+      workspaceRepository,
+      nativeClient: () => nativeCoreClient,
       resolveRuntime: (providerId, providerVersion, modelId) => {
         if (providerService === undefined)
           throw new Error("Provider unavailable");
@@ -850,6 +852,8 @@ void app.whenReady().then(async () => {
         );
       },
     });
+    await piTaskService.recoverWorkspaceWrites();
+    piTaskRepository.interruptRunning(new Date().toISOString());
     const goalEngineRepository = new GoalEngineRepository(workspaceDatabase);
     goalEngineRepository.interruptGenerating(new Date().toISOString());
     goalEngineService = new GoalEngineService({

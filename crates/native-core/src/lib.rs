@@ -4,11 +4,15 @@ use std::io::{self, BufRead, Read, Write};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use workspace_fs::{WorkspacePathError, resolve_workspace_path};
+use workspace_fs::{
+    WorkspacePathError, list_workspace, read_workspace_text, resolve_workspace_path,
+    write_workspace_text,
+};
 
 pub const CRATE_NAME: &str = "native-core";
 pub const SCHEMA_VERSION: u32 = 1;
-pub const MAX_REQUEST_BYTES: usize = 64 * 1024;
+// A write request may contain one full 1 MiB UTF-8 document plus JSON overhead.
+pub const MAX_REQUEST_BYTES: usize = 2 * 1024 * 1024;
 
 const JSON_RPC_VERSION: &str = "2.0";
 
@@ -35,6 +39,26 @@ struct WorkspaceCanonicalizeParams {
     session_token: String,
     root_path: String,
     candidate_relative_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct WorkspacePathParams {
+    schema_version: u32,
+    session_token: String,
+    root_path: String,
+    relative_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct WorkspaceWriteTextParams {
+    schema_version: u32,
+    session_token: String,
+    root_path: String,
+    relative_path: String,
+    content: String,
+    base_sha256: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -125,7 +149,134 @@ fn process_value(value: Value, expected_session_token: &str) -> RpcResponse {
         "workspace.canonicalize" => {
             process_workspace_canonicalize(request.id, request.params, expected_session_token)
         }
+        "workspace.list" => {
+            process_workspace_list(request.id, request.params, expected_session_token)
+        }
+        "workspace.read_text" => {
+            process_workspace_read_text(request.id, request.params, expected_session_token)
+        }
+        "workspace.write_text" => {
+            process_workspace_write_text(request.id, request.params, expected_session_token)
+        }
         _ => RpcResponse::error(request.id, -32601, "Method not found"),
+    }
+}
+
+fn validate_workspace_request(
+    id: &Value,
+    schema_version: u32,
+    session_token: &str,
+    expected_session_token: &str,
+) -> Option<RpcResponse> {
+    if schema_version != SCHEMA_VERSION {
+        return Some(RpcResponse::error(
+            id.clone(),
+            -32602,
+            "Unsupported schema version",
+        ));
+    }
+    if !constant_time_eq(session_token, expected_session_token) {
+        return Some(RpcResponse::error(id.clone(), -32001, "Unauthorized"));
+    }
+    None
+}
+
+fn process_workspace_list(id: Value, params: Value, expected_session_token: &str) -> RpcResponse {
+    let params = match serde_json::from_value::<WorkspacePathParams>(params) {
+        Ok(params) => params,
+        Err(_) => return RpcResponse::error(id, -32602, "Invalid params"),
+    };
+    if let Some(error) = validate_workspace_request(
+        &id,
+        params.schema_version,
+        &params.session_token,
+        expected_session_token,
+    ) {
+        return error;
+    }
+    match list_workspace(
+        std::path::Path::new(&params.root_path),
+        std::path::Path::new(&params.relative_path),
+    ) {
+        Ok(entries) => RpcResponse::success(
+            id,
+            json!({
+                "schemaVersion": SCHEMA_VERSION,
+                "relativePath": params.relative_path,
+                "entries": entries,
+            }),
+        ),
+        Err(error) => RpcResponse::workspace_error(id, &error),
+    }
+}
+
+fn process_workspace_read_text(
+    id: Value,
+    params: Value,
+    expected_session_token: &str,
+) -> RpcResponse {
+    let params = match serde_json::from_value::<WorkspacePathParams>(params) {
+        Ok(params) => params,
+        Err(_) => return RpcResponse::error(id, -32602, "Invalid params"),
+    };
+    if let Some(error) = validate_workspace_request(
+        &id,
+        params.schema_version,
+        &params.session_token,
+        expected_session_token,
+    ) {
+        return error;
+    }
+    match read_workspace_text(
+        std::path::Path::new(&params.root_path),
+        std::path::Path::new(&params.relative_path),
+    ) {
+        Ok(result) => match serde_json::to_value(result) {
+            Ok(mut value) => {
+                if let Value::Object(object) = &mut value {
+                    object.insert("schemaVersion".to_owned(), Value::from(SCHEMA_VERSION));
+                }
+                RpcResponse::success(id, value)
+            }
+            Err(_) => RpcResponse::error(id, -32603, "Internal error"),
+        },
+        Err(error) => RpcResponse::workspace_error(id, &error),
+    }
+}
+
+fn process_workspace_write_text(
+    id: Value,
+    params: Value,
+    expected_session_token: &str,
+) -> RpcResponse {
+    let params = match serde_json::from_value::<WorkspaceWriteTextParams>(params) {
+        Ok(params) => params,
+        Err(_) => return RpcResponse::error(id, -32602, "Invalid params"),
+    };
+    if let Some(error) = validate_workspace_request(
+        &id,
+        params.schema_version,
+        &params.session_token,
+        expected_session_token,
+    ) {
+        return error;
+    }
+    match write_workspace_text(
+        std::path::Path::new(&params.root_path),
+        std::path::Path::new(&params.relative_path),
+        &params.content,
+        params.base_sha256.as_deref(),
+    ) {
+        Ok(result) => match serde_json::to_value(result) {
+            Ok(mut value) => {
+                if let Value::Object(object) = &mut value {
+                    object.insert("schemaVersion".to_owned(), Value::from(SCHEMA_VERSION));
+                }
+                RpcResponse::success(id, value)
+            }
+            Err(_) => RpcResponse::error(id, -32603, "Internal error"),
+        },
+        Err(error) => RpcResponse::workspace_error(id, &error),
     }
 }
 

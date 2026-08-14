@@ -31,6 +31,7 @@ export const piTaskSchema = z
     schemaVersion: z.literal(1),
     id: uuid,
     employeeId: uuid,
+    workspaceId: uuid.optional(),
     userInput: z.string().min(1).max(20_000),
     status: z.enum([
       "RUNNING",
@@ -53,6 +54,7 @@ export const piTaskStartRequestSchema = z
   .object({
     ...baseRequest,
     employeeId: uuid,
+    workspaceId: uuid,
     input: z.string().trim().min(1).max(20_000),
   })
   .strict();
@@ -86,6 +88,7 @@ const errorSchema = z
       "UNAUTHORIZED_CALLER",
       "NOT_FOUND",
       "EMPLOYEE_NOT_READY",
+      "WORKSPACE_NOT_READY",
       "ALREADY_RUNNING",
       "INVALID_STATE",
       "STORAGE_UNAVAILABLE",

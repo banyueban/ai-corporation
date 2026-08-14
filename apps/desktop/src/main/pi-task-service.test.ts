@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { createHash } from "node:crypto";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -19,7 +20,7 @@ describe("PiTaskService", () => {
     await Promise.all(cleanups.splice(0).map((cleanup) => cleanup()));
   });
 
-  it("streams model output, executes the safe tool, and waits for user acceptance", async () => {
+  it("streams model output, writes a real workspace text result, and waits for acceptance", async () => {
     const fixture = await startOpenAiFixture();
     cleanups.push(fixture.close);
     const root = path.join(tmpdir(), `M7-TU-01-${crypto.randomUUID()}`);
@@ -74,10 +75,53 @@ describe("PiTaskService", () => {
       );
 
     const repository = new PiTaskRepository(database);
+    const workspaceId = "019b7f4d-a100-7000-8000-000000000005";
+    const writes: Array<{ relativePath: string; content: string }> = [];
     const service = new PiTaskService({
       employeeRepository: { get: () => employee },
       taskRepository: repository,
       skillLibrary: library,
+      workspaceRepository: {
+        getTrusted: () => ({
+          workspaceId,
+          displayPath: "测试工作区",
+          canonicalRootPath: root,
+          permissionMode: "READ_WRITE",
+          accessStatus: "AVAILABLE",
+          pathIdentity: {
+            platform: "windows",
+            volumeRoot: "C:",
+            rootCreationTime: "1",
+          },
+          lastVerifiedAt: "2026-08-14T00:00:00.000Z",
+        }),
+      },
+      nativeClient: () => ({
+        listWorkspace: async (_rootPath, relativePath) => ({
+          schemaVersion: 1,
+          relativePath: relativePath ?? "",
+          entries: [],
+        }),
+        readWorkspaceText: async (_rootPath, relativePath) => ({
+          schemaVersion: 1,
+          relativePath,
+          content: "",
+          sizeBytes: 0,
+          sha256:
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        }),
+        writeWorkspaceText: async (_rootPath, relativePath, content) => {
+          writes.push({ relativePath, content });
+          return {
+            schemaVersion: 1,
+            relativePath,
+            created: true,
+            previousSha256: null,
+            sha256: createHash("sha256").update(content, "utf8").digest("hex"),
+            sizeBytes: Buffer.byteLength(content),
+          };
+        },
+      }),
       resolveRuntime: () => ({
         endpoint: fixture.endpoint,
         key: "M7-TU-01-fake-key",
@@ -90,6 +134,7 @@ describe("PiTaskService", () => {
       schemaVersion: 1,
       commandId: "019b7f4d-a100-7000-8000-000000000004",
       employeeId: employee.id,
+      workspaceId,
       input: "整理这段测试文字",
     });
     expect(started).toMatchObject({ ok: true, value: { status: "RUNNING" } });
@@ -109,12 +154,38 @@ describe("PiTaskService", () => {
       ]),
     );
     expect(JSON.stringify(completed.events)).not.toContain("M7-TU-01-fake-key");
+    expect(writes).toEqual([
+      { relativePath: "result.md", content: "整理完成：测试文字。" },
+    ]);
     expect(fixture.requests).toHaveLength(2);
     expect(fixture.requests[0]?.authorization).toBe("Bearer M7-TU-01-fake-key");
     expect(fixture.requests[0]?.body).toMatchObject({
       model: "pi-fixture-model",
       stream: true,
     });
+
+    // 模拟应用在文件写完、写入记录尚未确认时退出；恢复只核对哈希，不重复写入。
+    database
+      .prepare("UPDATE pi_task SET status = 'RUNNING' WHERE id = ?")
+      .run(completed.id);
+    repository.beginWorkspaceWrite({
+      toolCallId: "call-recover-write",
+      taskId: completed.id,
+      relativePath: "empty.md",
+      targetSha256:
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      now: "2026-08-14T00:00:01.000Z",
+    });
+    await service.recoverWorkspaceWrites();
+    expect(
+      database
+        .prepare("SELECT status FROM pi_workspace_write WHERE tool_call_id = ?")
+        .get("call-recover-write"),
+    ).toEqual({ status: "SUCCEEDED" });
+    expect(writes).toHaveLength(1);
+    expect(repository.get(completed.id)?.events.at(-1)?.kind).toBe(
+      "TOOL_RESULT",
+    );
     database.close();
   });
 });
@@ -159,8 +230,9 @@ async function startOpenAiFixture() {
                     id: "call-check",
                     type: "function",
                     function: {
-                      name: "text_summary_check",
-                      arguments: '{"text":"整理完成"}',
+                      name: "workspace_write_text",
+                      arguments:
+                        '{"relativePath":"result.md","content":"整理完成：测试文字。"}',
                     },
                   },
                 ],

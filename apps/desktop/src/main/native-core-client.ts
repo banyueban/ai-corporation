@@ -7,12 +7,24 @@ import {
   healthResultSchema,
   healthRpcResponseSchema,
   WORKSPACE_CANONICALIZE_RPC_METHOD,
+  WORKSPACE_LIST_RPC_METHOD,
+  WORKSPACE_READ_TEXT_RPC_METHOD,
   WORKSPACE_SCHEMA_VERSION,
+  WORKSPACE_WRITE_TEXT_RPC_METHOD,
   workspaceCanonicalizeResultSchema,
   workspaceCanonicalizeRpcResponseSchema,
+  workspaceListResultSchema,
+  workspaceListRpcResponseSchema,
+  workspaceReadTextResultSchema,
+  workspaceReadTextRpcResponseSchema,
+  workspaceWriteTextResultSchema,
+  workspaceWriteTextRpcResponseSchema,
   type HealthResult,
   type WorkspaceCanonicalizeResult,
+  type WorkspaceListResult,
   type WorkspacePathErrorReason,
+  type WorkspaceReadTextResult,
+  type WorkspaceWriteTextResult,
 } from "@ai-corporation/protocols";
 
 const REQUEST_TIMEOUT_MS = 5_000;
@@ -133,6 +145,49 @@ export class NativeCoreClient {
     );
   }
 
+  listWorkspace(
+    rootPath: string,
+    relativePath = "",
+  ): Promise<WorkspaceListResult> {
+    return this.#workspaceRequest(
+      WORKSPACE_LIST_RPC_METHOD,
+      { rootPath, relativePath },
+      workspaceListRpcResponseSchema,
+      workspaceListResultSchema,
+    );
+  }
+
+  readWorkspaceText(
+    rootPath: string,
+    relativePath: string,
+  ): Promise<WorkspaceReadTextResult> {
+    return this.#workspaceRequest(
+      WORKSPACE_READ_TEXT_RPC_METHOD,
+      { rootPath, relativePath },
+      workspaceReadTextRpcResponseSchema,
+      workspaceReadTextResultSchema,
+    );
+  }
+
+  writeWorkspaceText(
+    rootPath: string,
+    relativePath: string,
+    content: string,
+    baseSha256?: string,
+  ): Promise<WorkspaceWriteTextResult> {
+    return this.#workspaceRequest(
+      WORKSPACE_WRITE_TEXT_RPC_METHOD,
+      {
+        rootPath,
+        relativePath,
+        content,
+        ...(baseSha256 === undefined ? {} : { baseSha256 }),
+      },
+      workspaceWriteTextRpcResponseSchema,
+      workspaceWriteTextResultSchema,
+    );
+  }
+
   stop(): void {
     this.#reader.close();
     this.#rejectAll(new Error("Native Core stopped"));
@@ -177,6 +232,48 @@ export class NativeCoreClient {
     } catch {
       return undefined;
     }
+  }
+
+  #workspaceRequest<T>(
+    method: string,
+    params: Readonly<Record<string, unknown>>,
+    responseSchema: {
+      safeParse(
+        value: unknown,
+      ): { success: true; data: unknown } | { success: false; error?: unknown };
+    },
+    resultSchema: {
+      safeParse(
+        value: unknown,
+      ): { success: true; data: T } | { success: false };
+    },
+  ): Promise<T> {
+    return this.#request(
+      method,
+      {
+        schemaVersion: WORKSPACE_SCHEMA_VERSION,
+        sessionToken: this.#sessionToken,
+        ...params,
+      },
+      (response) => {
+        const parsed = responseSchema.safeParse(response);
+        if (!parsed.success)
+          throw new Error("Native Core returned an invalid response");
+        const envelope = parsed.data as {
+          readonly result?: unknown;
+          readonly error?: {
+            readonly data: { readonly reason: WorkspacePathErrorReason };
+          };
+        };
+        if (envelope.error !== undefined) {
+          throw new WorkspaceNativeError(envelope.error.data.reason);
+        }
+        const result = resultSchema.safeParse(envelope.result);
+        if (!result.success)
+          throw new Error("Native Core returned an invalid response");
+        return result.data;
+      },
+    );
   }
 
   #request<T>(

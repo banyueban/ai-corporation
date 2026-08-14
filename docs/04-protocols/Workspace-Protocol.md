@@ -3,7 +3,7 @@
 | 属性        | 值                                                                             |
 | ----------- | ------------------------------------------------------------------------------ |
 | 文档角色    | 规范性                                                                         |
-| 权威范围    | Workspace DTO、可信路径元数据、枚举、Native Core canonicalize RPC 与结构化错误 |
+| 权威范围    | Workspace DTO、可信路径元数据、枚举、Native Core 路径与文本 RPC、结构化错误 |
 | Schema 版本 | 1                                                                              |
 
 ## 1. 边界
@@ -104,7 +104,21 @@ interface WorkspaceCanonicalizeResult {
 
 `permissionMode` 是同一 major 内新增的可选字段。Native Core 支持权限探测时必须返回当前真实能力：根目录可读取且受控写探针可创建并清理时返回 `READ_WRITE`；根目录可读取但写入被操作系统拒绝时返回 `READ_ONLY`。探针文件使用不可预测名称、`create_new` 语义并在同一调用内清理；探针创建失败与清理失败必须区分，清理失败不得伪装为只读。
 
-## 5. 结构化错误
+## 5. 工作区普通文本 RPC
+
+M8-TU-01 在同一认证边界增加三个方法：
+
+- `workspace.list`：输入可信 `rootPath` 和相对目录，最多返回 200 项、递归最多 3 层；跳过 `.git`、依赖缓存和敏感文件；
+- `workspace.read_text`：读取不超过 1 MiB 的合法 UTF-8 普通文本，返回相对路径、内容、字节数和 SHA-256；
+- `workspace.write_text`：创建目标时要求目标不存在，修改目标时要求传入最近读取得到的 `baseSha256`；写入返回是否新建、前后 SHA-256 和字节数。
+
+三个方法都只能由 Electron Main 使用已认证 RPC 调用。`rootPath` 必须来自任务绑定的可信 Workspace 记录；模型只提交相对路径、文本内容和修改基线哈希。每次操作都重新执行路径规范化、链接逃逸和敏感路径检查。
+
+写入正文只允许合法 UTF-8 且不得包含 NUL 字符，最大 1 MiB。写入使用同目录不可预测临时文件和原子替换；创建不能覆盖已有文件，修改时当前哈希与基线不一致固定拒绝。Native Core 的单请求上限为 2 MiB，以容纳 1 MiB 正文和 JSON 封装。
+
+模型侧工具名使用 Provider 普遍接受的 `workspace_list`、`workspace_read_text` 和 `workspace_write_text`；它们分别映射到上述带点号的内部 Native Core RPC，不能携带或切换 Workspace root。
+
+## 6. 结构化错误
 
 路径拒绝固定使用：
 
@@ -128,17 +142,25 @@ interface WorkspaceCanonicalizeResult {
 - `PATH_IDENTITY_UNAVAILABLE`
 - `PERMISSION_PROBE_FAILED`
 - `PERMISSION_PROBE_CLEANUP_FAILED`
+- `NOT_FOUND`
+- `NOT_FILE`
+- `NOT_DIRECTORY`
+- `SENSITIVE_PATH`
+- `BINARY_FILE`
+- `FILE_TOO_LARGE`
+- `CONFLICT`
+- `WRITE_FAILED`
 
 错误消息和 `data` 不得包含 canonical path、路径身份元数据或用户文件内容。认证失败、无效参数和不支持的 Schema 版本继续使用 Native RPC 通用错误，不得伪装为路径拒绝。
 
-## 6. 版本与兼容
+## 7. 版本与兼容
 
 - v1 同 major 只允许新增可选字段；
 - 改变字段含义、泄露边界或错误 reason 需要新 Schema 版本；
 - TypeScript runtime Schema、Rust 序列化结果、SQLite 映射和本文必须同步；
 - Windows 与 macOS 的真实文件系统攻击测试分别提供证据。
 
-## 7. Workspace Repository 语义
+## 8. Workspace Repository 语义
 
 持久化层只向可信服务返回 `WorkspaceTrustedRecord`，向 Renderer 返回前必须投影为 `WorkspacePublic`。Repository 至少提供以下能力：
 
@@ -160,7 +182,7 @@ interface WorkspaceCanonicalizeResult {
 
 `permissionMode` 表示最近一次成功验证的真实能力；当 `accessStatus` 不是 `AVAILABLE` 时，不得把该字段解释为当前可执行授权。
 
-## 8. Desktop IPC
+## 9. Desktop IPC
 
 Renderer 只通过 typed preload 使用以下 allowlisted channel：
 

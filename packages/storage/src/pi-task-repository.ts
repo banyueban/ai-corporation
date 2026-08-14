@@ -3,6 +3,15 @@ import { piTaskSchema, type PiTask } from "@ai-corporation/protocols";
 
 export type PiTaskStatus = PiTask["status"];
 
+export interface PendingWorkspaceWrite {
+  readonly toolCallId: string;
+  readonly taskId: string;
+  readonly workspaceId: string;
+  readonly relativePath: string;
+  readonly baseSha256?: string;
+  readonly targetSha256: string;
+}
+
 /** Stores every visible model and tool event in the same order it occurred. */
 export class PiTaskRepository {
   constructor(private readonly database: DatabaseSync) {}
@@ -10,16 +19,24 @@ export class PiTaskRepository {
   create(input: {
     readonly id: string;
     readonly employeeId: string;
+    readonly workspaceId: string;
     readonly userInput: string;
     readonly now: string;
   }): PiTask {
     this.database
       .prepare(
         `INSERT INTO pi_task (
-          id, employee_id, user_input, status, created_at, updated_at
-        ) VALUES (?, ?, ?, 'RUNNING', ?, ?)`,
+          id, employee_id, workspace_id, user_input, status, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, 'RUNNING', ?, ?)`,
       )
-      .run(input.id, input.employeeId, input.userInput, input.now, input.now);
+      .run(
+        input.id,
+        input.employeeId,
+        input.workspaceId,
+        input.userInput,
+        input.now,
+        input.now,
+      );
     return this.require(input.id);
   }
 
@@ -107,6 +124,95 @@ export class PiTaskRepository {
       .run(now);
   }
 
+  /** Records write intent before touching the filesystem. */
+  beginWorkspaceWrite(input: {
+    readonly toolCallId: string;
+    readonly taskId: string;
+    readonly relativePath: string;
+    readonly baseSha256?: string;
+    readonly targetSha256: string;
+    readonly now: string;
+  }): { readonly status: string; readonly result?: unknown } | undefined {
+    const existing = this.database
+      .prepare(
+        "SELECT status, result_json FROM pi_workspace_write WHERE tool_call_id = ?",
+      )
+      .get(input.toolCallId);
+    if (existing !== undefined) {
+      return {
+        status: String(existing.status),
+        ...(typeof existing.result_json === "string"
+          ? { result: JSON.parse(existing.result_json) as unknown }
+          : {}),
+      };
+    }
+    this.database
+      .prepare(
+        `INSERT INTO pi_workspace_write (
+          tool_call_id, task_id, relative_path, base_sha256, target_sha256,
+          status, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, 'STARTING', ?, ?)`,
+      )
+      .run(
+        input.toolCallId,
+        input.taskId,
+        input.relativePath,
+        input.baseSha256 ?? null,
+        input.targetSha256,
+        input.now,
+        input.now,
+      );
+    return undefined;
+  }
+
+  finishWorkspaceWrite(
+    toolCallId: string,
+    status: "SUCCEEDED" | "FAILED" | "UNKNOWN",
+    result: unknown,
+    now: string,
+  ): void {
+    this.database
+      .prepare(
+        `UPDATE pi_workspace_write SET status = ?, result_json = ?, updated_at = ?
+        WHERE tool_call_id = ?`,
+      )
+      .run(status, JSON.stringify(result), now, toolCallId);
+  }
+
+  listPendingWorkspaceWrites(): readonly PendingWorkspaceWrite[] {
+    return this.database
+      .prepare(
+        `SELECT w.tool_call_id, w.task_id, t.workspace_id, w.relative_path,
+          w.base_sha256, w.target_sha256
+        FROM pi_workspace_write w
+        JOIN pi_task t ON t.id = w.task_id
+        WHERE w.status = 'STARTING'
+        ORDER BY w.created_at, w.tool_call_id`,
+      )
+      .all()
+      .map((row) => {
+        if (
+          typeof row.tool_call_id !== "string" ||
+          typeof row.task_id !== "string" ||
+          typeof row.workspace_id !== "string" ||
+          typeof row.relative_path !== "string" ||
+          typeof row.target_sha256 !== "string"
+        ) {
+          throw new Error("Pending workspace write is invalid");
+        }
+        return {
+          toolCallId: row.tool_call_id,
+          taskId: row.task_id,
+          workspaceId: row.workspace_id,
+          relativePath: row.relative_path,
+          ...(typeof row.base_sha256 === "string"
+            ? { baseSha256: row.base_sha256 }
+            : {}),
+          targetSha256: row.target_sha256,
+        };
+      });
+  }
+
   private require(id: string): PiTask {
     const task = this.get(id);
     if (task === undefined) throw new Error("Pi task not found");
@@ -131,6 +237,7 @@ export class PiTaskRepository {
       schemaVersion: 1,
       id: row.id,
       employeeId: row.employee_id,
+      ...(row.workspace_id === null ? {} : { workspaceId: row.workspace_id }),
       userInput: row.user_input,
       status: row.status,
       ...(row.final_output === null ? {} : { finalOutput: row.final_output }),

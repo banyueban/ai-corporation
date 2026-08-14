@@ -2,18 +2,27 @@ import { describe, expect, it } from "vitest";
 import {
   WORKSPACE_CANONICALIZE_RPC_METHOD,
   WORKSPACE_LIST_IPC_CHANNEL,
+  WORKSPACE_LIST_RPC_METHOD,
+  WORKSPACE_READ_TEXT_RPC_METHOD,
   WORKSPACE_REVALIDATE_IPC_CHANNEL,
   WORKSPACE_SCHEMA_VERSION,
   WORKSPACE_SELECT_IPC_CHANNEL,
+  WORKSPACE_WRITE_TEXT_RPC_METHOD,
   workspaceCanonicalizeRpcRequestSchema,
   workspaceCanonicalizeRpcResponseSchema,
   workspaceListIpcResultSchema,
+  workspaceListRpcRequestSchema,
+  workspaceListRpcResponseSchema,
   workspacePublicSchema,
+  workspaceReadTextRpcRequestSchema,
+  workspaceReadTextRpcResponseSchema,
   workspaceRevalidateIpcResultSchema,
   workspaceRevalidateRequestSchema,
   workspaceSelectionSchema,
   workspaceSelectIpcResultSchema,
   workspaceTrustedRecordSchema,
+  workspaceWriteTextRpcRequestSchema,
+  workspaceWriteTextRpcResponseSchema,
 } from "./workspace";
 
 const workspaceId = "019fa9bb-375e-7d90-a4e3-a5b0eea2a9ef";
@@ -149,6 +158,85 @@ describe("workspace protocol", () => {
         },
       }).success,
     ).toBe(false);
+  });
+
+  it("strictly validates bounded text tool RPC messages", () => {
+    const base = {
+      jsonrpc: "2.0" as const,
+      id: "workspace-tool-1",
+      params: {
+        schemaVersion: WORKSPACE_SCHEMA_VERSION,
+        sessionToken: "a".repeat(64),
+        rootPath: "E:\\projects\\example",
+        relativePath: "docs/README.md",
+      },
+    };
+    expect(
+      workspaceListRpcRequestSchema.safeParse({
+        ...base,
+        method: WORKSPACE_LIST_RPC_METHOD,
+      }).success,
+    ).toBe(true);
+    expect(
+      workspaceReadTextRpcRequestSchema.safeParse({
+        ...base,
+        method: WORKSPACE_READ_TEXT_RPC_METHOD,
+      }).success,
+    ).toBe(true);
+    expect(
+      workspaceWriteTextRpcRequestSchema.safeParse({
+        ...base,
+        method: WORKSPACE_WRITE_TEXT_RPC_METHOD,
+        params: { ...base.params, content: "结果" },
+      }).success,
+    ).toBe(true);
+    expect(
+      workspaceWriteTextRpcRequestSchema.safeParse({
+        ...base,
+        method: WORKSPACE_WRITE_TEXT_RPC_METHOD,
+        params: { ...base.params, content: "结果", canonicalPath: "secret" },
+      }).success,
+    ).toBe(false);
+
+    expect(
+      workspaceListRpcResponseSchema.safeParse({
+        jsonrpc: "2.0",
+        id: "workspace-tool-1",
+        result: {
+          schemaVersion: 1,
+          relativePath: "",
+          entries: [{ relativePath: "docs", kind: "DIRECTORY" }],
+        },
+      }).success,
+    ).toBe(true);
+    const sha256 = "ab".repeat(32);
+    expect(
+      workspaceReadTextRpcResponseSchema.safeParse({
+        jsonrpc: "2.0",
+        id: "workspace-tool-1",
+        result: {
+          schemaVersion: 1,
+          relativePath: "docs/README.md",
+          content: "结果",
+          sizeBytes: 6,
+          sha256,
+        },
+      }).success,
+    ).toBe(true);
+    expect(
+      workspaceWriteTextRpcResponseSchema.safeParse({
+        jsonrpc: "2.0",
+        id: "workspace-tool-1",
+        result: {
+          schemaVersion: 1,
+          relativePath: "result.md",
+          created: true,
+          previousSha256: null,
+          sha256,
+          sizeBytes: 6,
+        },
+      }).success,
+    ).toBe(true);
   });
 
   it("accepts only strict public directory selection results", () => {

@@ -1,4 +1,5 @@
 import path from "node:path";
+import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import { _electron as electron } from "playwright";
 
@@ -12,16 +13,33 @@ test("saved real Provider completes one Pi employee task", async () => {
   if (userDataDirectory === undefined) {
     throw new Error("AI_CORPORATION_REAL_USER_DATA is required");
   }
+  const taskWorkspace = process.env.AI_CORPORATION_REAL_WORKSPACE;
+  if (taskWorkspace === undefined) {
+    throw new Error("AI_CORPORATION_REAL_WORKSPACE is required");
+  }
+  const executablePath = process.env.AI_CORPORATION_PACKAGED_EXE;
+  const sharedArgs = [
+    "--disable-gpu",
+    "--disable-software-rasterizer",
+    "--in-process-gpu",
+    "--no-sandbox",
+  ];
   const app = await electron.launch({
-    args: [
-      "--disable-gpu",
-      "--disable-software-rasterizer",
-      "--in-process-gpu",
-      "--no-sandbox",
-      path.resolve(__dirname, ".."),
-      `--user-data-dir=${userDataDirectory}`,
-    ],
-    env: { ...process.env, AI_CORPORATION_E2E: "1", CI: "true" },
+    ...(executablePath === undefined ? {} : { executablePath }),
+    args:
+      executablePath === undefined
+        ? [
+            ...sharedArgs,
+            path.resolve(__dirname, ".."),
+            `--user-data-dir=${userDataDirectory}`,
+          ]
+        : [...sharedArgs, `--user-data-dir=${userDataDirectory}`],
+    env: {
+      ...process.env,
+      AI_CORPORATION_E2E: "1",
+      AI_CORPORATION_E2E_WORKSPACE_PATH: taskWorkspace,
+      CI: "true",
+    },
   });
 
   try {
@@ -43,18 +61,30 @@ test("saved real Provider completes one Pi employee task", async () => {
     await page
       .getByLabel("员工", { exact: true })
       .selectOption({ label: "真实模型验收员工 · deepseek-v4-flash" });
+    await page.getByRole("button", { name: "添加工作区" }).click();
+    await expect(
+      page.getByText("工作区已授权，可以用于这次任务。"),
+    ).toBeVisible();
     await page
       .getByLabel("任务内容")
-      .fill("请用一句中文说明 Pi 真实模型连接成功，并按要求完成文本检查。 ");
+      .fill(
+        "请创建 m8-real-provider-result.md，只写一句中文：Pi 真实模型和工作区工具连接成功。",
+      );
     await page.getByRole("button", { name: "开始任务" }).click();
     await expect(page.getByRole("heading", { name: "等待你验收" })).toBeVisible(
       { timeout: 120_000 },
     );
     await page.getByText("查看完整模型和工具过程").click();
     await expect(page.getByText("模型原始输出").first()).toBeVisible();
-    await expect(page.getByText("工具开始")).toBeVisible();
-    await expect(page.getByText("工具结果")).toBeVisible();
+    await expect(page.getByText("工具开始").first()).toBeVisible();
+    await expect(page.getByText("工具结果").first()).toBeVisible();
     await expect(page.locator(".pi-task")).not.toContainText("Authorization");
+    expect(
+      readFileSync(
+        path.join(taskWorkspace, "m8-real-provider-result.md"),
+        "utf8",
+      ),
+    ).toContain("Pi 真实模型和工作区工具连接成功");
     await page.getByRole("button", { name: "验收通过" }).click();
     await expect(page.getByRole("heading", { name: "已完成" })).toBeVisible();
   } finally {

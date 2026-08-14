@@ -4,6 +4,7 @@ import type {
   PiSkillPreviewImportResult,
   PiTask,
   ProviderPublic,
+  WorkspacePublic,
 } from "@ai-corporation/protocols";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { createUuidV7 } from "./uuid-v7";
@@ -14,6 +15,7 @@ export function EmployeesPage() {
   const [employees, setEmployees] = useState<readonly PiEmployee[]>([]);
   const [skills, setSkills] = useState<readonly PiSkill[]>([]);
   const [providers, setProviders] = useState<readonly ProviderPublic[]>([]);
+  const [workspaces, setWorkspaces] = useState<readonly WorkspacePublic[]>([]);
   const [name, setName] = useState("");
   const [providerId, setProviderId] = useState("");
   const [modelId, setModelId] = useState("");
@@ -22,6 +24,7 @@ export function EmployeesPage() {
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState(false);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState("");
   const [taskInput, setTaskInput] = useState("");
   const [changeInput, setChangeInput] = useState("");
   const [currentTask, setCurrentTask] = useState<PiTask>();
@@ -35,11 +38,13 @@ export function EmployeesPage() {
   );
 
   const reload = async () => {
-    const [employeeResult, skillResult, providerResult] = await Promise.all([
-      window.desktop.piEmployee.list({ schemaVersion: 1 }),
-      window.desktop.piSkill.list({ schemaVersion: 1 }),
-      window.desktop.provider.list({ schemaVersion: 1 }),
-    ]);
+    const [employeeResult, skillResult, providerResult, workspaceResult] =
+      await Promise.all([
+        window.desktop.piEmployee.list({ schemaVersion: 1 }),
+        window.desktop.piSkill.list({ schemaVersion: 1 }),
+        window.desktop.provider.list({ schemaVersion: 1 }),
+        window.desktop.workspace.list(),
+      ]);
     if (employeeResult.ok) {
       setEmployees(employeeResult.value);
       setSelectedEmployeeId(
@@ -59,7 +64,25 @@ export function EmployeesPage() {
     }
     if (skillResult.ok) setSkills(skillResult.value);
     if (providerResult.ok) setProviders(providerResult.value);
-    if (!employeeResult.ok || !skillResult.ok || !providerResult.ok) {
+    if (workspaceResult.ok) {
+      setWorkspaces(workspaceResult.value);
+      setSelectedWorkspaceId(
+        (current) =>
+          current ||
+          workspaceResult.value.find(
+            (workspace) =>
+              workspace.accessStatus === "AVAILABLE" &&
+              workspace.permissionMode === "READ_WRITE",
+          )?.workspaceId ||
+          "",
+      );
+    }
+    if (
+      !employeeResult.ok ||
+      !skillResult.ok ||
+      !providerResult.ok ||
+      !workspaceResult.ok
+    ) {
       setMessage("员工资料加载失败，请重试。");
     }
   };
@@ -160,6 +183,7 @@ export function EmployeesPage() {
       schemaVersion: 1,
       commandId: createUuidV7(),
       employeeId: selectedEmployeeId,
+      workspaceId: selectedWorkspaceId,
       input: taskInput,
     });
     setPending(false);
@@ -199,10 +223,16 @@ export function EmployeesPage() {
 
   const retryTask = async () => {
     if (currentTask === undefined) return;
+    const workspaceId = currentTask.workspaceId ?? selectedWorkspaceId;
+    if (workspaceId === "") {
+      setMessage("重新执行前，请先选择本次任务的工作区。");
+      return;
+    }
     const result = await window.desktop.piTask.start({
       schemaVersion: 1,
       commandId: createUuidV7(),
       employeeId: currentTask.employeeId,
+      workspaceId,
       input: currentTask.userInput,
     });
     if (!result.ok) {
@@ -210,6 +240,23 @@ export function EmployeesPage() {
       return;
     }
     rememberTask(result.value, setCurrentTask);
+  };
+
+  const selectWorkspace = async () => {
+    setPending(true);
+    const result = await window.desktop.workspace.select();
+    setPending(false);
+    if (!result.ok) {
+      setMessage("工作区无法添加，请重新选择。");
+      return;
+    }
+    if (result.value.status === "CANCELLED") {
+      setMessage("已取消选择工作区。");
+      return;
+    }
+    setSelectedWorkspaceId(result.value.workspace.workspaceId);
+    setMessage("工作区已授权，可以用于这次任务。");
+    await reload();
   };
 
   return (
@@ -413,6 +460,46 @@ export function EmployeesPage() {
               </select>
             </div>
             <div className="field field--wide">
+              <label htmlFor="task-workspace">本次任务的工作区</label>
+              <div className="workspace-task-picker">
+                <select
+                  id="task-workspace"
+                  onChange={(event) =>
+                    setSelectedWorkspaceId(event.target.value)
+                  }
+                  required
+                  value={selectedWorkspaceId}
+                >
+                  <option value="">选择可写工作区</option>
+                  {workspaces
+                    .filter(
+                      (workspace) =>
+                        workspace.accessStatus === "AVAILABLE" &&
+                        workspace.permissionMode === "READ_WRITE",
+                    )
+                    .map((workspace) => (
+                      <option
+                        key={workspace.workspaceId}
+                        value={workspace.workspaceId}
+                      >
+                        {workspace.displayPath}
+                      </option>
+                    ))}
+                </select>
+                <button
+                  className="secondary-button"
+                  disabled={pending}
+                  onClick={() => void selectWorkspace()}
+                  type="button"
+                >
+                  添加工作区
+                </button>
+              </div>
+              <small>
+                员工可在这里自动读取、创建和修改普通文本；删除、改名、敏感文件和越界路径会被拒绝。
+              </small>
+            </div>
+            <div className="field field--wide">
               <label htmlFor="task-input">任务内容</label>
               <textarea
                 id="task-input"
@@ -451,6 +538,15 @@ export function EmployeesPage() {
                   </button>
                 )}
               </div>
+              {currentTask.workspaceId !== undefined && (
+                <p className="pi-task-workspace">
+                  工作区：
+                  {workspaces.find(
+                    (workspace) =>
+                      workspace.workspaceId === currentTask.workspaceId,
+                  )?.displayPath ?? "已授权工作区"}
+                </p>
+              )}
               {currentTask.finalOutput !== undefined && (
                 <div className="pi-task-output">
                   <h4>员工交付结果</h4>
@@ -583,6 +679,7 @@ function eventLabel(kind: PiTask["events"][number]["kind"]): string {
 function taskErrorMessage(code: string): string {
   if (code === "EMPLOYEE_NOT_READY")
     return "员工的 Provider、模型或 Key 已失效";
+  if (code === "WORKSPACE_NOT_READY") return "请选择一个当前可用、可写的工作区";
   if (code === "ALREADY_RUNNING") return "已有任务正在运行";
   if (code === "INVALID_STATE") return "任务状态已经变化，请刷新后再试";
   return "请检查员工和任务内容后重试";

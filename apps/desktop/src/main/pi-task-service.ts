@@ -9,6 +9,7 @@ import {
   createProvider,
   type Model,
 } from "@earendil-works/pi-ai";
+import { createHash } from "node:crypto";
 import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 import type {
   PiTaskCommandRequest,
@@ -20,7 +21,12 @@ import type {
 import type {
   PiEmployeeRepository,
   PiTaskRepository,
+  WorkspaceRepository,
 } from "@ai-corporation/storage";
+import {
+  WorkspaceNativeError,
+  type NativeCoreClient,
+} from "./native-core-client";
 import type { SkillLibrary } from "./skill-library";
 import { createUuidV7 } from "./uuid-v7";
 
@@ -38,6 +44,13 @@ export class PiTaskService {
       readonly employeeRepository: Pick<PiEmployeeRepository, "get">;
       readonly taskRepository: PiTaskRepository;
       readonly skillLibrary: SkillLibrary;
+      readonly workspaceRepository: Pick<WorkspaceRepository, "getTrusted">;
+      readonly nativeClient: () =>
+        | Pick<
+            NativeCoreClient,
+            "listWorkspace" | "readWorkspaceText" | "writeWorkspaceText"
+          >
+        | undefined;
       readonly resolveRuntime: (
         providerId: string,
         providerVersion: number,
@@ -62,6 +75,58 @@ export class PiTaskService {
       : { ok: true, value: task };
   }
 
+  /** Classifies unfinished write records without ever replaying them. */
+  async recoverWorkspaceWrites(): Promise<void> {
+    for (const pending of this.options.taskRepository.listPendingWorkspaceWrites()) {
+      let status: "SUCCEEDED" | "FAILED" | "UNKNOWN" = "UNKNOWN";
+      let message =
+        "软件上次关闭时写入尚未确认，当前无法判断文件是否完整写入。";
+      try {
+        const workspace = this.#requireWorkspace(pending.workspaceId);
+        const current = await this.#native().readWorkspaceText(
+          workspace.canonicalRootPath,
+          pending.relativePath,
+        );
+        if (current.sha256 === pending.targetSha256) {
+          status = "SUCCEEDED";
+          message = "软件重启后核对文件哈希，确认上次写入已经完整完成。";
+        } else if (
+          pending.baseSha256 !== undefined &&
+          current.sha256 === pending.baseSha256
+        ) {
+          status = "FAILED";
+          message = "软件重启后核对文件哈希，确认上次写入没有发生。";
+        }
+      } catch (error) {
+        if (
+          error instanceof WorkspaceNativeError &&
+          error.reason === "NOT_FOUND" &&
+          pending.baseSha256 === undefined
+        ) {
+          status = "FAILED";
+          message = "软件重启后确认目标文件不存在，上次创建没有发生。";
+        }
+      }
+      const result = {
+        recovered: true,
+        relativePath: pending.relativePath,
+        targetSha256: pending.targetSha256,
+        message,
+      };
+      this.options.taskRepository.finishWorkspaceWrite(
+        pending.toolCallId,
+        status,
+        result,
+        this.#now(),
+      );
+      this.#event(
+        pending.taskId,
+        status === "SUCCEEDED" ? "TOOL_RESULT" : "TOOL_ERROR",
+        JSON.stringify(result, null, 2),
+      );
+    }
+  }
+
   start(request: PiTaskStartRequest): PiTaskResult {
     try {
       const employee = this.options.employeeRepository.get(request.employeeId);
@@ -76,15 +141,26 @@ export class PiTaskService {
         employee.providerVersion,
         employee.modelId,
       );
+      const workspace = this.#requireWorkspace(request.workspaceId);
       const task = this.options.taskRepository.create({
         id: (this.options.createId ?? createUuidV7)(),
         employeeId: employee.id,
+        workspaceId: workspace.workspaceId,
         userInput: request.input,
         now: this.#now(),
       });
-      void this.#run(task.id, employee, request.input, runtime);
+      void this.#run(
+        task.id,
+        employee,
+        workspace.canonicalRootPath,
+        request.input,
+        runtime,
+      );
       return { ok: true, value: task };
-    } catch {
+    } catch (error) {
+      if (error instanceof WorkspaceNotReadyError) {
+        return failure("WORKSPACE_NOT_READY");
+      }
       return failure("EMPLOYEE_NOT_READY");
     }
   }
@@ -119,6 +195,8 @@ export class PiTaskService {
         employee.providerVersion,
         employee.modelId,
       );
+      if (task.workspaceId === undefined) return failure("WORKSPACE_NOT_READY");
+      const workspace = this.#requireWorkspace(task.workspaceId);
       this.options.taskRepository.setStatus(
         task.id,
         "CHANGES_REQUESTED",
@@ -140,11 +218,15 @@ export class PiTaskService {
       void this.#run(
         task.id,
         employee,
+        workspace.canonicalRootPath,
         `上一次结果：\n${task.finalOutput ?? ""}\n\n请继续修改。用户要求：${request.input}`,
         runtime,
       );
       return { ok: true, value: running };
-    } catch {
+    } catch (error) {
+      if (error instanceof WorkspaceNotReadyError) {
+        return failure("WORKSPACE_NOT_READY");
+      }
       return failure("EMPLOYEE_NOT_READY");
     }
   }
@@ -152,6 +234,7 @@ export class PiTaskService {
   async #run(
     taskId: string,
     employee: NonNullable<ReturnType<PiEmployeeRepository["get"]>>,
+    workspaceRoot: string,
     input: string,
     runtime: {
       readonly endpoint: string;
@@ -206,7 +289,7 @@ export class PiTaskService {
           systemPrompt,
           model,
           thinkingLevel: "off",
-          tools: [createDemoTool()],
+          tools: this.#createWorkspaceTools(taskId, workspaceRoot),
         },
         streamFn: (requestModel, context, options) =>
           models.streamSimple(requestModel, context, {
@@ -256,6 +339,177 @@ export class PiTaskService {
       this.#active.delete(taskId);
       this.#toolFailures.delete(taskId);
     }
+  }
+
+  #requireWorkspace(workspaceId: string) {
+    const workspace = this.options.workspaceRepository.getTrusted(workspaceId);
+    if (
+      workspace === undefined ||
+      workspace.accessStatus !== "AVAILABLE" ||
+      workspace.permissionMode !== "READ_WRITE"
+    ) {
+      throw new WorkspaceNotReadyError();
+    }
+    if (this.options.nativeClient() === undefined) {
+      throw new WorkspaceNotReadyError();
+    }
+    return workspace;
+  }
+
+  #createWorkspaceTools(taskId: string, workspaceRoot: string): AgentTool[] {
+    const listParameters = Type.Object({
+      relativePath: Type.String({
+        description: "要查看的相对目录；根目录使用空字符串",
+      }),
+    });
+    const readParameters = Type.Object({
+      relativePath: Type.String({
+        description: "要读取的普通文本文件相对路径",
+      }),
+    });
+    const writeParameters = Type.Object({
+      relativePath: Type.String({
+        description: "要创建或修改的文本文件相对路径",
+      }),
+      content: Type.String({ description: "文件的完整新内容" }),
+      baseSha256: Type.Optional(
+        Type.String({
+          description:
+            "修改已有文件时必须填写最近读取到的 SHA-256；创建新文件时省略",
+        }),
+      ),
+    });
+    return [
+      {
+        name: "workspace_list",
+        label: "查看工作区目录",
+        description: "查看当前任务工作区内的普通文件和目录。",
+        parameters: listParameters,
+        executionMode: "sequential",
+        execute: async (_toolCallId, params) => {
+          const { relativePath } = params as { relativePath: string };
+          const result = await this.#native().listWorkspace(
+            workspaceRoot,
+            relativePath,
+          );
+          return toolResult(result);
+        },
+      },
+      {
+        name: "workspace_read_text",
+        label: "读取工作区文本",
+        description: "读取当前任务工作区内不超过 1 MiB 的普通 UTF-8 文本。",
+        parameters: readParameters,
+        executionMode: "sequential",
+        execute: async (_toolCallId, params) => {
+          const { relativePath } = params as { relativePath: string };
+          const result = await this.#native().readWorkspaceText(
+            workspaceRoot,
+            relativePath,
+          );
+          return toolResult(result);
+        },
+      },
+      {
+        name: "workspace_write_text",
+        label: "写入工作区文本",
+        description:
+          "自动创建或修改普通 UTF-8 文本。修改已有文件前必须先读取并传入 baseSha256。",
+        parameters: writeParameters,
+        executionMode: "sequential",
+        execute: async (toolCallId, params) => {
+          const { relativePath, content, baseSha256 } = params as {
+            relativePath: string;
+            content: string;
+            baseSha256?: string;
+          };
+          const targetSha256 = createHash("sha256")
+            .update(content, "utf8")
+            .digest("hex");
+          let previousContent: string | undefined;
+          if (baseSha256 !== undefined) {
+            const before = await this.#native().readWorkspaceText(
+              workspaceRoot,
+              relativePath,
+            );
+            if (before.sha256 !== baseSha256) {
+              throw new Error(
+                "文件在员工读取后已被其他操作修改，本次不会覆盖新内容。",
+              );
+            }
+            previousContent = before.content;
+          }
+          const existing = this.options.taskRepository.beginWorkspaceWrite({
+            toolCallId,
+            taskId,
+            relativePath,
+            ...(baseSha256 === undefined ? {} : { baseSha256 }),
+            targetSha256,
+            now: this.#now(),
+          });
+          if (existing !== undefined) {
+            if (
+              existing.status === "SUCCEEDED" &&
+              existing.result !== undefined
+            ) {
+              return toolResult(existing.result);
+            }
+            throw new Error(
+              "这次写入的状态不明确，软件不会自动重复写入。请检查文件后重新发起任务。",
+            );
+          }
+          try {
+            const result = await this.#native().writeWorkspaceText(
+              workspaceRoot,
+              relativePath,
+              content,
+              baseSha256,
+            );
+            if (result.sha256 !== targetSha256) {
+              this.options.taskRepository.finishWorkspaceWrite(
+                toolCallId,
+                "UNKNOWN",
+                { error: "写入后的文件哈希与目标不一致" },
+                this.#now(),
+              );
+              throw new WorkspaceWriteUnknownError();
+            }
+            const visible = {
+              ...result,
+              diff: readableTextDiff(relativePath, previousContent, content),
+            };
+            this.options.taskRepository.finishWorkspaceWrite(
+              toolCallId,
+              "SUCCEEDED",
+              visible,
+              this.#now(),
+            );
+            return toolResult(visible);
+          } catch (error) {
+            if (!(error instanceof WorkspaceWriteUnknownError)) {
+              const status =
+                error instanceof WorkspaceNativeError &&
+                error.reason === "WRITE_FAILED"
+                  ? "UNKNOWN"
+                  : "FAILED";
+              this.options.taskRepository.finishWorkspaceWrite(
+                toolCallId,
+                status,
+                { error: readableError(error) },
+                this.#now(),
+              );
+            }
+            throw error;
+          }
+        },
+      },
+    ];
+  }
+
+  #native() {
+    const native = this.options.nativeClient();
+    if (native === undefined) throw new WorkspaceNotReadyError();
+    return native;
   }
 
   #recordAgentEvent(taskId: string, event: AgentEvent, output: string): string {
@@ -343,31 +597,41 @@ export class PiTaskService {
   }
 }
 
-function createDemoTool(): AgentTool {
-  const parameters = Type.Object({
-    text: Type.String({ description: "需要检查的文本" }),
-  });
-  const tool: AgentTool<typeof parameters> = {
-    name: "text_summary_check",
-    label: "文本结果检查",
-    description: "统计待检查文本的字符数和行数，不读取、写入或修改任何文件。",
-    parameters,
-    executionMode: "sequential",
-    execute: async (_toolCallId, { text }) => ({
-      content: [
-        {
-          type: "text",
-          text: `检查完成：${text.length} 个字符，${text.split(/\r?\n/u).length} 行。`,
-        },
-      ],
-      details: { characters: text.length, lines: text.split(/\r?\n/u).length },
-    }),
-  };
-  return tool;
+function buildSystemPrompt(employeeName: string, skill: string): string {
+  return `你是 AI Corporation 的员工“${employeeName}”。\n\n${skill}\n\n请直接完成用户交代的真实工作区任务。先用 workspace_list 了解目录；需要参考已有内容时用 workspace_read_text。创建文本文件时直接调用 workspace_write_text 且省略 baseSha256；修改已有文本时必须先读取，再把读取结果中的 sha256 原样作为 baseSha256。不得声称执行了工具没有真正完成的操作。完成后请说明实际创建或修改的相对路径，并提醒用户验收。`;
 }
 
-function buildSystemPrompt(employeeName: string, skill: string): string {
-  return `你是 AI Corporation 的员工“${employeeName}”。\n\n${skill}\n\n请直接完成用户任务。完成正文后，必须调用 text_summary_check 检查你的结果，再根据检查结果给出最终答复。不要声称读写了文件，因为当前没有文件工具。`;
+function toolResult(details: unknown) {
+  return {
+    content: [
+      { type: "text" as const, text: JSON.stringify(details, null, 2) },
+    ],
+    details,
+  };
+}
+
+class WorkspaceNotReadyError extends Error {}
+class WorkspaceWriteUnknownError extends Error {
+  constructor() {
+    super("写入结果不明确，软件不会把它标记为成功，也不会自动重复写入。");
+  }
+}
+
+function readableTextDiff(
+  relativePath: string,
+  before: string | undefined,
+  after: string,
+): string {
+  if (before === undefined)
+    return `新增 ${relativePath}\n${prefixLines(after, "+ ")}`;
+  return `修改 ${relativePath}\n--- 修改前\n${prefixLines(before, "- ")}\n+++ 修改后\n${prefixLines(after, "+ ")}`;
+}
+
+function prefixLines(value: string, prefix: string): string {
+  return value
+    .split(/\r?\n/u)
+    .map((line) => `${prefix}${line}`)
+    .join("\n");
 }
 
 function readableError(error: unknown): string {
@@ -384,6 +648,7 @@ function failure(
   code:
     | "NOT_FOUND"
     | "EMPLOYEE_NOT_READY"
+    | "WORKSPACE_NOT_READY"
     | "ALREADY_RUNNING"
     | "INVALID_STATE"
     | "STORAGE_UNAVAILABLE"

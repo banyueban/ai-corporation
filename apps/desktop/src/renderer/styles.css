@@ -473,6 +473,24 @@ h3 {
   grid-column: 1 / -1;
 }
 
+.workspace-task-picker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: stretch;
+}
+
+.pi-task-workspace {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+@media (max-width: 700px) {
+  .workspace-task-picker {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .pi-task {
   margin-top: 20px;
   border-top: 1px solid var(--line);
