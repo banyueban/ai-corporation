@@ -2,7 +2,7 @@
 
 ## 当前结论
 
-M7-TU-01 的实现、自动测试、真实 DeepSeek、Windows 开发态窗口和 Windows 打包窗口检查已经通过。用户发现的员工页布局错乱已在当前本地候选中修复；当前修复提交的 Windows/macOS CI 与新安装包人工验收尚未完成，所以任务保持“进行中”。
+M7-TU-01 的实现、自动测试、真实 DeepSeek、Windows 开发态窗口和 Windows 打包窗口检查已经通过。用户发现的员工页布局错乱已修复，当前修复提交的 Windows/macOS CI 也已通过；新安装包人工验收尚未完成，所以任务保持“进行中”。
 
 ## 已通过证据
 
@@ -16,11 +16,12 @@ M7-TU-01 的实现、自动测试、真实 DeepSeek、Windows 开发态窗口和
 - 员工页布局修复：页头、技能库、员工列表和直接任务区改为符合内容顺序的单列布局；窗口测试直接检查三个面板只有一列，任务表单和结果宽度不低于面板的 70%；
 - 当前开发态与 Windows 打包程序的完整员工窗口旅程各 1/1 通过；打包程序的任务区域截图已人工检查，未见竖排、重叠或溢出；
 - 安装包：`release/AI Corporation Desktop Setup 0.1.0.exe`，106117299 字节；
-- SHA-256：`A9C6E01C031AD5A7D0FC375EDD3455FC0A72BF3C749E704B8BF88594DD92379E`。
+- SHA-256：`A9C6E01C031AD5A7D0FC375EDD3455FC0A72BF3C749E704B8BF88594DD92379E`；
+- 员工页布局修复提交：`95887998ae3a6e3fda5c159e5ac2a3ea55d96335`；
+- GitHub Actions run `31828722640`：CI scope 通过；Windows x64 6m22s、macOS Apple Silicon 4m2s，均通过工程检查、真实窗口、安装包构建、打包程序窗口检查和安装包上传。
 
 ## 尚未执行
 
-- 当前布局修复提交的 Windows/macOS GitHub Actions；
 - 用户使用新 Windows 安装包完成完整人工旅程。
 
-以上两项完成前，不得把 M7-TU-01 或 Milestone 7 标记为“完成”。
+人工验收完成前，不得把 M7-TU-01 或 Milestone 7 标记为“完成”。
