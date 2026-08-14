@@ -2,7 +2,7 @@
 
 ## 当前结论
 
-M7-TU-01 的实现、自动测试、真实 DeepSeek、Windows 开发态窗口和 Windows 打包窗口检查已经通过。用户发现的员工页布局错乱已修复，当前修复提交的 Windows/macOS CI 也已通过；新安装包人工验收尚未完成，所以任务保持“进行中”。
+M7-TU-01 的实现、自动测试、真实 DeepSeek、Windows 开发态窗口、Windows 打包窗口和 Windows/macOS CI 已通过。用户发现的员工页布局错乱已修复，并于 2026-08-15 使用新 Windows 安装包完成人工验收并确认通过。任务及 Milestone 7 的适用退出条件均已满足。
 
 ## 已通过证据
 
@@ -19,9 +19,9 @@ M7-TU-01 的实现、自动测试、真实 DeepSeek、Windows 开发态窗口和
 - SHA-256：`A9C6E01C031AD5A7D0FC375EDD3455FC0A72BF3C749E704B8BF88594DD92379E`；
 - 员工页布局修复提交：`95887998ae3a6e3fda5c159e5ac2a3ea55d96335`；
 - GitHub Actions run `31828722640`：CI scope 通过；Windows x64 6m22s、macOS Apple Silicon 4m2s，均通过工程检查、真实窗口、安装包构建、打包程序窗口检查和安装包上传。
+- 直接父提交 `1fdc7a405d35ec628a070c1d22f31516416d58f9` 的 GitHub Actions run `31829354733`：Windows x64 6m52s、macOS Apple Silicon 3m58s，完整流水线通过；
+- 用户人工验收：2026-08-15，使用包含员工页布局修复的新 Windows 安装包完成检查并明确回复“确认通过”。
 
-## 尚未执行
+## 最终结论
 
-- 用户使用新 Windows 安装包完成完整人工旅程。
-
-人工验收完成前，不得把 M7-TU-01 或 Milestone 7 标记为“完成”。
+M7-TU-01 的 17 项验收断言全部通过，P0/P1 为 0，没有未执行的必检项。M7-TU-01 和 Milestone 7 可以标记为“完成”；该结论不包含附件、通用文件修改、多员工协作、图片、视频、文档或 PPT 专用能力。
