@@ -8,6 +8,8 @@ export * from "./organization-activation-repository";
 export * from "./execution-start-repository";
 export * from "./agent-run-repository";
 export * from "./planner-repository";
+export * from "./pi-employee-repository";
+export * from "./pi-task-repository";
 export * from "./plan-review-repository";
 export * from "./plan-validation-repository";
 export * from "./provider-repository";

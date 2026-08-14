@@ -432,6 +432,64 @@ h3 {
   background: rgb(15 23 37 / 88%);
 }
 
+.employee-layout {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.employee-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.8rem;
+}
+
+.employee-card {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid #27364b;
+  border-radius: 0.8rem;
+  background: #0c1421;
+}
+
+.employee-card p,
+.employee-card small,
+.employee-message {
+  color: #9eabc0;
+  overflow-wrap: anywhere;
+}
+
+.employee-task-panel {
+  grid-column: 1 / -1;
+}
+
+.pi-task {
+  margin-top: 20px;
+  border-top: 1px solid var(--line);
+  padding-top: 20px;
+}
+
+.pi-task-output pre,
+.pi-task-details pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: inherit;
+}
+
+.pi-task-details li {
+  margin-block: 12px;
+}
+
+.acceptance-panel {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.employee-message {
+  min-height: 1.5rem;
+  margin-top: 1rem;
+}
+
 .field {
   display: grid;
   min-width: 0;

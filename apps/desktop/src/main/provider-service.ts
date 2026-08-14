@@ -476,6 +476,29 @@ export class ProviderService {
     this.#vault.decrypt(stored.encrypted, stored.entryId);
   }
 
+  /** Returns a secret-bearing runtime value only to Electron Main services. */
+  resolvePiRuntime(
+    providerId: string,
+    expectedVersion: number,
+    modelId: string,
+  ): {
+    readonly endpoint: string;
+    readonly key: string;
+    readonly timeoutMs: number;
+  } {
+    this.assertReady(providerId, expectedVersion, modelId);
+    const provider = this.#repository.get(providerId);
+    if (provider === undefined) {
+      throw new ProviderRuntimeUnavailableError("NOT_FOUND");
+    }
+    const stored = this.#repository.getEncryptedKey(providerId);
+    return {
+      endpoint: provider.endpoint,
+      key: this.#vault.decrypt(stored.encrypted, stored.entryId),
+      timeoutMs: provider.generationTimeoutMs ?? 60_000,
+    };
+  }
+
   #rememberFinishedConnectionTest(requestId: string): void {
     rememberFinished(
       requestId,

@@ -39,6 +39,7 @@ import {
   workspaceErrorMessage,
 } from "./workspace-view-model";
 import { ProviderSettings } from "./ProviderSettings";
+import { EmployeesPage } from "./EmployeesPage";
 import { PlanReviewPanel } from "./PlanReviewPanel";
 import { formatUiTime, internalLabel, timelineLabel } from "./ui-labels";
 import { createUuidV7 } from "./uuid-v7";
@@ -47,7 +48,8 @@ type NativeCoreState =
   | { readonly status: "loading" }
   | { readonly status: "ready"; readonly result: HealthResult }
   | { readonly status: "degraded" };
-type Route = "dashboard" | "create" | "review" | "planner" | "settings";
+type Route =
+  "dashboard" | "employees" | "create" | "review" | "planner" | "settings";
 type CorporationSummary = {
   readonly corporation: CorporationPublic;
   readonly goal: GoalContractPublic | null;
@@ -1139,6 +1141,7 @@ export function App() {
           route === "create" ? leaveCreate : () => setRoute("dashboard")
         }
         onSettings={() => setRoute("settings")}
+        onEmployees={() => setRoute("employees")}
         route={route}
         versions={versions}
       />
@@ -1161,6 +1164,7 @@ export function App() {
             workspaces={workspaces}
           />
         )}
+        {route === "employees" && <EmployeesPage />}
         {route === "create" && (
           <CreateCorporation
             error={operationError}
@@ -1271,6 +1275,7 @@ export function App() {
 function Sidebar(props: {
   readonly nativeCore: NativeCoreState;
   readonly onDashboard: () => void;
+  readonly onEmployees: () => void;
   readonly onSettings: () => void;
   readonly route: Route;
   readonly versions: { readonly chrome: string; readonly electron: string };
@@ -1293,6 +1298,14 @@ function Sidebar(props: {
           </button>
           <button className="nav-button" disabled type="button">
             运行中
+          </button>
+          <button
+            aria-current={props.route === "employees" ? "page" : undefined}
+            className="nav-button"
+            onClick={props.onEmployees}
+            type="button"
+          >
+            员工
           </button>
           <button className="nav-button" disabled type="button">
             待批准

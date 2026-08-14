@@ -116,6 +116,38 @@ import {
   type PlanReviewGetCurrentRequest,
   type PlanReviewListVersionsRequest,
   type PlanReviewSaveVersionRequest,
+  PI_EMPLOYEE_LIST_IPC_CHANNEL,
+  PI_EMPLOYEE_SAVE_IPC_CHANNEL,
+  piEmployeeItemResultSchema,
+  piEmployeeListRequestSchema,
+  piEmployeeListResultSchema,
+  piEmployeeSaveRequestSchema,
+  type PiEmployeeListRequest,
+  type PiEmployeeSaveRequest,
+  PI_SKILL_CONFIRM_IMPORT_IPC_CHANNEL,
+  PI_SKILL_LIST_IPC_CHANNEL,
+  PI_SKILL_PREVIEW_IMPORT_IPC_CHANNEL,
+  piSkillConfirmImportRequestSchema,
+  piSkillItemResultSchema,
+  piSkillListRequestSchema,
+  piSkillListResultSchema,
+  piSkillPreviewImportResultSchema,
+  type PiSkillConfirmImportRequest,
+  type PiSkillListRequest,
+  PI_TASK_ACCEPT_IPC_CHANNEL,
+  PI_TASK_CANCEL_IPC_CHANNEL,
+  PI_TASK_GET_IPC_CHANNEL,
+  PI_TASK_REQUEST_CHANGES_IPC_CHANNEL,
+  PI_TASK_START_IPC_CHANNEL,
+  piTaskCommandRequestSchema,
+  piTaskGetRequestSchema,
+  piTaskRequestChangesRequestSchema,
+  piTaskResultSchema,
+  piTaskStartRequestSchema,
+  type PiTaskCommandRequest,
+  type PiTaskGetRequest,
+  type PiTaskRequestChangesRequest,
+  type PiTaskStartRequest,
   PROVIDER_CANCEL_CONNECTION_TEST_IPC_CHANNEL,
   PROVIDER_CANCEL_GENERATION_TEST_IPC_CHANNEL,
   PROVIDER_DELETE_KEY_IPC_CHANNEL,
@@ -161,6 +193,10 @@ import {
 } from "@ai-corporation/protocols";
 import { contextBridge, ipcRenderer } from "electron";
 import type { DesktopApi } from "../shared/desktop-api";
+
+async function invokePiTask(channel: string, request: unknown) {
+  return piTaskResultSchema.parse(await ipcRenderer.invoke(channel, request));
+}
 
 const desktopApi: DesktopApi = Object.freeze({
   agentRun: Object.freeze({
@@ -414,6 +450,72 @@ const desktopApi: DesktopApi = Object.freeze({
           PLAN_REVIEW_SAVE_VERSION_IPC_CHANNEL,
           planReviewSaveVersionRequestSchema.parse(request),
         ),
+      ),
+  }),
+  piEmployee: Object.freeze({
+    list: async (request: PiEmployeeListRequest) =>
+      piEmployeeListResultSchema.parse(
+        await ipcRenderer.invoke(
+          PI_EMPLOYEE_LIST_IPC_CHANNEL,
+          piEmployeeListRequestSchema.parse(request),
+        ),
+      ),
+    save: async (request: PiEmployeeSaveRequest) =>
+      piEmployeeItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          PI_EMPLOYEE_SAVE_IPC_CHANNEL,
+          piEmployeeSaveRequestSchema.parse(request),
+        ),
+      ),
+  }),
+  piSkill: Object.freeze({
+    list: async (request: PiSkillListRequest) =>
+      piSkillListResultSchema.parse(
+        await ipcRenderer.invoke(
+          PI_SKILL_LIST_IPC_CHANNEL,
+          piSkillListRequestSchema.parse(request),
+        ),
+      ),
+    previewImport: async (request: PiSkillListRequest) =>
+      piSkillPreviewImportResultSchema.parse(
+        await ipcRenderer.invoke(
+          PI_SKILL_PREVIEW_IMPORT_IPC_CHANNEL,
+          piSkillListRequestSchema.parse(request),
+        ),
+      ),
+    confirmImport: async (request: PiSkillConfirmImportRequest) =>
+      piSkillItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          PI_SKILL_CONFIRM_IMPORT_IPC_CHANNEL,
+          piSkillConfirmImportRequestSchema.parse(request),
+        ),
+      ),
+  }),
+  piTask: Object.freeze({
+    start: (request: PiTaskStartRequest) =>
+      invokePiTask(
+        PI_TASK_START_IPC_CHANNEL,
+        piTaskStartRequestSchema.parse(request),
+      ),
+    get: (request: PiTaskGetRequest) =>
+      invokePiTask(
+        PI_TASK_GET_IPC_CHANNEL,
+        piTaskGetRequestSchema.parse(request),
+      ),
+    cancel: (request: PiTaskCommandRequest) =>
+      invokePiTask(
+        PI_TASK_CANCEL_IPC_CHANNEL,
+        piTaskCommandRequestSchema.parse(request),
+      ),
+    accept: (request: PiTaskCommandRequest) =>
+      invokePiTask(
+        PI_TASK_ACCEPT_IPC_CHANNEL,
+        piTaskCommandRequestSchema.parse(request),
+      ),
+    requestChanges: (request: PiTaskRequestChangesRequest) =>
+      invokePiTask(
+        PI_TASK_REQUEST_CHANGES_IPC_CHANNEL,
+        piTaskRequestChangesRequestSchema.parse(request),
       ),
   }),
   provider: Object.freeze({

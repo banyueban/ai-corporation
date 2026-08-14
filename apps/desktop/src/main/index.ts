@@ -34,6 +34,16 @@ import {
   PLAN_REVIEW_GET_CURRENT_IPC_CHANNEL,
   PLAN_REVIEW_LIST_VERSIONS_IPC_CHANNEL,
   PLAN_REVIEW_SAVE_VERSION_IPC_CHANNEL,
+  PI_EMPLOYEE_LIST_IPC_CHANNEL,
+  PI_EMPLOYEE_SAVE_IPC_CHANNEL,
+  PI_SKILL_CONFIRM_IMPORT_IPC_CHANNEL,
+  PI_SKILL_LIST_IPC_CHANNEL,
+  PI_SKILL_PREVIEW_IMPORT_IPC_CHANNEL,
+  PI_TASK_ACCEPT_IPC_CHANNEL,
+  PI_TASK_CANCEL_IPC_CHANNEL,
+  PI_TASK_GET_IPC_CHANNEL,
+  PI_TASK_REQUEST_CHANGES_IPC_CHANNEL,
+  PI_TASK_START_IPC_CHANNEL,
   PROVIDER_CANCEL_CONNECTION_TEST_IPC_CHANNEL,
   PROVIDER_CANCEL_GENERATION_TEST_IPC_CHANNEL,
   PROVIDER_DELETE_KEY_IPC_CHANNEL,
@@ -58,6 +68,8 @@ import {
   OrganizationActivationRepository,
   OrganizationProposalRepository,
   PlanValidationRepository,
+  PiEmployeeRepository,
+  PiTaskRepository,
   PlanReviewRepository,
   PlannerRepository,
   ProviderRepository,
@@ -139,6 +151,17 @@ import {
   handlePlanReviewSaveVersion,
 } from "./plan-review-ipc";
 import { PlanReviewService } from "./plan-review-service";
+import { handlePiEmployeeList, handlePiEmployeeSave } from "./pi-employee-ipc";
+import { PiEmployeeService } from "./pi-employee-service";
+import {
+  handlePiSkillConfirmImport,
+  handlePiSkillList,
+  handlePiSkillPreviewImport,
+} from "./pi-skill-ipc";
+import { PiSkillService } from "./pi-skill-service";
+import { handlePiTask } from "./pi-task-ipc";
+import { PiTaskService } from "./pi-task-service";
+import { SkillLibrary } from "./skill-library";
 import { createUuidV7 } from "./uuid-v7";
 import {
   handleProviderCancelConnectionTest,
@@ -186,6 +209,9 @@ let goalEngineService: GoalEngineService | undefined;
 let executionStartService: ExecutionStartService | undefined;
 let plannerService: PlannerService | undefined;
 let planReviewService: PlanReviewService | undefined;
+let piEmployeeService: PiEmployeeService | undefined;
+let piSkillService: PiSkillService | undefined;
+let piTaskService: PiTaskService | undefined;
 let nativeCoreClient: NativeCoreClient | undefined;
 let organizationActivationService: OrganizationActivationService | undefined;
 let organizationProposalService: OrganizationProposalService | undefined;
@@ -304,6 +330,58 @@ void app.whenReady().then(async () => {
       handleAgentRunCancel(isTrustedRenderer(event), request, agentRunService),
   );
   ipcMain.handle(NATIVE_HEALTH_IPC_CHANNEL, handleNativeHealth);
+  ipcMain.handle(
+    PI_SKILL_LIST_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handlePiSkillList(isTrustedRenderer(event), request, piSkillService),
+  );
+  ipcMain.handle(
+    PI_SKILL_PREVIEW_IMPORT_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handlePiSkillPreviewImport(
+        isTrustedRenderer(event),
+        request,
+        piSkillService,
+      ),
+  );
+  ipcMain.handle(
+    PI_SKILL_CONFIRM_IMPORT_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handlePiSkillConfirmImport(
+        isTrustedRenderer(event),
+        request,
+        piSkillService,
+      ),
+  );
+  ipcMain.handle(
+    PI_EMPLOYEE_LIST_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handlePiEmployeeList(
+        isTrustedRenderer(event),
+        request,
+        piEmployeeService,
+      ),
+  );
+  ipcMain.handle(
+    PI_EMPLOYEE_SAVE_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handlePiEmployeeSave(
+        isTrustedRenderer(event),
+        request,
+        piEmployeeService,
+      ),
+  );
+  for (const [channel, action] of [
+    [PI_TASK_START_IPC_CHANNEL, "start"],
+    [PI_TASK_GET_IPC_CHANNEL, "get"],
+    [PI_TASK_CANCEL_IPC_CHANNEL, "cancel"],
+    [PI_TASK_ACCEPT_IPC_CHANNEL, "accept"],
+    [PI_TASK_REQUEST_CHANGES_IPC_CHANNEL, "requestChanges"],
+  ] as const) {
+    ipcMain.handle(channel, (event: IpcMainInvokeEvent, request: unknown) =>
+      handlePiTask(action, isTrustedRenderer(event), request, piTaskService),
+    );
+  }
   ipcMain.handle(
     EXECUTION_START_START_IPC_CHANNEL,
     (event: IpcMainInvokeEvent, request: unknown) =>
@@ -712,15 +790,65 @@ void app.whenReady().then(async () => {
     goalContractService = new GoalContractService({
       repository: createGoalContractRepository(workspaceDatabase, process.env),
     });
+    const providerRepository = new ProviderRepository(workspaceDatabase);
+    const providerVault = new ProviderKeyVault({
+      keyPath: path.join(app.getPath("userData"), "key-vault", "master-key-v1"),
+    });
     providerService = new ProviderService({
-      repository: new ProviderRepository(workspaceDatabase),
-      vault: new ProviderKeyVault({
-        keyPath: path.join(
-          app.getPath("userData"),
-          "key-vault",
-          "master-key-v1",
-        ),
-      }),
+      repository: providerRepository,
+      vault: providerVault,
+    });
+    const skillLibrary = new SkillLibrary(
+      path.join(app.getPath("userData"), "pi-skills"),
+    );
+    const builtinSkillDirectory = path.join(
+      app.getAppPath(),
+      app.isPackaged ? "skills" : "resources/skills",
+      "text-organize",
+    );
+    const builtinPreview = await skillLibrary.previewImport(
+      builtinSkillDirectory,
+    );
+    await skillLibrary.confirmImport(
+      builtinSkillDirectory,
+      builtinPreview.digest,
+    );
+    piSkillService = new PiSkillService({
+      library: skillLibrary,
+      selectDirectory: async () => {
+        if (mainWindow === undefined) return undefined;
+        const result = await dialog.showOpenDialog(mainWindow, {
+          buttonLabel: "选择技能文件夹",
+          properties: ["openDirectory"],
+          title: "导入技能",
+        });
+        return result.canceled ? undefined : result.filePaths[0];
+      },
+    });
+    const piEmployeeRepository = new PiEmployeeRepository(workspaceDatabase);
+    piEmployeeService = new PiEmployeeService({
+      repository: piEmployeeRepository,
+      skillLibrary,
+      listProviders: () => {
+        const result = providerService?.list();
+        return result?.ok === true ? result.value : [];
+      },
+    });
+    const piTaskRepository = new PiTaskRepository(workspaceDatabase);
+    piTaskRepository.interruptRunning(new Date().toISOString());
+    piTaskService = new PiTaskService({
+      employeeRepository: piEmployeeRepository,
+      taskRepository: piTaskRepository,
+      skillLibrary,
+      resolveRuntime: (providerId, providerVersion, modelId) => {
+        if (providerService === undefined)
+          throw new Error("Provider unavailable");
+        return providerService.resolvePiRuntime(
+          providerId,
+          providerVersion,
+          modelId,
+        );
+      },
     });
     const goalEngineRepository = new GoalEngineRepository(workspaceDatabase);
     goalEngineRepository.interruptGenerating(new Date().toISOString());
@@ -781,6 +909,9 @@ void app.whenReady().then(async () => {
     agentRunService = undefined;
     plannerService = undefined;
     planReviewService = undefined;
+    piEmployeeService = undefined;
+    piSkillService = undefined;
+    piTaskService = undefined;
     providerService = undefined;
     workspaceDirectorySelector = undefined;
     workspaceService = undefined;
@@ -807,6 +938,16 @@ app.on("before-quit", () => {
   ipcMain.removeHandler(AGENT_RUN_RETRY_IPC_CHANNEL);
   ipcMain.removeHandler(AGENT_RUN_CANCEL_IPC_CHANNEL);
   ipcMain.removeHandler(NATIVE_HEALTH_IPC_CHANNEL);
+  ipcMain.removeHandler(PI_SKILL_LIST_IPC_CHANNEL);
+  ipcMain.removeHandler(PI_SKILL_PREVIEW_IMPORT_IPC_CHANNEL);
+  ipcMain.removeHandler(PI_SKILL_CONFIRM_IMPORT_IPC_CHANNEL);
+  ipcMain.removeHandler(PI_EMPLOYEE_LIST_IPC_CHANNEL);
+  ipcMain.removeHandler(PI_EMPLOYEE_SAVE_IPC_CHANNEL);
+  ipcMain.removeHandler(PI_TASK_START_IPC_CHANNEL);
+  ipcMain.removeHandler(PI_TASK_GET_IPC_CHANNEL);
+  ipcMain.removeHandler(PI_TASK_CANCEL_IPC_CHANNEL);
+  ipcMain.removeHandler(PI_TASK_ACCEPT_IPC_CHANNEL);
+  ipcMain.removeHandler(PI_TASK_REQUEST_CHANGES_IPC_CHANNEL);
   ipcMain.removeHandler(PROVIDER_LIST_IPC_CHANNEL);
   ipcMain.removeHandler(PROVIDER_TEST_CONNECTION_IPC_CHANNEL);
   ipcMain.removeHandler(PROVIDER_CANCEL_CONNECTION_TEST_IPC_CHANNEL);
@@ -847,6 +988,9 @@ app.on("before-quit", () => {
   goalEngineService = undefined;
   plannerService = undefined;
   planReviewService = undefined;
+  piEmployeeService = undefined;
+  piSkillService = undefined;
+  piTaskService = undefined;
   providerService = undefined;
   workspaceDirectorySelector = undefined;
   workspaceService = undefined;

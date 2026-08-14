@@ -51,6 +51,20 @@ import type {
   PlanReviewListVersionsRequest,
   PlanReviewNullableItemResult,
   PlanReviewSaveVersionRequest,
+  PiEmployeeItemResult,
+  PiEmployeeListRequest,
+  PiEmployeeListResult,
+  PiEmployeeSaveRequest,
+  PiSkillConfirmImportRequest,
+  PiSkillItemResult,
+  PiSkillListRequest,
+  PiSkillListResult,
+  PiSkillPreviewImportResult,
+  PiTaskCommandRequest,
+  PiTaskGetRequest,
+  PiTaskRequestChangesRequest,
+  PiTaskResult,
+  PiTaskStartRequest,
   ProviderDeleteKeyRequest,
   ProviderCancelConnectionTestRequest,
   ProviderCancelConnectionTestResult,
@@ -159,6 +173,26 @@ export interface DesktopApi {
     saveVersion(
       request: PlanReviewSaveVersionRequest,
     ): Promise<PlanReviewItemResult>;
+  }>;
+  readonly piEmployee: Readonly<{
+    list(request: PiEmployeeListRequest): Promise<PiEmployeeListResult>;
+    save(request: PiEmployeeSaveRequest): Promise<PiEmployeeItemResult>;
+  }>;
+  readonly piSkill: Readonly<{
+    list(request: PiSkillListRequest): Promise<PiSkillListResult>;
+    previewImport(
+      request: PiSkillListRequest,
+    ): Promise<PiSkillPreviewImportResult>;
+    confirmImport(
+      request: PiSkillConfirmImportRequest,
+    ): Promise<PiSkillItemResult>;
+  }>;
+  readonly piTask: Readonly<{
+    start(request: PiTaskStartRequest): Promise<PiTaskResult>;
+    get(request: PiTaskGetRequest): Promise<PiTaskResult>;
+    cancel(request: PiTaskCommandRequest): Promise<PiTaskResult>;
+    accept(request: PiTaskCommandRequest): Promise<PiTaskResult>;
+    requestChanges(request: PiTaskRequestChangesRequest): Promise<PiTaskResult>;
   }>;
   readonly provider: Readonly<{
     cancelConnectionTest(

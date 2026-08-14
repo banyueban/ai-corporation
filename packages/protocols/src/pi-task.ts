@@ -1,0 +1,109 @@
+import { z } from "zod";
+
+export const PI_TASK_START_IPC_CHANNEL = "pi-task:start" as const;
+export const PI_TASK_GET_IPC_CHANNEL = "pi-task:get" as const;
+export const PI_TASK_CANCEL_IPC_CHANNEL = "pi-task:cancel" as const;
+export const PI_TASK_ACCEPT_IPC_CHANNEL = "pi-task:accept" as const;
+export const PI_TASK_REQUEST_CHANGES_IPC_CHANNEL =
+  "pi-task:request-changes" as const;
+
+const uuid = z.uuidv7();
+const baseRequest = { schemaVersion: z.literal(1), commandId: uuid } as const;
+
+export const piTaskEventSchema = z
+  .object({
+    sequence: z.number().int().positive(),
+    kind: z.enum([
+      "PROGRESS",
+      "MODEL_INPUT",
+      "MODEL_OUTPUT",
+      "TOOL_START",
+      "TOOL_RESULT",
+      "TOOL_ERROR",
+    ]),
+    content: z.string(),
+    createdAt: z.iso.datetime({ offset: true }),
+  })
+  .strict();
+
+export const piTaskSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    id: uuid,
+    employeeId: uuid,
+    userInput: z.string().min(1).max(20_000),
+    status: z.enum([
+      "RUNNING",
+      "WAITING_ACCEPTANCE",
+      "CHANGES_REQUESTED",
+      "COMPLETED",
+      "CANCELLED",
+      "FAILED",
+      "INTERRUPTED",
+    ]),
+    finalOutput: z.string().optional(),
+    failureMessage: z.string().optional(),
+    events: z.array(piTaskEventSchema),
+    createdAt: z.iso.datetime({ offset: true }),
+    updatedAt: z.iso.datetime({ offset: true }),
+  })
+  .strict();
+
+export const piTaskStartRequestSchema = z
+  .object({
+    ...baseRequest,
+    employeeId: uuid,
+    input: z.string().trim().min(1).max(20_000),
+  })
+  .strict();
+export const piTaskGetRequestSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    taskId: uuid.optional(),
+    employeeId: uuid.optional(),
+  })
+  .strict()
+  .refine(
+    ({ taskId, employeeId }) =>
+      (taskId === undefined) !== (employeeId === undefined),
+    "必须且只能提供 taskId 或 employeeId",
+  );
+export const piTaskCommandRequestSchema = z
+  .object({ ...baseRequest, taskId: uuid })
+  .strict();
+export const piTaskRequestChangesRequestSchema = z
+  .object({
+    ...baseRequest,
+    taskId: uuid,
+    input: z.string().trim().min(1).max(20_000),
+  })
+  .strict();
+
+const errorSchema = z
+  .object({
+    code: z.enum([
+      "INVALID_REQUEST",
+      "UNAUTHORIZED_CALLER",
+      "NOT_FOUND",
+      "EMPLOYEE_NOT_READY",
+      "ALREADY_RUNNING",
+      "INVALID_STATE",
+      "STORAGE_UNAVAILABLE",
+      "INTERNAL",
+    ]),
+    message: z.literal("任务操作失败"),
+  })
+  .strict();
+export const piTaskResultSchema = z.discriminatedUnion("ok", [
+  z.object({ ok: z.literal(true), value: piTaskSchema }).strict(),
+  z.object({ ok: z.literal(false), error: errorSchema }).strict(),
+]);
+
+export type PiTask = z.infer<typeof piTaskSchema>;
+export type PiTaskStartRequest = z.infer<typeof piTaskStartRequestSchema>;
+export type PiTaskGetRequest = z.infer<typeof piTaskGetRequestSchema>;
+export type PiTaskCommandRequest = z.infer<typeof piTaskCommandRequestSchema>;
+export type PiTaskRequestChangesRequest = z.infer<
+  typeof piTaskRequestChangesRequestSchema
+>;
+export type PiTaskResult = z.infer<typeof piTaskResultSchema>;

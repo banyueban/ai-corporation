@@ -184,14 +184,14 @@ describe("migration runner", () => {
     database.close();
   });
 
-  it("creates the domain schema through the Organization Proposal migration", () => {
+  it("creates the domain schema through the Pi employee migration", () => {
     const database = new DatabaseSync(":memory:");
     const migrations = loadMigrations(migrationDirectory);
     applyMigrations(database, migrations);
 
     expect(
       readAppliedMigrations(database).map(({ version }) => version),
-    ).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
+    ).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]);
     expect(
       database
         .prepare(
@@ -205,6 +205,11 @@ describe("migration runner", () => {
               'goal_contract_command',
               'goal_generation_operation',
               'planner_generation_operation',
+              'pi_employee',
+              'idx_pi_employee_updated',
+              'pi_task',
+              'pi_task_event',
+              'idx_pi_task_employee_updated',
               'task_plan',
               'task',
               'task_dependency',
@@ -261,6 +266,8 @@ describe("migration runner", () => {
       "idx_goal_generation_active",
       "idx_model_call_operation",
       "idx_organization_current",
+      "idx_pi_employee_updated",
+      "idx_pi_task_employee_updated",
       "idx_planner_generation_active",
       "idx_task_plan_corporation_version",
       "idx_task_plan_current",
@@ -269,6 +276,9 @@ describe("migration runner", () => {
       "model_call",
       "organization_proposal_command",
       "organization_version",
+      "pi_employee",
+      "pi_task",
+      "pi_task_event",
       "plan_review_command",
       "planner_generation_operation",
       "task",

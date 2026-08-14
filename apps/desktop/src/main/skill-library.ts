@@ -81,6 +81,14 @@ export class SkillLibrary {
     return skills.sort((left, right) => left.name.localeCompare(right.name));
   }
 
+  async readInstructions(name: string): Promise<string> {
+    if (!SKILL_NAME_PATTERN.test(name)) {
+      throw new SkillLibraryError("INVALID_SKILL", "技能名称不正确。");
+    }
+    // 只读取应用自己的副本，避免来源目录变化影响员工运行。
+    return readFile(path.join(this.rootDirectory, name, "SKILL.md"), "utf8");
+  }
+
   async previewImport(sourceDirectory: string): Promise<SkillImportPreview> {
     const incoming = await readSnapshot(sourceDirectory);
     const currentDirectory = path.join(this.rootDirectory, incoming.name);
