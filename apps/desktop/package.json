@@ -19,8 +19,8 @@
     "typecheck": "tsc --project tsconfig.electron.json --noEmit && tsc --project tsconfig.json --noEmit && tsc --project tsconfig.test.json --noEmit"
   },
   "devDependencies": {
-    "@ai-corporation/providers": "workspace:*",
     "@ai-corporation/protocols": "workspace:*",
+    "@ai-corporation/providers": "workspace:*",
     "@ai-corporation/storage": "workspace:*",
     "@playwright/test": "1.62.0",
     "@types/node": "26.1.2",
@@ -70,5 +70,9 @@
         "dmg"
       ]
     }
+  },
+  "dependencies": {
+    "@earendil-works/pi-agent-core": "0.84.1",
+    "@earendil-works/pi-ai": "0.84.1"
   }
 }

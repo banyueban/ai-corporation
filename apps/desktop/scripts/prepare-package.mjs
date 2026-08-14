@@ -35,6 +35,12 @@ cpSync(
   path.join(appDirectory, "migrations"),
   { recursive: true },
 );
+// 内置技能必须随安装包一起复制，开发态和最终包使用同一内容。
+cpSync(
+  path.join(desktopDirectory, "resources", "skills"),
+  path.join(appDirectory, "skills"),
+  { recursive: true },
+);
 cpSync(sourceNativeCore, path.join(desktopDirectory, "build", nativeCoreName));
 writeFileSync(
   path.join(appDirectory, "package.json"),

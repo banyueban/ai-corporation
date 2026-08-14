@@ -3,8 +3,10 @@ packages:
   - packages/*
 
 allowBuilds:
+  "@google/genai": false
   electron: true
   electron-winstaller: false
   esbuild: true
+  protobufjs: false
 
 strictPeerDependencies: true
