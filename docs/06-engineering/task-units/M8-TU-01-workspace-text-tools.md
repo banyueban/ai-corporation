@@ -91,7 +91,7 @@
 - [x] 15 员工完成真实文件任务并自查后等待用户验收，只有用户确认后任务完成；退回修改可以继续使用同一工作区且保留旧过程；
 - [x] 16 Protocol、Rust、Storage、Main/Preload、组件和攻击测试覆盖正常、冲突、越界、敏感文件、二进制、取消、失败和恢复；
 - [x] 17 Windows 开发态真实窗口在隔离临时工作区完成创建、修改、冲突、取消和重启旅程，并检查 1024×700、1440×900、200% 布局宽度与截图；
-- [ ] 18 当前提交 Windows/macOS CI、Secret scan、最终包真实窗口和安装包 artifact 通过；
+- [x] 18 当前提交 Windows/macOS CI、Secret scan、最终包真实窗口和安装包 artifact 通过；
 - [x] 19 本机正式 Renderer 使用已保存真实 DeepSeek Provider 完成一个不含秘密的真实文本文件任务；
 - [ ] 20 用户使用当前 Windows 安装包核对真实工作区文件和完整过程并确认人工验收后，本任务和 Milestone 8 才能关闭。
 
