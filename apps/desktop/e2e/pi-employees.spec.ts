@@ -234,6 +234,24 @@ test("user creates and restores an independent Pi employee in the visible window
 
     // 第二家公司直接复用同一员工和工作区，但看不到第一家公司的任务。
     await page.getByRole("button", { name: "控制台" }).click();
+    const originalCompany = page.getByRole("article").filter({
+      has: page.getByRole("heading", { name: "内容公司" }),
+    });
+    // Electron 的原生 prompt 在自动化环境下没有稳定的输入通道，这里只替换输入动作，
+    // 后续仍然点击真实按钮并经过 Renderer、IPC、Main 和数据库完成改名。
+    await page.evaluate(() => {
+      window.prompt = () => "内容公司（已改名）";
+    });
+    await originalCompany.getByRole("button", { name: "修改名称" }).click();
+    await expect(
+      page.getByRole("heading", { name: "内容公司（已改名）" }),
+    ).toBeVisible();
+    // 刷新后名称仍然存在，证明改名不是只改了眼前页面。
+    await page.reload();
+    await expect(
+      page.getByText("内容公司（已改名）", { exact: true }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "控制台" }).click();
     await app.evaluate(({ BrowserWindow }) => {
       const window = BrowserWindow.getAllWindows()[0];
       window?.setSize(1024, 700);
@@ -276,9 +294,22 @@ test("user creates and restores an independent Pi employee in the visible window
       page.getByRole("heading", { name: "本公司的任务记录" }),
     ).toHaveCount(0);
 
+    // 移出只解除当前公司的关系；员工、工作区和用户文件都还在，并且能再次加入。
+    await reusedEmployee.getByRole("button", { name: "移出当前公司" }).click();
+    await expect(
+      reusedEmployee.getByRole("button", { name: "加入当前公司" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: /^移出：/u }).click();
+    await expect(page.getByRole("button", { name: /^加入：/u })).toBeVisible();
+    expect(readFileSync(path.join(taskWorkspace, "source.md"), "utf8")).toBe(
+      "需要整理的测试文字",
+    );
+    await reusedEmployee.getByRole("button", { name: "加入当前公司" }).click();
+    await page.getByRole("button", { name: /^加入：/u }).click();
+
     await page.getByRole("button", { name: "控制台" }).click();
     const firstCompany = page.getByRole("article").filter({
-      has: page.getByRole("heading", { name: "内容公司" }),
+      has: page.getByRole("heading", { name: "内容公司（已改名）" }),
     });
     await firstCompany.getByRole("button", { name: "进入公司" }).click();
     await expect(

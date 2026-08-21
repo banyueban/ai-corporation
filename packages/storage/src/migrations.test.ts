@@ -309,8 +309,18 @@ describe("migration runner", () => {
     const employeeId = "019b0000-0000-7000-8000-000000000021";
     const workspaceId = "019b0000-0000-7000-8000-000000000022";
     const taskId = "019b0000-0000-7000-8000-000000000023";
+    const runningTaskId = "019b0000-0000-7000-8000-000000000025";
+    const corporationId = "019b0000-0000-7000-8000-000000000026";
     const now = "2026-08-21T00:00:00.000Z";
     database.exec("PRAGMA foreign_keys = OFF");
+    database
+      .prepare(
+        `INSERT INTO provider
+        (id, type, name, endpoint, config_json, config_status, version, created_at, updated_at)
+       VALUES (?, 'OPENAI_COMPATIBLE', '旧 Provider', 'https://example.test/v1',
+         '{}', 'ENABLED', 1, ?, ?)`,
+      )
+      .run(employeeId, now, now);
     database
       .prepare(
         `INSERT INTO pi_employee
@@ -339,11 +349,25 @@ describe("migration runner", () => {
       );
     database
       .prepare(
+        `INSERT INTO corporation
+        (id, workspace_id, name, status, version, created_at, updated_at)
+       VALUES (?, ?, '旧版公司', 'DRAFT', 1, ?, ?)`,
+      )
+      .run(corporationId, workspaceId, now, now);
+    database
+      .prepare(
         `INSERT INTO pi_task
         (id, employee_id, workspace_id, user_input, status, created_at, updated_at)
        VALUES (?, ?, ?, '旧任务', 'COMPLETED', ?, ?)`,
       )
       .run(taskId, employeeId, workspaceId, now, now);
+    database
+      .prepare(
+        `INSERT INTO pi_task
+        (id, employee_id, workspace_id, user_input, status, created_at, updated_at)
+       VALUES (?, ?, ?, '运行中的旧任务', 'RUNNING', ?, ?)`,
+      )
+      .run(runningTaskId, employeeId, workspaceId, now, now);
     database
       .prepare(
         `INSERT INTO pi_task_event (task_id, sequence, kind, content, created_at)
@@ -356,6 +380,12 @@ describe("migration runner", () => {
     const eventBefore = database
       .prepare("SELECT * FROM pi_task_event WHERE task_id = ?")
       .get(taskId);
+    const corporationBefore = database
+      .prepare("SELECT * FROM corporation WHERE id = ?")
+      .get(corporationId);
+    const runningTaskBefore = database
+      .prepare("SELECT * FROM pi_task WHERE id = ?")
+      .get(runningTaskId);
 
     applyMigrations(database, migrations);
 
@@ -382,6 +412,16 @@ describe("migration runner", () => {
         .get(taskId),
     ).toEqual(eventBefore);
     expect(
+      database
+        .prepare("SELECT * FROM corporation WHERE id = ?")
+        .get(corporationId),
+    ).toEqual(corporationBefore);
+    const { company_id: runningCompanyId, ...runningTaskAfter } = database
+      .prepare("SELECT * FROM pi_task WHERE id = ?")
+      .get(runningTaskId) as Record<string, unknown>;
+    expect(runningCompanyId).toBe(companyId);
+    expect(runningTaskAfter).toEqual(runningTaskBefore);
+    expect(
       database.prepare("SELECT employee_id FROM pi_company_employee").get(),
     ).toEqual({
       employee_id: employeeId,
@@ -401,6 +441,7 @@ describe("migration runner", () => {
         .prepare("UPDATE pi_task SET company_id = ? WHERE id = ?")
         .run("019b0000-0000-7000-8000-000000000099", taskId),
     ).toThrow("pi_task company_id is immutable");
+    expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
     database.close();
   });
 

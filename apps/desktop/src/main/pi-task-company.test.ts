@@ -34,6 +34,22 @@ describe("Pi task company boundary", () => {
     expect(resolveRuntime).not.toHaveBeenCalled();
   });
 
+  it("rejects a workspace outside the company before resolving the model runtime", () => {
+    const resolveRuntime = vi.fn<ResolveRuntime>();
+    const service = createService({ resolveRuntime, hasWorkspace: false });
+    expect(
+      service.start({
+        schemaVersion: 2,
+        commandId: "019b0000-0000-7000-8000-000000000037",
+        companyId,
+        employeeId,
+        workspaceId,
+        input: "不应调用模型",
+      }),
+    ).toMatchObject({ ok: false, error: { code: "NOT_A_MEMBER" } });
+    expect(resolveRuntime).not.toHaveBeenCalled();
+  });
+
   it("does not return a task through another company", () => {
     const service = createService({
       task: {
@@ -53,12 +69,68 @@ describe("Pi task company boundary", () => {
       service.get({ schemaVersion: 2, companyId: otherCompanyId, taskId }),
     ).toMatchObject({ ok: false, error: { code: "NOT_FOUND" } });
   });
+
+  it("does not mutate a task through another company", () => {
+    const setStatus = vi.fn();
+    const revokeCommandGrant = vi.fn();
+    const resolveRuntime = vi.fn<ResolveRuntime>();
+    const waitingTask = task("WAITING_ACCEPTANCE");
+    const service = createService({
+      task: waitingTask,
+      resolveRuntime,
+      taskRepository: {
+        get: () => waitingTask,
+        setStatus,
+        revokeCommandGrant,
+      },
+    });
+    const base = {
+      schemaVersion: 2 as const,
+      commandId: "019b0000-0000-7000-8000-000000000038",
+      companyId: otherCompanyId,
+      taskId,
+    };
+
+    expect(service.accept(base)).toMatchObject({
+      ok: false,
+      error: { code: "NOT_A_MEMBER" },
+    });
+    expect(
+      service.requestChanges({ ...base, input: "继续修改" }),
+    ).toMatchObject({ ok: false, error: { code: "NOT_A_MEMBER" } });
+    expect(
+      service.resolveCommandApproval({
+        ...base,
+        approvalId: "019b0000-0000-7000-8000-000000000039",
+        decision: "APPROVE",
+      }),
+    ).toMatchObject({ ok: false, error: { code: "NOT_A_MEMBER" } });
+
+    const runningTask = task("RUNNING");
+    const runningService = createService({
+      task: runningTask,
+      taskRepository: {
+        get: () => runningTask,
+        setStatus,
+        revokeCommandGrant,
+      },
+    });
+    expect(runningService.cancel(base)).toMatchObject({
+      ok: false,
+      error: { code: "NOT_A_MEMBER" },
+    });
+    expect(setStatus).not.toHaveBeenCalled();
+    expect(revokeCommandGrant).not.toHaveBeenCalled();
+    expect(resolveRuntime).not.toHaveBeenCalled();
+  });
 });
 
 function createService(options: {
   readonly hasEmployee?: boolean;
+  readonly hasWorkspace?: boolean;
   readonly resolveRuntime?: ResolveRuntime;
   readonly task?: PiTask;
+  readonly taskRepository?: Record<string, unknown>;
 }): PiTaskService {
   return new PiTaskService({
     companyRepository: {
@@ -72,15 +144,30 @@ function createService(options: {
         updatedAt: "2026-08-21T00:00:00.000Z",
       }),
       hasEmployee: () => options.hasEmployee ?? true,
-      hasWorkspace: () => true,
+      hasWorkspace: () => options.hasWorkspace ?? true,
     },
     employeeRepository: { get: () => undefined },
-    taskRepository: {
+    taskRepository: (options.taskRepository ?? {
       get: () => options.task,
-    } as never,
+    }) as never,
     skillLibrary: {} as never,
     workspaceRepository: { getTrusted: () => undefined },
     nativeClient: () => undefined,
     resolveRuntime: options.resolveRuntime ?? vi.fn<ResolveRuntime>(),
   });
+}
+
+function task(status: PiTask["status"]): PiTask {
+  return {
+    schemaVersion: 2,
+    id: taskId,
+    companyId,
+    employeeId,
+    workspaceId,
+    userInput: "测试",
+    status,
+    events: [],
+    createdAt: "2026-08-21T00:00:00.000Z",
+    updatedAt: "2026-08-21T00:00:00.000Z",
+  };
 }
