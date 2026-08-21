@@ -481,6 +481,19 @@ h3 {
   align-items: stretch;
 }
 
+/* macOS 会按最长选项计算下拉框宽度，长工作区路径不能反过来撑宽整个页面。 */
+.workspace-task-picker > label,
+.workspace-task-picker select {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.workspace-task-picker select {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .company-create {
   display: grid;
   grid-template-columns: minmax(12rem, 1fr) auto;
