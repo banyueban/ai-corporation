@@ -21,6 +21,7 @@ import type {
   PlannerDraftPublic,
   PlannerErrorCode,
   PlannerOperationPublic,
+  PiCompany,
   ProviderPublic,
   TimelineEventPublic,
   WorkspaceIpcErrorCode,
@@ -40,6 +41,7 @@ import {
 } from "./workspace-view-model";
 import { ProviderSettings } from "./ProviderSettings";
 import { EmployeesPage } from "./EmployeesPage";
+import { PiCompanyDashboard } from "./PiCompanyDashboard";
 import { PlanReviewPanel } from "./PlanReviewPanel";
 import { formatUiTime, internalLabel, timelineLabel } from "./ui-labels";
 import { createUuidV7 } from "./uuid-v7";
@@ -68,6 +70,7 @@ const emptyContent = {
 export function App() {
   const { versions } = window.desktop;
   const [route, setRoute] = useState<Route>("dashboard");
+  const [selectedPiCompany, setSelectedPiCompany] = useState<PiCompany>();
   const [nativeCore, setNativeCore] = useState<NativeCoreState>({
     status: "loading",
   });
@@ -137,6 +140,22 @@ export function App() {
 
   useEffect(() => {
     let active = true;
+    const rememberedCompanyId = window.localStorage.getItem(
+      "pi-current-company-id",
+    );
+    if (rememberedCompanyId !== null) {
+      void window.desktop.piCompany
+        .list({ schemaVersion: 1 })
+        .then((result) => {
+          const company = result.ok
+            ? result.value.find((item) => item.id === rememberedCompanyId)
+            : undefined;
+          if (active && company !== undefined) {
+            setSelectedPiCompany(company);
+            setRoute("employees");
+          }
+        });
+    }
     void window.desktop
       .health()
       .then((result) => {
@@ -1141,30 +1160,28 @@ export function App() {
           route === "create" ? leaveCreate : () => setRoute("dashboard")
         }
         onSettings={() => setRoute("settings")}
-        onEmployees={() => setRoute("employees")}
+        onEmployees={() =>
+          setRoute(selectedPiCompany === undefined ? "dashboard" : "employees")
+        }
         route={route}
         versions={versions}
       />
       <main className="page">
         {route === "dashboard" && (
-          <Dashboard
-            corporations={corporations}
-            loadError={loadError}
-            loading={loadingWorkspaces}
-            onCreate={openCreate}
-            onOpen={openReview}
-            onResume={resumeGoalAnalysis}
-            onRevalidate={revalidateWorkspace}
-            onStateChange={changeCorporationState}
-            operationError={operationError}
-            refreshingIds={refreshingIds}
-            stateError={stateError}
-            statePending={statePending}
-            statusMessage={statusMessage}
-            workspaces={workspaces}
+          <PiCompanyDashboard
+            onOpen={(company) => {
+              setSelectedPiCompany(company);
+              window.localStorage.setItem("pi-current-company-id", company.id);
+              setRoute("employees");
+            }}
           />
         )}
-        {route === "employees" && <EmployeesPage />}
+        {route === "employees" && selectedPiCompany !== undefined && (
+          <EmployeesPage
+            company={selectedPiCompany}
+            onCompanyChange={setSelectedPiCompany}
+          />
+        )}
         {route === "create" && (
           <CreateCorporation
             error={operationError}
@@ -1263,7 +1280,31 @@ export function App() {
               statusMessage={statusMessage}
             />
           )}
-        {route === "settings" && <ProviderSettings />}
+        {route === "settings" && (
+          <>
+            <ProviderSettings />
+            <details className="legacy-history">
+              <summary>查看旧版公司与目标记录</summary>
+              <Dashboard
+                corporations={corporations}
+                loadError={loadError}
+                loading={loadingWorkspaces}
+                onCreate={openCreate}
+                onOpen={openReview}
+                onResume={resumeGoalAnalysis}
+                onRevalidate={revalidateWorkspace}
+                onStateChange={changeCorporationState}
+                operationError={operationError}
+                readOnly
+                refreshingIds={refreshingIds}
+                stateError={stateError}
+                statePending={statePending}
+                statusMessage={statusMessage}
+                workspaces={workspaces}
+              />
+            </details>
+          </>
+        )}
         <p className="sr-only" aria-live="polite">
           {statusMessage}
         </p>
@@ -1349,6 +1390,7 @@ function Dashboard(props: {
   readonly onRevalidate: (workspaceId: string) => Promise<void>;
   readonly onStateChange: (corporation: CorporationPublic) => Promise<void>;
   readonly operationError: WorkspaceIpcErrorCode | undefined;
+  readonly readOnly?: boolean;
   readonly refreshingIds: readonly string[];
   readonly stateError: CorporationErrorCode | undefined;
   readonly statePending: boolean;
@@ -1359,17 +1401,19 @@ function Dashboard(props: {
     <>
       <header className="page-header">
         <div>
-          <p className="eyebrow">本地优先的工作区</p>
-          <h1>控制台</h1>
-          <p>在你明确授权的本地工作区中创建和恢复公司的目标合同。</p>
+          <p className="eyebrow">旧版资料</p>
+          <h1>旧版公司与目标记录</h1>
+          <p>这里只用于查看重启前的数据，不再从这里创建或继续任务。</p>
         </div>
-        <button
-          className="primary-button"
-          onClick={props.onCreate}
-          type="button"
-        >
-          新建公司
-        </button>
+        {!props.readOnly && (
+          <button
+            className="primary-button"
+            onClick={props.onCreate}
+            type="button"
+          >
+            新建公司
+          </button>
+        )}
       </header>
       {props.loadError !== undefined && (
         <WorkspaceError code={props.loadError} title="无法使用已保存的工作区" />
@@ -1397,13 +1441,15 @@ function Dashboard(props: {
           <p className="empty-kicker">还没有已授权的工作区</p>
           <h2 id="empty-title">创建第一个公司</h2>
           <p>请先选择一个本地文件夹。软件会先验证实际访问权限，再保存授权。</p>
-          <button
-            className="primary-button"
-            onClick={props.onCreate}
-            type="button"
-          >
-            选择工作区
-          </button>
+          {!props.readOnly && (
+            <button
+              className="primary-button"
+              onClick={props.onCreate}
+              type="button"
+            >
+              选择工作区
+            </button>
+          )}
         </section>
       ) : (
         <>
@@ -1443,33 +1489,39 @@ function Dashboard(props: {
                         {formatUiTime(summary.corporation.pausedAt ?? "")}。
                       </p>
                     )}
-                    <button
-                      className="secondary-button"
-                      disabled={props.statePending}
-                      onClick={() =>
-                        void props.onStateChange(summary.corporation)
-                      }
-                      type="button"
-                    >
-                      {props.statePending
-                        ? summary.corporation.status === "PAUSED"
-                          ? "正在继续…"
-                          : "正在暂停…"
-                        : summary.corporation.status === "PAUSED"
-                          ? "继续运行公司"
-                          : "暂停公司"}
-                    </button>
-                    <button
-                      className="secondary-button"
-                      onClick={() =>
-                        void (summary.goal === null
-                          ? props.onResume(summary)
-                          : props.onOpen(summary))
-                      }
-                      type="button"
-                    >
-                      {summary.goal === null ? "继续创建目标" : "打开目标合同"}
-                    </button>
+                    {!props.readOnly && (
+                      <button
+                        className="secondary-button"
+                        disabled={props.statePending}
+                        onClick={() =>
+                          void props.onStateChange(summary.corporation)
+                        }
+                        type="button"
+                      >
+                        {props.statePending
+                          ? summary.corporation.status === "PAUSED"
+                            ? "正在继续…"
+                            : "正在暂停…"
+                          : summary.corporation.status === "PAUSED"
+                            ? "继续运行公司"
+                            : "暂停公司"}
+                      </button>
+                    )}
+                    {!props.readOnly && (
+                      <button
+                        className="secondary-button"
+                        onClick={() =>
+                          void (summary.goal === null
+                            ? props.onResume(summary)
+                            : props.onOpen(summary))
+                        }
+                        type="button"
+                      >
+                        {summary.goal === null
+                          ? "继续创建目标"
+                          : "打开目标合同"}
+                      </button>
+                    )}
                   </article>
                 ))}
               </div>
@@ -1510,16 +1562,18 @@ function Dashboard(props: {
                     <p>
                       {presentation.recoveryAction ?? "该授权仅限所选文件夹。"}
                     </p>
-                    <button
-                      className="secondary-button"
-                      disabled={refreshing}
-                      onClick={() =>
-                        void props.onRevalidate(workspace.workspaceId)
-                      }
-                      type="button"
-                    >
-                      {refreshing ? "正在验证…" : "重新验证"}
-                    </button>
+                    {!props.readOnly && (
+                      <button
+                        className="secondary-button"
+                        disabled={refreshing}
+                        onClick={() =>
+                          void props.onRevalidate(workspace.workspaceId)
+                        }
+                        type="button"
+                      >
+                        {refreshing ? "正在验证…" : "重新验证"}
+                      </button>
+                    )}
                   </article>
                 );
               })}

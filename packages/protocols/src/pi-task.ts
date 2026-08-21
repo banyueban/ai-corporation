@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const PI_TASK_START_IPC_CHANNEL = "pi-task:start" as const;
 export const PI_TASK_GET_IPC_CHANNEL = "pi-task:get" as const;
+export const PI_TASK_LIST_IPC_CHANNEL = "pi-task:list" as const;
 export const PI_TASK_CANCEL_IPC_CHANNEL = "pi-task:cancel" as const;
 export const PI_TASK_ACCEPT_IPC_CHANNEL = "pi-task:accept" as const;
 export const PI_TASK_REQUEST_CHANGES_IPC_CHANNEL =
@@ -10,7 +11,11 @@ export const PI_TASK_RESOLVE_COMMAND_APPROVAL_IPC_CHANNEL =
   "pi-task:resolve-command-approval" as const;
 
 const uuid = z.uuidv7();
-const baseRequest = { schemaVersion: z.literal(1), commandId: uuid } as const;
+const baseRequest = {
+  schemaVersion: z.literal(2),
+  commandId: uuid,
+  companyId: uuid,
+} as const;
 
 export const piTaskEventSchema = z
   .object({
@@ -33,8 +38,9 @@ export const piTaskEventSchema = z
 
 export const piTaskSchema = z
   .object({
-    schemaVersion: z.literal(1),
+    schemaVersion: z.literal(2),
     id: uuid,
+    companyId: uuid,
     employeeId: uuid,
     workspaceId: uuid.optional(),
     userInput: z.string().min(1).max(20_000),
@@ -65,7 +71,8 @@ export const piTaskStartRequestSchema = z
   .strict();
 export const piTaskGetRequestSchema = z
   .object({
-    schemaVersion: z.literal(1),
+    schemaVersion: z.literal(2),
+    companyId: uuid,
     taskId: uuid.optional(),
     employeeId: uuid.optional(),
   })
@@ -75,6 +82,9 @@ export const piTaskGetRequestSchema = z
       (taskId === undefined) !== (employeeId === undefined),
     "必须且只能提供 taskId 或 employeeId",
   );
+export const piTaskListRequestSchema = z
+  .object({ schemaVersion: z.literal(2), companyId: uuid })
+  .strict();
 export const piTaskCommandRequestSchema = z
   .object({ ...baseRequest, taskId: uuid })
   .strict();
@@ -102,6 +112,7 @@ const errorSchema = z
       "NOT_FOUND",
       "EMPLOYEE_NOT_READY",
       "WORKSPACE_NOT_READY",
+      "NOT_A_MEMBER",
       "ALREADY_RUNNING",
       "INVALID_STATE",
       "STORAGE_UNAVAILABLE",
@@ -114,10 +125,15 @@ export const piTaskResultSchema = z.discriminatedUnion("ok", [
   z.object({ ok: z.literal(true), value: piTaskSchema }).strict(),
   z.object({ ok: z.literal(false), error: errorSchema }).strict(),
 ]);
+export const piTaskListResultSchema = z.discriminatedUnion("ok", [
+  z.object({ ok: z.literal(true), value: z.array(piTaskSchema) }).strict(),
+  z.object({ ok: z.literal(false), error: errorSchema }).strict(),
+]);
 
 export type PiTask = z.infer<typeof piTaskSchema>;
 export type PiTaskStartRequest = z.infer<typeof piTaskStartRequestSchema>;
 export type PiTaskGetRequest = z.infer<typeof piTaskGetRequestSchema>;
+export type PiTaskListRequest = z.infer<typeof piTaskListRequestSchema>;
 export type PiTaskCommandRequest = z.infer<typeof piTaskCommandRequestSchema>;
 export type PiTaskRequestChangesRequest = z.infer<
   typeof piTaskRequestChangesRequestSchema
@@ -126,3 +142,4 @@ export type PiTaskResolveCommandApprovalRequest = z.infer<
   typeof piTaskResolveCommandApprovalRequestSchema
 >;
 export type PiTaskResult = z.infer<typeof piTaskResultSchema>;
+export type PiTaskListResult = z.infer<typeof piTaskListResultSchema>;

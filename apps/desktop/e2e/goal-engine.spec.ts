@@ -7,7 +7,8 @@ import axe from "axe-core";
 import { _electron as electron } from "playwright";
 import type { DesktopApi } from "../src/shared/desktop-api";
 
-test("user creates and cancels real Goal Engine operations in the visible window", async () => {
+// M10 将旧 Goal/Plan 写入流程移出产品主入口；历史数据只读保留，因此不再运行旧写入旅程。
+test.skip("user creates and cancels real Goal Engine operations in the visible window", async () => {
   test.setTimeout(180_000);
   const fixture = await startGoalFixture();
   const userDataDirectory = mkdtempSync(
@@ -642,7 +643,7 @@ function markJourneyStage(stage: string): void {
   process.stdout.write(`GOAL_E2E_STAGE:${stage}\n`);
 }
 
-test("user sees an interrupted Goal operation after process restart without replay", async () => {
+test.skip("user sees an interrupted Goal operation after process restart without replay", async () => {
   const fixture = await startGoalFixture();
   const userDataDirectory = mkdtempSync(
     path.join(tmpdir(), "M2-TU-05-restart-user-data-"),
@@ -749,7 +750,7 @@ test("user sees an interrupted Goal operation after process restart without repl
   }
 });
 
-test("Planner repairs once, fails safely, cancels, rejects stale facts, and restores its draft", async () => {
+test.skip("Planner repairs once, fails safely, cancels, rejects stale facts, and restores its draft", async () => {
   test.setTimeout(90_000);
   const fixture = await startGoalFixture();
   const userDataDirectory = mkdtempSync(

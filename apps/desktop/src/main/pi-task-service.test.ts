@@ -15,6 +15,20 @@ import { PiTaskService } from "./pi-task-service";
 
 describe("PiTaskService", () => {
   const cleanups: Array<() => Promise<void>> = [];
+  const companyId = "019b7f4d-a000-7000-8000-000000000001";
+  const companyRepository = {
+    get: () => ({
+      schemaVersion: 1 as const,
+      id: companyId,
+      name: "测试公司",
+      employeeIds: [],
+      workspaceIds: [],
+      createdAt: "2026-08-14T00:00:00.000Z",
+      updatedAt: "2026-08-14T00:00:00.000Z",
+    }),
+    hasEmployee: () => true,
+    hasWorkspace: () => true,
+  };
 
   afterEach(async () => {
     await Promise.all(cleanups.splice(0).map((cleanup) => cleanup()));
@@ -78,6 +92,7 @@ describe("PiTaskService", () => {
     const workspaceId = "019b7f4d-a100-7000-8000-000000000005";
     const writes: Array<{ relativePath: string; content: string }> = [];
     const service = new PiTaskService({
+      companyRepository,
       employeeRepository: { get: () => employee },
       taskRepository: repository,
       skillLibrary: library,
@@ -131,8 +146,9 @@ describe("PiTaskService", () => {
     });
 
     const started = service.start({
-      schemaVersion: 1,
+      schemaVersion: 2,
       commandId: "019b7f4d-a100-7000-8000-000000000004",
+      companyId,
       employeeId: employee.id,
       workspaceId,
       input: "整理这段测试文字",
@@ -244,6 +260,7 @@ describe("PiTaskService", () => {
     const repository = new PiTaskRepository(database);
     const workspaceId = "019b7f4d-a200-7000-8000-000000000005";
     const service = new PiTaskService({
+      companyRepository,
       employeeRepository: { get: () => employee },
       taskRepository: repository,
       skillLibrary: library,
@@ -289,8 +306,9 @@ describe("PiTaskService", () => {
     });
 
     const started = service.start({
-      schemaVersion: 1,
+      schemaVersion: 2,
       commandId: "019b7f4d-a200-7000-8000-000000000004",
+      companyId,
       employeeId: employee.id,
       workspaceId,
       input: "运行测试并告诉我结果",
@@ -312,8 +330,9 @@ describe("PiTaskService", () => {
     ).toEqual({ total: 0 });
 
     const resolved = service.resolveCommandApproval({
-      schemaVersion: 1,
+      schemaVersion: 2,
       commandId: "019b7f4d-a200-7000-8000-000000000006",
+      companyId,
       taskId,
       approvalId: approval.approvalId,
       decision: "APPROVE",
@@ -341,8 +360,9 @@ describe("PiTaskService", () => {
     expect(repository.hasCommandGrant(taskId)).toBe(true);
     expect(
       service.accept({
-        schemaVersion: 1,
+        schemaVersion: 2,
         commandId: "019b7f4d-a200-7000-8000-000000000007",
+        companyId,
         taskId,
       }).ok,
     ).toBe(true);

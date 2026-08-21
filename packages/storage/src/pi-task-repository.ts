@@ -24,6 +24,7 @@ export class PiTaskRepository {
 
   create(input: {
     readonly id: string;
+    readonly companyId: string;
     readonly employeeId: string;
     readonly workspaceId: string;
     readonly userInput: string;
@@ -32,11 +33,13 @@ export class PiTaskRepository {
     this.database
       .prepare(
         `INSERT INTO pi_task (
-          id, employee_id, workspace_id, user_input, status, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, 'RUNNING', ?, ?)`,
+          id, company_id, employee_id, workspace_id, user_input, status,
+          created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, 'RUNNING', ?, ?)`,
       )
       .run(
         input.id,
+        input.companyId,
         input.employeeId,
         input.workspaceId,
         input.userInput,
@@ -53,13 +56,23 @@ export class PiTaskRepository {
     return row === undefined ? undefined : this.parse(row);
   }
 
-  getLatest(employeeId: string): PiTask | undefined {
+  list(companyId: string): readonly PiTask[] {
+    return this.database
+      .prepare(
+        `SELECT * FROM pi_task WHERE company_id = ?
+        ORDER BY updated_at DESC, id DESC`,
+      )
+      .all(companyId)
+      .map((row) => this.parse(row));
+  }
+
+  getLatest(companyId: string, employeeId: string): PiTask | undefined {
     const row = this.database
       .prepare(
-        `SELECT * FROM pi_task WHERE employee_id = ?
+        `SELECT * FROM pi_task WHERE company_id = ? AND employee_id = ?
         ORDER BY updated_at DESC, id DESC LIMIT 1`,
       )
-      .get(employeeId);
+      .get(companyId, employeeId);
     return row === undefined ? undefined : this.parse(row);
   }
 
@@ -331,8 +344,9 @@ export class PiTaskRepository {
         createdAt: event.created_at,
       }));
     return piTaskSchema.parse({
-      schemaVersion: 1,
+      schemaVersion: 2,
       id: row.id,
+      companyId: row.company_id,
       employeeId: row.employee_id,
       ...(row.workspace_id === null ? {} : { workspaceId: row.workspace_id }),
       userInput: row.user_input,

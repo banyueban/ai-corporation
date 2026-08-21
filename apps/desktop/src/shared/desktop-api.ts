@@ -55,6 +55,13 @@ import type {
   PiEmployeeListRequest,
   PiEmployeeListResult,
   PiEmployeeSaveRequest,
+  PiCompanyCreateRequest,
+  PiCompanyEmployeeRequest,
+  PiCompanyItemResult,
+  PiCompanyListRequest,
+  PiCompanyListResult,
+  PiCompanyUpdateNameRequest,
+  PiCompanyWorkspaceRequest,
   PiSkillConfirmImportRequest,
   PiSkillItemResult,
   PiSkillListRequest,
@@ -62,6 +69,8 @@ import type {
   PiSkillPreviewImportResult,
   PiTaskCommandRequest,
   PiTaskGetRequest,
+  PiTaskListRequest,
+  PiTaskListResult,
   PiTaskRequestChangesRequest,
   PiTaskResolveCommandApprovalRequest,
   PiTaskResult,
@@ -179,6 +188,25 @@ export interface DesktopApi {
     list(request: PiEmployeeListRequest): Promise<PiEmployeeListResult>;
     save(request: PiEmployeeSaveRequest): Promise<PiEmployeeItemResult>;
   }>;
+  readonly piCompany: Readonly<{
+    list(request: PiCompanyListRequest): Promise<PiCompanyListResult>;
+    create(request: PiCompanyCreateRequest): Promise<PiCompanyItemResult>;
+    updateName(
+      request: PiCompanyUpdateNameRequest,
+    ): Promise<PiCompanyItemResult>;
+    addEmployee(
+      request: PiCompanyEmployeeRequest,
+    ): Promise<PiCompanyItemResult>;
+    removeEmployee(
+      request: PiCompanyEmployeeRequest,
+    ): Promise<PiCompanyItemResult>;
+    addWorkspace(
+      request: PiCompanyWorkspaceRequest,
+    ): Promise<PiCompanyItemResult>;
+    removeWorkspace(
+      request: PiCompanyWorkspaceRequest,
+    ): Promise<PiCompanyItemResult>;
+  }>;
   readonly piSkill: Readonly<{
     list(request: PiSkillListRequest): Promise<PiSkillListResult>;
     previewImport(
@@ -191,6 +219,7 @@ export interface DesktopApi {
   readonly piTask: Readonly<{
     start(request: PiTaskStartRequest): Promise<PiTaskResult>;
     get(request: PiTaskGetRequest): Promise<PiTaskResult>;
+    list(request: PiTaskListRequest): Promise<PiTaskListResult>;
     cancel(request: PiTaskCommandRequest): Promise<PiTaskResult>;
     accept(request: PiTaskCommandRequest): Promise<PiTaskResult>;
     requestChanges(request: PiTaskRequestChangesRequest): Promise<PiTaskResult>;

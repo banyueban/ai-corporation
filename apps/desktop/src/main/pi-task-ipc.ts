@@ -1,10 +1,12 @@
 import {
   piTaskCommandRequestSchema,
   piTaskGetRequestSchema,
+  piTaskListRequestSchema,
   piTaskRequestChangesRequestSchema,
   piTaskResolveCommandApprovalRequestSchema,
   piTaskStartRequestSchema,
   type PiTaskResult,
+  type PiTaskListResult,
 } from "@ai-corporation/protocols";
 import type { PiTaskService } from "./pi-task-service";
 
@@ -54,4 +56,25 @@ export function handlePiTask(
   return action === "cancel"
     ? service.cancel(parsed.data)
     : service.accept(parsed.data);
+}
+
+export function handlePiTaskList(
+  authorized: boolean,
+  request: unknown,
+  service?: PiTaskService,
+): PiTaskListResult {
+  if (!authorized) {
+    return {
+      ok: false,
+      error: { code: "UNAUTHORIZED_CALLER", message: "任务操作失败" },
+    };
+  }
+  const parsed = piTaskListRequestSchema.safeParse(request);
+  if (!parsed.success || service === undefined) {
+    return {
+      ok: false,
+      error: { code: "INVALID_REQUEST", message: "任务操作失败" },
+    };
+  }
+  return service.list(parsed.data);
 }

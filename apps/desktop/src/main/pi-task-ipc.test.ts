@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { handlePiTask } from "./pi-task-ipc";
 
 const taskId = "018f0f5f-79b2-7cc3-8c4d-1f54a8e2c901";
+const companyId = "018f0f5f-79b2-7cc3-8c4d-1f54a8e2c902";
 
 describe("Pi task IPC boundary", () => {
   it("rejects an untrusted command approval before service access", () => {
@@ -25,8 +26,9 @@ describe("Pi task IPC boundary", () => {
       "resolveCommandApproval",
       true,
       {
-        schemaVersion: 1,
+        schemaVersion: 2,
         commandId: taskId,
+        companyId,
         taskId,
         approvalId: taskId,
         decision: "APPROVE",

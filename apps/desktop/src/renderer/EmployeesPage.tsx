@@ -1,5 +1,6 @@
 import type {
   PiEmployee,
+  PiCompany,
   PiSkill,
   PiSkillPreviewImportResult,
   PiTask,
@@ -17,7 +18,10 @@ type CommandApproval = {
   readonly reason: string;
 };
 
-export function EmployeesPage() {
+export function EmployeesPage(props: {
+  readonly company: PiCompany;
+  readonly onCompanyChange: (company: PiCompany) => void;
+}) {
   const [employees, setEmployees] = useState<readonly PiEmployee[]>([]);
   const [skills, setSkills] = useState<readonly PiSkill[]>([]);
   const [providers, setProviders] = useState<readonly ProviderPublic[]>([]);
@@ -34,6 +38,7 @@ export function EmployeesPage() {
   const [taskInput, setTaskInput] = useState("");
   const [changeInput, setChangeInput] = useState("");
   const [currentTask, setCurrentTask] = useState<PiTask>();
+  const [tasks, setTasks] = useState<readonly PiTask[]>([]);
 
   const readyProviders = useMemo(
     () => providers.filter(isReadyProvider),
@@ -46,41 +51,66 @@ export function EmployeesPage() {
     () => pendingCommandApproval(currentTask),
     [currentTask],
   );
+  const companyEmployees = employees.filter((employee) =>
+    props.company.employeeIds.includes(employee.id),
+  );
+  const companyWorkspaces = workspaces.filter((workspace) =>
+    props.company.workspaceIds.includes(workspace.workspaceId),
+  );
 
-  const reload = async () => {
-    const [employeeResult, skillResult, providerResult, workspaceResult] =
-      await Promise.all([
-        window.desktop.piEmployee.list({ schemaVersion: 1 }),
-        window.desktop.piSkill.list({ schemaVersion: 1 }),
-        window.desktop.provider.list({ schemaVersion: 1 }),
-        window.desktop.workspace.list(),
-      ]);
+  const reload = async (company = props.company) => {
+    const [
+      employeeResult,
+      skillResult,
+      providerResult,
+      workspaceResult,
+      taskResult,
+    ] = await Promise.all([
+      window.desktop.piEmployee.list({ schemaVersion: 1 }),
+      window.desktop.piSkill.list({ schemaVersion: 1 }),
+      window.desktop.provider.list({ schemaVersion: 1 }),
+      window.desktop.workspace.list(),
+      window.desktop.piTask.list({
+        schemaVersion: 2,
+        companyId: company.id,
+      }),
+    ]);
     if (employeeResult.ok) {
       setEmployees(employeeResult.value);
       setSelectedEmployeeId(
-        (current) => current || employeeResult.value[0]?.id || "",
+        (current) =>
+          (current && company.employeeIds.includes(current) ? current : "") ||
+          employeeResult.value.find((item) =>
+            company.employeeIds.includes(item.id),
+          )?.id ||
+          "",
       );
-      const latestEmployee = employeeResult.value[0];
+      const latestEmployee = employeeResult.value.find((item) =>
+        company.employeeIds.includes(item.id),
+      );
       if (
         latestEmployee !== undefined &&
-        window.localStorage.getItem("pi-current-task-id") === null
+        window.localStorage.getItem(`pi-current-task-id:${company.id}`) === null
       ) {
         const latestTask = await window.desktop.piTask.get({
-          schemaVersion: 1,
+          schemaVersion: 2,
+          companyId: company.id,
           employeeId: latestEmployee.id,
         });
         if (latestTask.ok) rememberTask(latestTask.value, setCurrentTask);
       }
     }
+    if (taskResult.ok) setTasks(taskResult.value);
     if (skillResult.ok) setSkills(skillResult.value);
     if (providerResult.ok) setProviders(providerResult.value);
     if (workspaceResult.ok) {
       setWorkspaces(workspaceResult.value);
       setSelectedWorkspaceId(
         (current) =>
-          current ||
+          (current && company.workspaceIds.includes(current) ? current : "") ||
           workspaceResult.value.find(
             (workspace) =>
+              company.workspaceIds.includes(workspace.workspaceId) &&
               workspace.accessStatus === "AVAILABLE" &&
               workspace.permissionMode === "READ_WRITE",
           )?.workspaceId ||
@@ -91,7 +121,8 @@ export function EmployeesPage() {
       !employeeResult.ok ||
       !skillResult.ok ||
       !providerResult.ok ||
-      !workspaceResult.ok
+      !workspaceResult.ok ||
+      !taskResult.ok
     ) {
       setMessage("员工资料加载失败，请重试。");
     }
@@ -99,28 +130,31 @@ export function EmployeesPage() {
 
   useEffect(() => {
     void reload();
-    const taskId = window.localStorage.getItem("pi-current-task-id");
+    const taskId = window.localStorage.getItem(
+      `pi-current-task-id:${props.company.id}`,
+    );
     if (taskId !== null) {
       void window.desktop.piTask
-        .get({ schemaVersion: 1, taskId })
+        .get({ schemaVersion: 2, companyId: props.company.id, taskId })
         .then((result) => {
           if (result.ok) setCurrentTask(result.value);
         });
     }
-  }, []);
+  }, [props.company.id]);
 
   useEffect(() => {
     if (currentTask?.status !== "RUNNING") return;
     // 轮询只负责显示已落库的真实事件，界面刷新不会重新调用模型。
     const timer = window.setInterval(async () => {
       const result = await window.desktop.piTask.get({
-        schemaVersion: 1,
+        schemaVersion: 2,
+        companyId: props.company.id,
         taskId: currentTask.id,
       });
       if (result.ok) setCurrentTask(result.value);
     }, 250);
     return () => window.clearInterval(timer);
-  }, [currentTask?.id, currentTask?.status]);
+  }, [currentTask?.id, currentTask?.status, props.company.id]);
 
   const previewImport = async () => {
     setPending(true);
@@ -180,18 +214,31 @@ export function EmployeesPage() {
       setMessage(`员工保存失败：${employeeErrorMessage(result.error.code)}`);
       return;
     }
+    const membership = await window.desktop.piCompany.addEmployee({
+      schemaVersion: 1,
+      commandId: createUuidV7(),
+      companyId: props.company.id,
+      employeeId: result.value.id,
+    });
+    if (!membership.ok) {
+      setMessage("员工已经创建，但加入当前公司失败，请在员工列表中重试。");
+      await reload();
+      return;
+    }
+    props.onCompanyChange(membership.value);
     setName("");
     setSelectedEmployeeId(result.value.id);
     setMessage(`员工“${result.value.name}”已创建，可以接收任务。`);
-    await reload();
+    await reload(membership.value);
   };
 
   const startTask = async (event: FormEvent) => {
     event.preventDefault();
     setPending(true);
     const result = await window.desktop.piTask.start({
-      schemaVersion: 1,
+      schemaVersion: 2,
       commandId: createUuidV7(),
+      companyId: props.company.id,
       employeeId: selectedEmployeeId,
       workspaceId: selectedWorkspaceId,
       input: taskInput,
@@ -210,8 +257,9 @@ export function EmployeesPage() {
   ) => {
     if (currentTask === undefined) return;
     const command = {
-      schemaVersion: 1 as const,
+      schemaVersion: 2 as const,
       commandId: createUuidV7(),
+      companyId: props.company.id,
       taskId: currentTask.id,
     };
     const result =
@@ -235,8 +283,9 @@ export function EmployeesPage() {
     if (currentTask === undefined || commandApproval === undefined) return;
     setPending(true);
     const result = await window.desktop.piTask.resolveCommandApproval({
-      schemaVersion: 1,
+      schemaVersion: 2,
       commandId: createUuidV7(),
+      companyId: props.company.id,
       taskId: currentTask.id,
       approvalId: commandApproval.approvalId,
       decision,
@@ -260,8 +309,9 @@ export function EmployeesPage() {
       return;
     }
     const result = await window.desktop.piTask.start({
-      schemaVersion: 1,
+      schemaVersion: 2,
       commandId: createUuidV7(),
+      companyId: props.company.id,
       employeeId: currentTask.employeeId,
       workspaceId,
       input: currentTask.userInput,
@@ -286,15 +336,77 @@ export function EmployeesPage() {
       return;
     }
     setSelectedWorkspaceId(result.value.workspace.workspaceId);
-    setMessage("工作区已授权，可以用于这次任务。");
-    await reload();
+    const membership = await window.desktop.piCompany.addWorkspace({
+      schemaVersion: 1,
+      commandId: createUuidV7(),
+      companyId: props.company.id,
+      workspaceId: result.value.workspace.workspaceId,
+    });
+    if (!membership.ok) {
+      setMessage("工作区已授权，但没有加入当前公司，请重试。");
+      return;
+    }
+    props.onCompanyChange(membership.value);
+    setMessage("工作区已加入当前公司，可以用于这次任务。");
+    await reload(membership.value);
+  };
+
+  const changeEmployeeMembership = async (employeeId: string, add: boolean) => {
+    const result = await window.desktop.piCompany[
+      add ? "addEmployee" : "removeEmployee"
+    ]({
+      schemaVersion: 1,
+      commandId: createUuidV7(),
+      companyId: props.company.id,
+      employeeId,
+    });
+    if (!result.ok) {
+      setMessage("员工归属调整失败，请重试。");
+      return;
+    }
+    props.onCompanyChange(result.value);
+    setMessage(
+      add ? "员工已加入当前公司。" : "员工已从当前公司移除。已有任务不会改变。",
+    );
+  };
+
+  const addExistingWorkspace = async (workspaceId: string) => {
+    const result = await window.desktop.piCompany.addWorkspace({
+      schemaVersion: 1,
+      commandId: createUuidV7(),
+      companyId: props.company.id,
+      workspaceId,
+    });
+    if (!result.ok) {
+      setMessage("工作区加入公司失败，请确认它仍然可写。");
+      return;
+    }
+    props.onCompanyChange(result.value);
+    setSelectedWorkspaceId(workspaceId);
+    setMessage("工作区已加入当前公司。");
+  };
+
+  const removeWorkspace = async (workspaceId: string) => {
+    const result = await window.desktop.piCompany.removeWorkspace({
+      schemaVersion: 1,
+      commandId: createUuidV7(),
+      companyId: props.company.id,
+      workspaceId,
+    });
+    if (!result.ok) {
+      setMessage("工作区移出公司失败，请重试。");
+      return;
+    }
+    props.onCompanyChange(result.value);
+    if (selectedWorkspaceId === workspaceId) setSelectedWorkspaceId("");
+    setMessage("工作区已从当前公司移除。全局授权和已有任务没有改变。");
   };
 
   return (
     <section aria-labelledby="employees-heading">
       <header className="page-header page-header--create">
         <div>
-          <p className="eyebrow">PI 员工</p>
+          <p className="eyebrow">{props.company.name}</p>
           <h1 id="employees-heading" tabIndex={-1}>
             员工与技能
           </h1>
@@ -455,12 +567,34 @@ export function EmployeesPage() {
             <div className="employee-card-grid">
               {employees.map((employee) => (
                 <article className="employee-card" key={employee.id}>
-                  <span className="status-badge status-badge--positive">
-                    可用
+                  <span
+                    className={`status-badge status-badge--${
+                      props.company.employeeIds.includes(employee.id)
+                        ? "positive"
+                        : "neutral"
+                    }`}
+                  >
+                    {props.company.employeeIds.includes(employee.id)
+                      ? "当前公司"
+                      : "其他公司可复用"}
                   </span>
                   <h3>{employee.name}</h3>
                   <p>模型：{employee.modelId}</p>
                   <p>技能：{employee.skillName}</p>
+                  <button
+                    className="secondary-button"
+                    onClick={() =>
+                      void changeEmployeeMembership(
+                        employee.id,
+                        !props.company.employeeIds.includes(employee.id),
+                      )
+                    }
+                    type="button"
+                  >
+                    {props.company.employeeIds.includes(employee.id)
+                      ? "移出当前公司"
+                      : "加入当前公司"}
+                  </button>
                 </article>
               ))}
             </div>
@@ -483,7 +617,7 @@ export function EmployeesPage() {
                 value={selectedEmployeeId}
               >
                 <option value="">选择员工</option>
-                {employees.map((employee) => (
+                {companyEmployees.map((employee) => (
                   <option key={employee.id} value={employee.id}>
                     {employee.name} · {employee.modelId}
                   </option>
@@ -502,7 +636,7 @@ export function EmployeesPage() {
                   value={selectedWorkspaceId}
                 >
                   <option value="">选择可写工作区</option>
-                  {workspaces
+                  {companyWorkspaces
                     .filter(
                       (workspace) =>
                         workspace.accessStatus === "AVAILABLE" &&
@@ -529,6 +663,54 @@ export function EmployeesPage() {
               <small>
                 员工可在这里读取和修改代码。编码员工首次运行命令时会说明真实风险并请你确认。
               </small>
+              {companyWorkspaces.length > 0 && (
+                <div className="company-workspace-options">
+                  <strong>当前公司的工作区</strong>
+                  {companyWorkspaces.map((workspace) => (
+                    <button
+                      className="secondary-button"
+                      key={workspace.workspaceId}
+                      onClick={() =>
+                        void removeWorkspace(workspace.workspaceId)
+                      }
+                      type="button"
+                    >
+                      移出：{workspace.displayPath}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {workspaces.some(
+                (workspace) =>
+                  workspace.accessStatus === "AVAILABLE" &&
+                  workspace.permissionMode === "READ_WRITE" &&
+                  !props.company.workspaceIds.includes(workspace.workspaceId),
+              ) && (
+                <div className="company-workspace-options">
+                  <strong>加入已有工作区</strong>
+                  {workspaces
+                    .filter(
+                      (workspace) =>
+                        workspace.accessStatus === "AVAILABLE" &&
+                        workspace.permissionMode === "READ_WRITE" &&
+                        !props.company.workspaceIds.includes(
+                          workspace.workspaceId,
+                        ),
+                    )
+                    .map((workspace) => (
+                      <button
+                        className="secondary-button"
+                        key={workspace.workspaceId}
+                        onClick={() =>
+                          void addExistingWorkspace(workspace.workspaceId)
+                        }
+                        type="button"
+                      >
+                        加入：{workspace.displayPath}
+                      </button>
+                    ))}
+                </div>
+              )}
             </div>
             <div className="field field--wide">
               <label htmlFor="task-input">任务内容</label>
@@ -682,6 +864,31 @@ export function EmployeesPage() {
               )}
             </article>
           )}
+          {tasks.length > 0 && (
+            <section
+              className="task-history"
+              aria-labelledby="task-history-title"
+            >
+              <h3 id="task-history-title">本公司的任务记录</h3>
+              <div className="employee-card-grid">
+                {tasks.map((task) => (
+                  <article className="employee-card" key={task.id}>
+                    <span className="status-badge status-badge--neutral">
+                      {taskStatusLabel(task.status)}
+                    </span>
+                    <p>{task.userInput}</p>
+                    <button
+                      className="secondary-button"
+                      onClick={() => rememberTask(task, setCurrentTask)}
+                      type="button"
+                    >
+                      查看任务
+                    </button>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
         </section>
       </div>
       <p aria-live="polite" className="employee-message">
@@ -797,6 +1004,6 @@ function taskErrorMessage(code: string): string {
 }
 
 function rememberTask(task: PiTask, update: (task: PiTask) => void): void {
-  window.localStorage.setItem("pi-current-task-id", task.id);
+  window.localStorage.setItem(`pi-current-task-id:${task.companyId}`, task.id);
   update(task);
 }

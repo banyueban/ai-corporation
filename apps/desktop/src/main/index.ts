@@ -34,6 +34,13 @@ import {
   PLAN_REVIEW_GET_CURRENT_IPC_CHANNEL,
   PLAN_REVIEW_LIST_VERSIONS_IPC_CHANNEL,
   PLAN_REVIEW_SAVE_VERSION_IPC_CHANNEL,
+  PI_COMPANY_ADD_EMPLOYEE_IPC_CHANNEL,
+  PI_COMPANY_ADD_WORKSPACE_IPC_CHANNEL,
+  PI_COMPANY_CREATE_IPC_CHANNEL,
+  PI_COMPANY_LIST_IPC_CHANNEL,
+  PI_COMPANY_REMOVE_EMPLOYEE_IPC_CHANNEL,
+  PI_COMPANY_REMOVE_WORKSPACE_IPC_CHANNEL,
+  PI_COMPANY_UPDATE_NAME_IPC_CHANNEL,
   PI_EMPLOYEE_LIST_IPC_CHANNEL,
   PI_EMPLOYEE_SAVE_IPC_CHANNEL,
   PI_SKILL_CONFIRM_IMPORT_IPC_CHANNEL,
@@ -42,6 +49,7 @@ import {
   PI_TASK_ACCEPT_IPC_CHANNEL,
   PI_TASK_CANCEL_IPC_CHANNEL,
   PI_TASK_GET_IPC_CHANNEL,
+  PI_TASK_LIST_IPC_CHANNEL,
   PI_TASK_REQUEST_CHANGES_IPC_CHANNEL,
   PI_TASK_RESOLVE_COMMAND_APPROVAL_IPC_CHANNEL,
   PI_TASK_START_IPC_CHANNEL,
@@ -70,6 +78,7 @@ import {
   OrganizationProposalRepository,
   PlanValidationRepository,
   PiEmployeeRepository,
+  PiCompanyRepository,
   PiTaskRepository,
   PlanReviewRepository,
   PlannerRepository,
@@ -154,13 +163,15 @@ import {
 import { PlanReviewService } from "./plan-review-service";
 import { handlePiEmployeeList, handlePiEmployeeSave } from "./pi-employee-ipc";
 import { PiEmployeeService } from "./pi-employee-service";
+import { handlePiCompany, handlePiCompanyList } from "./pi-company-ipc";
+import { PiCompanyService } from "./pi-company-service";
 import {
   handlePiSkillConfirmImport,
   handlePiSkillList,
   handlePiSkillPreviewImport,
 } from "./pi-skill-ipc";
 import { PiSkillService } from "./pi-skill-service";
-import { handlePiTask } from "./pi-task-ipc";
+import { handlePiTask, handlePiTaskList } from "./pi-task-ipc";
 import { PiTaskService } from "./pi-task-service";
 import { SkillLibrary } from "./skill-library";
 import { createUuidV7 } from "./uuid-v7";
@@ -211,6 +222,7 @@ let executionStartService: ExecutionStartService | undefined;
 let plannerService: PlannerService | undefined;
 let planReviewService: PlanReviewService | undefined;
 let piEmployeeService: PiEmployeeService | undefined;
+let piCompanyService: PiCompanyService | undefined;
 let piSkillService: PiSkillService | undefined;
 let piTaskService: PiTaskService | undefined;
 let nativeCoreClient: NativeCoreClient | undefined;
@@ -371,6 +383,33 @@ void app.whenReady().then(async () => {
         request,
         piEmployeeService,
       ),
+  );
+  ipcMain.handle(
+    PI_COMPANY_LIST_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handlePiCompanyList(isTrustedRenderer(event), request, piCompanyService),
+  );
+  for (const [channel, action] of [
+    [PI_COMPANY_CREATE_IPC_CHANNEL, "create"],
+    [PI_COMPANY_UPDATE_NAME_IPC_CHANNEL, "updateName"],
+    [PI_COMPANY_ADD_EMPLOYEE_IPC_CHANNEL, "addEmployee"],
+    [PI_COMPANY_REMOVE_EMPLOYEE_IPC_CHANNEL, "removeEmployee"],
+    [PI_COMPANY_ADD_WORKSPACE_IPC_CHANNEL, "addWorkspace"],
+    [PI_COMPANY_REMOVE_WORKSPACE_IPC_CHANNEL, "removeWorkspace"],
+  ] as const) {
+    ipcMain.handle(channel, (event: IpcMainInvokeEvent, request: unknown) =>
+      handlePiCompany(
+        action,
+        isTrustedRenderer(event),
+        request,
+        piCompanyService,
+      ),
+    );
+  }
+  ipcMain.handle(
+    PI_TASK_LIST_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handlePiTaskList(isTrustedRenderer(event), request, piTaskService),
   );
   for (const [channel, action] of [
     [PI_TASK_START_IPC_CHANNEL, "start"],
@@ -832,6 +871,7 @@ void app.whenReady().then(async () => {
       },
     });
     const piEmployeeRepository = new PiEmployeeRepository(workspaceDatabase);
+    const piCompanyRepository = new PiCompanyRepository(workspaceDatabase);
     piEmployeeService = new PiEmployeeService({
       repository: piEmployeeRepository,
       skillLibrary,
@@ -840,8 +880,13 @@ void app.whenReady().then(async () => {
         return result?.ok === true ? result.value : [];
       },
     });
+    piCompanyService = new PiCompanyService({
+      repository: piCompanyRepository,
+      workspaceRepository,
+    });
     const piTaskRepository = new PiTaskRepository(workspaceDatabase);
     piTaskService = new PiTaskService({
+      companyRepository: piCompanyRepository,
       employeeRepository: piEmployeeRepository,
       taskRepository: piTaskRepository,
       skillLibrary,
@@ -920,6 +965,7 @@ void app.whenReady().then(async () => {
     plannerService = undefined;
     planReviewService = undefined;
     piEmployeeService = undefined;
+    piCompanyService = undefined;
     piSkillService = undefined;
     piTaskService = undefined;
     providerService = undefined;
@@ -967,8 +1013,16 @@ app.on("before-quit", (event) => {
   ipcMain.removeHandler(PI_SKILL_CONFIRM_IMPORT_IPC_CHANNEL);
   ipcMain.removeHandler(PI_EMPLOYEE_LIST_IPC_CHANNEL);
   ipcMain.removeHandler(PI_EMPLOYEE_SAVE_IPC_CHANNEL);
+  ipcMain.removeHandler(PI_COMPANY_LIST_IPC_CHANNEL);
+  ipcMain.removeHandler(PI_COMPANY_CREATE_IPC_CHANNEL);
+  ipcMain.removeHandler(PI_COMPANY_UPDATE_NAME_IPC_CHANNEL);
+  ipcMain.removeHandler(PI_COMPANY_ADD_EMPLOYEE_IPC_CHANNEL);
+  ipcMain.removeHandler(PI_COMPANY_REMOVE_EMPLOYEE_IPC_CHANNEL);
+  ipcMain.removeHandler(PI_COMPANY_ADD_WORKSPACE_IPC_CHANNEL);
+  ipcMain.removeHandler(PI_COMPANY_REMOVE_WORKSPACE_IPC_CHANNEL);
   ipcMain.removeHandler(PI_TASK_START_IPC_CHANNEL);
   ipcMain.removeHandler(PI_TASK_GET_IPC_CHANNEL);
+  ipcMain.removeHandler(PI_TASK_LIST_IPC_CHANNEL);
   ipcMain.removeHandler(PI_TASK_CANCEL_IPC_CHANNEL);
   ipcMain.removeHandler(PI_TASK_ACCEPT_IPC_CHANNEL);
   ipcMain.removeHandler(PI_TASK_REQUEST_CHANGES_IPC_CHANNEL);
@@ -1014,6 +1068,7 @@ app.on("before-quit", (event) => {
   plannerService = undefined;
   planReviewService = undefined;
   piEmployeeService = undefined;
+  piCompanyService = undefined;
   piSkillService = undefined;
   piTaskService = undefined;
   providerService = undefined;

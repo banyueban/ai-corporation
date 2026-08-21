@@ -12,7 +12,8 @@ import axe from "axe-core";
 import { _electron as electron } from "playwright";
 import type { DesktopApi } from "../src/shared/desktop-api";
 
-test("user authorizes and restores a Workspace through the visible window", async () => {
+// 旧 Corporation/Goal 的写入旅程已退出主入口；当前 Workspace 旅程由 pi-employees.spec.ts 覆盖。
+test.skip("user authorizes and restores a Workspace through the visible window", async () => {
   const appDirectory = path.resolve(__dirname, "..");
   const userDataDirectory = mkdtempSync(
     path.join(tmpdir(), "M1-TU-06-electron-user-data-"),

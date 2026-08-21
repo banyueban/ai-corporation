@@ -3,6 +3,7 @@ export * from "./goal-contract";
 export * from "./goal-engine";
 export * from "./health";
 export * from "./planner";
+export * from "./pi-company";
 export * from "./pi-employee";
 export * from "./pi-skill";
 export * from "./pi-task";

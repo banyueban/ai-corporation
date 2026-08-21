@@ -124,6 +124,25 @@ import {
   piEmployeeSaveRequestSchema,
   type PiEmployeeListRequest,
   type PiEmployeeSaveRequest,
+  PI_COMPANY_ADD_EMPLOYEE_IPC_CHANNEL,
+  PI_COMPANY_ADD_WORKSPACE_IPC_CHANNEL,
+  PI_COMPANY_CREATE_IPC_CHANNEL,
+  PI_COMPANY_LIST_IPC_CHANNEL,
+  PI_COMPANY_REMOVE_EMPLOYEE_IPC_CHANNEL,
+  PI_COMPANY_REMOVE_WORKSPACE_IPC_CHANNEL,
+  PI_COMPANY_UPDATE_NAME_IPC_CHANNEL,
+  piCompanyCreateRequestSchema,
+  piCompanyEmployeeRequestSchema,
+  piCompanyItemResultSchema,
+  piCompanyListRequestSchema,
+  piCompanyListResultSchema,
+  piCompanyUpdateNameRequestSchema,
+  piCompanyWorkspaceRequestSchema,
+  type PiCompanyCreateRequest,
+  type PiCompanyEmployeeRequest,
+  type PiCompanyListRequest,
+  type PiCompanyUpdateNameRequest,
+  type PiCompanyWorkspaceRequest,
   PI_SKILL_CONFIRM_IMPORT_IPC_CHANNEL,
   PI_SKILL_LIST_IPC_CHANNEL,
   PI_SKILL_PREVIEW_IMPORT_IPC_CHANNEL,
@@ -137,17 +156,21 @@ import {
   PI_TASK_ACCEPT_IPC_CHANNEL,
   PI_TASK_CANCEL_IPC_CHANNEL,
   PI_TASK_GET_IPC_CHANNEL,
+  PI_TASK_LIST_IPC_CHANNEL,
   PI_TASK_REQUEST_CHANGES_IPC_CHANNEL,
   PI_TASK_RESOLVE_COMMAND_APPROVAL_IPC_CHANNEL,
   PI_TASK_START_IPC_CHANNEL,
   piTaskCommandRequestSchema,
   piTaskGetRequestSchema,
+  piTaskListRequestSchema,
+  piTaskListResultSchema,
   piTaskRequestChangesRequestSchema,
   piTaskResolveCommandApprovalRequestSchema,
   piTaskResultSchema,
   piTaskStartRequestSchema,
   type PiTaskCommandRequest,
   type PiTaskGetRequest,
+  type PiTaskListRequest,
   type PiTaskRequestChangesRequest,
   type PiTaskResolveCommandApprovalRequest,
   type PiTaskStartRequest,
@@ -199,6 +222,12 @@ import type { DesktopApi } from "../shared/desktop-api";
 
 async function invokePiTask(channel: string, request: unknown) {
   return piTaskResultSchema.parse(await ipcRenderer.invoke(channel, request));
+}
+
+async function invokePiCompany(channel: string, request: unknown) {
+  return piCompanyItemResultSchema.parse(
+    await ipcRenderer.invoke(channel, request),
+  );
 }
 
 const desktopApi: DesktopApi = Object.freeze({
@@ -471,6 +500,49 @@ const desktopApi: DesktopApi = Object.freeze({
         ),
       ),
   }),
+  piCompany: Object.freeze({
+    list: async (request: PiCompanyListRequest) =>
+      piCompanyListResultSchema.parse(
+        await ipcRenderer.invoke(
+          PI_COMPANY_LIST_IPC_CHANNEL,
+          piCompanyListRequestSchema.parse(request),
+        ),
+      ),
+    create: async (request: PiCompanyCreateRequest) =>
+      piCompanyItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          PI_COMPANY_CREATE_IPC_CHANNEL,
+          piCompanyCreateRequestSchema.parse(request),
+        ),
+      ),
+    updateName: async (request: PiCompanyUpdateNameRequest) =>
+      piCompanyItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          PI_COMPANY_UPDATE_NAME_IPC_CHANNEL,
+          piCompanyUpdateNameRequestSchema.parse(request),
+        ),
+      ),
+    addEmployee: (request: PiCompanyEmployeeRequest) =>
+      invokePiCompany(
+        PI_COMPANY_ADD_EMPLOYEE_IPC_CHANNEL,
+        piCompanyEmployeeRequestSchema.parse(request),
+      ),
+    removeEmployee: (request: PiCompanyEmployeeRequest) =>
+      invokePiCompany(
+        PI_COMPANY_REMOVE_EMPLOYEE_IPC_CHANNEL,
+        piCompanyEmployeeRequestSchema.parse(request),
+      ),
+    addWorkspace: (request: PiCompanyWorkspaceRequest) =>
+      invokePiCompany(
+        PI_COMPANY_ADD_WORKSPACE_IPC_CHANNEL,
+        piCompanyWorkspaceRequestSchema.parse(request),
+      ),
+    removeWorkspace: (request: PiCompanyWorkspaceRequest) =>
+      invokePiCompany(
+        PI_COMPANY_REMOVE_WORKSPACE_IPC_CHANNEL,
+        piCompanyWorkspaceRequestSchema.parse(request),
+      ),
+  }),
   piSkill: Object.freeze({
     list: async (request: PiSkillListRequest) =>
       piSkillListResultSchema.parse(
@@ -504,6 +576,13 @@ const desktopApi: DesktopApi = Object.freeze({
       invokePiTask(
         PI_TASK_GET_IPC_CHANNEL,
         piTaskGetRequestSchema.parse(request),
+      ),
+    list: async (request: PiTaskListRequest) =>
+      piTaskListResultSchema.parse(
+        await ipcRenderer.invoke(
+          PI_TASK_LIST_IPC_CHANNEL,
+          piTaskListRequestSchema.parse(request),
+        ),
       ),
     cancel: (request: PiTaskCommandRequest) =>
       invokePiTask(

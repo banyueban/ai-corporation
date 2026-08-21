@@ -15,7 +15,7 @@
     "start": "pnpm --workspace-root build:rust && pnpm run build && electron .",
     "test": "vitest run",
     "test:e2e": "pnpm --workspace-root build:rust && pnpm run build && playwright test",
-    "test:packaged": "node scripts/test-packaged-app.mjs",
+    "test:packaged": "node scripts/test-packaged-pi.mjs",
     "typecheck": "tsc --project tsconfig.electron.json --noEmit && tsc --project tsconfig.json --noEmit && tsc --project tsconfig.test.json --noEmit"
   },
   "devDependencies": {

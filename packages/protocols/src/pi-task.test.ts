@@ -6,12 +6,14 @@ import {
 
 const taskId = "018f0f5f-79b2-7cc3-8c4d-1f54a8e2c901";
 const approvalId = "018f0f5f-79b2-7cc3-8c4d-1f54a8e2c902";
+const companyId = "018f0f5f-79b2-7cc3-8c4d-1f54a8e2c905";
 
 describe("Pi task command approval protocol", () => {
   it("accepts a strict task-scoped command decision", () => {
     expect(
       piTaskResolveCommandApprovalRequestSchema.parse({
-        schemaVersion: 1,
+        schemaVersion: 2,
+        companyId,
         commandId: "018f0f5f-79b2-7cc3-8c4d-1f54a8e2c903",
         taskId,
         approvalId,
@@ -23,7 +25,8 @@ describe("Pi task command approval protocol", () => {
   it("rejects forged fields and unsupported decisions", () => {
     expect(
       piTaskResolveCommandApprovalRequestSchema.safeParse({
-        schemaVersion: 1,
+        schemaVersion: 2,
+        companyId,
         commandId: "018f0f5f-79b2-7cc3-8c4d-1f54a8e2c903",
         taskId,
         approvalId,
@@ -35,8 +38,9 @@ describe("Pi task command approval protocol", () => {
 
   it("persists approval and live command events as ordinary ordered task events", () => {
     const parsed = piTaskSchema.parse({
-      schemaVersion: 1,
+      schemaVersion: 2,
       id: taskId,
+      companyId,
       employeeId: approvalId,
       workspaceId: "018f0f5f-79b2-7cc3-8c4d-1f54a8e2c904",
       userInput: "运行测试",

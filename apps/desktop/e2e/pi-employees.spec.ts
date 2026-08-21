@@ -25,6 +25,13 @@ test("user creates and restores an independent Pi employee in the visible window
   try {
     let page = await app.firstWindow();
     await page.getByRole("button", { name: "设置" }).click();
+    await page.getByText("查看旧版公司与目标记录").click();
+    await expect(
+      page.getByRole("heading", { name: "旧版公司与目标记录" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "继续创建目标" }),
+    ).toHaveCount(0);
     await page.getByLabel("名称").fill("Pi 验收 Provider");
     await page.getByLabel("API 基础 URL").fill(fixture.endpoint);
     await page.getByLabel("API Key").fill("M7-TU-01-fake-key");
@@ -32,7 +39,9 @@ test("user creates and restores an independent Pi employee in the visible window
     await page.getByRole("button", { name: "测试连接" }).click();
     await expect(page.getByRole("heading", { name: "已验证" })).toBeVisible();
 
-    await page.getByRole("button", { name: "员工" }).click();
+    await page.getByRole("button", { name: "控制台" }).click();
+    await page.getByLabel("公司名称").fill("内容公司");
+    await page.getByRole("button", { name: "新建公司" }).click();
     await expect(
       page.getByRole("heading", { name: "员工与技能" }),
     ).toBeVisible();
@@ -67,7 +76,7 @@ test("user creates and restores an independent Pi employee in the visible window
     expect(providerAfterEmployee.value[0]?.selectedModelId).toBeUndefined();
     await page.getByRole("button", { name: "添加工作区" }).click();
     await expect(
-      page.getByText("工作区已授权，可以用于这次任务。"),
+      page.getByText("工作区已加入当前公司，可以用于这次任务。"),
     ).toBeVisible();
     writeFileSync(
       path.join(taskWorkspace, "source.md"),
@@ -195,7 +204,6 @@ test("user creates and restores an independent Pi employee in the visible window
     await app.close();
     app = await launchApplication(userDataDirectory);
     page = await app.firstWindow();
-    await page.getByRole("button", { name: "员工" }).click();
     await expect(page.getByRole("heading", { name: "小文" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "运行失败" })).toBeVisible();
     expect(fixture.modelRequests()).toBe(callsBeforeRestart);
@@ -209,7 +217,6 @@ test("user creates and restores an independent Pi employee in the visible window
     await app.close();
     app = await launchApplication(userDataDirectory);
     page = await app.firstWindow();
-    await page.getByRole("button", { name: "员工" }).click();
     await expect(
       page.getByRole("heading", { name: "上次运行被中断" }),
     ).toBeVisible();
@@ -219,10 +226,63 @@ test("user creates and restores an independent Pi employee in the visible window
 
     // 重新加载整个界面，直接验证员工资料确实写入本地数据库。
     await page.reload();
-    await page.getByRole("button", { name: "员工" }).click();
+    await page.getByRole("button", { name: "员工", exact: true }).click();
     await expect(page.getByRole("heading", { name: "小文" })).toBeVisible();
     await expect(
       page.getByRole("heading", { name: "上次运行被中断" }),
+    ).toBeVisible();
+
+    // 第二家公司直接复用同一员工和工作区，但看不到第一家公司的任务。
+    await page.getByRole("button", { name: "控制台" }).click();
+    await app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0];
+      window?.setSize(1024, 700);
+      window?.webContents.setZoomFactor(2);
+    });
+    await waitForPaint(page);
+    await expectPageFitsViewport(page);
+    await page.screenshot({
+      animations: "disabled",
+      fullPage: true,
+      path: path.resolve(
+        __dirname,
+        "../../../release",
+        `m10-tu01-company-${process.env.AI_CORPORATION_PACKAGED_EXE === undefined ? "dev" : "packaged"}-${process.platform}-${process.arch}-1024x700-200-percent.png`,
+      ),
+    });
+    await app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0];
+      window?.setSize(1440, 900);
+      window?.webContents.setZoomFactor(1);
+    });
+    await waitForPaint(page);
+    await expectPageFitsViewport(page);
+    await page.screenshot({
+      animations: "disabled",
+      path: path.resolve(
+        __dirname,
+        "../../../release",
+        `m10-tu01-company-${process.env.AI_CORPORATION_PACKAGED_EXE === undefined ? "dev" : "packaged"}-${process.platform}-${process.arch}-1440x900.png`,
+      ),
+    });
+    await page.getByLabel("公司名称").fill("复用公司");
+    await page.getByRole("button", { name: "新建公司" }).click();
+    const reusedEmployee = page.getByRole("article").filter({
+      has: page.getByRole("heading", { name: "小文" }),
+    });
+    await reusedEmployee.getByRole("button", { name: "加入当前公司" }).click();
+    await page.getByRole("button", { name: /^加入：/u }).click();
+    await expect(
+      page.getByRole("heading", { name: "本公司的任务记录" }),
+    ).toHaveCount(0);
+
+    await page.getByRole("button", { name: "控制台" }).click();
+    const firstCompany = page.getByRole("article").filter({
+      has: page.getByRole("heading", { name: "内容公司" }),
+    });
+    await firstCompany.getByRole("button", { name: "进入公司" }).click();
+    await expect(
+      page.getByRole("heading", { name: "本公司的任务记录" }),
     ).toBeVisible();
   } finally {
     await app.close().catch(() => undefined);
@@ -251,7 +311,9 @@ test("coding employee asks once, streams a real command, and asks again for high
     await page.getByRole("button", { name: "测试连接" }).click();
     await expect(page.getByRole("heading", { name: "已验证" })).toBeVisible();
 
-    await page.getByRole("button", { name: "员工" }).click();
+    await page.getByRole("button", { name: "控制台" }).click();
+    await page.getByLabel("公司名称").fill("编码公司");
+    await page.getByRole("button", { name: "新建公司" }).click();
     await expect(
       page.getByRole("heading", { name: "coding-task" }),
     ).toBeVisible();
@@ -315,10 +377,14 @@ test("coding employee asks once, streams a real command, and asks again for high
     if (!existsSync(path.join(taskWorkspace, "command-result.txt"))) {
       const debugTask = await page.evaluate(async () => {
         const desktop = (window as unknown as { desktop: DesktopApi }).desktop;
-        const taskId = window.localStorage.getItem("pi-current-task-id");
-        return taskId === null
+        const companyId = window.localStorage.getItem("pi-current-company-id");
+        const taskId =
+          companyId === null
+            ? null
+            : window.localStorage.getItem(`pi-current-task-id:${companyId}`);
+        return taskId === null || companyId === null
           ? { taskId: null }
-          : desktop.piTask.get({ schemaVersion: 1, taskId });
+          : desktop.piTask.get({ schemaVersion: 2, companyId, taskId });
       });
       throw new Error(`command result missing: ${JSON.stringify(debugTask)}`);
     }
@@ -986,10 +1052,58 @@ async function expectEmployeePanelsKeepReadableWidth(
       form: form?.getBoundingClientRect().width ?? 0,
       task: task?.getBoundingClientRect().width ?? 0,
       panelColumnCounts,
+      pageFitsViewport:
+        document.documentElement.scrollWidth <=
+        document.documentElement.clientWidth,
+      pageWidth: document.documentElement.scrollWidth,
+      viewportWidth: document.documentElement.clientWidth,
+      widest: Array.from(document.querySelectorAll<HTMLElement>("body *"))
+        .map((element) => ({
+          name: `${element.tagName}.${element.className}`,
+          right: element.getBoundingClientRect().right,
+          width: element.scrollWidth,
+        }))
+        .sort((left, right) => right.right - left.right)
+        .slice(0, 3),
     };
   });
   expect(widths.panel).toBeGreaterThan(minimumPanelWidth);
   expect(widths.form).toBeGreaterThan(widths.panel * 0.7);
   expect(widths.task).toBeGreaterThan(widths.panel * 0.7);
   expect(widths.panelColumnCounts).toEqual([1, 1, 1]);
+  if (!widths.pageFitsViewport) {
+    throw new Error(`员工页横向溢出：${JSON.stringify(widths)}`);
+  }
+}
+
+async function expectPageFitsViewport(page: import("@playwright/test").Page) {
+  const layout = await page.evaluate(() => {
+    const form = document.querySelector<HTMLElement>(".company-create");
+    const button = form?.querySelector<HTMLElement>("button");
+    const input = form?.querySelector<HTMLElement>("input");
+    const box = (element: HTMLElement | null | undefined) => {
+      const rect = element?.getBoundingClientRect();
+      return rect === undefined
+        ? undefined
+        : { left: rect.left, right: rect.right, width: rect.width };
+    };
+    return {
+      documentWidth: document.documentElement.scrollWidth,
+      // Electron 缩放不会改变 documentElement.clientWidth，必须使用真正可见的宽度。
+      viewportWidth:
+        window.visualViewport?.width ?? document.documentElement.clientWidth,
+      form: box(form),
+      input: box(input),
+      button: box(button),
+    };
+  });
+  if (
+    layout.documentWidth > layout.viewportWidth ||
+    [layout.form, layout.input, layout.button].some(
+      (box) =>
+        box !== undefined && (box.left < 0 || box.right > layout.viewportWidth),
+    )
+  ) {
+    throw new Error(`公司控制台横向溢出：${JSON.stringify(layout)}`);
+  }
 }

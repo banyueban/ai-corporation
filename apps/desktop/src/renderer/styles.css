@@ -175,7 +175,8 @@ h3 {
 
 .page {
   min-width: 0;
-  width: min(100%, 78rem);
+  width: auto;
+  max-width: 78rem;
   padding: clamp(2rem, 5vw, 5rem);
 }
 
@@ -480,6 +481,42 @@ h3 {
   align-items: stretch;
 }
 
+.company-create {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1fr) auto;
+  gap: 0.75rem;
+  align-items: end;
+  margin-bottom: 2rem;
+  max-width: 42rem;
+}
+
+.company-create label {
+  grid-column: 1 / -1;
+}
+
+.company-workspace-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.company-workspace-options strong {
+  width: 100%;
+}
+
+.legacy-history {
+  margin-top: 2rem;
+  border-top: 1px solid var(--line);
+  padding-top: 1rem;
+}
+
+.legacy-history > summary {
+  cursor: pointer;
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+
 .pi-task-workspace {
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -497,11 +534,32 @@ h3 {
   padding-top: 20px;
 }
 
+.skill-content pre,
 .pi-task-output pre,
 .pi-task-details pre {
+  max-width: 100%;
+  margin-inline: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+  word-break: break-word;
   font-family: inherit;
+}
+
+.skill-content {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.pi-task-details,
+.pi-task-details ol,
+.pi-task-details li {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.pi-task-details {
+  overflow: hidden;
 }
 
 .pi-task-details li {
@@ -1083,6 +1141,15 @@ h3 {
   .field--wide,
   .review-block--wide {
     grid-column: auto;
+  }
+
+  .company-create {
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .company-create .primary-button {
+    width: 100%;
   }
 
   .review-actions {

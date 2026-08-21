@@ -14,6 +14,8 @@ import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completio
 import type {
   PiTaskCommandRequest,
   PiTaskGetRequest,
+  PiTaskListRequest,
+  PiTaskListResult,
   PiTaskRequestChangesRequest,
   PiTaskResolveCommandApprovalRequest,
   PiTaskResult,
@@ -21,6 +23,7 @@ import type {
 } from "@ai-corporation/protocols";
 import type {
   PiEmployeeRepository,
+  PiCompanyRepository,
   PiTaskRepository,
   WorkspaceRepository,
 } from "@ai-corporation/storage";
@@ -58,6 +61,10 @@ export class PiTaskService {
   constructor(
     private readonly options: {
       readonly employeeRepository: Pick<PiEmployeeRepository, "get">;
+      readonly companyRepository: Pick<
+        PiCompanyRepository,
+        "get" | "hasEmployee" | "hasWorkspace"
+      >;
       readonly taskRepository: PiTaskRepository;
       readonly skillLibrary: SkillLibrary;
       readonly workspaceRepository: Pick<WorkspaceRepository, "getTrusted">;
@@ -84,11 +91,27 @@ export class PiTaskService {
   get(request: PiTaskGetRequest): PiTaskResult {
     const task =
       request.taskId === undefined
-        ? this.options.taskRepository.getLatest(request.employeeId ?? "")
+        ? this.options.taskRepository.getLatest(
+            request.companyId,
+            request.employeeId ?? "",
+          )
         : this.options.taskRepository.get(request.taskId);
-    return task === undefined
+    return task === undefined || task.companyId !== request.companyId
       ? failure("NOT_FOUND")
       : { ok: true, value: task };
+  }
+
+  list(request: PiTaskListRequest): PiTaskListResult {
+    if (this.options.companyRepository.get(request.companyId) === undefined) {
+      return {
+        ok: false,
+        error: { code: "NOT_FOUND", message: "任务操作失败" },
+      };
+    }
+    return {
+      ok: true,
+      value: [...this.options.taskRepository.list(request.companyId)],
+    };
   }
 
   /** Classifies unfinished write records without ever replaying them. */
@@ -184,6 +207,21 @@ export class PiTaskService {
 
   start(request: PiTaskStartRequest): PiTaskResult {
     try {
+      if (this.options.companyRepository.get(request.companyId) === undefined) {
+        return failure("NOT_FOUND");
+      }
+      if (
+        !this.options.companyRepository.hasEmployee(
+          request.companyId,
+          request.employeeId,
+        ) ||
+        !this.options.companyRepository.hasWorkspace(
+          request.companyId,
+          request.workspaceId,
+        )
+      ) {
+        return failure("NOT_A_MEMBER");
+      }
       const employee = this.options.employeeRepository.get(request.employeeId);
       if (employee === undefined) return failure("NOT_FOUND");
       if (
@@ -204,6 +242,7 @@ export class PiTaskService {
       const workspace = this.#requireWorkspace(request.workspaceId);
       const task = this.options.taskRepository.create({
         id: (this.options.createId ?? createUuidV7)(),
+        companyId: request.companyId,
         employeeId: employee.id,
         workspaceId: workspace.workspaceId,
         userInput: request.input,
@@ -228,6 +267,7 @@ export class PiTaskService {
   cancel(request: PiTaskCommandRequest): PiTaskResult {
     const task = this.options.taskRepository.get(request.taskId);
     if (task === undefined) return failure("NOT_FOUND");
+    if (task.companyId !== request.companyId) return failure("NOT_A_MEMBER");
     if (task.status !== "RUNNING") return failure("INVALID_STATE");
     this.#pendingCommandApprovals.get(task.id)?.resolve(false);
     this.#pendingCommandApprovals.delete(task.id);
@@ -246,6 +286,7 @@ export class PiTaskService {
 
   accept(request: PiTaskCommandRequest): PiTaskResult {
     const result = this.#transition(
+      request.companyId,
       request.taskId,
       "WAITING_ACCEPTANCE",
       "COMPLETED",
@@ -261,6 +302,7 @@ export class PiTaskService {
   ): PiTaskResult {
     const task = this.options.taskRepository.get(request.taskId);
     if (task === undefined) return failure("NOT_FOUND");
+    if (task.companyId !== request.companyId) return failure("NOT_A_MEMBER");
     if (task.status !== "RUNNING") return failure("INVALID_STATE");
     const pending = this.#pendingCommandApprovals.get(task.id);
     if (pending === undefined || pending.approvalId !== request.approvalId) {
@@ -291,6 +333,7 @@ export class PiTaskService {
   requestChanges(request: PiTaskRequestChangesRequest): PiTaskResult {
     const task = this.options.taskRepository.get(request.taskId);
     if (task === undefined) return failure("NOT_FOUND");
+    if (task.companyId !== request.companyId) return failure("NOT_A_MEMBER");
     if (task.status !== "WAITING_ACCEPTANCE") return failure("INVALID_STATE");
     try {
       const employee = this.options.employeeRepository.get(task.employeeId);
@@ -839,12 +882,14 @@ export class PiTaskService {
   }
 
   #transition(
+    companyId: string,
     taskId: string,
     from: string,
     to: "COMPLETED" | "CHANGES_REQUESTED",
   ): PiTaskResult {
     const task = this.options.taskRepository.get(taskId);
     if (task === undefined) return failure("NOT_FOUND");
+    if (task.companyId !== companyId) return failure("NOT_A_MEMBER");
     if (task.status !== from) return failure("INVALID_STATE");
     return {
       ok: true,
@@ -938,6 +983,7 @@ function failure(
     | "NOT_FOUND"
     | "EMPLOYEE_NOT_READY"
     | "WORKSPACE_NOT_READY"
+    | "NOT_A_MEMBER"
     | "ALREADY_RUNNING"
     | "INVALID_STATE"
     | "STORAGE_UNAVAILABLE"
