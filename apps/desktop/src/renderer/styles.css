@@ -518,6 +518,14 @@ h3 {
   width: 100%;
 }
 
+/* 长工作区路径在移出按钮内换行，不能把小窗口横向撑开。 */
+.company-workspace-options button {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
 .legacy-history {
   margin-top: 2rem;
   border-top: 1px solid var(--line);
