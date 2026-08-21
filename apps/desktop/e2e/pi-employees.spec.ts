@@ -31,13 +31,7 @@ test("user creates and restores an independent Pi employee in the visible window
   try {
     let page = await app.firstWindow();
     await page.getByRole("button", { name: "设置" }).click();
-    await page.getByText("查看旧版公司与目标记录").click();
-    await expect(
-      page.getByRole("heading", { name: "旧版公司与目标记录" }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "继续创建目标" }),
-    ).toHaveCount(0);
+    await expect(page.getByText("查看旧版公司与目标记录")).toHaveCount(0);
     await page.getByLabel("名称").fill("Pi 验收 Provider");
     await page.getByLabel("API 基础 URL").fill(fixture.endpoint);
     await page.getByLabel("API Key").fill("M7-TU-01-fake-key");

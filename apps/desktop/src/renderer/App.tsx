@@ -1152,6 +1152,20 @@ export function App() {
     setRoute("dashboard");
   };
 
+  // 旧 Goal/Plan 的兼容代码和数据库仍保留，但当前界面不再提供入口。
+  // 这些引用不会渲染或执行旧流程，只说明保留代码是有意为之。
+  void [
+    corporations,
+    loadingWorkspaces,
+    loadError,
+    refreshingIds,
+    openCreate,
+    resumeGoalAnalysis,
+    revalidateWorkspace,
+    openReview,
+    Dashboard,
+  ];
+
   return (
     <div className="app-shell">
       <Sidebar
@@ -1280,31 +1294,7 @@ export function App() {
               statusMessage={statusMessage}
             />
           )}
-        {route === "settings" && (
-          <>
-            <ProviderSettings />
-            <details className="legacy-history">
-              <summary>查看旧版公司与目标记录</summary>
-              <Dashboard
-                corporations={corporations}
-                loadError={loadError}
-                loading={loadingWorkspaces}
-                onCreate={openCreate}
-                onOpen={openReview}
-                onResume={resumeGoalAnalysis}
-                onRevalidate={revalidateWorkspace}
-                onStateChange={changeCorporationState}
-                operationError={operationError}
-                readOnly
-                refreshingIds={refreshingIds}
-                stateError={stateError}
-                statePending={statePending}
-                statusMessage={statusMessage}
-                workspaces={workspaces}
-              />
-            </details>
-          </>
-        )}
+        {route === "settings" && <ProviderSettings />}
         <p className="sr-only" aria-live="polite">
           {statusMessage}
         </p>

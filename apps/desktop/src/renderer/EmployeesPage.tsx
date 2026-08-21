@@ -7,7 +7,15 @@ import type {
   ProviderPublic,
   WorkspacePublic,
 } from "@ai-corporation/protocols";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type Dispatch,
+  type FormEvent,
+  type SetStateAction,
+} from "react";
+import { preferFresherPiTask } from "./pi-task-view-model";
 import { createUuidV7 } from "./uuid-v7";
 
 type Preview = Extract<PiSkillPreviewImportResult, { ok: true }>["value"];
@@ -137,7 +145,7 @@ export function EmployeesPage(props: {
       void window.desktop.piTask
         .get({ schemaVersion: 2, companyId: props.company.id, taskId })
         .then((result) => {
-          if (result.ok) setCurrentTask(result.value);
+          if (result.ok) showFresherTask(result.value, setCurrentTask);
         });
     }
   }, [props.company.id]);
@@ -151,7 +159,7 @@ export function EmployeesPage(props: {
         companyId: props.company.id,
         taskId: currentTask.id,
       });
-      if (result.ok) setCurrentTask(result.value);
+      if (result.ok) showFresherTask(result.value, setCurrentTask);
     }, 250);
     return () => window.clearInterval(timer);
   }, [currentTask?.id, currentTask?.status, props.company.id]);
@@ -292,7 +300,24 @@ export function EmployeesPage(props: {
     });
     setPending(false);
     if (!result.ok) {
-      setMessage("命令决定没有生效，任务状态可能已经变化，请刷新后重试。");
+      const latest = await window.desktop.piTask.get({
+        schemaVersion: 2,
+        companyId: props.company.id,
+        taskId: currentTask.id,
+      });
+      if (latest.ok) {
+        rememberTask(latest.value, setCurrentTask);
+        const stillPending =
+          pendingCommandApproval(latest.value)?.approvalId ===
+          commandApproval.approvalId;
+        setMessage(
+          stillPending
+            ? "这次授权没有生效，请再点一次。"
+            : "任务已经继续或结束，界面已按真实状态刷新。",
+        );
+      } else {
+        setMessage("无法确认授权结果，请重新打开这项任务查看真实状态。");
+      }
       return;
     }
     rememberTask(result.value, setCurrentTask);
@@ -1003,7 +1028,17 @@ function taskErrorMessage(code: string): string {
   return "请检查员工和任务内容后重试";
 }
 
-function rememberTask(task: PiTask, update: (task: PiTask) => void): void {
+function rememberTask(
+  task: PiTask,
+  update: Dispatch<SetStateAction<PiTask | undefined>>,
+): void {
   window.localStorage.setItem(`pi-current-task-id:${task.companyId}`, task.id);
-  update(task);
+  showFresherTask(task, update);
+}
+
+function showFresherTask(
+  task: PiTask,
+  update: Dispatch<SetStateAction<PiTask | undefined>>,
+): void {
+  update((current) => preferFresherPiTask(current, task));
 }

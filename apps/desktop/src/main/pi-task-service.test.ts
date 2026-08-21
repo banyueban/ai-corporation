@@ -338,6 +338,17 @@ describe("PiTaskService", () => {
       decision: "APPROVE",
     });
     expect(resolved.ok).toBe(true);
+    // 同一次决定重复送达时只返回当前任务，不重复执行，也不误报状态变化。
+    expect(
+      service.resolveCommandApproval({
+        schemaVersion: 2,
+        commandId: "019b7f4d-a200-7000-8000-000000000008",
+        companyId,
+        taskId,
+        approvalId: approval.approvalId,
+        decision: "APPROVE",
+      }).ok,
+    ).toBe(true);
     const completed = await waitForTask(repository, taskId);
 
     expect(completed.status).toBe("WAITING_ACCEPTANCE");
@@ -347,6 +358,7 @@ describe("PiTaskService", () => {
         "APPROVAL_REQUIRED",
         "APPROVAL_RESOLVED",
         "TOOL_UPDATE",
+        "TOOL_ERROR",
         "TOOL_RESULT",
       ]),
     );
@@ -354,9 +366,11 @@ describe("PiTaskService", () => {
     expect(JSON.stringify(completed.events)).not.toContain("M9-TU-01-fake-key");
     expect(
       database
-        .prepare("SELECT status FROM pi_command_call WHERE task_id = ?")
-        .get(taskId),
-    ).toEqual({ status: "SUCCEEDED" });
+        .prepare(
+          "SELECT status FROM pi_command_call WHERE task_id = ? ORDER BY created_at, tool_call_id",
+        )
+        .all(taskId),
+    ).toEqual([{ status: "FAILED" }, { status: "SUCCEEDED" }]);
     expect(repository.hasCommandGrant(taskId)).toBe(true);
     expect(
       service.accept({
@@ -427,7 +441,11 @@ async function startCommandFixture() {
         "content-type": "text/event-stream",
         connection: "keep-alive",
       });
-      if (calls === 1) {
+      if (calls <= 2) {
+        const script =
+          calls === 1
+            ? "console.error('EXPECTED-EARLY-FAILURE'); process.exit(1)"
+            : "console.log('M9-COMMAND-OK')";
         sendChunk(response, {
           choices: [
             {
@@ -437,12 +455,12 @@ async function startCommandFixture() {
                 tool_calls: [
                   {
                     index: 0,
-                    id: "call-command",
+                    id: `call-command-${calls}`,
                     type: "function",
                     function: {
                       name: "workspace_run_command",
                       arguments: JSON.stringify({
-                        command: `${JSON.stringify(process.execPath)} -e "console.log('M9-COMMAND-OK')"`,
+                        command: `${JSON.stringify(process.execPath)} -e "${script}"`,
                       }),
                     },
                   },

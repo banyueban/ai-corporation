@@ -17,12 +17,11 @@ flowchart TD
     COMPANY --> TASK["直接交代任务"]
     TASK --> DELIVERY["过程、结果与人工验收"]
     DASH --> SETTINGS["设置"]
-    SETTINGS --> LEGACY["旧版历史：只读"]
 ```
 
 公司工作区展示当前公司名称、成员员工、常用工作区和该公司任务历史。任务必须在公司上下文内发起；员工和工作区可被多家公司复用，但任务只能显示在所属公司。
 
-以下旧 Goal/Plan 站点地图只用于理解历史页面，不再作为当前导航实现：
+以下旧 Goal/Plan 站点地图只用于理解保留的兼容代码，不再作为当前导航实现：
 
 ```mermaid
 flowchart TD
@@ -95,7 +94,6 @@ Pi 路线当前内容：
 ```text
 Settings
 ├── Providers
-├── 旧版历史（只读）
 ├── Models & Routing
 ├── Security & Approvals
 ├── Data & Privacy
@@ -105,7 +103,7 @@ Settings
 
 设置变更影响后续动作。可能影响活跃运行时必须展示影响范围。
 
-旧版历史显示旧公司名称、状态、工作区展示路径和已有目标摘要；不提供目标生成、规划、组队、继续执行、暂停、恢复或数据删除动作。
+旧 Goal/Plan 数据仍保存在原数据库表中，但设置页不提供查看或操作入口。
 
 ## 4. Corporation Workspace
 

@@ -16,6 +16,7 @@ import type {
   PiTaskGetRequest,
   PiTaskListRequest,
   PiTaskListResult,
+  PiTask,
   PiTaskRequestChangesRequest,
   PiTaskResolveCommandApprovalRequest,
   PiTaskResult,
@@ -54,7 +55,7 @@ interface PendingCommandApproval {
 export class PiTaskService {
   readonly #active = new Map<string, ActiveTask>();
   readonly #toolStartedAt = new Map<string, number>();
-  readonly #toolFailures = new Set<string>();
+  readonly #lastToolFailed = new Map<string, boolean>();
   readonly #pendingCommandApprovals = new Map<string, PendingCommandApproval>();
   #shuttingDown = false;
 
@@ -303,6 +304,11 @@ export class PiTaskService {
     const task = this.options.taskRepository.get(request.taskId);
     if (task === undefined) return failure("NOT_FOUND");
     if (task.companyId !== request.companyId) return failure("NOT_A_MEMBER");
+    // Renderer 可能因网络或轮询竞争重复提交同一次决定。已经落库的相同决定
+    // 直接按成功返回，既不会重复运行命令，也不会误导用户说“状态已变化”。
+    if (hasMatchingApprovalResolution(task, request)) {
+      return { ok: true, value: task };
+    }
     if (task.status !== "RUNNING") return failure("INVALID_STATE");
     const pending = this.#pendingCommandApprovals.get(task.id);
     if (pending === undefined || pending.approvalId !== request.approvalId) {
@@ -477,8 +483,12 @@ export class PiTaskService {
       if (agent.state.errorMessage !== undefined) {
         throw new Error(agent.state.errorMessage);
       }
-      if (this.#toolFailures.delete(taskId)) {
-        throw new Error("工具运行失败，请展开完整过程查看工具名称和原因。 ");
+      // 允许员工从早期尝试失败中恢复，但最后一次工具操作仍失败时不能
+      // 把任务伪装成可验收。用户可以在完整过程中看到所有早期失败。
+      if (this.#lastToolFailed.get(taskId) === true) {
+        throw new Error(
+          "最后一次工具操作失败，请展开完整过程查看名称和原因。 ",
+        );
       }
       const current = this.options.taskRepository.get(taskId);
       if (current?.status === "RUNNING" && !this.#shuttingDown) {
@@ -499,7 +509,7 @@ export class PiTaskService {
       }
     } finally {
       this.#active.delete(taskId);
-      this.#toolFailures.delete(taskId);
+      this.#lastToolFailed.delete(taskId);
       const current = this.options.taskRepository.get(taskId);
       if (current?.status !== "WAITING_ACCEPTANCE") {
         this.options.taskRepository.revokeCommandGrant(taskId);
@@ -858,7 +868,7 @@ export class PiTaskService {
       );
     }
     if (event.type === "tool_execution_end") {
-      if (event.isError) this.#toolFailures.add(taskId);
+      this.#lastToolFailed.set(taskId, event.isError);
       const timerKey = `${taskId}:${event.toolCallId}`;
       const startedAt = this.#toolStartedAt.get(timerKey);
       this.#toolStartedAt.delete(timerKey);
@@ -942,6 +952,28 @@ function toolResult(details: unknown) {
     ],
     details,
   };
+}
+
+function hasMatchingApprovalResolution(
+  task: PiTask,
+  request: PiTaskResolveCommandApprovalRequest,
+): boolean {
+  return task.events.some((event) => {
+    if (event.kind !== "APPROVAL_RESOLVED") return false;
+    try {
+      const value = JSON.parse(event.content) as {
+        approvalId?: unknown;
+        decision?: unknown;
+      };
+      return (
+        value.approvalId === request.approvalId &&
+        value.decision === request.decision
+      );
+    } catch {
+      // 损坏的旧事件不能伪造成已经处理过的决定。
+      return false;
+    }
+  });
 }
 
 class WorkspaceNotReadyError extends Error {}

@@ -46,6 +46,6 @@
 
 错误正文只返回稳定中文摘要，不包含 Key、工作区可信绝对根、SQL 或用户文件内容。
 
-## 6. 旧版历史
+## 6. 旧数据兼容
 
-旧 `Corporation` 协议保持原样，只供设置页读取历史摘要。Pi Company 协议不得启动旧 Goal、Plan、Organization 或 Agent Run，也不得把旧状态映射成新公司的成功状态。
+旧 `Corporation` 协议和数据保持原样，但当前界面不提供入口。Pi Company 协议不得启动旧 Goal、Plan、Organization 或 Agent Run，也不得把旧状态映射成新公司的成功状态。
