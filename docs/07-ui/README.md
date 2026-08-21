@@ -32,20 +32,18 @@
 - 涉及文件、命令、预算和外部副作用时，安全信息优先于视觉简洁；
 - v0.1 采用共享 React 代码覆盖 Windows/macOS，平台差异只在窗口行为和系统控件层适配。
 
-## 4. v0.1 核心屏幕
+## 4. Pi 路线当前核心屏幕
 
 | ID | 屏幕 | 主要任务 |
 |---|---|---|
-| UI-01 | Onboarding | 配置 Provider、安全存储和默认策略 |
-| UI-02 | Dashboard | 查看、恢复和创建 Corporation |
-| UI-03 | Create Corporation | 选择工作区并描述目标 |
-| UI-04 | Goal Contract Review | 澄清并确认目标合同 |
-| UI-05 | Plan Review | 审阅任务图、团队和预算 |
-| UI-06 | Corporation Workspace | 观察并控制执行 |
-| UI-07 | Approval Detail | 准确理解并批准/拒绝副作用 |
-| UI-08 | Artifact Detail | 查看版本、来源、Diff 和评价 |
-| UI-09 | Final Delivery | 查看目标完成情况与交付证据 |
-| UI-10 | Global Settings | 管理 Provider、模型、安全和本地数据 |
+| UI-01 | 设置 | 管理 Provider、API Key 和模型验证 |
+| UI-02 | 公司控制台 | 创建、进入和切换轻量公司 |
+| UI-03 | 公司工作区 | 查看成员、常用工作区、任务和结果 |
+| UI-04 | 员工与技能 | 创建员工、选择独立模型和 Skill、管理公司成员 |
+| UI-05 | 员工任务 | 直接交代任务、查看模型与工具过程、验收或退回 |
+| UI-06 | 旧版历史 | 在设置中只读查看旧 Goal/Plan 公司，不提供继续执行入口 |
+
+旧 Goal Contract、Plan Review 和固定团队屏幕只保留兼容代码与历史数据，不再属于新产品主流程。
 
 ## 5. 设计完成定义
 
@@ -56,4 +54,3 @@
 - 页面组件可以映射到领域实体；
 - 键盘操作、焦点、颜色对比和缩放有基线；
 - 实现团队无需自行猜测主要布局和状态行为。
-

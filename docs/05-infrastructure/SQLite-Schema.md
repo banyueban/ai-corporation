@@ -699,6 +699,8 @@ Provider 表只保存应用自管 Key Vault 的记录 ID。`key_vault_entry` 保
 
 `0003_corporation_events.sql` 只建立 M1-TU-04 已冻结的 Corporation CRUD、事件与命令回执字段。`0004_goal_contract.sql` 增加 active Goal pointer、不可变 Goal 版本、Goal 命令回执和两种 Goal 事实事件。`0005_corporation_pause_resume.sql` 增加成对暂停元数据、pause/resume 独立命令回执、两种状态事实事件和物理一致性 trigger；active Plan/Organization、Policy 与事件分发游标仍由后续迁移增加。分发状态不得通过更新 append-only `domain_event` 实现。
 
+`0021_pi_company.sql` 建立 Pi 路线独立的 `pi_company`、`pi_company_employee` 和 `pi_company_workspace`。`pi_task.company_id` 必填并引用 `pi_company`；员工与工作区关系使用联合主键，重复加入保持幂等。升级库只有在已存在 Pi 员工或任务时才创建“我的公司”，随后把现有员工、任务和任务使用过的工作区接入；旧 `corporation` 及其 Goal/Plan 数据保持原样。
+
 FTS 同步由事务内 repository 维护并用一致性测试覆盖。
 
 ## 9. 事务示例

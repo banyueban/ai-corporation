@@ -6,6 +6,21 @@
 
 ## 2. 聚合
 
+### 2.1 Pi 路线当前映射
+
+| 聚合 | 逻辑实体 | 物理映射 |
+| --- | --- | --- |
+| Pi Company | `pi_company` | `pi_company` 表；长期轻量公司名称和时间 |
+| Pi Company | 员工成员关系 | `pi_company_employee` 表；同一员工可加入多家公司 |
+| Pi Company | 常用工作区关系 | `pi_company_workspace` 表；不复制或改变 Workspace 授权 |
+| Pi Employee | `pi_employee` | `pi_employee` 表；全局唯一模型和 Skill 配置 |
+| Pi Task | `pi_task` | `pi_task.company_id` 固定归属一家公司，同时保留员工和实际工作区引用 |
+| Legacy | 旧 `corporation` 及 Goal/Plan/Organization/Run | 原表只读保留并由旧版历史页面读取，不迁移为 `pi_company` |
+
+升级已有 Pi 数据时，迁移只在存在 Pi 员工或任务时创建“我的公司”，把全部现有 Pi 员工、任务和任务引用过的工作区接入。迁移不改变原 Task ID、Employee ID、Workspace ID、事件、工具调用、命令调用、状态或时间，也不产生模型和工具副作用。
+
+### 2.2 旧路线映射
+
 本节中的名称是逻辑实体，不等同于“一实体一张表”。每个逻辑实体必须明确映射到独立表、父表结构化字段、账本/事件投影或受管 Artifact；禁止由实现者临时选择存储位置。
 
 | 聚合        | 逻辑实体                       | v0.1 物理映射                                                                                                         |

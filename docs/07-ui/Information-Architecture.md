@@ -6,6 +6,24 @@
 
 ## 2. 站点地图
 
+Pi 路线当前主导航：
+
+```mermaid
+flowchart TD
+    START["启动"] --> DASH["公司控制台"]
+    DASH --> CREATE["创建公司：只填名称"]
+    DASH --> COMPANY["公司工作区"]
+    COMPANY --> EMPLOYEE["员工与技能"]
+    COMPANY --> TASK["直接交代任务"]
+    TASK --> DELIVERY["过程、结果与人工验收"]
+    DASH --> SETTINGS["设置"]
+    SETTINGS --> LEGACY["旧版历史：只读"]
+```
+
+公司工作区展示当前公司名称、成员员工、常用工作区和该公司任务历史。任务必须在公司上下文内发起；员工和工作区可被多家公司复用，但任务只能显示在所属公司。
+
+以下旧 Goal/Plan 站点地图只用于理解历史页面，不再作为当前导航实现：
+
 ```mermaid
 flowchart TD
     START["Application Start"]
@@ -35,6 +53,15 @@ flowchart TD
 ## 3. 全局层级
 
 ### 3.1 Dashboard
+
+Pi 路线当前内容：
+
+- 创建轻量公司，只填写名称；
+- 进入或切换公司；
+- 查看公司成员、常用工作区、最近任务和验收状态；
+- 没有公司时显示清楚的空状态，不跳转旧目标合同。
+
+旧路线内容如下，仅供历史参考：
 
 内容：
 
@@ -68,6 +95,7 @@ flowchart TD
 ```text
 Settings
 ├── Providers
+├── 旧版历史（只读）
 ├── Models & Routing
 ├── Security & Approvals
 ├── Data & Privacy
@@ -76,6 +104,8 @@ Settings
 ```
 
 设置变更影响后续动作。可能影响活跃运行时必须展示影响范围。
+
+旧版历史显示旧公司名称、状态、工作区展示路径和已有目标摘要；不提供目标生成、规划、组队、继续执行、暂停、恢复或数据删除动作。
 
 ## 4. Corporation Workspace
 
