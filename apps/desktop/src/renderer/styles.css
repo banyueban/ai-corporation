@@ -592,6 +592,7 @@ h3 {
 
 .field {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   min-width: 0;
   gap: 0.5rem;
   color: #d8e2f1;
