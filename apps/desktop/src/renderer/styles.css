@@ -583,6 +583,14 @@ h3 {
   margin-top: 0;
 }
 
+.provider-disclosure pre {
+  max-height: 12rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
 .clarification-list,
 .analysis-actions {
   display: grid;

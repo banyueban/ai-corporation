@@ -11,7 +11,7 @@ import {
 } from "./skill-library";
 import { createUuidV7 } from "./uuid-v7";
 
-const BUILTIN_SKILL_NAME = "text-organize";
+const BUILTIN_SKILL_NAMES = new Set(["text-organize", "coding-task"]);
 
 interface PendingImport {
   readonly preview: SkillImportPreview;
@@ -40,10 +40,9 @@ export class PiSkillService {
             name: skill.name,
             description: skill.description,
             content: await this.options.library.readInstructions(skill.name),
-            source:
-              skill.name === BUILTIN_SKILL_NAME
-                ? ("BUILTIN" as const)
-                : ("IMPORTED" as const),
+            source: BUILTIN_SKILL_NAMES.has(skill.name)
+              ? ("BUILTIN" as const)
+              : ("IMPORTED" as const),
             readOnly: true as const,
           })),
         ),
@@ -58,7 +57,7 @@ export class PiSkillService {
     if (sourceDirectory === undefined) return failure("CANCELLED");
     try {
       const preview = await this.options.library.previewImport(sourceDirectory);
-      if (preview.name === BUILTIN_SKILL_NAME)
+      if (BUILTIN_SKILL_NAMES.has(preview.name))
         return failure("BUILTIN_CONFLICT");
       const previewId = (this.options.createId ?? createUuidV7)();
       this.#pending.clear();

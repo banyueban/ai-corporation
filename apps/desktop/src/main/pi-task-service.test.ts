@@ -188,6 +188,187 @@ describe("PiTaskService", () => {
     );
     database.close();
   });
+
+  it("waits for one task command approval, then runs a real command with visible output", async () => {
+    const fixture = await startCommandFixture();
+    cleanups.push(fixture.close);
+    const root = path.join(tmpdir(), `M9-TU-01-${crypto.randomUUID()}`);
+    const source = path.join(root, "source");
+    const managed = path.join(root, "managed");
+    await mkdir(source, { recursive: true });
+    await writeFile(
+      path.join(source, "SKILL.md"),
+      "---\nname: coding-task\ndescription: 编码任务\n---\n先检查，再修改。\n",
+      "utf8",
+    );
+    cleanups.push(() => rm(root, { recursive: true, force: true }));
+    const library = new SkillLibrary(managed);
+    const preview = await library.previewImport(source);
+    await library.confirmImport(source, preview.digest);
+
+    const database = new DatabaseSync(":memory:");
+    applyMigrations(
+      database,
+      loadMigrations(
+        path.resolve(__dirname, "../../../../packages/storage/migrations"),
+      ),
+    );
+    const employee = {
+      schemaVersion: 1 as const,
+      id: "019b7f4d-a200-7000-8000-000000000001",
+      name: "小码",
+      providerId: "019b7f4d-a200-7000-8000-000000000002",
+      providerVersion: 1,
+      modelId: "pi-command-model",
+      skillName: "coding-task",
+      createdAt: "2026-08-15T00:00:00.000Z",
+      updatedAt: "2026-08-15T00:00:00.000Z",
+    };
+    database.exec("PRAGMA foreign_keys = OFF");
+    database
+      .prepare(
+        `INSERT INTO pi_employee (
+          id, name, provider_id, provider_version, model_id, skill_name,
+          created_at, updated_at
+        ) VALUES (?, ?, ?, 1, ?, ?, ?, ?)`,
+      )
+      .run(
+        employee.id,
+        employee.name,
+        employee.providerId,
+        employee.modelId,
+        employee.skillName,
+        employee.createdAt,
+        employee.updatedAt,
+      );
+    const repository = new PiTaskRepository(database);
+    const workspaceId = "019b7f4d-a200-7000-8000-000000000005";
+    const service = new PiTaskService({
+      employeeRepository: { get: () => employee },
+      taskRepository: repository,
+      skillLibrary: library,
+      workspaceRepository: {
+        getTrusted: () => ({
+          workspaceId,
+          displayPath: "测试代码工作区",
+          canonicalRootPath: root,
+          permissionMode: "READ_WRITE",
+          accessStatus: "AVAILABLE",
+          pathIdentity: {
+            platform: "windows",
+            volumeRoot: "C:",
+            rootCreationTime: "1",
+          },
+          lastVerifiedAt: "2026-08-15T00:00:00.000Z",
+        }),
+      },
+      nativeClient: () => ({
+        listWorkspace: async (_rootPath, relativePath) => ({
+          schemaVersion: 1,
+          relativePath: relativePath ?? "",
+          entries: [],
+        }),
+        readWorkspaceText: async (_rootPath, relativePath) => ({
+          schemaVersion: 1,
+          relativePath,
+          content: "",
+          sizeBytes: 0,
+          sha256:
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        }),
+        writeWorkspaceText: async () => {
+          throw new Error("command fixture does not write text");
+        },
+      }),
+      resolveRuntime: () => ({
+        endpoint: fixture.endpoint,
+        key: "M9-TU-01-fake-key",
+        timeoutMs: 5_000,
+      }),
+      createId: () => "019b7f4d-a200-7000-8000-000000000003",
+    });
+
+    const started = service.start({
+      schemaVersion: 1,
+      commandId: "019b7f4d-a200-7000-8000-000000000004",
+      employeeId: employee.id,
+      workspaceId,
+      input: "运行测试并告诉我结果",
+    });
+    expect(started.ok).toBe(true);
+    const taskId = started.ok ? started.value.id : "";
+    const approvalEvent = await waitForEvent(
+      repository,
+      taskId,
+      "APPROVAL_REQUIRED",
+    );
+    const approval = JSON.parse(approvalEvent.content) as {
+      approvalId: string;
+      kind: string;
+    };
+    expect(approval.kind).toBe("TASK");
+    expect(
+      database.prepare("SELECT COUNT(*) AS total FROM pi_command_call").get(),
+    ).toEqual({ total: 0 });
+
+    const resolved = service.resolveCommandApproval({
+      schemaVersion: 1,
+      commandId: "019b7f4d-a200-7000-8000-000000000006",
+      taskId,
+      approvalId: approval.approvalId,
+      decision: "APPROVE",
+    });
+    expect(resolved.ok).toBe(true);
+    const completed = await waitForTask(repository, taskId);
+
+    expect(completed.status).toBe("WAITING_ACCEPTANCE");
+    expect(completed.finalOutput).toContain("真实命令已经通过");
+    expect(completed.events.map(({ kind }) => kind)).toEqual(
+      expect.arrayContaining([
+        "APPROVAL_REQUIRED",
+        "APPROVAL_RESOLVED",
+        "TOOL_UPDATE",
+        "TOOL_RESULT",
+      ]),
+    );
+    expect(JSON.stringify(completed.events)).toContain("M9-COMMAND-OK");
+    expect(JSON.stringify(completed.events)).not.toContain("M9-TU-01-fake-key");
+    expect(
+      database
+        .prepare("SELECT status FROM pi_command_call WHERE task_id = ?")
+        .get(taskId),
+    ).toEqual({ status: "SUCCEEDED" });
+    expect(repository.hasCommandGrant(taskId)).toBe(true);
+    expect(
+      service.accept({
+        schemaVersion: 1,
+        commandId: "019b7f4d-a200-7000-8000-000000000007",
+        taskId,
+      }).ok,
+    ).toBe(true);
+    expect(repository.hasCommandGrant(taskId)).toBe(false);
+
+    // 模拟命令启动后应用直接退出；恢复只标记未知，不会再次执行命令。
+    database
+      .prepare("UPDATE pi_task SET status = 'RUNNING' WHERE id = ?")
+      .run(taskId);
+    database
+      .prepare(
+        "UPDATE pi_command_call SET status = 'STARTING' WHERE task_id = ?",
+      )
+      .run(taskId);
+    service.recoverCommands();
+    expect(
+      database
+        .prepare("SELECT status FROM pi_command_call WHERE task_id = ?")
+        .get(taskId),
+    ).toEqual({ status: "UNKNOWN" });
+    expect(repository.get(taskId)?.events.at(-1)?.kind).toBe("TOOL_ERROR");
+    expect(repository.get(taskId)?.events.at(-1)?.content).toContain(
+      "不会自动重放",
+    );
+    database.close();
+  });
 });
 
 async function waitForTask(repository: PiTaskRepository, id: string) {
@@ -197,6 +378,100 @@ async function waitForTask(repository: PiTaskRepository, id: string) {
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
   throw new Error("Pi task did not settle");
+}
+
+async function waitForEvent(
+  repository: PiTaskRepository,
+  id: string,
+  kind: string,
+) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const event = repository
+      .get(id)
+      ?.events.find((candidate) => candidate.kind === kind);
+    if (event !== undefined) return event;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  throw new Error(`Pi task event did not appear: ${kind}`);
+}
+
+async function startCommandFixture() {
+  let calls = 0;
+  const server = createServer((request, response) => {
+    const chunks: Buffer[] = [];
+    request.on("data", (chunk: Buffer) => chunks.push(chunk));
+    request.on("end", () => {
+      JSON.parse(Buffer.concat(chunks).toString("utf8"));
+      calls += 1;
+      response.writeHead(200, {
+        "content-type": "text/event-stream",
+        connection: "keep-alive",
+      });
+      if (calls === 1) {
+        sendChunk(response, {
+          choices: [
+            {
+              index: 0,
+              delta: {
+                role: "assistant",
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: "call-command",
+                    type: "function",
+                    function: {
+                      name: "workspace_run_command",
+                      arguments: JSON.stringify({
+                        command: `${JSON.stringify(process.execPath)} -e "console.log('M9-COMMAND-OK')"`,
+                      }),
+                    },
+                  },
+                ],
+              },
+              finish_reason: null,
+            },
+          ],
+        });
+        sendChunk(response, {
+          choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }],
+        });
+      } else {
+        sendChunk(response, {
+          choices: [
+            {
+              index: 0,
+              delta: {
+                role: "assistant",
+                content: "真实命令已经通过，等待验收。",
+              },
+              finish_reason: null,
+            },
+          ],
+        });
+        sendChunk(response, {
+          choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+        });
+      }
+      response.end("data: [DONE]\n\n");
+    });
+  });
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = server.address();
+  if (address === null || typeof address === "string")
+    throw new Error("No port");
+  return {
+    endpoint: `http://127.0.0.1:${address.port}`,
+    close: () =>
+      new Promise<void>((resolve, reject) => {
+        server.closeAllConnections();
+        server.close((error) =>
+          error === undefined ? resolve() : reject(error),
+        );
+      }),
+  };
 }
 
 async function startOpenAiFixture() {

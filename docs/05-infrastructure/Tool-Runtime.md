@@ -110,18 +110,15 @@ type ProcessProfile = {
 
 ## 5. 原生执行边界
 
-Rust Native Core 负责：
+Rust Native Core 负责工作区文件副作用：
 
 - canonical path；
 - 符号链接/目录联接检查；
 - 文件描述符级读写；
 - 原子替换；
-- 子进程组管理；
-- 超时终止；
-- stdout/stderr 限流；
 - 平台错误标准化。
 
-TypeScript 负责 Tool 语义、Schema、Policy 请求和 Artifact 转换。
+Electron Main 的可信命令 Runner 负责完整系统命令的启动、stdout/stderr 流、输出裁剪、超时和整个进程树终止。它不把命令执行下放给 Renderer，也不向命令环境提供应用秘密。TypeScript 还负责 Tool 语义、Schema、Policy 请求、事件、持久化和 Artifact 转换。
 
 ## 6. 调用流程
 
@@ -133,7 +130,7 @@ Agent Tool Call
   → Policy Decision
   → Approval（如需）
   → Budget Reservation
-  → Native Execution
+  → Trusted Main / Native Execution
   → Result Normalization
   → Artifact / Event / Ledger
 ```
@@ -187,7 +184,7 @@ Registry 只加载：
 - 通过 Plugin 安装且用户启用的 Tool；
 - 与当前平台兼容的版本。
 
-同一 Tool ID/version 不得被静默替换。插件 Tool 不能绕过统一 Policy 与 Native Core。
+同一 Tool ID/version 不得被静默替换。插件 Tool 不能绕过统一 Policy、Electron Main 命令 Runner 或 Native Core 文件边界。
 
 ## 11. 测试重点
 

@@ -1,6 +1,12 @@
 import { createServer } from "node:http";
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
@@ -33,8 +39,11 @@ test("user creates and restores an independent Pi employee in the visible window
     await expect(
       page.getByRole("heading", { name: "text-organize" }),
     ).toBeVisible();
-    await expect(page.getByText("软件内置")).toBeVisible();
-    await page.getByText("查看技能实际内容").click();
+    const textSkillCard = page.getByRole("article").filter({
+      has: page.getByRole("heading", { name: "text-organize" }),
+    });
+    await expect(textSkillCard.getByText("软件内置")).toBeVisible();
+    await textSkillCard.getByText("查看技能实际内容").click();
     await expect(page.getByText(/不添加用户没有提供的事实/u)).toBeVisible();
 
     await page.getByLabel("员工姓名").fill("小文");
@@ -167,6 +176,8 @@ test("user creates and restores an independent Pi employee in the visible window
     ).toBeVisible();
     await page.getByRole("button", { name: "停止任务" }).click();
     await expect(page.getByRole("heading", { name: "已停止" })).toBeVisible();
+    // Windows 需要一点时间收掉完整进程树，再开始下一项独立旅程。
+    await page.waitForTimeout(500);
 
     await page.getByLabel("任务内容").fill("触发工具失败");
     await page.getByRole("button", { name: "开始任务" }).click();
@@ -216,20 +227,372 @@ test("user creates and restores an independent Pi employee in the visible window
   } finally {
     await app.close().catch(() => undefined);
     await fixture.close();
-    rmSync(userDataDirectory, {
-      force: true,
-      maxRetries: 10,
-      recursive: true,
-      retryDelay: 200,
-    });
-    rmSync(taskWorkspace, {
-      force: true,
-      maxRetries: 10,
-      recursive: true,
-      retryDelay: 200,
-    });
+    await removeTemporaryDirectory(userDataDirectory);
+    await removeTemporaryDirectory(taskWorkspace);
   }
 });
+
+test("coding employee asks once, streams a real command, and asks again for high risk", async () => {
+  test.setTimeout(60_000);
+  const fixture = await startCodingProviderFixture();
+  const userDataDirectory = mkdtempSync(
+    path.join(tmpdir(), "M9-TU-01-electron-user-data-"),
+  );
+  const taskWorkspace = mkdtempSync(path.join(tmpdir(), "M9-TU-01-workspace-"));
+  const app = await launchApplication(userDataDirectory, taskWorkspace);
+
+  try {
+    const page = await app.firstWindow();
+    await page.getByRole("button", { name: "设置" }).click();
+    await page.getByLabel("名称").fill("编码验收 Provider");
+    await page.getByLabel("API 基础 URL").fill(fixture.endpoint);
+    await page.getByLabel("API Key").fill("M9-TU-01-e2e-fake-key");
+    await page.getByRole("button", { name: "保存模型服务商" }).click();
+    await page.getByRole("button", { name: "测试连接" }).click();
+    await expect(page.getByRole("heading", { name: "已验证" })).toBeVisible();
+
+    await page.getByRole("button", { name: "员工" }).click();
+    await expect(
+      page.getByRole("heading", { name: "coding-task" }),
+    ).toBeVisible();
+    await page.getByLabel("员工姓名").fill("小码");
+    await page
+      .getByLabel("Provider")
+      .selectOption({ label: "编码验收 Provider" });
+    await page.getByLabel("模型").selectOption("pi-coding-fixture-model");
+    await page.getByLabel("技能", { exact: true }).selectOption("coding-task");
+    await page.getByRole("button", { name: "创建员工" }).click();
+    await expect(page.getByText("技能：coding-task")).toBeVisible();
+    await page.getByRole("button", { name: "添加工作区" }).click();
+
+    // 用一个真实的小缺陷验证完整闭环：读取代码、修复代码、运行测试。
+    writeFileSync(
+      path.join(taskWorkspace, "calculator.js"),
+      "export const add = (a, b) => a - b;\n",
+      "utf8",
+    );
+    writeFileSync(
+      path.join(taskWorkspace, "check.js"),
+      [
+        'const { readFileSync } = require("node:fs");',
+        'const code = readFileSync("calculator.js", "utf8");',
+        'if (!code.includes("a + b")) process.exit(1);',
+        'console.log("M9-E2E-OK");',
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    await page
+      .getByLabel("任务内容")
+      .fill("修复 calculator.js 中的加法错误，并运行 check.js 验证结果");
+    await page.getByRole("button", { name: "开始任务" }).click();
+    await expect(
+      page.getByRole("heading", { name: "是否允许本任务运行命令？" }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(
+        "命令会使用你当前的系统账户运行，项目脚本可能访问工作区外文件；当前版本没有 OS 级强隔离。批准只对本任务有效。",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await page.locator(".provider-disclosure").screenshot({
+      path: path.resolve(
+        __dirname,
+        "../../../release",
+        `m9-tu01-command-approval-${process.env.AI_CORPORATION_PACKAGED_EXE === undefined ? "dev" : "packaged"}-${process.platform}-${process.arch}.png`,
+      ),
+    });
+    expect(existsSync(path.join(taskWorkspace, "command-result.txt"))).toBe(
+      false,
+    );
+    expect(
+      readFileSync(path.join(taskWorkspace, "calculator.js"), "utf8"),
+    ).toBe("export const add = (a, b) => a + b;\n");
+    await page.getByRole("button", { name: "允许本任务运行命令" }).click();
+    await expect(
+      page.getByRole("heading", { name: "等待你验收" }),
+    ).toBeVisible();
+    if (!existsSync(path.join(taskWorkspace, "command-result.txt"))) {
+      const debugTask = await page.evaluate(async () => {
+        const desktop = (window as unknown as { desktop: DesktopApi }).desktop;
+        const taskId = window.localStorage.getItem("pi-current-task-id");
+        return taskId === null
+          ? { taskId: null }
+          : desktop.piTask.get({ schemaVersion: 1, taskId });
+      });
+      throw new Error(`command result missing: ${JSON.stringify(debugTask)}`);
+    }
+    expect(
+      readFileSync(path.join(taskWorkspace, "command-result.txt"), "utf8"),
+    ).toBe("saved");
+    await page.getByText("查看完整模型和工具过程").click();
+    await expect(page.getByText("calculator.js").first()).toBeVisible();
+    await expect(page.getByText("命令实时输出").first()).toBeVisible();
+    await expect(page.getByText(/M9-E2E-OK/u).first()).toBeVisible();
+    await expect(page.getByText("工具结果").first()).toBeVisible();
+    await page.getByText("查看完整模型和工具过程").click();
+    await app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0];
+      window?.setSize(1024, 700);
+      window?.webContents.setZoomFactor(2);
+    });
+    await waitForPaint(page);
+    await expectEmployeePanelsKeepReadableWidth(page, 220);
+    await page.locator(".employee-task-panel").scrollIntoViewIfNeeded();
+    await waitForPaint(page);
+    await page.screenshot({
+      animations: "disabled",
+      fullPage: true,
+      path: path.resolve(
+        __dirname,
+        "../../../release",
+        `m9-tu01-${process.env.AI_CORPORATION_PACKAGED_EXE === undefined ? "dev" : "packaged"}-${process.platform}-${process.arch}-1024x700-200-percent.png`,
+      ),
+    });
+    await app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0];
+      window?.setSize(1440, 900);
+      window?.webContents.setZoomFactor(1);
+    });
+    await waitForPaint(page);
+    await expectEmployeePanelsKeepReadableWidth(page);
+    await page.locator(".employee-task-panel").scrollIntoViewIfNeeded();
+    await waitForPaint(page);
+    await page.screenshot({
+      animations: "disabled",
+      path: path.resolve(
+        __dirname,
+        "../../../release",
+        `m9-tu01-${process.env.AI_CORPORATION_PACKAGED_EXE === undefined ? "dev" : "packaged"}-${process.platform}-${process.arch}-1440x900.png`,
+      ),
+    });
+    await page.getByRole("button", { name: "验收通过" }).click();
+
+    await page.getByLabel("任务内容").fill("验证任务级命令拒绝");
+    await page.getByRole("button", { name: "开始任务" }).click();
+    await expect(
+      page.getByRole("heading", { name: "是否允许本任务运行命令？" }),
+    ).toBeVisible();
+    expect(existsSync(path.join(taskWorkspace, "rejected-command.txt"))).toBe(
+      false,
+    );
+    await page.getByRole("button", { name: "拒绝" }).click();
+    await expect(page.getByRole("heading", { name: "运行失败" })).toBeVisible();
+    expect(existsSync(path.join(taskWorkspace, "rejected-command.txt"))).toBe(
+      false,
+    );
+
+    await page.getByLabel("任务内容").fill("验证高风险确认");
+    await page.getByRole("button", { name: "开始任务" }).click();
+    await page.getByRole("button", { name: "允许本任务运行命令" }).click();
+    await expect(
+      page.getByRole("heading", { name: "是否批准这条高风险命令？" }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("可能发布或部署内容", { exact: true }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "拒绝" }).click();
+    await expect(page.getByRole("heading", { name: "运行失败" })).toBeVisible();
+
+    await page.getByLabel("任务内容").fill("验证取消正在运行的命令");
+    await page.getByRole("button", { name: "开始任务" }).click();
+    await page.getByRole("button", { name: "允许本任务运行命令" }).click();
+    await expect(page.getByText(/M9-CANCEL-START/u).first()).toBeVisible();
+    await page.getByRole("button", { name: "停止任务" }).click();
+    await expect(page.getByRole("heading", { name: "已停止" })).toBeVisible();
+
+    await page.getByLabel("任务内容").fill("验证命令超时");
+    await page.getByRole("button", { name: "开始任务" }).click();
+    await page.getByRole("button", { name: "允许本任务运行命令" }).click();
+    await expect(page.getByRole("heading", { name: "运行失败" })).toBeVisible({
+      timeout: 10_000,
+    });
+    await page.getByText("查看完整模型和工具过程").click();
+    await expect(page.getByText(/超时/u).last()).toBeVisible();
+    await expectNoSeriousAxeViolations(page);
+  } finally {
+    await app.close().catch(() => undefined);
+    await fixture.close();
+    await removeTemporaryDirectory(userDataDirectory);
+    await removeTemporaryDirectory(taskWorkspace);
+  }
+});
+
+async function startCodingProviderFixture() {
+  let generationCalls = 0;
+  const scenarioCallCounts = new Map<string, number>();
+  const originalCodeHash = createHash("sha256")
+    .update("export const add = (a, b) => a - b;\n", "utf8")
+    .digest("hex");
+  const server = createServer((request, response) => {
+    if (request.url === "/models") {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(
+        JSON.stringify({ data: [{ id: "pi-coding-fixture-model" }] }),
+      );
+      return;
+    }
+    if (request.url === "/chat/completions") {
+      const chunks: Buffer[] = [];
+      request.on("data", (chunk: Buffer) => chunks.push(chunk));
+      request.on("end", () => {
+        generationCalls += 1;
+        const bodyText = Buffer.concat(chunks).toString("utf8");
+        const body = JSON.parse(bodyText) as {
+          messages?: Array<{ content?: unknown; role?: string }>;
+        };
+        const latestUserMessage = [...(body.messages ?? [])]
+          .reverse()
+          .find(({ role }) => role === "user")?.content;
+        const currentTaskText =
+          typeof latestUserMessage === "string"
+            ? latestUserMessage
+            : JSON.stringify(latestUserMessage ?? "");
+        const scenario = currentTaskText.includes("验证任务级命令拒绝")
+          ? "TASK_REJECT"
+          : currentTaskText.includes("验证高风险确认")
+            ? "HIGH_RISK"
+            : currentTaskText.includes("验证取消正在运行的命令")
+              ? "CANCEL"
+              : currentTaskText.includes("验证命令超时")
+                ? "TIMEOUT"
+                : "CODING";
+        const scenarioCall = (scenarioCallCounts.get(scenario) ?? 0) + 1;
+        scenarioCallCounts.set(scenario, scenarioCall);
+        response.writeHead(200, { "content-type": "text/event-stream" });
+        const codingCalls = [
+          {
+            name: "workspace_read_text",
+            arguments: JSON.stringify({ relativePath: "calculator.js" }),
+          },
+          {
+            name: "workspace_write_text",
+            arguments: JSON.stringify({
+              relativePath: "calculator.js",
+              content: "export const add = (a, b) => a + b;\n",
+              baseSha256: originalCodeHash,
+            }),
+          },
+          {
+            name: "workspace_run_command",
+            arguments: JSON.stringify({
+              command: `${JSON.stringify(process.execPath)} check.js | ${
+                process.platform === "win32" ? "findstr M9" : "grep M9"
+              } && ${JSON.stringify(process.execPath)} -e "require('fs').writeFileSync('command-result.txt','saved')"`,
+            }),
+          },
+          {
+            name: "workspace_run_command",
+            arguments: JSON.stringify({
+              command: `${JSON.stringify(process.execPath)} -e "console.log('M9-SECOND-CHECK-OK')"`,
+            }),
+          },
+        ] as const;
+        const scenarioFirstCalls = {
+          TASK_REJECT: {
+            name: "workspace_run_command",
+            arguments: JSON.stringify({
+              command: `${JSON.stringify(process.execPath)} -e "require('fs').writeFileSync('rejected-command.txt','must-not-run')"`,
+            }),
+          },
+          HIGH_RISK: {
+            name: "workspace_run_command",
+            arguments: JSON.stringify({ command: "echo deploy" }),
+          },
+          CANCEL: {
+            name: "workspace_run_command",
+            arguments: JSON.stringify({
+              command: `${JSON.stringify(process.execPath)} -e "console.log('M9-CANCEL-START'); setInterval(() => {}, 1000)"`,
+            }),
+          },
+          TIMEOUT: {
+            name: "workspace_run_command",
+            arguments: JSON.stringify({
+              command: `${JSON.stringify(process.execPath)} -e "console.log('M9-TIMEOUT-START'); setInterval(() => {}, 1000)"`,
+              timeoutSeconds: 1,
+            }),
+          },
+        } as const;
+        const call =
+          scenario === "CODING"
+            ? codingCalls[scenarioCall - 1]
+            : scenarioCall === 1
+              ? scenarioFirstCalls[scenario]
+              : undefined;
+        if (call !== undefined) {
+          sendChunk(response, {
+            choices: [
+              {
+                index: 0,
+                delta: {
+                  role: "assistant",
+                  tool_calls: [
+                    {
+                      index: 0,
+                      id: `call-coding-${generationCalls}`,
+                      type: "function",
+                      function: {
+                        name: call.name,
+                        arguments: call.arguments,
+                      },
+                    },
+                  ],
+                },
+                finish_reason: null,
+              },
+            ],
+          });
+          sendChunk(response, {
+            choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }],
+          });
+        } else {
+          sendChunk(response, {
+            choices: [
+              {
+                index: 0,
+                delta: {
+                  role: "assistant",
+                  content:
+                    scenario === "CODING"
+                      ? "代码错误已经修复，真实测试命令已经运行并通过。"
+                      : scenario === "HIGH_RISK"
+                        ? "高风险命令没有执行。"
+                        : "超时命令没有通过，不能标记成功。",
+                },
+                finish_reason: null,
+              },
+            ],
+          });
+          sendChunk(response, {
+            choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+          });
+        }
+        response.end("data: [DONE]\n\n");
+      });
+      return;
+    }
+    response.writeHead(404, { "content-type": "application/json" });
+    response.end(JSON.stringify({ error: { code: "not_found" } }));
+  });
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = server.address();
+  if (address === null || typeof address === "string") {
+    throw new Error("M9-TU-01 fixture did not expose a TCP port");
+  }
+  return {
+    endpoint: `http://127.0.0.1:${address.port}`,
+    close: () =>
+      new Promise<void>((resolve, reject) => {
+        server.closeAllConnections();
+        server.close((error) =>
+          error === undefined ? resolve() : reject(error),
+        );
+      }),
+  };
+}
 
 async function startProviderFixture() {
   let generationCalls = 0;
@@ -572,6 +935,20 @@ async function expectNoSeriousAxeViolations(
     );
   });
   expect(violations).toEqual([]);
+}
+
+async function removeTemporaryDirectory(directory: string): Promise<void> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    try {
+      rmSync(directory, { force: true, recursive: true });
+      return;
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+  }
+  throw lastError;
 }
 
 async function waitForPaint(page: import("@playwright/test").Page) {

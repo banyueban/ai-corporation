@@ -2,6 +2,7 @@ import {
   piTaskCommandRequestSchema,
   piTaskGetRequestSchema,
   piTaskRequestChangesRequestSchema,
+  piTaskResolveCommandApprovalRequestSchema,
   piTaskStartRequestSchema,
   type PiTaskResult,
 } from "@ai-corporation/protocols";
@@ -17,7 +18,13 @@ const unauthorized = (): PiTaskResult => ({
 });
 
 export function handlePiTask(
-  action: "start" | "get" | "cancel" | "accept" | "requestChanges",
+  action:
+    | "start"
+    | "get"
+    | "cancel"
+    | "accept"
+    | "requestChanges"
+    | "resolveCommandApproval",
   authorized: boolean,
   request: unknown,
   service?: PiTaskService,
@@ -35,6 +42,12 @@ export function handlePiTask(
   if (action === "requestChanges") {
     const parsed = piTaskRequestChangesRequestSchema.safeParse(request);
     return parsed.success ? service.requestChanges(parsed.data) : invalid();
+  }
+  if (action === "resolveCommandApproval") {
+    const parsed = piTaskResolveCommandApprovalRequestSchema.safeParse(request);
+    return parsed.success
+      ? service.resolveCommandApproval(parsed.data)
+      : invalid();
   }
   const parsed = piTaskCommandRequestSchema.safeParse(request);
   if (!parsed.success) return invalid();

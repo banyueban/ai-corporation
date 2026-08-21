@@ -138,15 +138,18 @@ import {
   PI_TASK_CANCEL_IPC_CHANNEL,
   PI_TASK_GET_IPC_CHANNEL,
   PI_TASK_REQUEST_CHANGES_IPC_CHANNEL,
+  PI_TASK_RESOLVE_COMMAND_APPROVAL_IPC_CHANNEL,
   PI_TASK_START_IPC_CHANNEL,
   piTaskCommandRequestSchema,
   piTaskGetRequestSchema,
   piTaskRequestChangesRequestSchema,
+  piTaskResolveCommandApprovalRequestSchema,
   piTaskResultSchema,
   piTaskStartRequestSchema,
   type PiTaskCommandRequest,
   type PiTaskGetRequest,
   type PiTaskRequestChangesRequest,
+  type PiTaskResolveCommandApprovalRequest,
   type PiTaskStartRequest,
   PROVIDER_CANCEL_CONNECTION_TEST_IPC_CHANNEL,
   PROVIDER_CANCEL_GENERATION_TEST_IPC_CHANNEL,
@@ -516,6 +519,11 @@ const desktopApi: DesktopApi = Object.freeze({
       invokePiTask(
         PI_TASK_REQUEST_CHANGES_IPC_CHANNEL,
         piTaskRequestChangesRequestSchema.parse(request),
+      ),
+    resolveCommandApproval: (request: PiTaskResolveCommandApprovalRequest) =>
+      invokePiTask(
+        PI_TASK_RESOLVE_COMMAND_APPROVAL_IPC_CHANNEL,
+        piTaskResolveCommandApprovalRequestSchema.parse(request),
       ),
   }),
   provider: Object.freeze({

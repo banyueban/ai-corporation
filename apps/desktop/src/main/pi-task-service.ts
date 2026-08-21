@@ -15,6 +15,7 @@ import type {
   PiTaskCommandRequest,
   PiTaskGetRequest,
   PiTaskRequestChangesRequest,
+  PiTaskResolveCommandApprovalRequest,
   PiTaskResult,
   PiTaskStartRequest,
 } from "@ai-corporation/protocols";
@@ -29,15 +30,30 @@ import {
 } from "./native-core-client";
 import type { SkillLibrary } from "./skill-library";
 import { createUuidV7 } from "./uuid-v7";
+import {
+  classifyCommandRisk,
+  CommandCancelledError,
+  CommandTimeoutError,
+  runSystemCommand,
+} from "./command-runner";
 
 interface ActiveTask {
-  readonly agent: Agent;
+  readonly abortController: AbortController;
+  readonly agent?: Agent;
+}
+
+interface PendingCommandApproval {
+  readonly approvalId: string;
+  readonly command: string;
+  readonly resolve: (approved: boolean) => void;
 }
 
 export class PiTaskService {
   readonly #active = new Map<string, ActiveTask>();
   readonly #toolStartedAt = new Map<string, number>();
   readonly #toolFailures = new Set<string>();
+  readonly #pendingCommandApprovals = new Map<string, PendingCommandApproval>();
+  #shuttingDown = false;
 
   constructor(
     private readonly options: {
@@ -127,12 +143,56 @@ export class PiTaskService {
     }
   }
 
+  /** Marks interrupted commands unknown and never starts them again. */
+  recoverCommands(): void {
+    const now = this.#now();
+    for (const pending of this.options.taskRepository.recoverPendingCommands(
+      now,
+    )) {
+      this.#event(
+        pending.taskId,
+        "TOOL_ERROR",
+        JSON.stringify(
+          {
+            command: pending.command,
+            message: "软件关闭时命令仍在运行，结果未知，不会自动重放。",
+            status: "UNKNOWN",
+          },
+          null,
+          2,
+        ),
+      );
+    }
+  }
+
+  /** Stops active model/tool work before Electron closes its database. */
+  async shutdown(): Promise<void> {
+    this.#shuttingDown = true;
+    for (const pending of this.#pendingCommandApprovals.values()) {
+      pending.resolve(false);
+    }
+    this.#pendingCommandApprovals.clear();
+    for (const { abortController, agent } of this.#active.values()) {
+      abortController.abort();
+      agent?.abort();
+    }
+    const deadline = Date.now() + 10_000;
+    while (this.#active.size > 0 && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+  }
+
   start(request: PiTaskStartRequest): PiTaskResult {
     try {
       const employee = this.options.employeeRepository.get(request.employeeId);
       if (employee === undefined) return failure("NOT_FOUND");
       if (
-        [...this.#active.values()].some(({ agent }) => agent.state.isStreaming)
+        [...this.#active.entries()].some(
+          ([activeTaskId, { agent }]) =>
+            this.options.taskRepository.get(activeTaskId)?.status ===
+              "RUNNING" &&
+            (agent?.state.isStreaming ?? true),
+        )
       ) {
         return failure("ALREADY_RUNNING");
       }
@@ -169,7 +229,12 @@ export class PiTaskService {
     const task = this.options.taskRepository.get(request.taskId);
     if (task === undefined) return failure("NOT_FOUND");
     if (task.status !== "RUNNING") return failure("INVALID_STATE");
-    this.#active.get(task.id)?.agent.abort();
+    this.#pendingCommandApprovals.get(task.id)?.resolve(false);
+    this.#pendingCommandApprovals.delete(task.id);
+    const active = this.#active.get(task.id);
+    active?.abortController.abort();
+    active?.agent?.abort();
+    this.options.taskRepository.revokeCommandGrant(task.id);
     const cancelled = this.options.taskRepository.setStatus(
       task.id,
       "CANCELLED",
@@ -180,7 +245,47 @@ export class PiTaskService {
   }
 
   accept(request: PiTaskCommandRequest): PiTaskResult {
-    return this.#transition(request.taskId, "WAITING_ACCEPTANCE", "COMPLETED");
+    const result = this.#transition(
+      request.taskId,
+      "WAITING_ACCEPTANCE",
+      "COMPLETED",
+    );
+    if (result.ok) {
+      this.options.taskRepository.revokeCommandGrant(request.taskId);
+    }
+    return result;
+  }
+
+  resolveCommandApproval(
+    request: PiTaskResolveCommandApprovalRequest,
+  ): PiTaskResult {
+    const task = this.options.taskRepository.get(request.taskId);
+    if (task === undefined) return failure("NOT_FOUND");
+    if (task.status !== "RUNNING") return failure("INVALID_STATE");
+    const pending = this.#pendingCommandApprovals.get(task.id);
+    if (pending === undefined || pending.approvalId !== request.approvalId) {
+      return failure("INVALID_STATE");
+    }
+    this.#pendingCommandApprovals.delete(task.id);
+    const approved = request.decision === "APPROVE";
+    this.#event(
+      task.id,
+      "APPROVAL_RESOLVED",
+      JSON.stringify(
+        {
+          approvalId: pending.approvalId,
+          command: pending.command,
+          decision: request.decision,
+        },
+        null,
+        2,
+      ),
+    );
+    pending.resolve(approved);
+    return {
+      ok: true,
+      value: this.options.taskRepository.get(task.id) ?? task,
+    };
   }
 
   requestChanges(request: PiTaskRequestChangesRequest): PiTaskResult {
@@ -243,6 +348,9 @@ export class PiTaskService {
     },
   ): Promise<void> {
     let finalOutput = "";
+    // Pi 的 agent.abort() 不保证正在执行的工具收到信号，因此任务自己持有取消器。
+    const taskAbortController = new AbortController();
+    this.#active.set(taskId, { abortController: taskAbortController });
     try {
       const instructions = await this.options.skillLibrary.readInstructions(
         employee.skillName,
@@ -289,7 +397,12 @@ export class PiTaskService {
           systemPrompt,
           model,
           thinkingLevel: "off",
-          tools: this.#createWorkspaceTools(taskId, workspaceRoot),
+          tools: this.#createWorkspaceTools(
+            taskId,
+            workspaceRoot,
+            employee.skillName === "coding-task",
+            taskAbortController.signal,
+          ),
         },
         streamFn: (requestModel, context, options) =>
           models.streamSimple(requestModel, context, {
@@ -306,11 +419,17 @@ export class PiTaskService {
           return undefined;
         },
       });
-      this.#active.set(taskId, { agent });
+      this.#active.set(taskId, {
+        abortController: taskAbortController,
+        agent,
+      });
       agent.subscribe((event) => {
         finalOutput = this.#recordAgentEvent(taskId, event, finalOutput);
       });
       this.#event(taskId, "PROGRESS", `${employee.name} 正在理解任务。`);
+      if (taskAbortController.signal.aborted) {
+        throw new CommandCancelledError();
+      }
       await agent.prompt(input);
       if (agent.state.errorMessage !== undefined) {
         throw new Error(agent.state.errorMessage);
@@ -319,7 +438,7 @@ export class PiTaskService {
         throw new Error("工具运行失败，请展开完整过程查看工具名称和原因。 ");
       }
       const current = this.options.taskRepository.get(taskId);
-      if (current?.status === "RUNNING") {
+      if (current?.status === "RUNNING" && !this.#shuttingDown) {
         this.options.taskRepository.setStatus(
           taskId,
           "WAITING_ACCEPTANCE",
@@ -330,7 +449,7 @@ export class PiTaskService {
       }
     } catch (error) {
       const current = this.options.taskRepository.get(taskId);
-      if (current?.status === "RUNNING") {
+      if (current?.status === "RUNNING" && !this.#shuttingDown) {
         this.options.taskRepository.setStatus(taskId, "FAILED", this.#now(), {
           failureMessage: hideSecret(readableError(error), runtime.key),
         });
@@ -338,6 +457,10 @@ export class PiTaskService {
     } finally {
       this.#active.delete(taskId);
       this.#toolFailures.delete(taskId);
+      const current = this.options.taskRepository.get(taskId);
+      if (current?.status !== "WAITING_ACCEPTANCE") {
+        this.options.taskRepository.revokeCommandGrant(taskId);
+      }
     }
   }
 
@@ -356,7 +479,12 @@ export class PiTaskService {
     return workspace;
   }
 
-  #createWorkspaceTools(taskId: string, workspaceRoot: string): AgentTool[] {
+  #createWorkspaceTools(
+    taskId: string,
+    workspaceRoot: string,
+    allowCommands: boolean,
+    taskSignal: AbortSignal,
+  ): AgentTool[] {
     const listParameters = Type.Object({
       relativePath: Type.String({
         description: "要查看的相对目录；根目录使用空字符串",
@@ -379,7 +507,7 @@ export class PiTaskService {
         }),
       ),
     });
-    return [
+    const tools: AgentTool[] = [
       {
         name: "workspace_list",
         label: "查看工作区目录",
@@ -504,6 +632,153 @@ export class PiTaskService {
         },
       },
     ];
+    if (allowCommands) {
+      const commandParameters = Type.Object({
+        command: Type.String({
+          description:
+            "在当前工作区运行的完整系统命令，可使用管道、串联和重定向",
+          maxLength: 20_000,
+          minLength: 1,
+        }),
+        timeoutSeconds: Type.Optional(
+          Type.Integer({
+            description: "超时秒数，默认 120，范围 1 到 600",
+            maximum: 600,
+            minimum: 1,
+          }),
+        ),
+      });
+      tools.push({
+        name: "workspace_run_command",
+        label: "运行工作区命令",
+        description:
+          "使用当前系统的原生命令方式运行完整命令，返回真实输出、退出码和耗时。",
+        parameters: commandParameters,
+        executionMode: "sequential",
+        execute: async (toolCallId, params, signal) => {
+          const { command, timeoutSeconds } = params as {
+            command: string;
+            timeoutSeconds?: number;
+          };
+          const commandSignal =
+            signal === undefined
+              ? taskSignal
+              : AbortSignal.any([taskSignal, signal]);
+          if (!this.options.taskRepository.hasCommandGrant(taskId)) {
+            const approved = await this.#requestCommandApproval(
+              taskId,
+              command,
+              "TASK",
+              "命令会使用你当前的系统账户运行，项目脚本可能访问工作区外文件；当前版本没有 OS 级强隔离。批准只对本任务有效。",
+              commandSignal,
+            );
+            if (!approved) throw new Error("用户没有允许本任务运行命令。");
+            this.options.taskRepository.grantCommandsForTask(
+              taskId,
+              this.#now(),
+            );
+          }
+          const risk = classifyCommandRisk(command);
+          if (risk.high) {
+            const approved = await this.#requestCommandApproval(
+              taskId,
+              command,
+              "HIGH_RISK",
+              risk.reason,
+              commandSignal,
+            );
+            if (!approved) throw new Error("用户拒绝了这条高风险命令。");
+          }
+          this.options.taskRepository.beginCommandCall({
+            command,
+            now: this.#now(),
+            taskId,
+            toolCallId,
+          });
+          let recorded = false;
+          try {
+            const result = await runSystemCommand({
+              command,
+              cwd: workspaceRoot,
+              signal: commandSignal,
+              timeoutMs: (timeoutSeconds ?? 120) * 1_000,
+              onUpdate: (update) => {
+                this.#event(
+                  taskId,
+                  "TOOL_UPDATE",
+                  JSON.stringify({ command, ...update }, null, 2),
+                );
+              },
+            });
+            const status = result.exitCode === 0 ? "SUCCEEDED" : "FAILED";
+            this.options.taskRepository.finishCommandCall(
+              toolCallId,
+              status,
+              result,
+              this.#now(),
+            );
+            recorded = true;
+            if (result.exitCode !== 0) {
+              throw new Error(`命令退出码为 ${result.exitCode ?? "未知"}。`);
+            }
+            return toolResult(result);
+          } catch (error) {
+            const status =
+              error instanceof CommandCancelledError
+                ? "CANCELLED"
+                : error instanceof CommandTimeoutError
+                  ? "TIMED_OUT"
+                  : "FAILED";
+            if (!recorded) {
+              this.options.taskRepository.finishCommandCall(
+                toolCallId,
+                status,
+                { error: readableError(error) },
+                this.#now(),
+              );
+            }
+            throw error;
+          }
+        },
+      });
+    }
+    return tools;
+  }
+
+  #requestCommandApproval(
+    taskId: string,
+    command: string,
+    kind: "TASK" | "HIGH_RISK",
+    reason: string,
+    signal?: AbortSignal,
+  ): Promise<boolean> {
+    if (signal?.aborted === true) return Promise.resolve(false);
+    const approvalId = createUuidV7();
+    return new Promise<boolean>((resolve) => {
+      let settled = false;
+      const finish = (approved: boolean) => {
+        if (settled) return;
+        settled = true;
+        const current = this.#pendingCommandApprovals.get(taskId);
+        if (current?.approvalId === approvalId) {
+          this.#pendingCommandApprovals.delete(taskId);
+        }
+        signal?.removeEventListener("abort", onAbort);
+        resolve(approved);
+      };
+      const onAbort = () => finish(false);
+      signal?.addEventListener("abort", onAbort, { once: true });
+      this.#pendingCommandApprovals.set(taskId, {
+        approvalId,
+        command,
+        resolve: finish,
+      });
+      this.#event(
+        taskId,
+        "APPROVAL_REQUIRED",
+        JSON.stringify({ approvalId, command, kind, reason }, null, 2),
+      );
+    });
   }
 
   #native() {
@@ -526,6 +801,17 @@ export class PiTaskService {
         taskId,
         "TOOL_START",
         JSON.stringify({ name: event.toolName, input: event.args }, null, 2),
+      );
+    }
+    if (event.type === "tool_execution_update") {
+      this.#event(
+        taskId,
+        "TOOL_UPDATE",
+        JSON.stringify(
+          { name: event.toolName, result: event.partialResult },
+          null,
+          2,
+        ),
       );
     }
     if (event.type === "tool_execution_end") {
@@ -578,7 +864,10 @@ export class PiTaskService {
       | "MODEL_OUTPUT"
       | "TOOL_START"
       | "TOOL_RESULT"
-      | "TOOL_ERROR",
+      | "TOOL_ERROR"
+      | "TOOL_UPDATE"
+      | "APPROVAL_REQUIRED"
+      | "APPROVAL_RESOLVED",
     content: string,
   ): void {
     const current = this.options.taskRepository.get(taskId);
@@ -598,7 +887,7 @@ export class PiTaskService {
 }
 
 function buildSystemPrompt(employeeName: string, skill: string): string {
-  return `你是 AI Corporation 的员工“${employeeName}”。\n\n${skill}\n\n请直接完成用户交代的真实工作区任务。先用 workspace_list 了解目录；需要参考已有内容时用 workspace_read_text。创建文本文件时直接调用 workspace_write_text 且省略 baseSha256；修改已有文本时必须先读取，再把读取结果中的 sha256 原样作为 baseSha256。不得声称执行了工具没有真正完成的操作。完成后请说明实际创建或修改的相对路径，并提醒用户验收。`;
+  return `你是 AI Corporation 的员工“${employeeName}”。\n\n${skill}\n\n请直接完成用户交代的真实工作区任务。先用 workspace_list 了解目录；需要参考已有内容时用 workspace_read_text。创建文本文件时直接调用 workspace_write_text 且省略 baseSha256；修改已有文本时必须先读取，再把读取结果中的 sha256 原样作为 baseSha256。编码技能还可以调用 workspace_run_command 运行真实检查和测试。不得声称执行了工具没有真正完成的操作。完成后请说明实际创建或修改的相对路径、运行过的检查和真实结果，并提醒用户验收。`;
 }
 
 function toolResult(details: unknown) {

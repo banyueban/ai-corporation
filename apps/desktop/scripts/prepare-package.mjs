@@ -41,6 +41,10 @@ cpSync(
   path.join(appDirectory, "skills"),
   { recursive: true },
 );
+cpSync(
+  path.resolve(desktopDirectory, "..", "..", "THIRD_PARTY_NOTICES.md"),
+  path.join(appDirectory, "THIRD_PARTY_NOTICES.md"),
+);
 cpSync(sourceNativeCore, path.join(desktopDirectory, "build", nativeCoreName));
 writeFileSync(
   path.join(appDirectory, "package.json"),

@@ -63,6 +63,7 @@ import type {
   PiTaskCommandRequest,
   PiTaskGetRequest,
   PiTaskRequestChangesRequest,
+  PiTaskResolveCommandApprovalRequest,
   PiTaskResult,
   PiTaskStartRequest,
   ProviderDeleteKeyRequest,
@@ -193,6 +194,9 @@ export interface DesktopApi {
     cancel(request: PiTaskCommandRequest): Promise<PiTaskResult>;
     accept(request: PiTaskCommandRequest): Promise<PiTaskResult>;
     requestChanges(request: PiTaskRequestChangesRequest): Promise<PiTaskResult>;
+    resolveCommandApproval(
+      request: PiTaskResolveCommandApprovalRequest,
+    ): Promise<PiTaskResult>;
   }>;
   readonly provider: Readonly<{
     cancelConnectionTest(

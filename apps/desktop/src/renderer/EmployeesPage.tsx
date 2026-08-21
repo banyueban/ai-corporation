@@ -10,6 +10,12 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { createUuidV7 } from "./uuid-v7";
 
 type Preview = Extract<PiSkillPreviewImportResult, { ok: true }>["value"];
+type CommandApproval = {
+  readonly approvalId: string;
+  readonly command: string;
+  readonly kind: "TASK" | "HIGH_RISK";
+  readonly reason: string;
+};
 
 export function EmployeesPage() {
   const [employees, setEmployees] = useState<readonly PiEmployee[]>([]);
@@ -35,6 +41,10 @@ export function EmployeesPage() {
   );
   const selectedProvider = readyProviders.find(
     (provider) => provider.id === providerId,
+  );
+  const commandApproval = useMemo(
+    () => pendingCommandApproval(currentTask),
+    [currentTask],
   );
 
   const reload = async () => {
@@ -219,6 +229,27 @@ export function EmployeesPage() {
     }
     rememberTask(result.value, setCurrentTask);
     if (action === "requestChanges") setChangeInput("");
+  };
+
+  const resolveCommandApproval = async (decision: "APPROVE" | "REJECT") => {
+    if (currentTask === undefined || commandApproval === undefined) return;
+    setPending(true);
+    const result = await window.desktop.piTask.resolveCommandApproval({
+      schemaVersion: 1,
+      commandId: createUuidV7(),
+      taskId: currentTask.id,
+      approvalId: commandApproval.approvalId,
+      decision,
+    });
+    setPending(false);
+    if (!result.ok) {
+      setMessage("命令决定没有生效，任务状态可能已经变化，请刷新后重试。");
+      return;
+    }
+    rememberTask(result.value, setCurrentTask);
+    setMessage(
+      decision === "APPROVE" ? "已批准，员工会继续执行。" : "已拒绝这次命令。",
+    );
   };
 
   const retryTask = async () => {
@@ -496,7 +527,7 @@ export function EmployeesPage() {
                 </button>
               </div>
               <small>
-                员工可在这里自动读取、创建和修改普通文本；删除、改名、敏感文件和越界路径会被拒绝。
+                员工可在这里读取和修改代码。编码员工首次运行命令时会说明真实风险并请你确认。
               </small>
             </div>
             <div className="field field--wide">
@@ -555,6 +586,48 @@ export function EmployeesPage() {
               )}
               {currentTask.failureMessage !== undefined && (
                 <p className="error-copy">原因：{currentTask.failureMessage}</p>
+              )}
+              {commandApproval !== undefined && (
+                <section className="provider-disclosure" role="alert">
+                  <p className="empty-kicker">
+                    {commandApproval.kind === "TASK"
+                      ? "本任务首次运行命令"
+                      : "高风险命令"}
+                  </p>
+                  <h4>
+                    {commandApproval.kind === "TASK"
+                      ? "是否允许本任务运行命令？"
+                      : "是否批准这条高风险命令？"}
+                  </h4>
+                  <p>{commandApproval.reason}</p>
+                  {commandApproval.kind === "TASK" && (
+                    <p>
+                      批准后，本任务中的普通查看、检查、测试和构建不会反复询问；新任务会重新询问。依赖安装、删除、Git
+                      写操作和发布仍会单独确认。
+                    </p>
+                  )}
+                  <pre>{commandApproval.command}</pre>
+                  <div className="form-actions">
+                    <button
+                      className="secondary-button"
+                      disabled={pending}
+                      onClick={() => void resolveCommandApproval("REJECT")}
+                      type="button"
+                    >
+                      拒绝
+                    </button>
+                    <button
+                      className="primary-button"
+                      disabled={pending}
+                      onClick={() => void resolveCommandApproval("APPROVE")}
+                      type="button"
+                    >
+                      {commandApproval.kind === "TASK"
+                        ? "允许本任务运行命令"
+                        : "批准这条命令"}
+                    </button>
+                  </div>
+                </section>
               )}
               {["FAILED", "CANCELLED", "INTERRUPTED"].includes(
                 currentTask.status,
@@ -672,8 +745,46 @@ function eventLabel(kind: PiTask["events"][number]["kind"]): string {
     TOOL_START: "工具开始",
     TOOL_RESULT: "工具结果",
     TOOL_ERROR: "工具失败",
+    TOOL_UPDATE: "命令实时输出",
+    APPROVAL_REQUIRED: "等待你的命令确认",
+    APPROVAL_RESOLVED: "命令确认结果",
   };
   return labels[kind];
+}
+
+function pendingCommandApproval(
+  task: PiTask | undefined,
+): CommandApproval | undefined {
+  if (task?.status !== "RUNNING") return undefined;
+  const resolved = new Set<string>();
+  for (const event of task.events) {
+    if (event.kind !== "APPROVAL_RESOLVED") continue;
+    const parsed = parseApproval(event.content);
+    if (parsed !== undefined) resolved.add(parsed.approvalId);
+  }
+  for (const event of [...task.events].reverse()) {
+    if (event.kind !== "APPROVAL_REQUIRED") continue;
+    const parsed = parseApproval(event.content);
+    if (parsed !== undefined && !resolved.has(parsed.approvalId)) return parsed;
+  }
+  return undefined;
+}
+
+function parseApproval(content: string): CommandApproval | undefined {
+  try {
+    const value = JSON.parse(content) as Partial<CommandApproval>;
+    if (
+      typeof value.approvalId === "string" &&
+      typeof value.command === "string" &&
+      (value.kind === "TASK" || value.kind === "HIGH_RISK") &&
+      typeof value.reason === "string"
+    ) {
+      return value as CommandApproval;
+    }
+  } catch {
+    // 旧事件或损坏事件不应让整个员工页面崩溃。
+  }
+  return undefined;
 }
 
 function taskErrorMessage(code: string): string {

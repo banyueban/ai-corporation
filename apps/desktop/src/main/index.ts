@@ -43,6 +43,7 @@ import {
   PI_TASK_CANCEL_IPC_CHANNEL,
   PI_TASK_GET_IPC_CHANNEL,
   PI_TASK_REQUEST_CHANGES_IPC_CHANNEL,
+  PI_TASK_RESOLVE_COMMAND_APPROVAL_IPC_CHANNEL,
   PI_TASK_START_IPC_CHANNEL,
   PROVIDER_CANCEL_CONNECTION_TEST_IPC_CHANNEL,
   PROVIDER_CANCEL_GENERATION_TEST_IPC_CHANNEL,
@@ -377,6 +378,7 @@ void app.whenReady().then(async () => {
     [PI_TASK_CANCEL_IPC_CHANNEL, "cancel"],
     [PI_TASK_ACCEPT_IPC_CHANNEL, "accept"],
     [PI_TASK_REQUEST_CHANGES_IPC_CHANNEL, "requestChanges"],
+    [PI_TASK_RESOLVE_COMMAND_APPROVAL_IPC_CHANNEL, "resolveCommandApproval"],
   ] as const) {
     ipcMain.handle(channel, (event: IpcMainInvokeEvent, request: unknown) =>
       handlePiTask(action, isTrustedRenderer(event), request, piTaskService),
@@ -802,18 +804,21 @@ void app.whenReady().then(async () => {
     const skillLibrary = new SkillLibrary(
       path.join(app.getPath("userData"), "pi-skills"),
     );
-    const builtinSkillDirectory = path.join(
-      app.getAppPath(),
-      app.isPackaged ? "skills" : "resources/skills",
-      "text-organize",
-    );
-    const builtinPreview = await skillLibrary.previewImport(
-      builtinSkillDirectory,
-    );
-    await skillLibrary.confirmImport(
-      builtinSkillDirectory,
-      builtinPreview.digest,
-    );
+    // 每个内置技能都复制到应用自管目录，开发态和安装包行为一致。
+    for (const builtinSkillName of ["text-organize", "coding-task"]) {
+      const builtinSkillDirectory = path.join(
+        app.getAppPath(),
+        app.isPackaged ? "skills" : "resources/skills",
+        builtinSkillName,
+      );
+      const builtinPreview = await skillLibrary.previewImport(
+        builtinSkillDirectory,
+      );
+      await skillLibrary.confirmImport(
+        builtinSkillDirectory,
+        builtinPreview.digest,
+      );
+    }
     piSkillService = new PiSkillService({
       library: skillLibrary,
       selectDirectory: async () => {
@@ -853,6 +858,7 @@ void app.whenReady().then(async () => {
       },
     });
     await piTaskService.recoverWorkspaceWrites();
+    piTaskService.recoverCommands();
     piTaskRepository.interruptRunning(new Date().toISOString());
     const goalEngineRepository = new GoalEngineRepository(workspaceDatabase);
     goalEngineRepository.interruptGenerating(new Date().toISOString());
@@ -936,7 +942,21 @@ app.on("window-all-closed", () => {
   }
 });
 
-app.on("before-quit", () => {
+let quitShutdownStarted = false;
+let quitCleanupReady = false;
+
+app.on("before-quit", (event) => {
+  if (!quitCleanupReady) {
+    event.preventDefault();
+    if (!quitShutdownStarted) {
+      quitShutdownStarted = true;
+      void (piTaskService?.shutdown() ?? Promise.resolve()).finally(() => {
+        quitCleanupReady = true;
+        app.quit();
+      });
+    }
+    return;
+  }
   ipcMain.removeHandler(AGENT_RUN_GET_CURRENT_IPC_CHANNEL);
   ipcMain.removeHandler(AGENT_RUN_CONTINUE_IPC_CHANNEL);
   ipcMain.removeHandler(AGENT_RUN_RETRY_IPC_CHANNEL);
@@ -952,6 +972,7 @@ app.on("before-quit", () => {
   ipcMain.removeHandler(PI_TASK_CANCEL_IPC_CHANNEL);
   ipcMain.removeHandler(PI_TASK_ACCEPT_IPC_CHANNEL);
   ipcMain.removeHandler(PI_TASK_REQUEST_CHANGES_IPC_CHANNEL);
+  ipcMain.removeHandler(PI_TASK_RESOLVE_COMMAND_APPROVAL_IPC_CHANNEL);
   ipcMain.removeHandler(PROVIDER_LIST_IPC_CHANNEL);
   ipcMain.removeHandler(PROVIDER_TEST_CONNECTION_IPC_CHANNEL);
   ipcMain.removeHandler(PROVIDER_CANCEL_CONNECTION_TEST_IPC_CHANNEL);

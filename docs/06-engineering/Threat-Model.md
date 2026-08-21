@@ -31,7 +31,7 @@ flowchart LR
   O -->|authenticated local RPC| N["Rust Native Core"]
   O --> K["Application-managed Key Vault"]
   N --> W["Authorized Workspace"]
-  N --> X["Child Processes"]
+  M --> X["Task-scoped Child Processes"]
 ```
 
 边界原则：
@@ -39,7 +39,7 @@ flowchart LR
 - Renderer 不可信；
 - Provider 内容不可信；
 - Artifact 内容不可信；
-- Native Core 是系统副作用边界；
+- Native Core 是工作区文件副作用边界；Electron Main 的可信命令 Runner 是命令副作用边界；
 - Policy Decision 是授权边界。
 
 ## 3. 主要威胁与控制

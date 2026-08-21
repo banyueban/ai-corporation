@@ -12,6 +12,12 @@ export interface PendingWorkspaceWrite {
   readonly targetSha256: string;
 }
 
+export interface PendingCommandCall {
+  readonly command: string;
+  readonly taskId: string;
+  readonly toolCallId: string;
+}
+
 /** Stores every visible model and tool event in the same order it occurred. */
 export class PiTaskRepository {
   constructor(private readonly database: DatabaseSync) {}
@@ -117,6 +123,13 @@ export class PiTaskRepository {
   interruptRunning(now: string): void {
     this.database
       .prepare(
+        `DELETE FROM pi_command_grant WHERE task_id IN (
+          SELECT id FROM pi_task WHERE status = 'RUNNING'
+        )`,
+      )
+      .run();
+    this.database
+      .prepare(
         `UPDATE pi_task SET status = 'INTERRUPTED',
           failure_message = '软件上次关闭时任务仍在运行，没有自动重复调用模型。',
           updated_at = ? WHERE status = 'RUNNING'`,
@@ -211,6 +224,90 @@ export class PiTaskRepository {
           targetSha256: row.target_sha256,
         };
       });
+  }
+
+  /** Records a command before the process starts so restart never replays it. */
+  beginCommandCall(input: {
+    readonly command: string;
+    readonly now: string;
+    readonly taskId: string;
+    readonly toolCallId: string;
+  }): void {
+    this.database
+      .prepare(
+        `INSERT INTO pi_command_call (
+          tool_call_id, task_id, command_text, status, created_at, updated_at
+        ) VALUES (?, ?, ?, 'STARTING', ?, ?)`,
+      )
+      .run(input.toolCallId, input.taskId, input.command, input.now, input.now);
+  }
+
+  finishCommandCall(
+    toolCallId: string,
+    status: "SUCCEEDED" | "FAILED" | "CANCELLED" | "TIMED_OUT" | "UNKNOWN",
+    result: unknown,
+    now: string,
+  ): void {
+    this.database
+      .prepare(
+        `UPDATE pi_command_call SET status = ?, result_json = ?, updated_at = ?
+        WHERE tool_call_id = ?`,
+      )
+      .run(status, JSON.stringify(result), now, toolCallId);
+  }
+
+  recoverPendingCommands(now: string): readonly PendingCommandCall[] {
+    const pending = this.database
+      .prepare(
+        `SELECT tool_call_id, task_id, command_text FROM pi_command_call
+        WHERE status = 'STARTING' ORDER BY created_at, tool_call_id`,
+      )
+      .all()
+      .map((row) => {
+        if (
+          typeof row.tool_call_id !== "string" ||
+          typeof row.task_id !== "string" ||
+          typeof row.command_text !== "string"
+        ) {
+          throw new Error("Pending command call is invalid");
+        }
+        return {
+          toolCallId: row.tool_call_id,
+          taskId: row.task_id,
+          command: row.command_text,
+        };
+      });
+    this.database
+      .prepare(
+        `UPDATE pi_command_call SET status = 'UNKNOWN',
+          result_json = '{"message":"软件关闭时命令仍在运行，结果未知，不会自动重放。"}',
+          updated_at = ? WHERE status = 'STARTING'`,
+      )
+      .run(now);
+    return pending;
+  }
+
+  hasCommandGrant(taskId: string): boolean {
+    return (
+      this.database
+        .prepare("SELECT 1 FROM pi_command_grant WHERE task_id = ?")
+        .get(taskId) !== undefined
+    );
+  }
+
+  grantCommandsForTask(taskId: string, now: string): void {
+    this.database
+      .prepare(
+        `INSERT INTO pi_command_grant (task_id, granted_at) VALUES (?, ?)
+        ON CONFLICT(task_id) DO NOTHING`,
+      )
+      .run(taskId, now);
+  }
+
+  revokeCommandGrant(taskId: string): void {
+    this.database
+      .prepare("DELETE FROM pi_command_grant WHERE task_id = ?")
+      .run(taskId);
   }
 
   private require(id: string): PiTask {

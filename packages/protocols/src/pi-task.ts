@@ -6,6 +6,8 @@ export const PI_TASK_CANCEL_IPC_CHANNEL = "pi-task:cancel" as const;
 export const PI_TASK_ACCEPT_IPC_CHANNEL = "pi-task:accept" as const;
 export const PI_TASK_REQUEST_CHANGES_IPC_CHANNEL =
   "pi-task:request-changes" as const;
+export const PI_TASK_RESOLVE_COMMAND_APPROVAL_IPC_CHANNEL =
+  "pi-task:resolve-command-approval" as const;
 
 const uuid = z.uuidv7();
 const baseRequest = { schemaVersion: z.literal(1), commandId: uuid } as const;
@@ -20,6 +22,9 @@ export const piTaskEventSchema = z
       "TOOL_START",
       "TOOL_RESULT",
       "TOOL_ERROR",
+      "TOOL_UPDATE",
+      "APPROVAL_REQUIRED",
+      "APPROVAL_RESOLVED",
     ]),
     content: z.string(),
     createdAt: z.iso.datetime({ offset: true }),
@@ -80,6 +85,14 @@ export const piTaskRequestChangesRequestSchema = z
     input: z.string().trim().min(1).max(20_000),
   })
   .strict();
+export const piTaskResolveCommandApprovalRequestSchema = z
+  .object({
+    ...baseRequest,
+    taskId: uuid,
+    approvalId: uuid,
+    decision: z.enum(["APPROVE", "REJECT"]),
+  })
+  .strict();
 
 const errorSchema = z
   .object({
@@ -108,5 +121,8 @@ export type PiTaskGetRequest = z.infer<typeof piTaskGetRequestSchema>;
 export type PiTaskCommandRequest = z.infer<typeof piTaskCommandRequestSchema>;
 export type PiTaskRequestChangesRequest = z.infer<
   typeof piTaskRequestChangesRequestSchema
+>;
+export type PiTaskResolveCommandApprovalRequest = z.infer<
+  typeof piTaskResolveCommandApprovalRequestSchema
 >;
 export type PiTaskResult = z.infer<typeof piTaskResultSchema>;
