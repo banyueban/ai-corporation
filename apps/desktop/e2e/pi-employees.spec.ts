@@ -19,7 +19,13 @@ test("user creates and restores an independent Pi employee in the visible window
   const userDataDirectory = mkdtempSync(
     path.join(tmpdir(), "M7-TU-01-electron-user-data-"),
   );
-  const taskWorkspace = mkdtempSync(path.join(tmpdir(), "M8-TU-01-workspace-"));
+  // 故意使用长路径，确保 Windows 和 macOS 都会验证工作区下拉框不会撑破页面。
+  const taskWorkspace = mkdtempSync(
+    path.join(
+      tmpdir(),
+      "M8-TU-01-workspace-with-a-long-display-path-for-layout-check-",
+    ),
+  );
   let app = await launchApplication(userDataDirectory, taskWorkspace);
 
   try {
@@ -298,7 +304,12 @@ test("coding employee asks once, streams a real command, and asks again for high
   const userDataDirectory = mkdtempSync(
     path.join(tmpdir(), "M9-TU-01-electron-user-data-"),
   );
-  const taskWorkspace = mkdtempSync(path.join(tmpdir(), "M9-TU-01-workspace-"));
+  const taskWorkspace = mkdtempSync(
+    path.join(
+      tmpdir(),
+      "M9-TU-01-workspace-with-a-long-display-path-for-layout-check-",
+    ),
+  );
   const app = await launchApplication(userDataDirectory, taskWorkspace);
 
   try {

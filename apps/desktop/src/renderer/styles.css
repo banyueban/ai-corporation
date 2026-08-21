@@ -1135,12 +1135,12 @@ h3 {
 @media (max-width: 850px) {
   .page-header,
   .selection-panel {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     flex-direction: column;
   }
 
   .selected-workspace dl {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .goal-form,
@@ -1148,7 +1148,7 @@ h3 {
   .plan-task-list,
   .history-grid,
   .provider-settings-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .field--wide,
