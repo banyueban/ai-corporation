@@ -68,6 +68,9 @@ import type {
   PiSkillListResult,
   PiSkillPreviewImportResult,
   PiTaskCommandRequest,
+  PiTaskDeliverableActionResult,
+  PiTaskDeliverablePreviewResult,
+  PiTaskDeliverableRequest,
   PiTaskGetRequest,
   PiTaskListRequest,
   PiTaskListResult,
@@ -226,6 +229,15 @@ export interface DesktopApi {
     resolveCommandApproval(
       request: PiTaskResolveCommandApprovalRequest,
     ): Promise<PiTaskResult>;
+    previewDeliverable(
+      request: PiTaskDeliverableRequest,
+    ): Promise<PiTaskDeliverablePreviewResult>;
+    openDeliverable(
+      request: PiTaskDeliverableRequest,
+    ): Promise<PiTaskDeliverableActionResult>;
+    revealDeliverable(
+      request: PiTaskDeliverableRequest,
+    ): Promise<PiTaskDeliverableActionResult>;
   }>;
   readonly provider: Readonly<{
     cancelConnectionTest(

@@ -1,6 +1,8 @@
 import { DatabaseSync } from "node:sqlite";
 import { piTaskSchema, type PiTask } from "@ai-corporation/protocols";
 
+type PiTaskDeliverable = NonNullable<PiTask["deliverables"]>[number];
+
 export type PiTaskStatus = PiTask["status"];
 
 export interface PendingWorkspaceWrite {
@@ -205,6 +207,67 @@ export class PiTaskRepository {
       .run(status, JSON.stringify(result), now, toolCallId);
   }
 
+  /** Keeps one current, verified record for each delivered task file. */
+  upsertDeliverable(
+    input: PiTaskDeliverable & {
+      readonly taskId: string;
+      readonly sourceCallId: string;
+    },
+  ): void {
+    this.database
+      .prepare(
+        `INSERT INTO pi_task_deliverable (
+          task_id, relative_path, source, change_kind, sha256, size_bytes,
+          diff_text, source_call_id, registered_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(task_id, relative_path) DO UPDATE SET
+          source = excluded.source,
+          change_kind = excluded.change_kind,
+          sha256 = excluded.sha256,
+          size_bytes = excluded.size_bytes,
+          diff_text = excluded.diff_text,
+          source_call_id = excluded.source_call_id,
+          registered_at = excluded.registered_at`,
+      )
+      .run(
+        input.taskId,
+        input.relativePath,
+        input.source,
+        input.changeKind,
+        input.sha256,
+        input.sizeBytes,
+        input.diff ?? null,
+        input.sourceCallId,
+        input.registeredAt,
+      );
+  }
+
+  getDeliverable(
+    taskId: string,
+    relativePath: string,
+  ): PiTaskDeliverable | undefined {
+    const row = this.database
+      .prepare(
+        `SELECT relative_path, source, change_kind, sha256, size_bytes,
+          diff_text, registered_at
+        FROM pi_task_deliverable WHERE task_id = ? AND relative_path = ?`,
+      )
+      .get(taskId, relativePath);
+    return row === undefined ? undefined : parseDeliverable(row);
+  }
+
+  listDeliverables(taskId: string): readonly PiTaskDeliverable[] {
+    return this.database
+      .prepare(
+        `SELECT relative_path, source, change_kind, sha256, size_bytes,
+          diff_text, registered_at
+        FROM pi_task_deliverable WHERE task_id = ?
+        ORDER BY registered_at, relative_path`,
+      )
+      .all(taskId)
+      .map(parseDeliverable);
+  }
+
   listPendingWorkspaceWrites(): readonly PendingWorkspaceWrite[] {
     return this.database
       .prepare(
@@ -343,6 +406,31 @@ export class PiTaskRepository {
         content: event.content,
         createdAt: event.created_at,
       }));
+    const checks = this.database
+      .prepare(
+        `SELECT command_text, status, result_json, created_at, updated_at
+        FROM pi_command_call WHERE task_id = ?
+        ORDER BY created_at, tool_call_id`,
+      )
+      .all(row.id)
+      .map((check) => {
+        const result = parseJsonObject(check.result_json);
+        return {
+          command: check.command_text,
+          status: check.status,
+          ...(typeof result?.exitCode === "number" || result?.exitCode === null
+            ? { exitCode: result.exitCode }
+            : {}),
+          ...(typeof result?.durationMs === "number"
+            ? { durationMs: result.durationMs }
+            : {}),
+          ...(typeof result?.truncated === "boolean"
+            ? { truncated: result.truncated }
+            : {}),
+          createdAt: check.created_at,
+          updatedAt: check.updated_at,
+        };
+      });
     return piTaskSchema.parse({
       schemaVersion: 2,
       id: row.id,
@@ -355,9 +443,40 @@ export class PiTaskRepository {
       ...(row.failure_message === null
         ? {}
         : { failureMessage: row.failure_message }),
+      deliverables: this.listDeliverables(row.id),
+      checks,
       events,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     });
+  }
+}
+
+function parseDeliverable(
+  row: Readonly<Record<string, unknown>>,
+): PiTaskDeliverable {
+  return {
+    relativePath: String(row.relative_path),
+    source: row.source as PiTaskDeliverable["source"],
+    changeKind: row.change_kind as PiTaskDeliverable["changeKind"],
+    sha256: String(row.sha256),
+    sizeBytes: Number(row.size_bytes),
+    ...(typeof row.diff_text === "string" ? { diff: row.diff_text } : {}),
+    registeredAt: String(row.registered_at),
+  };
+}
+
+function parseJsonObject(
+  value: unknown,
+): Readonly<Record<string, unknown>> | undefined {
+  if (typeof value !== "string") return undefined;
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return typeof parsed === "object" && parsed !== null
+      ? (parsed as Readonly<Record<string, unknown>>)
+      : undefined;
+  } catch {
+    // 损坏的旧命令记录仍可显示状态，不能阻塞整个任务页。
+    return undefined;
   }
 }

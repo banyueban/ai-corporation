@@ -114,7 +114,7 @@ describe("WorkspaceRepository", () => {
     expect(
       reopened.prepare("SELECT COUNT(*) AS count FROM schema_migrations").get()
         ?.count,
-    ).toBe(21);
+    ).toBe(22);
     reopened.close();
   });
 

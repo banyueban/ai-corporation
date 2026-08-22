@@ -35,6 +35,8 @@ Artifact Manifest、版本、生命周期、完整性、引用和 Change Set 字
 - 存储前计算 SHA-256；
 - 临时文件必须与正式存储位于可原子重命名的同一卷。
 
+Pi 重启路线在 M11 先交付轻量的 `pi_task_deliverable`：它只记录当前任务工作区内已经真实写入或核实的文件路径、哈希、大小、来源和差异，用于成果展示与人工验收。它不接入旧 Goal/Plan 的 Artifact 生命周期，也不冒充完整版本树；完整跨任务版本、来源图和 Managed Artifact Store 以后单独接入。
+
 ## 5. 工作区变更
 
 工作区写入采用 Change Set：

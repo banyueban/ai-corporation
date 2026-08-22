@@ -68,14 +68,23 @@ type ToolDescriptor = {
 - 工作目录默认为当前任务工作区；API Key、Key Vault 内容和应用认证秘密不得进入命令环境；
 - stdout、stderr、退出码和耗时实时可见；取消或超时必须终止整个进程树，不允许留下后台子进程。
 
-### 3.6 `process.run_profile`
+### 3.6 `workspace.register_deliverable`
+
+- 只接受当前任务 Workspace 内的相对文件路径；
+- 用于登记由完整命令生成、但没有经过 `workspace.write_text` 的交付文件；受控文本写入成功后由软件自动登记，不要求模型重复调用；
+- 在可信文件边界重新核对路径、越界链接、敏感文件、普通文件、大小和 SHA-256；只登记，不修改文件；
+- 不存在、目录、越界、敏感或超限文件固定拒绝；模型文字、命令输出和 Skill 内容不能代替真实核对；
+- 同一任务同一路径重复登记更新为最新交付状态，不产生重复成果卡；
+- 本工具不扫描整个工作区，未登记的命令产物不会被软件猜测为正式交付。
+
+### 3.7 `process.run_profile`
 
 - 保留给无需完整 shell 的固定检查和内部流程；
 - 参数按 profile Schema 验证；
 - 工作目录固定在工作区；
 - 输出、时间和资源有限制。
 
-### 3.7 `project.run_checks`
+### 3.8 `project.run_checks`
 
 - 调用用户或项目批准的测试/检查 profile；
 - 本质复用 process runner；
@@ -142,6 +151,7 @@ Agent Tool Call
 - 只读工具天然可重试；
 - 写文件通过 Change Set ID 幂等；
 - 当前 Pi 任务的写入使用工具调用 ID 作为幂等键，并在执行前记录目标相对路径、基线哈希和目标哈希；
+- 当前 Pi 任务的成果以任务和相对路径为唯一归属；受控写入自动登记，命令产物经真实文件核对后登记；
 - 命令默认不可假设幂等；
 - Tool Invocation 在执行前记录 `STARTING`；
 - 成功后记录 commit/effect evidence；

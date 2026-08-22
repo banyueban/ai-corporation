@@ -593,6 +593,80 @@ h3 {
   margin-top: 20px;
 }
 
+.pi-delivery {
+  display: grid;
+  gap: 18px;
+  margin-top: 20px;
+  padding: 20px;
+  border: 1px solid #27364b;
+  border-radius: 18px;
+  background: rgb(15 23 37 / 88%);
+}
+
+.pi-delivery h4,
+.pi-delivery h5,
+.pi-delivery p {
+  margin-block: 0;
+}
+
+.pi-delivery-summary,
+.pi-delivery-files,
+.pi-delivery-checks,
+.pi-delivery-preview {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+}
+
+.pi-delivery-summary pre,
+.pi-delivery-file pre,
+.pi-delivery-preview pre {
+  max-width: 100%;
+  margin: 0;
+  padding: 14px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border-radius: 12px;
+  background: #101a29;
+  font-family: inherit;
+}
+
+.pi-delivery-file,
+.pi-delivery-check {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #27364b;
+  border-radius: 14px;
+}
+
+.pi-delivery-file strong,
+.pi-delivery-file p,
+.pi-delivery-check code {
+  overflow-wrap: anywhere;
+}
+
+.pi-delivery-check {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.pi-delivery-check span {
+  grid-column: 1 / -1;
+  color: #9cabbd;
+}
+
+@media (max-width: 700px) {
+  .pi-delivery {
+    padding: 14px;
+  }
+
+  .pi-delivery-check {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .employee-message {
   min-height: 1.5rem;
   margin-top: 1rem;

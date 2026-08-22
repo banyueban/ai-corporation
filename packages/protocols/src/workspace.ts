@@ -5,6 +5,8 @@ export const WORKSPACE_CANONICALIZE_RPC_METHOD =
   "workspace.canonicalize" as const;
 export const WORKSPACE_LIST_RPC_METHOD = "workspace.list" as const;
 export const WORKSPACE_READ_TEXT_RPC_METHOD = "workspace.read_text" as const;
+export const WORKSPACE_INSPECT_FILE_RPC_METHOD =
+  "workspace.inspect_file" as const;
 export const WORKSPACE_WRITE_TEXT_RPC_METHOD = "workspace.write_text" as const;
 export const WORKSPACE_LIST_IPC_CHANNEL = "workspace:list" as const;
 export const WORKSPACE_REVALIDATE_IPC_CHANNEL = "workspace:revalidate" as const;
@@ -165,6 +167,8 @@ export const workspaceListRpcRequestSchema = workspacePathRpcRequestSchema(
 export const workspaceReadTextRpcRequestSchema = workspacePathRpcRequestSchema(
   WORKSPACE_READ_TEXT_RPC_METHOD,
 );
+export const workspaceInspectFileRpcRequestSchema =
+  workspacePathRpcRequestSchema(WORKSPACE_INSPECT_FILE_RPC_METHOD);
 export const workspaceWriteTextRpcRequestSchema = z
   .object({
     jsonrpc: z.literal("2.0"),
@@ -206,6 +210,15 @@ export const workspaceReadTextResultSchema = z
     sha256: sha256Schema,
   })
   .strict();
+export const workspaceInspectFileResultSchema = z
+  .object({
+    schemaVersion: z.literal(WORKSPACE_SCHEMA_VERSION),
+    canonicalPath: z.string().min(1).max(32_767),
+    relativePath: workspaceRelativePathSchema,
+    sizeBytes: z.number().int().nonnegative().max(104_857_600),
+    sha256: sha256Schema,
+  })
+  .strict();
 export const workspaceWriteTextResultSchema = z
   .object({
     schemaVersion: z.literal(WORKSPACE_SCHEMA_VERSION),
@@ -240,6 +253,8 @@ export const workspaceListRpcResponseSchema =
   workspaceOperationRpcResponseSchema(workspaceListResultSchema);
 export const workspaceReadTextRpcResponseSchema =
   workspaceOperationRpcResponseSchema(workspaceReadTextResultSchema);
+export const workspaceInspectFileRpcResponseSchema =
+  workspaceOperationRpcResponseSchema(workspaceInspectFileResultSchema);
 export const workspaceWriteTextRpcResponseSchema =
   workspaceOperationRpcResponseSchema(workspaceWriteTextResultSchema);
 
@@ -334,6 +349,9 @@ export type WorkspaceListIpcResult = z.infer<
   typeof workspaceListIpcResultSchema
 >;
 export type WorkspaceListResult = z.infer<typeof workspaceListResultSchema>;
+export type WorkspaceInspectFileResult = z.infer<
+  typeof workspaceInspectFileResultSchema
+>;
 export type WorkspacePathErrorReason = z.infer<
   typeof workspacePathErrorReasonSchema
 >;

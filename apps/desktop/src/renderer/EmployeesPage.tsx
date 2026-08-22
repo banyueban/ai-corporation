@@ -4,6 +4,7 @@ import type {
   PiSkill,
   PiSkillPreviewImportResult,
   PiTask,
+  PiTaskDeliverablePreviewResult,
   ProviderPublic,
   WorkspacePublic,
 } from "@ai-corporation/protocols";
@@ -19,6 +20,10 @@ import { preferFresherPiTask } from "./pi-task-view-model";
 import { createUuidV7 } from "./uuid-v7";
 
 type Preview = Extract<PiSkillPreviewImportResult, { ok: true }>["value"];
+type DeliverablePreview = Extract<
+  PiTaskDeliverablePreviewResult,
+  { ok: true }
+>["value"];
 type CommandApproval = {
   readonly approvalId: string;
   readonly command: string;
@@ -47,6 +52,8 @@ export function EmployeesPage(props: {
   const [changeInput, setChangeInput] = useState("");
   const [currentTask, setCurrentTask] = useState<PiTask>();
   const [tasks, setTasks] = useState<readonly PiTask[]>([]);
+  const [deliverablePreview, setDeliverablePreview] =
+    useState<DeliverablePreview>();
 
   const readyProviders = useMemo(
     () => providers.filter(isReadyProvider),
@@ -163,6 +170,10 @@ export function EmployeesPage(props: {
     }, 250);
     return () => window.clearInterval(timer);
   }, [currentTask?.id, currentTask?.status, props.company.id]);
+
+  useEffect(() => {
+    setDeliverablePreview(undefined);
+  }, [currentTask?.id]);
 
   const previewImport = async () => {
     setPending(true);
@@ -323,6 +334,51 @@ export function EmployeesPage(props: {
     rememberTask(result.value, setCurrentTask);
     setMessage(
       decision === "APPROVE" ? "已批准，员工会继续执行。" : "已拒绝这次命令。",
+    );
+  };
+
+  const previewDeliverable = async (relativePath: string) => {
+    if (currentTask === undefined) return;
+    const result = await window.desktop.piTask.previewDeliverable({
+      schemaVersion: 2,
+      companyId: props.company.id,
+      taskId: currentTask.id,
+      relativePath,
+    });
+    if (!result.ok) {
+      setDeliverablePreview(undefined);
+      setMessage(deliverableErrorMessage(result.error.code));
+      return;
+    }
+    setDeliverablePreview(result.value);
+    setMessage(
+      result.value.integrity === "CURRENT"
+        ? "已读取登记时对应的文件内容。"
+        : "文件在登记后发生了变化，下面显示的是当前内容。",
+    );
+  };
+
+  const actOnDeliverable = async (
+    action: "open" | "reveal",
+    relativePath: string,
+  ) => {
+    if (currentTask === undefined) return;
+    const request = {
+      schemaVersion: 2 as const,
+      companyId: props.company.id,
+      taskId: currentTask.id,
+      relativePath,
+    };
+    const result =
+      action === "open"
+        ? await window.desktop.piTask.openDeliverable(request)
+        : await window.desktop.piTask.revealDeliverable(request);
+    setMessage(
+      result.ok
+        ? action === "open"
+          ? "已用系统默认软件打开文件。"
+          : "已在文件夹中定位交付文件。"
+        : deliverableErrorMessage(result.error.code),
     );
   };
 
@@ -785,12 +841,127 @@ export function EmployeesPage(props: {
                   )?.displayPath ?? "已授权工作区"}
                 </p>
               )}
-              {currentTask.finalOutput !== undefined && (
-                <div className="pi-task-output">
-                  <h4>员工交付结果</h4>
-                  <pre>{currentTask.finalOutput}</pre>
+              <section className="pi-delivery" aria-labelledby="delivery-title">
+                <div className="section-heading">
+                  <div>
+                    <p className="empty-kicker">本次任务</p>
+                    <h4 id="delivery-title">交付成果</h4>
+                  </div>
+                  <span className="status-pill">
+                    {deliveryStatusLabel(currentTask.status)}
+                  </span>
                 </div>
-              )}
+                {currentTask.finalOutput !== undefined && (
+                  <div className="pi-delivery-summary">
+                    <h5>员工总结</h5>
+                    <pre>{currentTask.finalOutput}</pre>
+                  </div>
+                )}
+                <div className="pi-delivery-files">
+                  <h5>交付文件</h5>
+                  {(currentTask.deliverables ?? []).length === 0 ? (
+                    <p className="empty-copy">
+                      没有已登记文件。命令生成的文件只有经过登记后才会出现在这里。
+                    </p>
+                  ) : (
+                    (currentTask.deliverables ?? []).map((item) => (
+                      <article
+                        className="pi-delivery-file"
+                        key={item.relativePath}
+                      >
+                        <div>
+                          <strong>{item.relativePath}</strong>
+                          <p>
+                            {deliverableChangeLabel(item.changeKind)} ·{" "}
+                            {formatBytes(item.sizeBytes)} · 校验值{" "}
+                            {item.sha256.slice(0, 10)}…
+                          </p>
+                        </div>
+                        <div className="form-actions">
+                          <button
+                            className="secondary-button"
+                            onClick={() =>
+                              void previewDeliverable(item.relativePath)
+                            }
+                            type="button"
+                          >
+                            查看内容
+                          </button>
+                          {isSafeDeliverableToOpen(item.relativePath) && (
+                            <button
+                              className="secondary-button"
+                              onClick={() =>
+                                void actOnDeliverable("open", item.relativePath)
+                              }
+                              type="button"
+                            >
+                              打开文件
+                            </button>
+                          )}
+                          <button
+                            className="secondary-button"
+                            onClick={() =>
+                              void actOnDeliverable("reveal", item.relativePath)
+                            }
+                            type="button"
+                          >
+                            查看所在位置
+                          </button>
+                        </div>
+                        {item.diff !== undefined && (
+                          <details>
+                            <summary>查看修改差异</summary>
+                            <pre>{item.diff}</pre>
+                          </details>
+                        )}
+                      </article>
+                    ))
+                  )}
+                </div>
+                {deliverablePreview !== undefined && (
+                  <section className="pi-delivery-preview">
+                    <div className="section-heading">
+                      <h5>{deliverablePreview.relativePath}</h5>
+                      <span className="status-pill">
+                        {deliverablePreview.integrity === "CURRENT"
+                          ? "内容未变化"
+                          : "登记后已变化"}
+                      </span>
+                    </div>
+                    {deliverablePreview.integrity === "CHANGED" && (
+                      <p className="error-copy">
+                        这不是登记时的原内容，文件后来被修改过。
+                      </p>
+                    )}
+                    <pre>{deliverablePreview.content}</pre>
+                  </section>
+                )}
+                <div className="pi-delivery-checks">
+                  <h5>真实检查</h5>
+                  {(currentTask.checks ?? []).length === 0 ? (
+                    <p className="empty-copy">本任务没有运行命令检查。</p>
+                  ) : (
+                    (currentTask.checks ?? []).map((check, index) => (
+                      <article
+                        className="pi-delivery-check"
+                        key={`${check.createdAt}-${index}`}
+                      >
+                        <code>{check.command}</code>
+                        <strong>{checkStatusLabel(check.status)}</strong>
+                        <span>
+                          {check.exitCode === undefined
+                            ? ""
+                            : `退出码 ${check.exitCode ?? "未知"}`}
+                          {check.durationMs === undefined
+                            ? ""
+                            : ` · ${check.durationMs} 毫秒`}
+                          {check.truncated === true ? " · 输出已截断" : ""}
+                        </span>
+                      </article>
+                    ))
+                  )}
+                </div>
+              </section>
               {currentTask.failureMessage !== undefined && (
                 <p className="error-copy">原因：{currentTask.failureMessage}</p>
               )}
@@ -847,20 +1018,6 @@ export function EmployeesPage(props: {
                   重新执行
                 </button>
               )}
-              <details
-                className="pi-task-details"
-                open={currentTask.status === "RUNNING"}
-              >
-                <summary>查看完整模型和工具过程</summary>
-                <ol>
-                  {currentTask.events.map((item) => (
-                    <li key={item.sequence}>
-                      <strong>{eventLabel(item.kind)}</strong>
-                      <pre>{item.content}</pre>
-                    </li>
-                  ))}
-                </ol>
-              </details>
               {currentTask.status === "WAITING_ACCEPTANCE" && (
                 <div className="acceptance-panel">
                   <button
@@ -887,6 +1044,20 @@ export function EmployeesPage(props: {
                   </button>
                 </div>
               )}
+              <details
+                className="pi-task-details"
+                key={`${currentTask.id}-${currentTask.status}`}
+              >
+                <summary>查看完整模型和工具过程</summary>
+                <ol>
+                  {currentTask.events.map((item) => (
+                    <li key={item.sequence}>
+                      <strong>{eventLabel(item.kind)}</strong>
+                      <pre>{item.content}</pre>
+                    </li>
+                  ))}
+                </ol>
+              </details>
             </article>
           )}
           {tasks.length > 0 && (
@@ -967,6 +1138,57 @@ function taskStatusLabel(status: PiTask["status"]): string {
     INTERRUPTED: "上次运行被中断",
   };
   return labels[status];
+}
+
+function deliveryStatusLabel(status: PiTask["status"]): string {
+  if (status === "WAITING_ACCEPTANCE") return "等待你验收";
+  if (status === "COMPLETED") return "已验收";
+  if (["FAILED", "CANCELLED", "INTERRUPTED"].includes(status)) {
+    return "未完成成果";
+  }
+  return status === "RUNNING" ? "正在产生" : "等待继续修改";
+}
+
+function deliverableChangeLabel(
+  kind: NonNullable<PiTask["deliverables"]>[number]["changeKind"],
+): string {
+  return { CREATED: "新建", MODIFIED: "修改", REGISTERED: "命令生成" }[kind];
+}
+
+function checkStatusLabel(
+  status: NonNullable<PiTask["checks"]>[number]["status"],
+): string {
+  return {
+    STARTING: "检查中",
+    SUCCEEDED: "通过",
+    FAILED: "失败",
+    CANCELLED: "已停止",
+    TIMED_OUT: "超时",
+    UNKNOWN: "结果不明",
+  }[status];
+}
+
+function formatBytes(size: number): string {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function isSafeDeliverableToOpen(relativePath: string): boolean {
+  return /\.(csv|docx?|gif|jpe?g|md|pdf|png|pptx?|svg|txt|webp|xlsx?)$/iu.test(
+    relativePath,
+  );
+}
+
+function deliverableErrorMessage(code: string): string {
+  const messages: Record<string, string> = {
+    FILE_MISSING: "交付文件已经不存在。",
+    PREVIEW_UNAVAILABLE: "这个文件不能在软件内预览，可以查看它所在的位置。",
+    UNSAFE_OPEN: "为避免误运行代码或脚本，软件不会直接打开这个文件。",
+    DELIVERABLE_NOT_FOUND: "这不是本任务登记过的交付文件。",
+    WORKSPACE_NOT_READY: "任务工作区当前不可用。",
+  };
+  return messages[code] ?? "交付文件操作失败，请查看文件和工作区状态。";
 }
 
 function eventLabel(kind: PiTask["events"][number]["kind"]): string {

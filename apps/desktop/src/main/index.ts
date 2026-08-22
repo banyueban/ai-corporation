@@ -50,7 +50,10 @@ import {
   PI_TASK_CANCEL_IPC_CHANNEL,
   PI_TASK_GET_IPC_CHANNEL,
   PI_TASK_LIST_IPC_CHANNEL,
+  PI_TASK_OPEN_DELIVERABLE_IPC_CHANNEL,
+  PI_TASK_PREVIEW_DELIVERABLE_IPC_CHANNEL,
   PI_TASK_REQUEST_CHANGES_IPC_CHANNEL,
+  PI_TASK_REVEAL_DELIVERABLE_IPC_CHANNEL,
   PI_TASK_RESOLVE_COMMAND_APPROVAL_IPC_CHANNEL,
   PI_TASK_START_IPC_CHANNEL,
   PROVIDER_CANCEL_CONNECTION_TEST_IPC_CHANNEL,
@@ -92,6 +95,7 @@ import {
   BrowserWindow,
   dialog,
   ipcMain,
+  shell,
   type IpcMainInvokeEvent,
 } from "electron";
 import type { DatabaseSync } from "node:sqlite";
@@ -171,7 +175,11 @@ import {
   handlePiSkillPreviewImport,
 } from "./pi-skill-ipc";
 import { PiSkillService } from "./pi-skill-service";
-import { handlePiTask, handlePiTaskList } from "./pi-task-ipc";
+import {
+  handlePiTask,
+  handlePiTaskDeliverable,
+  handlePiTaskList,
+} from "./pi-task-ipc";
 import { PiTaskService } from "./pi-task-service";
 import { SkillLibrary } from "./skill-library";
 import { createUuidV7 } from "./uuid-v7";
@@ -403,6 +411,20 @@ void app.whenReady().then(async () => {
         isTrustedRenderer(event),
         request,
         piCompanyService,
+      ),
+    );
+  }
+  for (const [channel, action] of [
+    [PI_TASK_PREVIEW_DELIVERABLE_IPC_CHANNEL, "preview"],
+    [PI_TASK_OPEN_DELIVERABLE_IPC_CHANNEL, "open"],
+    [PI_TASK_REVEAL_DELIVERABLE_IPC_CHANNEL, "reveal"],
+  ] as const) {
+    ipcMain.handle(channel, (event: IpcMainInvokeEvent, request: unknown) =>
+      handlePiTaskDeliverable(
+        action,
+        isTrustedRenderer(event),
+        request,
+        piTaskService,
       ),
     );
   }
@@ -892,6 +914,9 @@ void app.whenReady().then(async () => {
       skillLibrary,
       workspaceRepository,
       nativeClient: () => nativeCoreClient,
+      openPath: (canonicalPath) => shell.openPath(canonicalPath),
+      showItemInFolder: (canonicalPath) =>
+        shell.showItemInFolder(canonicalPath),
       resolveRuntime: (providerId, providerVersion, modelId) => {
         if (providerService === undefined)
           throw new Error("Provider unavailable");
@@ -1027,6 +1052,9 @@ app.on("before-quit", (event) => {
   ipcMain.removeHandler(PI_TASK_ACCEPT_IPC_CHANNEL);
   ipcMain.removeHandler(PI_TASK_REQUEST_CHANGES_IPC_CHANNEL);
   ipcMain.removeHandler(PI_TASK_RESOLVE_COMMAND_APPROVAL_IPC_CHANNEL);
+  ipcMain.removeHandler(PI_TASK_PREVIEW_DELIVERABLE_IPC_CHANNEL);
+  ipcMain.removeHandler(PI_TASK_OPEN_DELIVERABLE_IPC_CHANNEL);
+  ipcMain.removeHandler(PI_TASK_REVEAL_DELIVERABLE_IPC_CHANNEL);
   ipcMain.removeHandler(PROVIDER_LIST_IPC_CHANNEL);
   ipcMain.removeHandler(PROVIDER_TEST_CONNECTION_IPC_CHANNEL);
   ipcMain.removeHandler(PROVIDER_CANCEL_CONNECTION_TEST_IPC_CHANNEL);

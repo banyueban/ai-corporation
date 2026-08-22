@@ -10,9 +10,13 @@ import {
   type Model,
 } from "@earendil-works/pi-ai";
 import { createHash } from "node:crypto";
+import path from "node:path";
 import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 import type {
   PiTaskCommandRequest,
+  PiTaskDeliverableActionResult,
+  PiTaskDeliverablePreviewResult,
+  PiTaskDeliverableRequest,
   PiTaskGetRequest,
   PiTaskListRequest,
   PiTaskListResult,
@@ -72,7 +76,10 @@ export class PiTaskService {
       readonly nativeClient: () =>
         | Pick<
             NativeCoreClient,
-            "listWorkspace" | "readWorkspaceText" | "writeWorkspaceText"
+            | "inspectWorkspaceFile"
+            | "listWorkspace"
+            | "readWorkspaceText"
+            | "writeWorkspaceText"
           >
         | undefined;
       readonly resolveRuntime: (
@@ -86,6 +93,8 @@ export class PiTaskService {
       };
       readonly createId?: () => string;
       readonly clock?: () => string;
+      readonly openPath?: (canonicalPath: string) => Promise<string>;
+      readonly showItemInFolder?: (canonicalPath: string) => void;
     },
   ) {}
 
@@ -115,6 +124,79 @@ export class PiTaskService {
     };
   }
 
+  async previewDeliverable(
+    request: PiTaskDeliverableRequest,
+  ): Promise<PiTaskDeliverablePreviewResult> {
+    const located = this.#locateDeliverable(request);
+    if (!located.ok) return located.result;
+    try {
+      const current = await this.#native().readWorkspaceText(
+        located.workspace.canonicalRootPath,
+        request.relativePath,
+      );
+      return {
+        ok: true,
+        value: {
+          relativePath: current.relativePath,
+          content: current.content,
+          sizeBytes: current.sizeBytes,
+          sha256: current.sha256,
+          integrity:
+            current.sha256 === located.deliverable.sha256
+              ? "CURRENT"
+              : "CHANGED",
+        },
+      };
+    } catch (error) {
+      return deliverableFailure(mapPreviewError(error));
+    }
+  }
+
+  async openDeliverable(
+    request: PiTaskDeliverableRequest,
+  ): Promise<PiTaskDeliverableActionResult> {
+    const located = this.#locateDeliverable(request);
+    if (!located.ok) return located.result;
+    if (!isSafeToOpen(request.relativePath)) {
+      return deliverableFailure("UNSAFE_OPEN");
+    }
+    if (this.options.openPath === undefined) {
+      return deliverableFailure("INTERNAL");
+    }
+    try {
+      const inspected = await this.#native().inspectWorkspaceFile(
+        located.workspace.canonicalRootPath,
+        request.relativePath,
+      );
+      const error = await this.options.openPath(inspected.canonicalPath);
+      return error.length === 0
+        ? { ok: true, value: { status: "OPENED" } }
+        : deliverableFailure("INTERNAL");
+    } catch (error) {
+      return deliverableFailure(mapActionError(error));
+    }
+  }
+
+  async revealDeliverable(
+    request: PiTaskDeliverableRequest,
+  ): Promise<PiTaskDeliverableActionResult> {
+    const located = this.#locateDeliverable(request);
+    if (!located.ok) return located.result;
+    try {
+      const inspected = await this.#native().inspectWorkspaceFile(
+        located.workspace.canonicalRootPath,
+        request.relativePath,
+      );
+      if (this.options.showItemInFolder === undefined) {
+        return deliverableFailure("INTERNAL");
+      }
+      this.options.showItemInFolder(inspected.canonicalPath);
+      return { ok: true, value: { status: "REVEALED" } };
+    } catch (error) {
+      return deliverableFailure(mapActionError(error));
+    }
+  }
+
   /** Classifies unfinished write records without ever replaying them. */
   async recoverWorkspaceWrites(): Promise<void> {
     for (const pending of this.options.taskRepository.listPendingWorkspaceWrites()) {
@@ -130,6 +212,17 @@ export class PiTaskService {
         if (current.sha256 === pending.targetSha256) {
           status = "SUCCEEDED";
           message = "软件重启后核对文件哈希，确认上次写入已经完整完成。";
+          this.options.taskRepository.upsertDeliverable({
+            taskId: pending.taskId,
+            relativePath: current.relativePath,
+            source: "WORKSPACE_WRITE",
+            changeKind:
+              pending.baseSha256 === undefined ? "CREATED" : "MODIFIED",
+            sha256: current.sha256,
+            sizeBytes: current.sizeBytes,
+            sourceCallId: pending.toolCallId,
+            registeredAt: this.#now(),
+          });
         } else if (
           pending.baseSha256 !== undefined &&
           current.sha256 === pending.baseSha256
@@ -532,6 +625,47 @@ export class PiTaskService {
     return workspace;
   }
 
+  #locateDeliverable(request: PiTaskDeliverableRequest):
+    | {
+        readonly ok: true;
+        readonly deliverable: NonNullable<PiTask["deliverables"]>[number];
+        readonly workspace: { readonly canonicalRootPath: string };
+      }
+    | {
+        readonly ok: false;
+        readonly result: Extract<PiTaskDeliverablePreviewResult, { ok: false }>;
+      } {
+    const task = this.options.taskRepository.get(request.taskId);
+    if (task === undefined) {
+      return { ok: false, result: deliverableFailure("NOT_FOUND") };
+    }
+    if (task.companyId !== request.companyId) {
+      return { ok: false, result: deliverableFailure("NOT_A_MEMBER") };
+    }
+    const deliverable = this.options.taskRepository.getDeliverable(
+      task.id,
+      request.relativePath,
+    );
+    if (deliverable === undefined) {
+      return {
+        ok: false,
+        result: deliverableFailure("DELIVERABLE_NOT_FOUND"),
+      };
+    }
+    if (task.workspaceId === undefined) {
+      return { ok: false, result: deliverableFailure("WORKSPACE_NOT_READY") };
+    }
+    try {
+      return {
+        ok: true,
+        deliverable,
+        workspace: this.#requireWorkspace(task.workspaceId),
+      };
+    } catch {
+      return { ok: false, result: deliverableFailure("WORKSPACE_NOT_READY") };
+    }
+  }
+
   #createWorkspaceTools(
     taskId: string,
     workspaceRoot: string,
@@ -559,6 +693,11 @@ export class PiTaskService {
             "修改已有文件时必须填写最近读取到的 SHA-256；创建新文件时省略",
         }),
       ),
+    });
+    const registerParameters = Type.Object({
+      relativePath: Type.String({
+        description: "命令已经真实生成、需要交付给用户的文件相对路径",
+      }),
     });
     const tools: AgentTool[] = [
       {
@@ -665,6 +804,17 @@ export class PiTaskService {
               visible,
               this.#now(),
             );
+            this.options.taskRepository.upsertDeliverable({
+              taskId,
+              relativePath: result.relativePath,
+              source: "WORKSPACE_WRITE",
+              changeKind: result.created ? "CREATED" : "MODIFIED",
+              sha256: result.sha256,
+              sizeBytes: result.sizeBytes,
+              diff: visible.diff,
+              sourceCallId: toolCallId,
+              registeredAt: this.#now(),
+            });
             return toolResult(visible);
           } catch (error) {
             if (!(error instanceof WorkspaceWriteUnknownError)) {
@@ -682,6 +832,37 @@ export class PiTaskService {
             }
             throw error;
           }
+        },
+      },
+      {
+        name: "workspace_register_deliverable",
+        label: "登记交付文件",
+        description:
+          "把命令已经生成的真实文件登记到交付成果区。只登记最终要交给用户的文件。",
+        parameters: registerParameters,
+        executionMode: "sequential",
+        execute: async (toolCallId, params) => {
+          const { relativePath } = params as { relativePath: string };
+          const inspected = await this.#native().inspectWorkspaceFile(
+            workspaceRoot,
+            relativePath,
+          );
+          this.options.taskRepository.upsertDeliverable({
+            taskId,
+            relativePath: inspected.relativePath,
+            source: "COMMAND_REGISTERED",
+            changeKind: "REGISTERED",
+            sha256: inspected.sha256,
+            sizeBytes: inspected.sizeBytes,
+            sourceCallId: toolCallId,
+            registeredAt: this.#now(),
+          });
+          return toolResult({
+            relativePath: inspected.relativePath,
+            sha256: inspected.sha256,
+            sizeBytes: inspected.sizeBytes,
+            registered: true,
+          });
         },
       },
     ];
@@ -942,7 +1123,7 @@ export class PiTaskService {
 }
 
 function buildSystemPrompt(employeeName: string, skill: string): string {
-  return `你是 AI Corporation 的员工“${employeeName}”。\n\n${skill}\n\n请直接完成用户交代的真实工作区任务。先用 workspace_list 了解目录；需要参考已有内容时用 workspace_read_text。创建文本文件时直接调用 workspace_write_text 且省略 baseSha256；修改已有文本时必须先读取，再把读取结果中的 sha256 原样作为 baseSha256。编码技能还可以调用 workspace_run_command 运行真实检查和测试。不得声称执行了工具没有真正完成的操作。完成后请说明实际创建或修改的相对路径、运行过的检查和真实结果，并提醒用户验收。`;
+  return `你是 AI Corporation 的员工“${employeeName}”。\n\n${skill}\n\n请直接完成用户交代的真实工作区任务。先用 workspace_list 了解目录；需要参考已有内容时用 workspace_read_text。创建文本文件时直接调用 workspace_write_text 且省略 baseSha256；修改已有文本时必须先读取，再把读取结果中的 sha256 原样作为 baseSha256。编码技能还可以调用 workspace_run_command 运行真实检查和测试。workspace_write_text 成功后软件会自动登记交付文件；命令生成了最终交付文件后，必须逐个调用 workspace_register_deliverable 登记。没有登记的命令文件不会出现在交付成果区。不得声称执行了工具没有真正完成的操作。完成后请说明实际创建或修改的相对路径、运行过的检查和真实结果，并提醒用户验收。`;
 }
 
 function toolResult(details: unknown) {
@@ -981,6 +1162,61 @@ class WorkspaceWriteUnknownError extends Error {
   constructor() {
     super("写入结果不明确，软件不会把它标记为成功，也不会自动重复写入。");
   }
+}
+
+type DeliverableErrorCode =
+  | "NOT_FOUND"
+  | "NOT_A_MEMBER"
+  | "WORKSPACE_NOT_READY"
+  | "DELIVERABLE_NOT_FOUND"
+  | "FILE_MISSING"
+  | "PREVIEW_UNAVAILABLE"
+  | "UNSAFE_OPEN"
+  | "INTERNAL";
+
+function deliverableFailure(code: DeliverableErrorCode) {
+  return {
+    ok: false as const,
+    error: { code, message: "交付成果操作失败" as const },
+  };
+}
+
+function mapPreviewError(error: unknown): DeliverableErrorCode {
+  if (error instanceof WorkspaceNativeError) {
+    if (error.reason === "NOT_FOUND") return "FILE_MISSING";
+    if (error.reason === "BINARY_FILE" || error.reason === "FILE_TOO_LARGE") {
+      return "PREVIEW_UNAVAILABLE";
+    }
+  }
+  return "INTERNAL";
+}
+
+function mapActionError(error: unknown): DeliverableErrorCode {
+  return error instanceof WorkspaceNativeError && error.reason === "NOT_FOUND"
+    ? "FILE_MISSING"
+    : "INTERNAL";
+}
+
+/** Opens only passive document/data formats; code and scripts stay in-app. */
+function isSafeToOpen(relativePath: string): boolean {
+  return new Set([
+    ".csv",
+    ".doc",
+    ".docx",
+    ".gif",
+    ".jpeg",
+    ".jpg",
+    ".md",
+    ".pdf",
+    ".png",
+    ".ppt",
+    ".pptx",
+    ".svg",
+    ".txt",
+    ".webp",
+    ".xls",
+    ".xlsx",
+  ]).has(path.extname(relativePath).toLowerCase());
 }
 
 function readableTextDiff(

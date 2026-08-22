@@ -54,4 +54,74 @@ describe("PiTaskRepository company boundary", () => {
       "A 的任务",
     );
   });
+
+  it("returns verified deliverables and real command checks with the task", () => {
+    const taskId = "019b0000-0000-7000-8000-000000000055";
+    database
+      .prepare(
+        `INSERT INTO pi_task
+        (id, company_id, employee_id, workspace_id, user_input, status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, 'WAITING_ACCEPTANCE', ?, ?)`,
+      )
+      .run(
+        taskId,
+        "019b0000-0000-7000-8000-000000000051",
+        "019b0000-0000-7000-8000-000000000052",
+        "019b0000-0000-7000-8000-000000000053",
+        "创建结果",
+        "2026-08-22T00:00:00.000Z",
+        "2026-08-22T00:00:00.000Z",
+      );
+    repository.upsertDeliverable({
+      taskId,
+      relativePath: "result.md",
+      source: "WORKSPACE_WRITE",
+      changeKind: "CREATED",
+      sha256: "a".repeat(64),
+      sizeBytes: 12,
+      diff: "+结果",
+      sourceCallId: "call-write",
+      registeredAt: "2026-08-22T00:01:00.000Z",
+    });
+    repository.upsertDeliverable({
+      taskId,
+      relativePath: "result.md",
+      source: "WORKSPACE_WRITE",
+      changeKind: "MODIFIED",
+      sha256: "b".repeat(64),
+      sizeBytes: 13,
+      diff: "+新结果",
+      sourceCallId: "call-write-2",
+      registeredAt: "2026-08-22T00:01:30.000Z",
+    });
+    repository.beginCommandCall({
+      taskId,
+      toolCallId: "call-check",
+      command: "node --test",
+      now: "2026-08-22T00:02:00.000Z",
+    });
+    repository.finishCommandCall(
+      "call-check",
+      "SUCCEEDED",
+      { exitCode: 0, durationMs: 42, truncated: false },
+      "2026-08-22T00:02:01.000Z",
+    );
+
+    const task = repository.get(taskId);
+    expect(task?.deliverables).toEqual([
+      expect.objectContaining({
+        relativePath: "result.md",
+        sha256: "b".repeat(64),
+        changeKind: "MODIFIED",
+      }),
+    ]);
+    expect(task?.checks).toEqual([
+      expect.objectContaining({
+        command: "node --test",
+        status: "SUCCEEDED",
+        exitCode: 0,
+        durationMs: 42,
+      }),
+    ]);
+  });
 });

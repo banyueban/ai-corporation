@@ -91,6 +91,8 @@ describe("PiTaskService", () => {
     const repository = new PiTaskRepository(database);
     const workspaceId = "019b7f4d-a100-7000-8000-000000000005";
     const writes: Array<{ relativePath: string; content: string }> = [];
+    const opened: string[] = [];
+    const revealed: string[] = [];
     const service = new PiTaskService({
       companyRepository,
       employeeRepository: { get: () => employee },
@@ -112,6 +114,14 @@ describe("PiTaskService", () => {
         }),
       },
       nativeClient: () => ({
+        inspectWorkspaceFile: async (_rootPath, relativePath) => ({
+          schemaVersion: 1 as const,
+          canonicalPath: `${root}/${relativePath}`,
+          relativePath,
+          sizeBytes: 0,
+          sha256:
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        }),
         listWorkspace: async (_rootPath, relativePath) => ({
           schemaVersion: 1,
           relativePath: relativePath ?? "",
@@ -142,6 +152,11 @@ describe("PiTaskService", () => {
         key: "M7-TU-01-fake-key",
         timeoutMs: 5_000,
       }),
+      openPath: async (canonicalPath) => {
+        opened.push(canonicalPath);
+        return "";
+      },
+      showItemInFolder: (canonicalPath) => revealed.push(canonicalPath),
       createId: () => "019b7f4d-a100-7000-8000-000000000003",
     });
 
@@ -173,12 +188,75 @@ describe("PiTaskService", () => {
     expect(writes).toEqual([
       { relativePath: "result.md", content: "整理完成：测试文字。" },
     ]);
+    expect(completed.deliverables).toEqual([
+      expect.objectContaining({
+        relativePath: "result.md",
+        source: "WORKSPACE_WRITE",
+        changeKind: "CREATED",
+        sizeBytes: Buffer.byteLength("整理完成：测试文字。"),
+      }),
+    ]);
     expect(fixture.requests).toHaveLength(2);
     expect(fixture.requests[0]?.authorization).toBe("Bearer M7-TU-01-fake-key");
     expect(fixture.requests[0]?.body).toMatchObject({
       model: "pi-fixture-model",
       stream: true,
     });
+    const deliverableRequest = {
+      schemaVersion: 2 as const,
+      companyId,
+      taskId: completed.id,
+      relativePath: "result.md",
+    };
+    await expect(
+      service.previewDeliverable(deliverableRequest),
+    ).resolves.toMatchObject({ ok: true, value: { integrity: "CHANGED" } });
+    await expect(
+      service.previewDeliverable({
+        ...deliverableRequest,
+        companyId: "019b7f4d-a100-7000-8000-000000000099",
+      }),
+    ).resolves.toMatchObject({ ok: false, error: { code: "NOT_A_MEMBER" } });
+    await expect(
+      service.previewDeliverable({
+        ...deliverableRequest,
+        relativePath: "not-registered.md",
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: "DELIVERABLE_NOT_FOUND" },
+    });
+    await expect(
+      service.openDeliverable(deliverableRequest),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: { status: "OPENED" },
+    });
+    await expect(
+      service.revealDeliverable(deliverableRequest),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: { status: "REVEALED" },
+    });
+    expect(opened).toEqual([`${root}/result.md`]);
+    expect(revealed).toEqual([`${root}/result.md`]);
+    repository.upsertDeliverable({
+      taskId: completed.id,
+      relativePath: "unsafe.js",
+      source: "COMMAND_REGISTERED",
+      changeKind: "REGISTERED",
+      sha256:
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      sizeBytes: 0,
+      sourceCallId: "call-unsafe",
+      registeredAt: "2026-08-14T00:00:00.500Z",
+    });
+    await expect(
+      service.openDeliverable({
+        ...deliverableRequest,
+        relativePath: "unsafe.js",
+      }),
+    ).resolves.toMatchObject({ ok: false, error: { code: "UNSAFE_OPEN" } });
 
     // 模拟应用在文件写完、写入记录尚未确认时退出；恢复只核对哈希，不重复写入。
     database
@@ -202,6 +280,11 @@ describe("PiTaskService", () => {
     expect(repository.get(completed.id)?.events.at(-1)?.kind).toBe(
       "TOOL_RESULT",
     );
+    expect(
+      repository
+        .get(completed.id)
+        ?.deliverables?.some(({ relativePath }) => relativePath === "empty.md"),
+    ).toBe(true);
     database.close();
   });
 
@@ -280,6 +363,14 @@ describe("PiTaskService", () => {
         }),
       },
       nativeClient: () => ({
+        inspectWorkspaceFile: async (_rootPath, relativePath) => ({
+          schemaVersion: 1 as const,
+          canonicalPath: `${root}/${relativePath}`,
+          relativePath,
+          sizeBytes: 0,
+          sha256:
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        }),
         listWorkspace: async (_rootPath, relativePath) => ({
           schemaVersion: 1,
           relativePath: relativePath ?? "",

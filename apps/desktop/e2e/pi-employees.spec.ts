@@ -93,6 +93,14 @@ test("user creates and restores an independent Pi employee in the visible window
     await expect(
       page.getByRole("heading", { name: "等待你验收" }),
     ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "交付成果", exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText("result.md", { exact: true })).toBeVisible();
+    await expect(page.getByText("新建", { exact: false })).toBeVisible();
+    await expect(page.getByText("本任务没有运行命令检查。")).toBeVisible();
+    await page.getByRole("button", { name: "查看内容" }).click();
+    await expect(page.getByText("内容未变化")).toBeVisible();
     await expect(page.getByText("整理完成：测试文字。").first()).toBeVisible();
     expect(readFileSync(path.join(taskWorkspace, "result.md"), "utf8")).toBe(
       "整理完成：测试文字。",
@@ -169,6 +177,15 @@ test("user creates and restores an independent Pi employee in the visible window
       "用户刚写入的新内容",
       "utf8",
     );
+    await page
+      .locator(".pi-delivery-file")
+      .filter({ hasText: "result.md" })
+      .getByRole("button", { name: "查看内容" })
+      .click();
+    await expect(page.getByText("登记后已变化")).toBeVisible();
+    await expect(
+      page.getByText("用户刚写入的新内容", { exact: true }),
+    ).toBeVisible();
     await page.getByLabel("任务内容").fill("触发并发冲突");
     await page.getByRole("button", { name: "开始任务" }).click();
     await expect(page.getByRole("heading", { name: "运行失败" })).toBeVisible();
@@ -177,6 +194,12 @@ test("user creates and restores an independent Pi employee in the visible window
     );
     await page.getByText("查看完整模型和工具过程").click();
     await expect(page.getByText("工具失败", { exact: true })).toBeVisible();
+
+    await page.getByLabel("任务内容").fill("触发部分成果失败");
+    await page.getByRole("button", { name: "开始任务" }).click();
+    await expect(page.getByRole("heading", { name: "运行失败" })).toBeVisible();
+    await expect(page.getByText("未完成成果", { exact: true })).toBeVisible();
+    await expect(page.getByText("partial.md", { exact: true })).toBeVisible();
 
     await page.getByLabel("任务内容").fill("保持运行，等待我停止");
     await page.getByRole("button", { name: "开始任务" }).click();
@@ -427,6 +450,16 @@ test("coding employee asks once, streams a real command, and asks again for high
     expect(
       readFileSync(path.join(taskWorkspace, "command-result.txt"), "utf8"),
     ).toBe("saved");
+    const commandDeliverable = page
+      .locator(".pi-delivery-file")
+      .filter({ hasText: "command-result.txt" });
+    await expect(commandDeliverable).toBeVisible();
+    await commandDeliverable.getByRole("button", { name: "查看内容" }).click();
+    await expect(page.getByText("saved", { exact: true })).toBeVisible();
+    await expect(page.locator(".pi-delivery-check")).toHaveCount(2);
+    await expect(
+      page.locator(".pi-delivery-check").filter({ hasText: "通过" }),
+    ).toHaveCount(2);
     await page.getByText("查看完整模型和工具过程").click();
     await expect(page.getByText("calculator.js").first()).toBeVisible();
     await expect(page.getByText("命令实时输出").first()).toBeVisible();
@@ -469,6 +502,11 @@ test("coding employee asks once, streams a real command, and asks again for high
       ),
     });
     await page.getByRole("button", { name: "验收通过" }).click();
+    rmSync(path.join(taskWorkspace, "command-result.txt"));
+    await commandDeliverable.getByRole("button", { name: "查看内容" }).click();
+    await expect(
+      page.getByText("交付文件已经不存在。", { exact: true }),
+    ).toBeVisible();
 
     await page.getByLabel("任务内容").fill("验证任务级命令拒绝");
     await page.getByRole("button", { name: "开始任务" }).click();
@@ -589,6 +627,12 @@ async function startCodingProviderFixture() {
               command: `${JSON.stringify(process.execPath)} -e "console.log('M9-SECOND-CHECK-OK')"`,
             }),
           },
+          {
+            name: "workspace_register_deliverable",
+            arguments: JSON.stringify({
+              relativePath: "command-result.txt",
+            }),
+          },
         ] as const;
         const scenarioFirstCalls = {
           TASK_REJECT: {
@@ -700,6 +744,7 @@ async function startProviderFixture() {
   let generationCalls = 0;
   let modelRequests = 0;
   let toolFailureStarted = false;
+  let partialFailureCalls = 0;
   let revisionCalls = 0;
   let conflictStarted = false;
   const firstResultHash = createHash("sha256")
@@ -720,6 +765,65 @@ async function startProviderFixture() {
       request.on("end", () => {
         modelRequests += 1;
         const bodyText = Buffer.concat(chunks).toString("utf8");
+        if (bodyText.includes("触发部分成果失败")) {
+          partialFailureCalls += 1;
+          response.writeHead(200, { "content-type": "text/event-stream" });
+          if (partialFailureCalls <= 2) {
+            const call =
+              partialFailureCalls === 1
+                ? {
+                    id: "call-write-partial",
+                    name: "workspace_write_text",
+                    arguments:
+                      '{"relativePath":"partial.md","content":"尚未完成"}',
+                  }
+                : {
+                    id: "call-fail-after-partial",
+                    name: "missing_demo_tool",
+                    arguments: "{}",
+                  };
+            sendChunk(response, {
+              choices: [
+                {
+                  index: 0,
+                  delta: {
+                    role: "assistant",
+                    tool_calls: [
+                      {
+                        index: 0,
+                        id: call.id,
+                        type: "function",
+                        function: {
+                          name: call.name,
+                          arguments: call.arguments,
+                        },
+                      },
+                    ],
+                  },
+                  finish_reason: null,
+                },
+              ],
+            });
+            sendChunk(response, {
+              choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }],
+            });
+          } else {
+            sendChunk(response, {
+              choices: [
+                {
+                  index: 0,
+                  delta: { role: "assistant", content: "部分成果没有完成。" },
+                  finish_reason: null,
+                },
+              ],
+            });
+            sendChunk(response, {
+              choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+            });
+          }
+          response.end("data: [DONE]\n\n");
+          return;
+        }
         if (bodyText.includes("触发工具失败")) {
           response.writeHead(200, { "content-type": "text/event-stream" });
           if (!toolFailureStarted) {

@@ -2,13 +2,14 @@
 
 use std::fmt;
 use std::fs::{self, OpenOptions};
-use std::io::{self, Write};
+use std::io::{self, BufReader, Read, Write};
 use std::path::{Component, Path, PathBuf};
 
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 pub const MAX_TEXT_BYTES: usize = 1024 * 1024;
+pub const MAX_DELIVERABLE_BYTES: u64 = 100 * 1024 * 1024;
 pub const MAX_LIST_ENTRIES: usize = 200;
 pub const MAX_LIST_DEPTH: usize = 3;
 
@@ -96,6 +97,15 @@ pub struct WorkspaceTextRead {
 
 #[derive(Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct WorkspaceFileInspection {
+    canonical_path: String,
+    relative_path: String,
+    size_bytes: u64,
+    sha256: String,
+}
+
+#[derive(Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WorkspaceTextWrite {
     relative_path: String,
     created: bool,
@@ -161,6 +171,54 @@ pub fn read_workspace_text(
         content,
         size_bytes: bytes.len() as u64,
         sha256: hash_bytes(&bytes),
+    })
+}
+
+/// Verifies and hashes one deliverable without interpreting or modifying it.
+pub fn inspect_workspace_file(
+    root: &Path,
+    candidate_relative_path: &Path,
+) -> Result<WorkspaceFileInspection, WorkspacePathError> {
+    reject_sensitive(candidate_relative_path)?;
+    let resolution = resolve_workspace_path(root, candidate_relative_path)?;
+    if !resolution.target_exists() {
+        return Err(WorkspacePathError::new(WorkspacePathErrorCode::NotFound));
+    }
+    if !resolution.canonical_path().is_file() {
+        return Err(WorkspacePathError::new(WorkspacePathErrorCode::NotFile));
+    }
+    let metadata = fs::metadata(resolution.canonical_path()).map_err(classify_candidate_error)?;
+    if metadata.len() > MAX_DELIVERABLE_BYTES {
+        return Err(WorkspacePathError::new(
+            WorkspacePathErrorCode::FileTooLarge,
+        ));
+    }
+    let file = fs::File::open(resolution.canonical_path()).map_err(classify_candidate_error)?;
+    let mut reader = BufReader::new(file);
+    let mut hasher = Sha256::new();
+    let mut buffer = [0_u8; 64 * 1024];
+    let mut size_bytes = 0_u64;
+    loop {
+        let read = reader.read(&mut buffer).map_err(classify_candidate_error)?;
+        if read == 0 {
+            break;
+        }
+        size_bytes += read as u64;
+        if size_bytes > MAX_DELIVERABLE_BYTES {
+            return Err(WorkspacePathError::new(
+                WorkspacePathErrorCode::FileTooLarge,
+            ));
+        }
+        hasher.update(&buffer[..read]);
+    }
+    if size_bytes != metadata.len() {
+        return Err(WorkspacePathError::new(WorkspacePathErrorCode::Conflict));
+    }
+    Ok(WorkspaceFileInspection {
+        canonical_path: resolution.canonical_path().to_string_lossy().into_owned(),
+        relative_path: portable_relative(resolution.relative_path()),
+        size_bytes,
+        sha256: format!("{:x}", hasher.finalize()),
     })
 }
 
@@ -646,8 +704,8 @@ mod tests {
 
     use super::{
         PERMISSION_PROBE_PREFIX, PermissionMode, WorkspacePathError, WorkspacePathErrorCode,
-        classify_candidate_error, cleanup_probe_with, list_workspace, read_workspace_text,
-        resolve_workspace_path, write_workspace_text,
+        classify_candidate_error, cleanup_probe_with, inspect_workspace_file, list_workspace,
+        read_workspace_text, resolve_workspace_path, write_workspace_text,
     };
 
     static FIXTURE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
@@ -830,6 +888,11 @@ mod tests {
             "link escape must be rejected",
         );
         assert_eq!(error.code(), WorkspacePathErrorCode::LinkEscape);
+        let inspect_error = rejected(
+            inspect_workspace_file(&fixture.root, Path::new("escape/outside.txt")),
+            "linked deliverable outside the workspace must be rejected",
+        );
+        assert_eq!(inspect_error.code(), WorkspacePathErrorCode::LinkEscape);
 
         remove_directory_link(&link)?;
         fixture.cleanup()
@@ -881,6 +944,11 @@ mod tests {
             .map_err(io::Error::other)?;
         assert!(created.created);
         assert_eq!(fs::read_to_string(fixture.root.join("result.md"))?, "first");
+        let inspected = inspect_workspace_file(&fixture.root, Path::new("result.md"))
+            .map_err(io::Error::other)?;
+        assert_eq!(inspected.sha256, created.sha256);
+        assert_eq!(inspected.size_bytes, 5);
+        assert!(inspected.canonical_path.ends_with("result.md"));
 
         let modified = write_workspace_text(
             &fixture.root,
@@ -933,6 +1001,30 @@ mod tests {
             .code(),
             WorkspacePathErrorCode::BinaryFile,
         );
+        fixture.cleanup()
+    }
+
+    #[test]
+    fn inspect_rejects_untrusted_or_invalid_deliverables() -> io::Result<()> {
+        let fixture = Fixture::create()?;
+        fs::write(fixture.root.join(".env"), "SECRET=value")?;
+        let oversized = fs::File::create(fixture.root.join("oversized.bin"))?;
+        oversized.set_len(100 * 1024 * 1024 + 1)?;
+
+        for (path, expected) in [
+            ("missing.txt", WorkspacePathErrorCode::NotFound),
+            ("nested", WorkspacePathErrorCode::NotFile),
+            (".env", WorkspacePathErrorCode::SensitivePath),
+            ("../outside.txt", WorkspacePathErrorCode::OutsideRoot),
+            ("oversized.bin", WorkspacePathErrorCode::FileTooLarge),
+        ] {
+            let error = rejected(
+                inspect_workspace_file(&fixture.root, Path::new(path)),
+                "invalid deliverable must be rejected",
+            );
+            assert_eq!(error.code(), expected);
+        }
+
         fixture.cleanup()
     }
 

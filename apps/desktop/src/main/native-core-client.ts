@@ -7,12 +7,15 @@ import {
   healthResultSchema,
   healthRpcResponseSchema,
   WORKSPACE_CANONICALIZE_RPC_METHOD,
+  WORKSPACE_INSPECT_FILE_RPC_METHOD,
   WORKSPACE_LIST_RPC_METHOD,
   WORKSPACE_READ_TEXT_RPC_METHOD,
   WORKSPACE_SCHEMA_VERSION,
   WORKSPACE_WRITE_TEXT_RPC_METHOD,
   workspaceCanonicalizeResultSchema,
   workspaceCanonicalizeRpcResponseSchema,
+  workspaceInspectFileResultSchema,
+  workspaceInspectFileRpcResponseSchema,
   workspaceListResultSchema,
   workspaceListRpcResponseSchema,
   workspaceReadTextResultSchema,
@@ -21,6 +24,7 @@ import {
   workspaceWriteTextRpcResponseSchema,
   type HealthResult,
   type WorkspaceCanonicalizeResult,
+  type WorkspaceInspectFileResult,
   type WorkspaceListResult,
   type WorkspacePathErrorReason,
   type WorkspaceReadTextResult,
@@ -166,6 +170,18 @@ export class NativeCoreClient {
       { rootPath, relativePath },
       workspaceReadTextRpcResponseSchema,
       workspaceReadTextResultSchema,
+    );
+  }
+
+  inspectWorkspaceFile(
+    rootPath: string,
+    relativePath: string,
+  ): Promise<WorkspaceInspectFileResult> {
+    return this.#workspaceRequest(
+      WORKSPACE_INSPECT_FILE_RPC_METHOD,
+      { rootPath, relativePath },
+      workspaceInspectFileRpcResponseSchema,
+      workspaceInspectFileResultSchema,
     );
   }
 

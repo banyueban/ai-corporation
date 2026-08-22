@@ -193,6 +193,7 @@ describe("migration runner", () => {
       readAppliedMigrations(database).map(({ version }) => version),
     ).toEqual([
       1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+      22,
     ]);
     expect(
       database
@@ -214,6 +215,8 @@ describe("migration runner", () => {
               'pi_workspace_write',
               'idx_pi_workspace_write_task',
               'idx_pi_task_employee_updated',
+              'pi_task_deliverable',
+              'idx_pi_task_deliverable_registered',
               'task_plan',
               'task',
               'task_dependency',
@@ -271,6 +274,7 @@ describe("migration runner", () => {
       "idx_model_call_operation",
       "idx_organization_current",
       "idx_pi_employee_updated",
+      "idx_pi_task_deliverable_registered",
       "idx_pi_task_employee_updated",
       "idx_pi_workspace_write_task",
       "idx_planner_generation_active",
@@ -283,6 +287,7 @@ describe("migration runner", () => {
       "organization_version",
       "pi_employee",
       "pi_task",
+      "pi_task_deliverable",
       "pi_task_event",
       "pi_workspace_write",
       "plan_review_command",

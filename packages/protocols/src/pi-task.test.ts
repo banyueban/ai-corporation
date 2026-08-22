@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  piTaskDeliverableRequestSchema,
+  piTaskDeliverableSchema,
   piTaskResolveCommandApprovalRequestSchema,
   piTaskSchema,
 } from "./pi-task";
@@ -66,5 +68,47 @@ describe("Pi task command approval protocol", () => {
       "APPROVAL_REQUIRED",
       "TOOL_UPDATE",
     ]);
+  });
+});
+
+describe("Pi task deliverable protocol", () => {
+  it("accepts verified file facts without an absolute workspace path", () => {
+    expect(
+      piTaskDeliverableSchema.parse({
+        relativePath: "result.md",
+        source: "WORKSPACE_WRITE",
+        changeKind: "CREATED",
+        sha256: "a".repeat(64),
+        sizeBytes: 12,
+        diff: "+result",
+        registeredAt: "2026-08-22T00:00:00.000Z",
+      }),
+    ).toMatchObject({ relativePath: "result.md", sizeBytes: 12 });
+  });
+
+  it("rejects forged fields and malformed hashes", () => {
+    expect(
+      piTaskDeliverableSchema.safeParse({
+        relativePath: "result.md",
+        source: "WORKSPACE_WRITE",
+        changeKind: "CREATED",
+        sha256: "not-a-hash",
+        sizeBytes: 12,
+        canonicalRootPath: "C:\\secret",
+        registeredAt: "2026-08-22T00:00:00.000Z",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("allows only company, task and relative path in file actions", () => {
+    expect(
+      piTaskDeliverableRequestSchema.safeParse({
+        schemaVersion: 2,
+        companyId,
+        taskId,
+        relativePath: "result.md",
+        absolutePath: "C:\\secret\\result.md",
+      }).success,
+    ).toBe(false);
   });
 });

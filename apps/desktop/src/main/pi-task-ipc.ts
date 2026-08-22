@@ -1,5 +1,6 @@
 import {
   piTaskCommandRequestSchema,
+  piTaskDeliverableRequestSchema,
   piTaskGetRequestSchema,
   piTaskListRequestSchema,
   piTaskRequestChangesRequestSchema,
@@ -7,6 +8,8 @@ import {
   piTaskStartRequestSchema,
   type PiTaskResult,
   type PiTaskListResult,
+  type PiTaskDeliverableActionResult,
+  type PiTaskDeliverablePreviewResult,
 } from "@ai-corporation/protocols";
 import type { PiTaskService } from "./pi-task-service";
 
@@ -56,6 +59,33 @@ export function handlePiTask(
   return action === "cancel"
     ? service.cancel(parsed.data)
     : service.accept(parsed.data);
+}
+
+export async function handlePiTaskDeliverable(
+  action: "preview" | "open" | "reveal",
+  authorized: boolean,
+  request: unknown,
+  service?: PiTaskService,
+): Promise<PiTaskDeliverablePreviewResult | PiTaskDeliverableActionResult> {
+  if (!authorized) {
+    return deliverableIpcFailure("UNAUTHORIZED_CALLER");
+  }
+  const parsed = piTaskDeliverableRequestSchema.safeParse(request);
+  if (!parsed.success || service === undefined) {
+    return deliverableIpcFailure("INVALID_REQUEST");
+  }
+  if (action === "preview") return service.previewDeliverable(parsed.data);
+  if (action === "open") return service.openDeliverable(parsed.data);
+  return service.revealDeliverable(parsed.data);
+}
+
+function deliverableIpcFailure(
+  code: "INVALID_REQUEST" | "UNAUTHORIZED_CALLER",
+) {
+  return {
+    ok: false as const,
+    error: { code, message: "交付成果操作失败" as const },
+  };
 }
 
 export function handlePiTaskList(

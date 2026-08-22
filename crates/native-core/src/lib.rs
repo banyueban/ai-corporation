@@ -5,8 +5,8 @@ use std::io::{self, BufRead, Read, Write};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use workspace_fs::{
-    WorkspacePathError, list_workspace, read_workspace_text, resolve_workspace_path,
-    write_workspace_text,
+    WorkspacePathError, inspect_workspace_file, list_workspace, read_workspace_text,
+    resolve_workspace_path, write_workspace_text,
 };
 
 pub const CRATE_NAME: &str = "native-core";
@@ -155,6 +155,9 @@ fn process_value(value: Value, expected_session_token: &str) -> RpcResponse {
         "workspace.read_text" => {
             process_workspace_read_text(request.id, request.params, expected_session_token)
         }
+        "workspace.inspect_file" => {
+            process_workspace_inspect_file(request.id, request.params, expected_session_token)
+        }
         "workspace.write_text" => {
             process_workspace_write_text(request.id, request.params, expected_session_token)
         }
@@ -228,6 +231,40 @@ fn process_workspace_read_text(
         return error;
     }
     match read_workspace_text(
+        std::path::Path::new(&params.root_path),
+        std::path::Path::new(&params.relative_path),
+    ) {
+        Ok(result) => match serde_json::to_value(result) {
+            Ok(mut value) => {
+                if let Value::Object(object) = &mut value {
+                    object.insert("schemaVersion".to_owned(), Value::from(SCHEMA_VERSION));
+                }
+                RpcResponse::success(id, value)
+            }
+            Err(_) => RpcResponse::error(id, -32603, "Internal error"),
+        },
+        Err(error) => RpcResponse::workspace_error(id, &error),
+    }
+}
+
+fn process_workspace_inspect_file(
+    id: Value,
+    params: Value,
+    expected_session_token: &str,
+) -> RpcResponse {
+    let params = match serde_json::from_value::<WorkspacePathParams>(params) {
+        Ok(params) => params,
+        Err(_) => return RpcResponse::error(id, -32602, "Invalid params"),
+    };
+    if let Some(error) = validate_workspace_request(
+        &id,
+        params.schema_version,
+        &params.session_token,
+        expected_session_token,
+    ) {
+        return error;
+    }
+    match inspect_workspace_file(
         std::path::Path::new(&params.root_path),
         std::path::Path::new(&params.relative_path),
     ) {
@@ -602,6 +639,37 @@ mod tests {
         assert_eq!(response["error"]["data"]["reason"], "OUTSIDE_ROOT");
         assert!(!response_text.contains("sensitive.txt"));
         assert!(!response_text.contains(&root.to_string_lossy().to_string()));
+
+        fs::remove_dir_all(root)
+    }
+
+    #[test]
+    fn workspace_inspect_file_returns_verified_file_facts() -> io::Result<()> {
+        let root = temporary_workspace()?;
+        fs::write(root.join("result.md"), "verified")?;
+        let response = parse_response(&handle_line(
+            &json!({
+                "jsonrpc": "2.0",
+                "id": "workspace-inspect",
+                "method": "workspace.inspect_file",
+                "params": {
+                    "schemaVersion": SCHEMA_VERSION,
+                    "sessionToken": TOKEN,
+                    "rootPath": root.to_string_lossy(),
+                    "relativePath": "result.md",
+                },
+            })
+            .to_string(),
+            TOKEN,
+        ));
+
+        assert_eq!(response["result"]["relativePath"], "result.md");
+        assert_eq!(response["result"]["sizeBytes"], 8);
+        assert_eq!(
+            response["result"]["sha256"],
+            "1c34f88707b55e6104c4eb20e71ffa3d33e414b71ef689a15fad0640d0ac58cb"
+        );
+        assert!(response["result"]["canonicalPath"].is_string());
 
         fs::remove_dir_all(root)
     }

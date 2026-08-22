@@ -9,6 +9,12 @@ export const PI_TASK_REQUEST_CHANGES_IPC_CHANNEL =
   "pi-task:request-changes" as const;
 export const PI_TASK_RESOLVE_COMMAND_APPROVAL_IPC_CHANNEL =
   "pi-task:resolve-command-approval" as const;
+export const PI_TASK_PREVIEW_DELIVERABLE_IPC_CHANNEL =
+  "pi-task:preview-deliverable" as const;
+export const PI_TASK_OPEN_DELIVERABLE_IPC_CHANNEL =
+  "pi-task:open-deliverable" as const;
+export const PI_TASK_REVEAL_DELIVERABLE_IPC_CHANNEL =
+  "pi-task:reveal-deliverable" as const;
 
 const uuid = z.uuidv7();
 const baseRequest = {
@@ -36,6 +42,39 @@ export const piTaskEventSchema = z
   })
   .strict();
 
+const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/u);
+
+export const piTaskDeliverableSchema = z
+  .object({
+    relativePath: z.string().min(1).max(32_767),
+    source: z.enum(["WORKSPACE_WRITE", "COMMAND_REGISTERED"]),
+    changeKind: z.enum(["CREATED", "MODIFIED", "REGISTERED"]),
+    sha256: sha256Schema,
+    sizeBytes: z.number().int().nonnegative().max(104_857_600),
+    diff: z.string().max(2_200_000).optional(),
+    registeredAt: z.iso.datetime({ offset: true }),
+  })
+  .strict();
+
+export const piTaskCheckSchema = z
+  .object({
+    command: z.string().min(1).max(20_000),
+    status: z.enum([
+      "STARTING",
+      "SUCCEEDED",
+      "FAILED",
+      "CANCELLED",
+      "TIMED_OUT",
+      "UNKNOWN",
+    ]),
+    exitCode: z.number().int().nullable().optional(),
+    durationMs: z.number().int().nonnegative().optional(),
+    truncated: z.boolean().optional(),
+    createdAt: z.iso.datetime({ offset: true }),
+    updatedAt: z.iso.datetime({ offset: true }),
+  })
+  .strict();
+
 export const piTaskSchema = z
   .object({
     schemaVersion: z.literal(2),
@@ -55,6 +94,8 @@ export const piTaskSchema = z
     ]),
     finalOutput: z.string().optional(),
     failureMessage: z.string().optional(),
+    deliverables: z.array(piTaskDeliverableSchema).optional(),
+    checks: z.array(piTaskCheckSchema).optional(),
     events: z.array(piTaskEventSchema),
     createdAt: z.iso.datetime({ offset: true }),
     updatedAt: z.iso.datetime({ offset: true }),
@@ -103,6 +144,14 @@ export const piTaskResolveCommandApprovalRequestSchema = z
     decision: z.enum(["APPROVE", "REJECT"]),
   })
   .strict();
+export const piTaskDeliverableRequestSchema = z
+  .object({
+    schemaVersion: z.literal(2),
+    companyId: uuid,
+    taskId: uuid,
+    relativePath: z.string().min(1).max(32_767),
+  })
+  .strict();
 
 const errorSchema = z
   .object({
@@ -129,6 +178,49 @@ export const piTaskListResultSchema = z.discriminatedUnion("ok", [
   z.object({ ok: z.literal(true), value: z.array(piTaskSchema) }).strict(),
   z.object({ ok: z.literal(false), error: errorSchema }).strict(),
 ]);
+const deliverableErrorSchema = z
+  .object({
+    code: z.enum([
+      "INVALID_REQUEST",
+      "UNAUTHORIZED_CALLER",
+      "NOT_FOUND",
+      "NOT_A_MEMBER",
+      "WORKSPACE_NOT_READY",
+      "DELIVERABLE_NOT_FOUND",
+      "FILE_MISSING",
+      "PREVIEW_UNAVAILABLE",
+      "UNSAFE_OPEN",
+      "INTERNAL",
+    ]),
+    message: z.literal("交付成果操作失败"),
+  })
+  .strict();
+export const piTaskDeliverablePreviewResultSchema = z.discriminatedUnion("ok", [
+  z
+    .object({
+      ok: z.literal(true),
+      value: z
+        .object({
+          relativePath: z.string().min(1).max(32_767),
+          content: z.string().max(1_048_576),
+          sizeBytes: z.number().int().nonnegative().max(1_048_576),
+          sha256: sha256Schema,
+          integrity: z.enum(["CURRENT", "CHANGED"]),
+        })
+        .strict(),
+    })
+    .strict(),
+  z.object({ ok: z.literal(false), error: deliverableErrorSchema }).strict(),
+]);
+export const piTaskDeliverableActionResultSchema = z.discriminatedUnion("ok", [
+  z
+    .object({
+      ok: z.literal(true),
+      value: z.object({ status: z.enum(["OPENED", "REVEALED"]) }).strict(),
+    })
+    .strict(),
+  z.object({ ok: z.literal(false), error: deliverableErrorSchema }).strict(),
+]);
 
 export type PiTask = z.infer<typeof piTaskSchema>;
 export type PiTaskStartRequest = z.infer<typeof piTaskStartRequestSchema>;
@@ -140,6 +232,15 @@ export type PiTaskRequestChangesRequest = z.infer<
 >;
 export type PiTaskResolveCommandApprovalRequest = z.infer<
   typeof piTaskResolveCommandApprovalRequestSchema
+>;
+export type PiTaskDeliverableRequest = z.infer<
+  typeof piTaskDeliverableRequestSchema
+>;
+export type PiTaskDeliverablePreviewResult = z.infer<
+  typeof piTaskDeliverablePreviewResultSchema
+>;
+export type PiTaskDeliverableActionResult = z.infer<
+  typeof piTaskDeliverableActionResultSchema
 >;
 export type PiTaskResult = z.infer<typeof piTaskResultSchema>;
 export type PiTaskListResult = z.infer<typeof piTaskListResultSchema>;

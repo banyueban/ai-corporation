@@ -157,13 +157,19 @@ import {
   PI_TASK_CANCEL_IPC_CHANNEL,
   PI_TASK_GET_IPC_CHANNEL,
   PI_TASK_LIST_IPC_CHANNEL,
+  PI_TASK_OPEN_DELIVERABLE_IPC_CHANNEL,
+  PI_TASK_PREVIEW_DELIVERABLE_IPC_CHANNEL,
   PI_TASK_REQUEST_CHANGES_IPC_CHANNEL,
+  PI_TASK_REVEAL_DELIVERABLE_IPC_CHANNEL,
   PI_TASK_RESOLVE_COMMAND_APPROVAL_IPC_CHANNEL,
   PI_TASK_START_IPC_CHANNEL,
   piTaskCommandRequestSchema,
   piTaskGetRequestSchema,
   piTaskListRequestSchema,
   piTaskListResultSchema,
+  piTaskDeliverableActionResultSchema,
+  piTaskDeliverablePreviewResultSchema,
+  piTaskDeliverableRequestSchema,
   piTaskRequestChangesRequestSchema,
   piTaskResolveCommandApprovalRequestSchema,
   piTaskResultSchema,
@@ -171,6 +177,7 @@ import {
   type PiTaskCommandRequest,
   type PiTaskGetRequest,
   type PiTaskListRequest,
+  type PiTaskDeliverableRequest,
   type PiTaskRequestChangesRequest,
   type PiTaskResolveCommandApprovalRequest,
   type PiTaskStartRequest,
@@ -603,6 +610,27 @@ const desktopApi: DesktopApi = Object.freeze({
       invokePiTask(
         PI_TASK_RESOLVE_COMMAND_APPROVAL_IPC_CHANNEL,
         piTaskResolveCommandApprovalRequestSchema.parse(request),
+      ),
+    previewDeliverable: async (request: PiTaskDeliverableRequest) =>
+      piTaskDeliverablePreviewResultSchema.parse(
+        await ipcRenderer.invoke(
+          PI_TASK_PREVIEW_DELIVERABLE_IPC_CHANNEL,
+          piTaskDeliverableRequestSchema.parse(request),
+        ),
+      ),
+    openDeliverable: async (request: PiTaskDeliverableRequest) =>
+      piTaskDeliverableActionResultSchema.parse(
+        await ipcRenderer.invoke(
+          PI_TASK_OPEN_DELIVERABLE_IPC_CHANNEL,
+          piTaskDeliverableRequestSchema.parse(request),
+        ),
+      ),
+    revealDeliverable: async (request: PiTaskDeliverableRequest) =>
+      piTaskDeliverableActionResultSchema.parse(
+        await ipcRenderer.invoke(
+          PI_TASK_REVEAL_DELIVERABLE_IPC_CHANNEL,
+          piTaskDeliverableRequestSchema.parse(request),
+        ),
       ),
   }),
   provider: Object.freeze({
