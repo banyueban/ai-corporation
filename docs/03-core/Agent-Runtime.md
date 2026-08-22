@@ -130,6 +130,16 @@ type AgentContext = {
 - 达到 70% 上下文预算时进行确定性裁剪；
 - 摘要必须保留来源 ID，不能变成无来源事实。
 
+### 6.3 Pi 员工的 Skill 上下文
+
+Pi 员工按 [Skill Runtime](Skill-Runtime.md) 使用标准 Agent Skills：
+
+- 任务开始只注入当前员工已分配 Skill 的名称和用途；
+- 员工根据当前任务自行调用 `skill.activate`，未启用 Skill 不加载完整说明；
+- 参考资料和资源继续按需读取或复制，不向模型提供应用自管副本的绝对路径；
+- Skill 的任何文字和 `allowed-tools` 都不能提升 Tool 权限；
+- 现有 `coding-task` 只要出现在员工的技能列表中，就继续获得原有编码工具集合；本任务不借多 Skill 改写既有命令授权。
+
 ## 7. Prompt 组装
 
 Prompt 不散落在代码中。使用版本化模板：

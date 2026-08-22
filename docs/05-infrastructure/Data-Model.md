@@ -13,11 +13,13 @@
 | Pi Company | `pi_company` | `pi_company` 表；长期轻量公司名称和时间 |
 | Pi Company | 员工成员关系 | `pi_company_employee` 表；同一员工可加入多家公司 |
 | Pi Company | 常用工作区关系 | `pi_company_workspace` 表；不复制或改变 Workspace 授权 |
-| Pi Employee | `pi_employee` | `pi_employee` 表；全局唯一模型和 Skill 配置 |
+| Pi Employee | `pi_employee` | `pi_employee` 表保存全局唯一模型配置；`pi_employee_skill` 保存有顺序的多 Skill 分配 |
 | Pi Task | `pi_task` | `pi_task.company_id` 固定归属一家公司，同时保留员工和实际工作区引用 |
 | Legacy | 旧 `corporation` 及 Goal/Plan/Organization/Run | 原表保留但当前界面不提供入口，不迁移为 `pi_company` |
 
 升级已有 Pi 数据时，迁移只在存在 Pi 员工或任务时创建“我的公司”，把全部现有 Pi 员工、任务和任务引用过的工作区接入。迁移不改变原 Task ID、Employee ID、Workspace ID、事件、工具调用、命令调用、状态或时间，也不产生模型和工具副作用。
+
+`0023_pi_employee_skill.sql` 把每名现有员工的 `pi_employee.skill_name` 原样写成位置 `0` 的关系记录。新版本以 `pi_employee_skill` 为多 Skill 的权威关系；旧列只同步保存列表第一项，避免在本阶段重建被任务和公司成员关系引用的员工表。保存员工时，员工字段、第一项兼容值和完整 Skill 关系必须在同一事务中成功或回滚。
 
 ### 2.2 旧路线映射
 

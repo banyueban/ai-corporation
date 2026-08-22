@@ -703,6 +703,8 @@ Provider 表只保存应用自管 Key Vault 的记录 ID。`key_vault_entry` 保
 
 `0022_pi_task_deliverable.sql` 为 Pi 路线建立轻量任务成果记录。每项记录固定属于 `pi_task` 和该任务的 Workspace，以任务和相对路径唯一；保存来源、创建/修改分类、交付时 SHA-256、大小、可选差异和登记时间。迁移不扫描工作区、不回填旧任务，也不调用模型、工具、命令或外部服务。
 
+`0023_pi_employee_skill.sql` 建立 `pi_employee_skill(employee_id, skill_name, position)`。`employee_id + skill_name` 和 `employee_id + position` 分别唯一，删除员工级联删除分配关系；迁移把每名员工原 `skill_name` 复制为位置 `0`，不要求重建员工。新版本以关系表为权威列表，并在保存事务内让旧 `pi_employee.skill_name` 镜像第一项；员工不得保存空列表。
+
 FTS 同步由事务内 repository 维护并用一致性测试覆盖。
 
 ## 9. 事务示例

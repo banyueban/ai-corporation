@@ -90,6 +90,20 @@ type ToolDescriptor = {
 - 本质复用 process runner；
 - 输出测试报告 Artifact。
 
+### 3.9 标准 Skill 资源工具
+
+- `skill.activate`：只启用当前员工已分配的 Skill，返回完整说明但不返回应用内部绝对路径；
+- `skill.list_resources`：只列出已启用 Skill 的受限相对资源路径、类型和大小；
+- `skill.read_resource`：只读取已启用 Skill 的 `references/` 普通 UTF-8 文本；
+- `skill.copy_asset`：只把已启用 Skill 的 `assets/` 文件复制到当前任务工作区，并沿用工作区边界、并发保护和成果登记；
+- `skill.run_script`：由 M12-TU-02 接入现有命令授权与环境管理，本任务只保留协议位置，不提供虚假的可运行状态。
+
+这些工具接收 Skill 名称和相对路径，Main 侧从当前公司、员工、任务和应用自管 Skill 副本重新求值。`allowed-tools` 只作为 Skill 来源信息，不参与权限计算。Pi 模型使用对应的下划线函数名，Tool Registry 保持点号 ID。
+
+### 3.10 环境管理工具
+
+M12-TU-02 提供独立环境管理工具：先检查运行程序和依赖，缺失时返回可读的安装计划；用户选择自动安装后优先写入项目或 Skill 独立环境，系统级安装必须另行确认。安装、取消、失败和复检均形成真实工具状态，结果未知时不得自动重放或显示成功。未来环境员工只能复用该工具，不能得到额外权限。
+
 ## 4. 命令 Profile
 
 ```ts

@@ -145,6 +145,21 @@
 | File changed | 显示交付哈希与当前文件不一致，不继续声称原成果完整 | 查看当前内容、所在位置 |
 | File missing / unreadable | 显示真实缺失或读取错误 | 查看所在位置或重新执行 |
 
+### 8.2 Pi 员工 Skill
+
+| 状态 | UI | 可用操作 |
+| --- | --- | --- |
+| No skill selected | 员工表单显示“至少选择一项技能”，不保存 | 选择 Skill |
+| Assigned | 显示有顺序的 Skill 名称和用途，不提前读取完整说明 | 编辑分配、开始任务 |
+| Invalid / missing | 标出准确 Skill 名称和原因，不自动替换 | 重新导入或修改员工 |
+| Catalog ready | 任务过程显示员工可用技能目录，只有名称和用途 | 查看目录 |
+| Activating | 显示正在启用的 Skill，禁止同一调用重复提交 | 取消整个任务 |
+| Active | 显示已启用 Skill 和完整说明已送入当前模型过程 | 列出资源 |
+| Resource listed / read | 显示 Skill 名称、受限相对路径、大小和真实结果 | 继续任务、展开过程 |
+| Asset copied | 显示工作区目标相对路径并进入成果区 | 预览或查看成果 |
+| Resource rejected | 显示越界、链接、类型、大小或状态原因，不显示成功 | 修改任务或 Skill |
+| Script unavailable | M12-TU-02 前明确显示脚本尚不能运行 | 查看说明 |
+
 ## 9. Approval 状态
 
 | 状态              | UI 行为                                   |
