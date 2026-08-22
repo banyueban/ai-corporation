@@ -3,40 +3,48 @@ import { z } from "zod";
 export const PI_EMPLOYEE_LIST_IPC_CHANNEL = "pi-employee:list" as const;
 export const PI_EMPLOYEE_SAVE_IPC_CHANNEL = "pi-employee:save" as const;
 
+const skillNameSchema = z
+  .string()
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u)
+  .max(64);
+const skillNamesSchema = z
+  .array(skillNameSchema)
+  .min(1)
+  .max(64)
+  .superRefine((names, context) => {
+    if (new Set(names).size !== names.length) {
+      context.addIssue({ code: "custom", message: "技能不能重复" });
+    }
+  });
+
 export const piEmployeeSchema = z
   .object({
-    schemaVersion: z.literal(1),
+    schemaVersion: z.literal(2),
     id: z.uuidv7(),
     name: z.string().trim().min(1).max(80),
     providerId: z.uuidv7(),
     providerVersion: z.number().int().positive(),
     modelId: z.string().min(1).max(512),
-    skillName: z
-      .string()
-      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u)
-      .max(64),
+    skillNames: skillNamesSchema,
     createdAt: z.iso.datetime({ offset: true }),
     updatedAt: z.iso.datetime({ offset: true }),
   })
   .strict();
 
 export const piEmployeeListRequestSchema = z
-  .object({ schemaVersion: z.literal(1) })
+  .object({ schemaVersion: z.literal(2) })
   .strict();
 
 export const piEmployeeSaveRequestSchema = z
   .object({
-    schemaVersion: z.literal(1),
+    schemaVersion: z.literal(2),
     commandId: z.uuidv7(),
     employeeId: z.uuidv7().optional(),
     name: z.string().trim().min(1).max(80),
     providerId: z.uuidv7(),
     expectedProviderVersion: z.number().int().positive(),
     modelId: z.string().min(1).max(512),
-    skillName: z
-      .string()
-      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/u)
-      .max(64),
+    skillNames: skillNamesSchema,
   })
   .strict();
 

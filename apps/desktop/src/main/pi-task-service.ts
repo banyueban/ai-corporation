@@ -79,6 +79,7 @@ export class PiTaskService {
             | "inspectWorkspaceFile"
             | "listWorkspace"
             | "readWorkspaceText"
+            | "copyWorkspaceAsset"
             | "writeWorkspaceText"
           >
         | undefined;
@@ -211,7 +212,7 @@ export class PiTaskService {
         "软件上次关闭时写入尚未确认，当前无法判断文件是否完整写入。";
       try {
         const workspace = this.#requireWorkspace(pending.workspaceId);
-        const current = await this.#native().readWorkspaceText(
+        const current = await this.#native().inspectWorkspaceFile(
           workspace.canonicalRootPath,
           pending.relativePath,
         );
@@ -221,9 +222,15 @@ export class PiTaskService {
           this.options.taskRepository.upsertDeliverable({
             taskId: pending.taskId,
             relativePath: current.relativePath,
-            source: "WORKSPACE_WRITE",
+            source:
+              pending.operationKind === "SKILL_ASSET"
+                ? "SKILL_ASSET"
+                : "WORKSPACE_WRITE",
             changeKind:
-              pending.baseSha256 === undefined ? "CREATED" : "MODIFIED",
+              pending.operationKind === "SKILL_ASSET" ||
+              pending.baseSha256 === undefined
+                ? "CREATED"
+                : "MODIFIED",
             sha256: current.sha256,
             sizeBytes: current.sizeBytes,
             sourceCallId: pending.toolCallId,
@@ -498,8 +505,11 @@ export class PiTaskService {
     const taskAbortController = new AbortController();
     this.#active.set(taskId, { abortController: taskAbortController });
     try {
-      const instructions = await this.options.skillLibrary.readInstructions(
-        employee.skillName,
+      const skillCatalog = await Promise.all(
+        employee.skillNames.map(async (name) => {
+          const skill = await this.options.skillLibrary.get(name);
+          return { name: skill.name, description: skill.description };
+        }),
       );
       const providerId = `ai-corporation-${employee.providerId}`;
       const model: Model<"openai-completions"> = {
@@ -537,7 +547,7 @@ export class PiTaskService {
           api: openAICompletionsApi(),
         }),
       );
-      const systemPrompt = buildSystemPrompt(employee.name, instructions);
+      const systemPrompt = buildSystemPrompt(employee.name, skillCatalog);
       const agent = new Agent({
         initialState: {
           systemPrompt,
@@ -546,7 +556,7 @@ export class PiTaskService {
           tools: this.#createWorkspaceTools(
             taskId,
             workspaceRoot,
-            employee.skillName === "coding-task",
+            employee.skillNames,
             taskAbortController.signal,
           ),
         },
@@ -673,9 +683,11 @@ export class PiTaskService {
   #createWorkspaceTools(
     taskId: string,
     workspaceRoot: string,
-    allowCommands: boolean,
+    skillNames: readonly string[],
     taskSignal: AbortSignal,
   ): AgentTool[] {
+    // 激活事实只属于当前模型运行；重启不会自动续跑或扩大上下文。
+    const activeSkills = new Set<string>();
     const listParameters = Type.Object({
       relativePath: Type.String({
         description: "要查看的相对目录；根目录使用空字符串",
@@ -703,7 +715,206 @@ export class PiTaskService {
         description: "命令已经真实生成、需要交付给用户的文件相对路径",
       }),
     });
+    const activateSkillParameters = Type.Object({
+      skillName: Type.String({
+        description: "要启用的技能名称，必须来自当前员工的可用技能目录",
+      }),
+    });
+    const skillResourceParameters = Type.Object({
+      skillName: Type.String({ description: "已经启用的技能名称" }),
+    });
+    const readSkillResourceParameters = Type.Object({
+      skillName: Type.String({ description: "已经启用的技能名称" }),
+      relativePath: Type.String({
+        description: "references/ 下的参考资料相对路径",
+      }),
+    });
+    const copySkillAssetParameters = Type.Object({
+      skillName: Type.String({ description: "已经启用的技能名称" }),
+      relativePath: Type.String({
+        description: "assets/ 下的资源相对路径",
+      }),
+      targetRelativePath: Type.String({
+        description: "复制到当前任务工作区的新文件相对路径",
+      }),
+    });
     const tools: AgentTool[] = [
+      {
+        name: "skill_activate",
+        label: "启用技能",
+        description:
+          "根据当前任务启用员工已经分配的一个技能，并读取它的完整工作说明。",
+        parameters: activateSkillParameters,
+        executionMode: "sequential",
+        execute: async (_toolCallId, params, signal) => {
+          requireRunningTask(taskSignal, signal);
+          const { skillName } = params as { skillName: string };
+          if (!skillNames.includes(skillName)) {
+            throw new Error("这个技能没有分配给当前员工。");
+          }
+          const instructions =
+            await this.options.skillLibrary.readInstructions(skillName);
+          requireRunningTask(taskSignal, signal);
+          activeSkills.add(skillName);
+          return toolResult({ skillName, instructions, activated: true });
+        },
+      },
+      {
+        name: "skill_list_resources",
+        label: "列出技能资源",
+        description:
+          "列出已启用技能的参考资料、可复制资源和脚本；本阶段脚本只显示，不能运行。",
+        parameters: skillResourceParameters,
+        executionMode: "sequential",
+        execute: async (_toolCallId, params, signal) => {
+          requireRunningTask(taskSignal, signal);
+          const { skillName } = params as { skillName: string };
+          requireActiveSkill(activeSkills, skillName);
+          const resources =
+            await this.options.skillLibrary.listResources(skillName);
+          requireRunningTask(taskSignal, signal);
+          return toolResult({
+            skillName,
+            resources: resources.map((resource) => ({
+              ...resource,
+              available:
+                resource.kind === "SCRIPT" ? "NOT_YET_RUNNABLE" : "AVAILABLE",
+            })),
+          });
+        },
+      },
+      {
+        name: "skill_read_resource",
+        label: "读取技能参考资料",
+        description: "读取已启用技能 references/ 中的普通 UTF-8 文本。",
+        parameters: readSkillResourceParameters,
+        executionMode: "sequential",
+        execute: async (_toolCallId, params, signal) => {
+          requireRunningTask(taskSignal, signal);
+          const { skillName, relativePath } = params as {
+            skillName: string;
+            relativePath: string;
+          };
+          requireActiveSkill(activeSkills, skillName);
+          const reference = await this.options.skillLibrary.readReference(
+            skillName,
+            relativePath,
+          );
+          requireRunningTask(taskSignal, signal);
+          return toolResult(reference);
+        },
+      },
+      {
+        name: "skill_copy_asset",
+        label: "复制技能资源",
+        description:
+          "把已启用技能 assets/ 中的文件安全复制到当前任务工作区，并登记为交付成果。不会覆盖已有文件。",
+        parameters: copySkillAssetParameters,
+        executionMode: "sequential",
+        execute: async (toolCallId, params, signal) => {
+          requireRunningTask(taskSignal, signal);
+          const { skillName, relativePath, targetRelativePath } = params as {
+            skillName: string;
+            relativePath: string;
+            targetRelativePath: string;
+          };
+          requireActiveSkill(activeSkills, skillName);
+          const asset = await this.options.skillLibrary.inspectAsset(
+            skillName,
+            relativePath,
+          );
+          requireRunningTask(taskSignal, signal);
+          const existing = this.options.taskRepository.beginWorkspaceWrite({
+            toolCallId,
+            taskId,
+            relativePath: targetRelativePath,
+            targetSha256: asset.sha256,
+            operationKind: "SKILL_ASSET",
+            now: this.#now(),
+          });
+          if (existing !== undefined) {
+            if (
+              existing.status === "SUCCEEDED" &&
+              existing.result !== undefined
+            ) {
+              return toolResult(existing.result);
+            }
+            throw new Error(
+              "这次资源复制的状态不明确，软件不会自动重复复制。请检查文件后重新发起任务。",
+            );
+          }
+          if (taskSignal.aborted || signal?.aborted === true) {
+            this.options.taskRepository.finishWorkspaceWrite(
+              toolCallId,
+              "FAILED",
+              { error: "任务已停止，资源复制没有开始。" },
+              this.#now(),
+            );
+            throw new CommandCancelledError();
+          }
+          try {
+            const result = await this.#native().copyWorkspaceAsset(
+              asset.rootDirectory,
+              asset.relativePath,
+              asset.sha256,
+              asset.sizeBytes,
+              workspaceRoot,
+              targetRelativePath,
+            );
+            if (
+              result.sha256 !== asset.sha256 ||
+              result.sizeBytes !== asset.sizeBytes
+            ) {
+              this.options.taskRepository.finishWorkspaceWrite(
+                toolCallId,
+                "UNKNOWN",
+                { error: "复制后的文件与技能资源不一致" },
+                this.#now(),
+              );
+              throw new WorkspaceWriteUnknownError();
+            }
+            const visible = {
+              skillName,
+              sourceRelativePath: asset.relativePath,
+              ...result,
+            };
+            this.options.taskRepository.finishWorkspaceWrite(
+              toolCallId,
+              "SUCCEEDED",
+              visible,
+              this.#now(),
+            );
+            this.options.taskRepository.upsertDeliverable({
+              taskId,
+              relativePath: result.relativePath,
+              source: "SKILL_ASSET",
+              changeKind: "CREATED",
+              sha256: result.sha256,
+              sizeBytes: result.sizeBytes,
+              sourceCallId: toolCallId,
+              registeredAt: this.#now(),
+            });
+            return toolResult(visible);
+          } catch (error) {
+            if (!(error instanceof WorkspaceWriteUnknownError)) {
+              // Native 明确拒绝时可以确认没有写入；超时、断连或写入失败时
+              // 文件可能已经落盘，只能记为状态不明并在下次启动时核对。
+              const status =
+                error instanceof WorkspaceNativeError &&
+                error.reason !== "WRITE_FAILED"
+                  ? "FAILED"
+                  : "UNKNOWN";
+              this.options.taskRepository.finishWorkspaceWrite(
+                toolCallId,
+                status,
+                { error: readableError(error) },
+                this.#now(),
+              );
+            }
+            throw error;
+          }
+        },
+      },
       {
         name: "workspace_list",
         label: "查看工作区目录",
@@ -870,7 +1081,7 @@ export class PiTaskService {
         },
       },
     ];
-    if (allowCommands) {
+    if (skillNames.includes("coding-task")) {
       const commandParameters = Type.Object({
         command: Type.String({
           description:
@@ -1126,8 +1337,29 @@ export class PiTaskService {
   }
 }
 
-function buildSystemPrompt(employeeName: string, skill: string): string {
-  return `你是 AI Corporation 的员工“${employeeName}”。\n\n${skill}\n\n请直接完成用户交代的真实工作区任务。先用 workspace_list 了解目录；需要参考已有内容时用 workspace_read_text。创建文本文件时直接调用 workspace_write_text 且省略 baseSha256；修改已有文本时必须先读取，再把读取结果中的 sha256 原样作为 baseSha256。编码技能还可以调用 workspace_run_command 运行真实检查和测试。workspace_write_text 成功后软件会自动登记交付文件；命令生成了最终交付文件后，必须逐个调用 workspace_register_deliverable 登记。没有登记的命令文件不会出现在交付成果区。不得声称执行了工具没有真正完成的操作。完成后请说明实际创建或修改的相对路径、运行过的检查和真实结果，并提醒用户验收。`;
+function buildSystemPrompt(
+  employeeName: string,
+  skills: readonly { readonly description: string; readonly name: string }[],
+): string {
+  const catalog = skills
+    .map((skill) => `- ${skill.name}：${skill.description}`)
+    .join("\n");
+  return `你是 AI Corporation 的员工“${employeeName}”。\n\n你可以使用以下技能：\n${catalog}\n\n先根据用户任务选择真正匹配的技能，并调用 skill_activate 启用它；不要为了凑数启用无关技能。启用后如需额外资料，先用 skill_list_resources 查看，再按需用 skill_read_resource 读取 references/，或用 skill_copy_asset 把 assets/ 文件复制到工作区。scripts/ 当前只可查看，不能运行。\n\n请直接完成用户交代的真实工作区任务。先用 workspace_list 了解目录；需要参考已有内容时用 workspace_read_text。创建文本文件时直接调用 workspace_write_text 且省略 baseSha256；修改已有文本时必须先读取，再把读取结果中的 sha256 原样作为 baseSha256。拥有编码任务技能时还可以调用 workspace_run_command 运行真实检查和测试。workspace_write_text 和 skill_copy_asset 成功后软件会自动登记交付文件；命令生成了最终交付文件后，必须逐个调用 workspace_register_deliverable 登记。没有登记的命令文件不会出现在交付成果区。不得声称执行了工具没有真正完成的操作。完成后请说明实际创建或修改的相对路径、运行过的检查和真实结果，并提醒用户验收。`;
+}
+
+function requireActiveSkill(activeSkills: ReadonlySet<string>, name: string) {
+  if (!activeSkills.has(name)) {
+    throw new Error("请先启用这个技能，再使用它的资源。");
+  }
+}
+
+function requireRunningTask(
+  taskSignal: AbortSignal,
+  toolSignal: AbortSignal | undefined,
+): void {
+  if (taskSignal.aborted || toolSignal?.aborted === true) {
+    throw new CommandCancelledError();
+  }
 }
 
 function toolResult(details: unknown) {

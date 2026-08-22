@@ -29,6 +29,9 @@ importers:
       '@earendil-works/pi-ai':
         specifier: 0.84.1
         version: 0.84.1(supports-color@7.2.0)(ws@8.21.3)(zod@4.4.3)
+      yaml:
+        specifier: 2.9.0
+        version: 2.9.0
     devDependencies:
       '@ai-corporation/protocols':
         specifier: workspace:*

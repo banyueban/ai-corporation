@@ -36,7 +36,8 @@ export class PiEmployeeService {
         return failure("PROVIDER_NOT_READY");
       }
       const skills = await this.options.skillLibrary.list();
-      if (!skills.some((skill) => skill.name === request.skillName)) {
+      const availableNames = new Set(skills.map((skill) => skill.name));
+      if (request.skillNames.some((name) => !availableNames.has(name))) {
         return failure("SKILL_NOT_FOUND");
       }
       const employeeId =
@@ -55,7 +56,7 @@ export class PiEmployeeService {
           providerId: provider.id,
           providerVersion: provider.version,
           modelId: request.modelId,
-          skillName: request.skillName,
+          skillNames: request.skillNames,
           now: (this.options.clock ?? (() => new Date().toISOString()))(),
         }),
       };

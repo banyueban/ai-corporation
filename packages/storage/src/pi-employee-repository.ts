@@ -13,7 +13,7 @@ export class PiEmployeeRepository {
         ORDER BY updated_at DESC, id`,
       )
       .all()
-      .map(parseRow);
+      .map((row) => this.#parseRow(row));
   }
 
   get(id: string): PiEmployee | undefined {
@@ -24,7 +24,7 @@ export class PiEmployeeRepository {
         FROM pi_employee WHERE id = ?`,
       )
       .get(id);
-    return row === undefined ? undefined : parseRow(row);
+    return row === undefined ? undefined : this.#parseRow(row);
   }
 
   save(input: {
@@ -33,61 +33,88 @@ export class PiEmployeeRepository {
     readonly providerId: string;
     readonly providerVersion: number;
     readonly modelId: string;
-    readonly skillName: string;
+    readonly skillNames: readonly string[];
     readonly now: string;
   }): PiEmployee {
-    const existing = this.get(input.id);
-    if (existing === undefined) {
-      this.database
-        .prepare(
-          `INSERT INTO pi_employee (
-            id, name, provider_id, provider_version, model_id, skill_name,
-            created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        )
-        .run(
-          input.id,
-          input.name,
-          input.providerId,
-          input.providerVersion,
-          input.modelId,
-          input.skillName,
-          input.now,
-          input.now,
-        );
-    } else {
-      this.database
-        .prepare(
-          `UPDATE pi_employee SET name = ?, provider_id = ?,
-            provider_version = ?, model_id = ?, skill_name = ?, updated_at = ?
-          WHERE id = ?`,
-        )
-        .run(
-          input.name,
-          input.providerId,
-          input.providerVersion,
-          input.modelId,
-          input.skillName,
-          input.now,
-          input.id,
-        );
+    const firstSkill = input.skillNames[0];
+    if (firstSkill === undefined) throw new Error("Employee needs a skill");
+    this.database.exec("BEGIN IMMEDIATE");
+    try {
+      const existing = this.get(input.id);
+      if (existing === undefined) {
+        this.database
+          .prepare(
+            `INSERT INTO pi_employee (
+              id, name, provider_id, provider_version, model_id, skill_name,
+              created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          )
+          .run(
+            input.id,
+            input.name,
+            input.providerId,
+            input.providerVersion,
+            input.modelId,
+            firstSkill,
+            input.now,
+            input.now,
+          );
+      } else {
+        this.database
+          .prepare(
+            `UPDATE pi_employee SET name = ?, provider_id = ?,
+              provider_version = ?, model_id = ?, skill_name = ?, updated_at = ?
+            WHERE id = ?`,
+          )
+          .run(
+            input.name,
+            input.providerId,
+            input.providerVersion,
+            input.modelId,
+            firstSkill,
+            input.now,
+            input.id,
+          );
+        this.database
+          .prepare("DELETE FROM pi_employee_skill WHERE employee_id = ?")
+          .run(input.id);
+      }
+      const insertSkill = this.database.prepare(
+        `INSERT INTO pi_employee_skill (employee_id, skill_name, position)
+         VALUES (?, ?, ?)`,
+      );
+      input.skillNames.forEach((skillName, position) => {
+        insertSkill.run(input.id, skillName, position);
+      });
+      this.database.exec("COMMIT");
+    } catch (error) {
+      this.database.exec("ROLLBACK");
+      throw error;
     }
     const saved = this.get(input.id);
     if (saved === undefined) throw new Error("Employee save failed");
     return saved;
   }
-}
 
-function parseRow(row: Readonly<Record<string, unknown>>): PiEmployee {
-  return piEmployeeSchema.parse({
-    schemaVersion: 1,
-    id: row.id,
-    name: row.name,
-    providerId: row.provider_id,
-    providerVersion: row.provider_version,
-    modelId: row.model_id,
-    skillName: row.skill_name,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  });
+  #parseRow(row: Readonly<Record<string, unknown>>): PiEmployee {
+    if (typeof row.id !== "string") throw new Error("Employee row is invalid");
+    const skills = this.database
+      .prepare(
+        `SELECT skill_name FROM pi_employee_skill
+         WHERE employee_id = ? ORDER BY position`,
+      )
+      .all(row.id)
+      .map(({ skill_name }) => String(skill_name));
+    return piEmployeeSchema.parse({
+      schemaVersion: 2,
+      id: row.id,
+      name: row.name,
+      providerId: row.provider_id,
+      providerVersion: row.provider_version,
+      modelId: row.model_id,
+      skillNames: skills,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    });
+  }
 }

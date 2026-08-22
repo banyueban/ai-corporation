@@ -7,6 +7,7 @@ import {
   healthResultSchema,
   healthRpcResponseSchema,
   WORKSPACE_CANONICALIZE_RPC_METHOD,
+  WORKSPACE_COPY_ASSET_RPC_METHOD,
   WORKSPACE_INSPECT_FILE_RPC_METHOD,
   WORKSPACE_LIST_RPC_METHOD,
   WORKSPACE_READ_TEXT_RPC_METHOD,
@@ -14,6 +15,8 @@ import {
   WORKSPACE_WRITE_TEXT_RPC_METHOD,
   workspaceCanonicalizeResultSchema,
   workspaceCanonicalizeRpcResponseSchema,
+  workspaceCopyAssetResultSchema,
+  workspaceCopyAssetRpcResponseSchema,
   workspaceInspectFileResultSchema,
   workspaceInspectFileRpcResponseSchema,
   workspaceListResultSchema,
@@ -24,6 +27,7 @@ import {
   workspaceWriteTextRpcResponseSchema,
   type HealthResult,
   type WorkspaceCanonicalizeResult,
+  type WorkspaceCopyAssetResult,
   type WorkspaceInspectFileResult,
   type WorkspaceListResult,
   type WorkspacePathErrorReason,
@@ -32,6 +36,7 @@ import {
 } from "@ai-corporation/protocols";
 
 const REQUEST_TIMEOUT_MS = 5_000;
+const ASSET_COPY_TIMEOUT_MS = 30_000;
 const SESSION_TOKEN_ENV = "AI_CORPORATION_SESSION_TOKEN";
 
 interface PendingRequest {
@@ -204,6 +209,30 @@ export class NativeCoreClient {
     );
   }
 
+  copyWorkspaceAsset(
+    sourceRootPath: string,
+    sourceRelativePath: string,
+    expectedSha256: string,
+    expectedSizeBytes: number,
+    rootPath: string,
+    relativePath: string,
+  ): Promise<WorkspaceCopyAssetResult> {
+    return this.#workspaceRequest(
+      WORKSPACE_COPY_ASSET_RPC_METHOD,
+      {
+        sourceRootPath,
+        sourceRelativePath,
+        expectedSha256,
+        expectedSizeBytes,
+        rootPath,
+        relativePath,
+      },
+      workspaceCopyAssetRpcResponseSchema,
+      workspaceCopyAssetResultSchema,
+      ASSET_COPY_TIMEOUT_MS,
+    );
+  }
+
   stop(): void {
     this.#reader.close();
     this.#rejectAll(new Error("Native Core stopped"));
@@ -263,6 +292,7 @@ export class NativeCoreClient {
         value: unknown,
       ): { success: true; data: T } | { success: false };
     },
+    timeoutMs = REQUEST_TIMEOUT_MS,
   ): Promise<T> {
     return this.#request(
       method,
@@ -289,6 +319,7 @@ export class NativeCoreClient {
           throw new Error("Native Core returned an invalid response");
         return result.data;
       },
+      timeoutMs,
     );
   }
 
@@ -296,6 +327,7 @@ export class NativeCoreClient {
     method: string,
     params: Readonly<Record<string, unknown>>,
     parseResponse: (response: unknown) => T,
+    timeoutMs = REQUEST_TIMEOUT_MS,
   ): Promise<T> {
     const id = randomUUID();
 
@@ -303,7 +335,7 @@ export class NativeCoreClient {
       const timeout = setTimeout(() => {
         this.#pending.delete(id);
         reject(new Error("Native Core request timed out"));
-      }, REQUEST_TIMEOUT_MS);
+      }, timeoutMs);
       const receive = (response: unknown) => {
         try {
           resolve(parseResponse(response));

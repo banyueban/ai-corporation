@@ -572,6 +572,42 @@ h3 {
   overflow: hidden;
 }
 
+.field-label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 700;
+}
+
+.skill-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.skill-picker-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.65rem;
+  align-items: start;
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid #27364b;
+  border-radius: 0.7rem;
+  background: #0c1421;
+}
+
+.skill-picker-option input {
+  margin-top: 0.2rem;
+}
+
+.skill-picker-option span,
+.skill-picker-option small {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .pi-task-details,
 .pi-task-details ol,
 .pi-task-details li {

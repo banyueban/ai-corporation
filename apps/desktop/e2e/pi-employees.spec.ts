@@ -401,7 +401,8 @@ test("coding employee asks once, streams a real command, and asks again for high
       .getByLabel("Provider")
       .selectOption({ label: "编码验收 Provider" });
     await page.getByLabel("模型").selectOption("pi-coding-fixture-model");
-    await page.getByLabel("技能", { exact: true }).selectOption("coding-task");
+    await page.getByLabel(/text-organize/u).uncheck();
+    await page.getByLabel(/coding-task/u).check();
     await page.getByRole("button", { name: "创建员工" }).click();
     await expect(page.getByText("技能：coding-task")).toBeVisible();
     await page.getByRole("button", { name: "添加工作区" }).click();

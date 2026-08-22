@@ -3,7 +3,7 @@
 | 字段 | 内容 |
 | --- | --- |
 | 任务单元 ID | M12-TU-01 |
-| 状态 | 就绪 |
+| 状态 | 进行中 |
 | 所属 Milestone | Milestone 12：标准 Agent Skills 运行底座 |
 | 主要结果 | 一名员工可以拥有多项标准 Skill；用户直接交代任务后，员工只加载简短目录，自动启用匹配 Skill，并按需读取参考资料或把资源复制成真实工作成果。 |
 | 基线提交 | `ed9140f553f602495a27c401988791ece8b2d9b3` |
@@ -87,23 +87,23 @@
 
 ## 8. 验收合同
 
-- [ ] 1. Given 合法标准 Skill 含必需和全部支持的可选字段，When 用户导入，Then 软件保存并重新加载同值元数据；文件夹名不匹配、字段错误或非法名称时整体拒绝且旧副本不变。Evidence：解析器/Skill Library 单元测试和导入服务测试。
-- [ ] 2. Given 至少三项已导入 Skill，When 用户创建或编辑员工并选择两项，Then 重启后顺序和用途保持；空列表、重复名或不存在 Skill 固定拒绝。Evidence：协议、Repository、服务和真实窗口测试。
-- [ ] 3. Given `0022` 旧库中员工只有 `skill_name`，When 升级到 `0023`，Then 每人得到唯一位置 `0` 关系，原任务/公司成员/员工 ID 不变且 foreign key check 通过；空库迁移也通过。Evidence：迁移矩阵测试和数据库断言。
-- [ ] 4. Given 同一员工加入两家公司，When 任一公司查看或编辑员工，Then 两处引用同一多 Skill 配置且任务和成果仍按公司隔离。Evidence：Repository 与公司窗口回归。
-- [ ] 5. Given 员工分配两个 fixture Skill，When 开始只匹配其中一个的任务，Then 首轮模型输入只含两项名称和用途，不含任一完整说明或资源正文。Evidence：受控 Provider 请求记录断言。
-- [ ] 6. Given 上述任务，When 模型调用匹配 Skill 的 `skill_activate`，Then 只返回该 Skill 完整说明并在过程区显示启用成功；另一项保持未启用。Evidence：Pi Task 集成测试和窗口过程断言。
-- [ ] 7. Given 模型请求未分配、缺失、损坏或未启用 Skill/资源，When 工具校验，Then 调用被固定拒绝，模型和 UI 得到准确原因，不泄漏绝对路径。Evidence：服务攻击测试和过程快照。
-- [ ] 8. Given 已启用 Skill 含 reference、asset 和 script fixture，When 列出资源，Then 只返回受限相对路径、类型和大小；script 明确为本任务不可运行。Evidence：资源枚举测试。
-- [ ] 9. Given 已启用 Skill 的合法 UTF-8 reference，When 员工读取，Then 返回受限正文并显示读取过程；绝对路径、`..`、链接、目录、assets 混读、二进制和超限文件均拒绝。Evidence：跨平台路径攻击集。
-- [ ] 10. Given 已启用 Skill 的合法 asset 和可写任务 Workspace，When 员工复制到新相对路径，Then 真实字节、哈希和目标一致，成果区登记该文件。Evidence：Native/Main 集成测试、真实文件断言和成果区窗口测试。
-- [ ] 11. Given 目标已存在、基线改变、来源或目标链接、越界、取消或超限，When 复制 asset，Then 不覆盖并发变化、不产生虚假成果，错误和恢复状态准确。Evidence：Native 攻击/并发/取消测试。
-- [ ] 12. Given Skill 的 `allowed-tools` 或正文声称已获权限，When 请求命令、未交付脚本或未分配工具，Then 原有 Policy 和审批仍生效，脚本不会运行。Evidence：权限回归和 Prompt 注入测试。
-- [ ] 13. Given `coding-task` 位于员工技能列表任意位置，When 执行现有编码任务，Then 原文件、命令和成果闭环继续工作；不含 `coding-task` 时不因其他 Skill 名称意外获得其专属映射。Evidence：Pi Task 回归测试和编码 E2E。
-- [ ] 14. Given Skill 启用、列出、读取、复制成功或失败，When 用户展开过程，Then 模型输入、原始输出、工具名称、逻辑 Skill 名称、相对路径、状态、耗时和错误按发生顺序可见，无应用自管绝对路径。Evidence：开发态真实窗口 E2E 与截图检查。
-- [ ] 15. Given Renderer 重载或应用在模型/只读工具/复制操作间中断，When 恢复，Then 已完成事实保持，进行中副作用不自动重放，同一资源不重复登记。Evidence：重载、进程重启和幂等测试。
-- [ ] 16. Given 1024×700、1440×900 和 200% 缩放，When 创建多 Skill 员工并查看长名称、长用途和工具过程，Then 无竖排、重叠、遮挡或关键操作不可见。Evidence：布局断言和开发态截图人工检查。
-- [ ] 17. Given Windows 开发态与最终打包程序，When 完成“多 Skill → 自动启用 → 读 reference → 复制 asset → 查看成果”连续旅程，Then 真实窗口可交互且结果与文件一致。Evidence：开发态和打包程序 Electron E2E。
+- [x] 1. Given 合法标准 Skill 含必需和全部支持的可选字段，When 用户导入，Then 软件保存并重新加载同值元数据；文件夹名不匹配、字段错误或非法名称时整体拒绝且旧副本不变。Evidence：解析器/Skill Library 单元测试和导入服务测试。
+- [x] 2. Given 至少三项已导入 Skill，When 用户创建或编辑员工并选择两项，Then 重启后顺序和用途保持；空列表、重复名或不存在 Skill 固定拒绝。Evidence：协议、Repository、服务和真实窗口测试。
+- [x] 3. Given `0022` 旧库中员工只有 `skill_name`，When 升级到 `0023`，Then 每人得到唯一位置 `0` 关系，原任务/公司成员/员工 ID 不变且 foreign key check 通过；空库迁移也通过。Evidence：迁移矩阵测试和数据库断言。
+- [x] 4. Given 同一员工加入两家公司，When 任一公司查看或编辑员工，Then 两处引用同一多 Skill 配置且任务和成果仍按公司隔离。Evidence：Repository 与公司窗口回归。
+- [x] 5. Given 员工分配两个 fixture Skill，When 开始只匹配其中一个的任务，Then 首轮模型输入只含两项名称和用途，不含任一完整说明或资源正文。Evidence：受控 Provider 请求记录断言。
+- [x] 6. Given 上述任务，When 模型调用匹配 Skill 的 `skill_activate`，Then 只返回该 Skill 完整说明并在过程区显示启用成功；另一项保持未启用。Evidence：Pi Task 集成测试和窗口过程断言。
+- [x] 7. Given 模型请求未分配、缺失、损坏或未启用 Skill/资源，When 工具校验，Then 调用被固定拒绝，模型和 UI 得到准确原因，不泄漏绝对路径。Evidence：服务攻击测试和过程快照。
+- [x] 8. Given 已启用 Skill 含 reference、asset 和 script fixture，When 列出资源，Then 只返回受限相对路径、类型和大小；script 明确为本任务不可运行。Evidence：资源枚举测试。
+- [x] 9. Given 已启用 Skill 的合法 UTF-8 reference，When 员工读取，Then 返回受限正文并显示读取过程；绝对路径、`..`、链接、目录、assets 混读、二进制和超限文件均拒绝。Evidence：跨平台路径攻击集。
+- [x] 10. Given 已启用 Skill 的合法 asset 和可写任务 Workspace，When 员工复制到新相对路径，Then 真实字节、哈希和目标一致，成果区登记该文件。Evidence：Native/Main 集成测试、真实文件断言和成果区窗口测试。
+- [x] 11. Given 目标已存在、基线改变、来源或目标链接、越界、取消或超限，When 复制 asset，Then 不覆盖并发变化、不产生虚假成果，错误和恢复状态准确。Evidence：Native 攻击/并发/取消测试。
+- [x] 12. Given Skill 的 `allowed-tools` 或正文声称已获权限，When 请求命令、未交付脚本或未分配工具，Then 原有 Policy 和审批仍生效，脚本不会运行。Evidence：权限回归和 Prompt 注入测试。
+- [x] 13. Given `coding-task` 位于员工技能列表任意位置，When 执行现有编码任务，Then 原文件、命令和成果闭环继续工作；不含 `coding-task` 时不因其他 Skill 名称意外获得其专属映射。Evidence：Pi Task 回归测试和编码 E2E。
+- [x] 14. Given Skill 启用、列出、读取、复制成功或失败，When 用户展开过程，Then 模型输入、原始输出、工具名称、逻辑 Skill 名称、相对路径、状态、耗时和错误按发生顺序可见，无应用自管绝对路径。Evidence：开发态真实窗口 E2E 与截图检查。
+- [x] 15. Given Renderer 重载或应用在模型/只读工具/复制操作间中断，When 恢复，Then 已完成事实保持，进行中副作用不自动重放，同一资源不重复登记。Evidence：重载、进程重启和幂等测试。
+- [x] 16. Given 1024×700、1440×900 和 200% 缩放，When 创建多 Skill 员工并查看长名称、长用途和工具过程，Then 无竖排、重叠、遮挡或关键操作不可见。Evidence：布局断言和开发态截图人工检查。
+- [x] 17. Given Windows 开发态与最终打包程序，When 完成“多 Skill → 自动启用 → 读 reference → 复制 asset → 查看成果”连续旅程，Then 真实窗口可交互且结果与文件一致。Evidence：开发态和打包程序 Electron E2E。
 - [ ] 18. Given 当前验收候选提交，When Windows x64 与 macOS Apple Silicon CI 运行，Then 工程检查、真实窗口、应用构建、打包程序检查和 artifact 上传全部通过。Evidence：同一提交的 GitHub Actions jobs；平台证据不互相替代。
 
 ## 9. 隔离与干扰控制

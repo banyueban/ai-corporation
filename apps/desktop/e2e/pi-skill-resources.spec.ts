@@ -1,0 +1,493 @@
+import { createServer } from "node:http";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { expect, test } from "@playwright/test";
+import { _electron as electron } from "playwright";
+
+const RESOURCE_SKILL = "presentation-template-production-assets";
+const PRIVATE_INSTRUCTIONS = "M12-PRIVATE-FULL-INSTRUCTIONS";
+const REFERENCE_CONTENT = "M12-REFERENCE-CONTENT";
+
+test("employee automatically activates one of multiple Skills and copies its asset", async () => {
+  test.setTimeout(60_000);
+  const fixture = await startProviderFixture();
+  const userDataDirectory = mkdtempSync(
+    path.join(tmpdir(), "M12-TU-01-electron-user-data-"),
+  );
+  const taskWorkspace = mkdtempSync(
+    path.join(tmpdir(), "M12-TU-01-workspace-with-a-long-display-path-"),
+  );
+  const managedSkillRoot = path.join(userDataDirectory, "pi-skills");
+  writeManagedSkillFixture(managedSkillRoot);
+  let app = await launchApplication(userDataDirectory, taskWorkspace);
+
+  try {
+    let page = await app.firstWindow();
+    await page.getByRole("button", { name: "设置" }).click();
+    await page.getByLabel("名称").fill("M12 验收 Provider");
+    await page.getByLabel("API 基础 URL").fill(fixture.endpoint);
+    await page.getByLabel("API Key").fill("M12-TU-01-e2e-fake-key");
+    await page.getByRole("button", { name: "保存模型服务商" }).click();
+    await page.getByRole("button", { name: "测试连接" }).click();
+    await expect(page.getByRole("heading", { name: "已验证" })).toBeVisible();
+
+    await page.getByRole("button", { name: "控制台" }).click();
+    await page.getByLabel("公司名称").fill("模板成果公司");
+    await page.getByRole("button", { name: "新建公司" }).click();
+    const resourceCard = page.getByRole("article").filter({
+      has: page.getByRole("heading", { name: RESOURCE_SKILL }),
+    });
+    await expect(resourceCard).toBeVisible();
+    await expect(resourceCard.getByText(/不会自动获得权限/u)).toBeVisible();
+
+    await page.getByLabel(new RegExp(RESOURCE_SKILL, "u")).check();
+    await page
+      .getByLabel("员工姓名")
+      .fill("负责模板交付与内容整理的多技能员工");
+    await page
+      .getByLabel("Provider")
+      .selectOption({ label: "M12 验收 Provider" });
+    await page.getByLabel("模型").selectOption("pi-skill-fixture-model");
+    await page.getByRole("button", { name: "创建员工" }).click();
+    await expect(
+      page.getByText(`技能：text-organize、${RESOURCE_SKILL}`),
+    ).toBeVisible();
+
+    // 编辑入口读取同一份员工资料，两项 Skill 都必须保持选中。
+    const employeeCard = page.getByRole("article").filter({
+      has: page.getByRole("heading", {
+        name: "负责模板交付与内容整理的多技能员工",
+      }),
+    });
+    await employeeCard.getByRole("button", { name: "编辑员工" }).click();
+    await expect(page.getByLabel(/text-organize/u)).toBeChecked();
+    await expect(
+      page.getByLabel(new RegExp(RESOURCE_SKILL, "u")),
+    ).toBeChecked();
+    await page.getByRole("button", { name: "取消编辑" }).click();
+
+    await page.getByRole("button", { name: "添加工作区" }).click();
+    await page
+      .getByLabel("任务内容")
+      .fill(
+        "请按模板技能的参考资料，把模板资源复制到工作区。不要启用无关技能。",
+      );
+    await page.getByRole("button", { name: "开始任务" }).click();
+    await expect(
+      page.getByRole("heading", { name: "等待你验收" }),
+    ).toBeVisible();
+    await expect(page.getByText("template.bin", { exact: true })).toBeVisible();
+    expect(readFileSync(path.join(taskWorkspace, "template.bin"))).toEqual(
+      Buffer.from([0, 1, 2, 255]),
+    );
+
+    await page.getByText("查看完整模型和工具过程").click();
+    for (const toolName of [
+      "skill_activate",
+      "skill_list_resources",
+      "skill_read_resource",
+      "skill_copy_asset",
+    ]) {
+      await expect(
+        page.locator("pre").filter({ hasText: toolName }).first(),
+      ).toBeVisible();
+    }
+    await expect(
+      page.locator("pre").filter({ hasText: "NOT_YET_RUNNABLE" }).first(),
+    ).toBeVisible();
+
+    const requests = fixture.requests();
+    const firstRequest = JSON.stringify(requests[0]);
+    const firstTools = (
+      requests[0] as {
+        readonly tools?: readonly {
+          readonly function?: { readonly name?: string };
+        }[];
+      }
+    ).tools?.map((tool) => tool.function?.name);
+    expect(firstRequest).toContain("text-organize");
+    expect(firstRequest).toContain(RESOURCE_SKILL);
+    expect(firstRequest).not.toContain(PRIVATE_INSTRUCTIONS);
+    expect(firstRequest).not.toContain(REFERENCE_CONTENT);
+    expect(firstTools).not.toContain("workspace_run_command");
+    expect(JSON.stringify(requests.slice(1))).toContain(PRIVATE_INSTRUCTIONS);
+    expect(JSON.stringify(requests.slice(2))).toContain(REFERENCE_CONTENT);
+    expect(JSON.stringify(requests)).not.toContain(managedSkillRoot);
+
+    await app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0];
+      window?.setSize(1024, 700);
+      window?.webContents.setZoomFactor(1);
+    });
+    await waitForPaint(page);
+    await expectPageHasNoHorizontalOverflow(page);
+    await page.screenshot({
+      animations: "disabled",
+      path: path.resolve(
+        __dirname,
+        "../../../release",
+        `m12-tu01-${process.env.AI_CORPORATION_PACKAGED_EXE === undefined ? "dev" : "packaged"}-${process.platform}-${process.arch}-1024x700.png`,
+      ),
+    });
+
+    await app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0];
+      window?.webContents.setZoomFactor(2);
+    });
+    const zoomedDeliverable = page.locator(".pi-delivery-file").filter({
+      hasText: "template.bin",
+    });
+    await zoomedDeliverable.scrollIntoViewIfNeeded();
+    await expect(zoomedDeliverable).toBeInViewport();
+    await page.bringToFront();
+    await waitForPaint(page);
+    await page.waitForTimeout(500);
+    await expectPageHasNoHorizontalOverflow(page);
+    await captureElectronViewport(
+      app,
+      path.resolve(
+        __dirname,
+        "../../../release",
+        `m12-tu01-${process.env.AI_CORPORATION_PACKAGED_EXE === undefined ? "dev" : "packaged"}-${process.platform}-${process.arch}-1024x700-200-percent.png`,
+      ),
+    );
+
+    await app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0];
+      window?.setSize(1440, 900);
+      window?.webContents.setZoomFactor(1);
+    });
+    await waitForPaint(page);
+    await expectPageHasNoHorizontalOverflow(page);
+    await page.screenshot({
+      animations: "disabled",
+      path: path.resolve(
+        __dirname,
+        "../../../release",
+        `m12-tu01-${process.env.AI_CORPORATION_PACKAGED_EXE === undefined ? "dev" : "packaged"}-${process.platform}-${process.arch}-1440x900.png`,
+      ),
+    });
+
+    await page.getByRole("button", { name: "验收通过" }).click();
+    await expect(page.getByRole("heading", { name: "已完成" })).toBeVisible();
+    const callsBeforeRestart = fixture.requests().length;
+    await app.close();
+    app = await launchApplication(userDataDirectory);
+    page = await app.firstWindow();
+    await page.getByRole("button", { name: "员工", exact: true }).click();
+    await expect(
+      page.getByText(`技能：text-organize、${RESOURCE_SKILL}`),
+    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "已完成" })).toBeVisible();
+    expect(fixture.requests()).toHaveLength(callsBeforeRestart);
+
+    // 同一员工加入第二家公司时仍使用同一组 Skill，第一家任务不会串过来。
+    await page.getByRole("button", { name: "控制台" }).click();
+    await page.getByLabel("公司名称").fill("第二模板公司");
+    await page.getByRole("button", { name: "新建公司" }).click();
+    const reusedEmployee = page.getByRole("article").filter({
+      has: page.getByRole("heading", {
+        name: "负责模板交付与内容整理的多技能员工",
+      }),
+    });
+    await expect(
+      reusedEmployee.getByText(`技能：text-organize、${RESOURCE_SKILL}`),
+    ).toBeVisible();
+    await reusedEmployee.getByRole("button", { name: "加入当前公司" }).click();
+    await expect(
+      page.getByRole("heading", { name: "本公司的任务记录" }),
+    ).toHaveCount(0);
+  } finally {
+    await app.close().catch(() => undefined);
+    await fixture.close();
+    await removeTemporaryDirectory(userDataDirectory);
+    await removeTemporaryDirectory(taskWorkspace);
+  }
+});
+
+function writeManagedSkillFixture(managedRoot: string): void {
+  const skillRoot = path.join(managedRoot, RESOURCE_SKILL);
+  mkdirSync(path.join(skillRoot, "references"), { recursive: true });
+  mkdirSync(path.join(skillRoot, "assets"), { recursive: true });
+  mkdirSync(path.join(skillRoot, "scripts"), { recursive: true });
+  writeFileSync(
+    path.join(skillRoot, "SKILL.md"),
+    `---
+name: ${RESOURCE_SKILL}
+description: 在用户要求使用演示文稿模板资源并核对模板说明时启用，不用于普通文字整理。
+license: Apache-2.0
+compatibility: Requires a writable task workspace
+metadata:
+  author: ai-corporation-fixture
+allowed-tools: Bash(*) Read
+---
+${PRIVATE_INSTRUCTIONS}
+先读取参考资料，再复制指定资源。
+`,
+    "utf8",
+  );
+  writeFileSync(
+    path.join(skillRoot, "references", "guide.md"),
+    REFERENCE_CONTENT,
+    "utf8",
+  );
+  writeFileSync(
+    path.join(skillRoot, "assets", "template.bin"),
+    Buffer.from([0, 1, 2, 255]),
+  );
+  writeFileSync(
+    path.join(skillRoot, "scripts", "prepare.js"),
+    "console.log('not runnable in M12-TU-01');\n",
+    "utf8",
+  );
+}
+
+async function startProviderFixture() {
+  const requests: unknown[] = [];
+  const calls = [
+    {
+      name: "skill_activate",
+      arguments: { skillName: RESOURCE_SKILL },
+    },
+    {
+      name: "skill_list_resources",
+      arguments: { skillName: RESOURCE_SKILL },
+    },
+    {
+      name: "skill_read_resource",
+      arguments: {
+        skillName: RESOURCE_SKILL,
+        relativePath: "references/guide.md",
+      },
+    },
+    {
+      name: "skill_copy_asset",
+      arguments: {
+        skillName: RESOURCE_SKILL,
+        relativePath: "assets/template.bin",
+        targetRelativePath: "template.bin",
+      },
+    },
+  ] as const;
+  const server = createServer((request, response) => {
+    if (request.url === "/models") {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(
+        JSON.stringify({ data: [{ id: "pi-skill-fixture-model" }] }),
+      );
+      return;
+    }
+    if (request.url !== "/chat/completions") {
+      response.writeHead(404, { "content-type": "application/json" });
+      response.end(JSON.stringify({ error: { code: "not_found" } }));
+      return;
+    }
+    const chunks: Buffer[] = [];
+    request.on("data", (chunk: Buffer) => chunks.push(chunk));
+    request.on("end", () => {
+      const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+      requests.push(body);
+      response.writeHead(200, { "content-type": "text/event-stream" });
+      const call = calls[requests.length - 1];
+      if (call !== undefined) {
+        sendChunk(response, {
+          choices: [
+            {
+              index: 0,
+              delta: {
+                role: "assistant",
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: `call-m12-${requests.length}`,
+                    type: "function",
+                    function: {
+                      name: call.name,
+                      arguments: JSON.stringify(call.arguments),
+                    },
+                  },
+                ],
+              },
+              finish_reason: null,
+            },
+          ],
+        });
+        sendChunk(response, {
+          choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }],
+        });
+      } else {
+        sendChunk(response, {
+          choices: [
+            {
+              index: 0,
+              delta: {
+                role: "assistant",
+                content: "已按参考资料复制模板资源，请验收 template.bin。",
+              },
+              finish_reason: null,
+            },
+          ],
+        });
+        sendChunk(response, {
+          choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+        });
+      }
+      response.end("data: [DONE]\n\n");
+    });
+  });
+  await listenOnSafePort(server);
+  const address = server.address();
+  if (address === null || typeof address === "string") {
+    throw new Error("M12-TU-01 fixture did not expose a TCP port");
+  }
+  return {
+    endpoint: `http://127.0.0.1:${address.port}`,
+    requests: () => [...requests],
+    close: () =>
+      new Promise<void>((resolve, reject) => {
+        server.closeAllConnections();
+        server.close((error) =>
+          error === undefined ? resolve() : reject(error),
+        );
+      }),
+  };
+}
+
+async function listenOnSafePort(
+  server: import("node:http").Server,
+): Promise<void> {
+  // 浏览器会固定拒绝少数传统服务端口；使用高位随机端口，避免系统恰好
+  // 分配到 2049 一类“服务明明启动、模型连接却被浏览器拦下”的假失败。
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const port = 41_000 + Math.floor(Math.random() * 19_000);
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const onError = (error: Error) => {
+          server.off("listening", onListening);
+          reject(error);
+        };
+        const onListening = () => {
+          server.off("error", onError);
+          resolve();
+        };
+        server.once("error", onError);
+        server.once("listening", onListening);
+        server.listen(port, "127.0.0.1");
+      });
+      return;
+    } catch (error) {
+      if (
+        typeof error !== "object" ||
+        error === null ||
+        !("code" in error) ||
+        !["EADDRINUSE", "EACCES"].includes(String(error.code))
+      ) {
+        throw error;
+      }
+    }
+  }
+  throw new Error("M12-TU-01 fixture could not reserve a safe TCP port");
+}
+
+function launchApplication(userDataDirectory: string, taskWorkspace?: string) {
+  const executablePath = process.env.AI_CORPORATION_PACKAGED_EXE;
+  const sharedArgs = [
+    "--disable-gpu",
+    "--disable-software-rasterizer",
+    "--in-process-gpu",
+    "--no-sandbox",
+  ];
+  return electron.launch({
+    ...(executablePath === undefined ? {} : { executablePath }),
+    args:
+      executablePath === undefined
+        ? [
+            ...sharedArgs,
+            path.resolve(__dirname, ".."),
+            `--user-data-dir=${userDataDirectory}`,
+          ]
+        : [...sharedArgs, `--user-data-dir=${userDataDirectory}`],
+    env: {
+      ...process.env,
+      AI_CORPORATION_E2E: "1",
+      CI: "true",
+      ...(taskWorkspace === undefined
+        ? {}
+        : { AI_CORPORATION_E2E_WORKSPACE_PATH: taskWorkspace }),
+    },
+  });
+}
+
+function sendChunk(
+  response: import("node:http").ServerResponse,
+  payload: Record<string, unknown>,
+): void {
+  response.write(
+    `data: ${JSON.stringify({
+      id: "chatcmpl-m12-fixture",
+      object: "chat.completion.chunk",
+      created: 1,
+      model: "pi-skill-fixture-model",
+      ...payload,
+    })}\n\n`,
+  );
+}
+
+async function expectPageHasNoHorizontalOverflow(
+  page: import("@playwright/test").Page,
+): Promise<void> {
+  const layout = await page.evaluate(() => ({
+    documentWidth: document.documentElement.scrollWidth,
+    viewportWidth:
+      window.visualViewport?.width ?? document.documentElement.clientWidth,
+  }));
+  // Electron 的缩放会产生不到 1 个 CSS 像素的小数舍入，这不是真实滚动溢出。
+  if (layout.documentWidth - layout.viewportWidth > 1) {
+    throw new Error(`多技能页面横向溢出：${JSON.stringify(layout)}`);
+  }
+}
+
+async function captureElectronViewport(
+  app: import("playwright").ElectronApplication,
+  destination: string,
+): Promise<void> {
+  // Playwright 在 Electron 200% 缩放后偶尔只返回背景色，直接让当前真实
+  // BrowserWindow 抓取可见内容，避免生成一张看似成功的空白验收图。
+  const base64 = await app.evaluate(async ({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows()[0];
+    if (window === undefined) throw new Error("M12 window is missing");
+    const image = await window.webContents.capturePage();
+    return image.toPNG().toString("base64");
+  });
+  writeFileSync(destination, Buffer.from(base64, "base64"));
+}
+
+async function waitForPaint(page: import("@playwright/test").Page) {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
+}
+
+async function removeTemporaryDirectory(directory: string): Promise<void> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    try {
+      rmSync(directory, { force: true, recursive: true });
+      return;
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+  }
+  throw lastError;
+}

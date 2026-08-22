@@ -3,7 +3,7 @@
 | 属性        | 值                                                                             |
 | ----------- | ------------------------------------------------------------------------------ |
 | 文档角色    | 规范性                                                                         |
-| 权威范围    | Workspace DTO、可信路径元数据、枚举、Native Core 路径与文本 RPC、结构化错误 |
+| 权威范围    | Workspace DTO、可信路径元数据、枚举、Native Core 路径、文本与资源复制 RPC、结构化错误 |
 | Schema 版本 | 1                                                                              |
 
 ## 1. 边界
@@ -117,6 +117,27 @@ M8-TU-01 在同一认证边界增加三个方法：
 写入正文只允许合法 UTF-8 且不得包含 NUL 字符，最大 1 MiB。写入使用同目录不可预测临时文件和原子替换；创建不能覆盖已有文件，修改时当前哈希与基线不一致固定拒绝。Native Core 的单请求上限为 2 MiB，以容纳 1 MiB 正文和 JSON 封装。
 
 模型侧工具名使用 Provider 普遍接受的 `workspace_list`、`workspace_read_text` 和 `workspace_write_text`；它们分别映射到上述带点号的内部 Native Core RPC，不能携带或切换 Workspace root。
+
+### 5.1 `workspace.copy_asset`
+
+M12-TU-01 增加只供 Electron Main 调用的资源复制方法。模型只提交逻辑 Skill 名称、`assets/` 相对路径和当前任务 Workspace 的目标相对路径；Main 从应用自管 Skill 副本求出来源根、预期 SHA-256 和字节数，再通过已认证 Native RPC 提交：
+
+```ts
+interface WorkspaceCopyAssetParams {
+  schemaVersion: 1;
+  sessionToken: string;
+  sourceRootPath: string;
+  sourceRelativePath: string;
+  expectedSha256: string;
+  expectedSizeBytes: number;
+  rootPath: string;
+  relativePath: string;
+}
+```
+
+Native Core 必须再次确认来源位于所给 Skill 根的 `assets/` 下，来源和目标都是普通文件路径且没有链接逃逸，来源大小和 SHA-256 与 Main 检查结果一致，目标位于当前 Workspace 且尚不存在。复制使用不可覆盖的原子写入；来源变化、目标已存在或目标基线变化统一拒绝，不得覆盖用户文件。
+
+成功只返回目标相对路径、`created: true`、SHA-256 和字节数，不返回来源根或目标绝对路径。超时、断连或写入失败可能发生在文件已经落盘之后，Main 必须记录为状态不明并在下次启动时按目标哈希核对，不能自动重放复制。
 
 ## 6. 结构化错误
 

@@ -12,6 +12,7 @@ export interface PendingWorkspaceWrite {
   readonly relativePath: string;
   readonly baseSha256?: string;
   readonly targetSha256: string;
+  readonly operationKind: "SKILL_ASSET" | "TEXT_WRITE";
 }
 
 export interface PendingCommandCall {
@@ -159,6 +160,7 @@ export class PiTaskRepository {
     readonly relativePath: string;
     readonly baseSha256?: string;
     readonly targetSha256: string;
+    readonly operationKind?: "SKILL_ASSET" | "TEXT_WRITE";
     readonly now: string;
   }): { readonly status: string; readonly result?: unknown } | undefined {
     const existing = this.database
@@ -178,8 +180,8 @@ export class PiTaskRepository {
       .prepare(
         `INSERT INTO pi_workspace_write (
           tool_call_id, task_id, relative_path, base_sha256, target_sha256,
-          status, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, 'STARTING', ?, ?)`,
+          operation_kind, status, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, 'STARTING', ?, ?)`,
       )
       .run(
         input.toolCallId,
@@ -187,6 +189,7 @@ export class PiTaskRepository {
         input.relativePath,
         input.baseSha256 ?? null,
         input.targetSha256,
+        input.operationKind ?? "TEXT_WRITE",
         input.now,
         input.now,
       );
@@ -272,7 +275,7 @@ export class PiTaskRepository {
     return this.database
       .prepare(
         `SELECT w.tool_call_id, w.task_id, t.workspace_id, w.relative_path,
-          w.base_sha256, w.target_sha256
+          w.base_sha256, w.target_sha256, w.operation_kind
         FROM pi_workspace_write w
         JOIN pi_task t ON t.id = w.task_id
         WHERE w.status = 'STARTING'
@@ -285,7 +288,9 @@ export class PiTaskRepository {
           typeof row.task_id !== "string" ||
           typeof row.workspace_id !== "string" ||
           typeof row.relative_path !== "string" ||
-          typeof row.target_sha256 !== "string"
+          typeof row.target_sha256 !== "string" ||
+          (row.operation_kind !== "TEXT_WRITE" &&
+            row.operation_kind !== "SKILL_ASSET")
         ) {
           throw new Error("Pending workspace write is invalid");
         }
@@ -298,6 +303,7 @@ export class PiTaskRepository {
             ? { baseSha256: row.base_sha256 }
             : {}),
           targetSha256: row.target_sha256,
+          operationKind: row.operation_kind,
         };
       });
   }

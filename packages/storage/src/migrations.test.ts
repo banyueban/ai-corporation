@@ -193,7 +193,7 @@ describe("migration runner", () => {
       readAppliedMigrations(database).map(({ version }) => version),
     ).toEqual([
       1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
-      22,
+      22, 23,
     ]);
     expect(
       database
@@ -209,6 +209,7 @@ describe("migration runner", () => {
               'goal_generation_operation',
               'planner_generation_operation',
               'pi_employee',
+              'pi_employee_skill',
               'idx_pi_employee_updated',
               'pi_task',
               'pi_task_event',
@@ -286,6 +287,7 @@ describe("migration runner", () => {
       "organization_proposal_command",
       "organization_version",
       "pi_employee",
+      "pi_employee_skill",
       "pi_task",
       "pi_task_deliverable",
       "pi_task_event",
@@ -487,6 +489,48 @@ describe("migration runner", () => {
         .prepare("SELECT COUNT(*) AS total FROM pi_company_workspace")
         .get(),
     ).toEqual({ total: 0 });
+    database.close();
+  });
+
+  it("migrates every legacy employee skill into the ordered multi-skill relation", () => {
+    const database = new DatabaseSync(":memory:");
+    const migrations = loadMigrations(migrationDirectory);
+    applyMigrations(
+      database,
+      migrations.filter(({ version }) => version <= 22),
+    );
+    const employeeId = "019b0000-0000-7000-8000-000000000044";
+    const now = "2026-08-23T00:00:00.000Z";
+    database.exec("PRAGMA foreign_keys = OFF");
+    database
+      .prepare(
+        `INSERT INTO pi_employee
+          (id, name, provider_id, provider_version, model_id, skill_name,
+           created_at, updated_at)
+         VALUES (?, '旧员工', ?, 1, 'model', 'coding-task', ?, ?)`,
+      )
+      .run(employeeId, employeeId, now, now);
+    database.exec("PRAGMA foreign_keys = ON");
+
+    applyMigrations(database, migrations);
+
+    expect(
+      database
+        .prepare(
+          `SELECT employee_id, skill_name, position
+           FROM pi_employee_skill WHERE employee_id = ?`,
+        )
+        .get(employeeId),
+    ).toEqual({
+      employee_id: employeeId,
+      skill_name: "coding-task",
+      position: 0,
+    });
+    expect(
+      database
+        .prepare("SELECT skill_name FROM pi_employee WHERE id = ?")
+        .get(employeeId),
+    ).toEqual({ skill_name: "coding-task" });
     database.close();
   });
 

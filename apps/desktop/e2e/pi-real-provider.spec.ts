@@ -55,9 +55,8 @@ test("saved real Provider repairs code and runs its test", async () => {
       await page.getByLabel("员工姓名").fill("真实编码验收员工");
       await page.getByLabel("Provider").selectOption({ label: "deepseek" });
       await page.getByLabel("模型").selectOption("deepseek-v4-flash");
-      await page
-        .getByLabel("技能", { exact: true })
-        .selectOption("coding-task");
+      await page.getByLabel(/text-organize/u).uncheck();
+      await page.getByLabel(/coding-task/u).check();
       await page.getByRole("button", { name: "创建员工" }).click();
       await expect(
         page.getByText("员工“真实编码验收员工”已创建，可以接收任务。"),

@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { createHash } from "node:crypto";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -50,7 +50,7 @@ describe("PiTaskService", () => {
     const fixture = await startOpenAiFixture();
     cleanups.push(fixture.close);
     const root = path.join(tmpdir(), `M7-TU-01-${crypto.randomUUID()}`);
-    const source = path.join(root, "source");
+    const source = path.join(root, "text-organize");
     const managed = path.join(root, "managed");
     await mkdir(source, { recursive: true });
     await writeFile(
@@ -71,13 +71,13 @@ describe("PiTaskService", () => {
       ),
     );
     const employee = {
-      schemaVersion: 1 as const,
+      schemaVersion: 2 as const,
       id: "019b7f4d-a100-7000-8000-000000000001",
       name: "小文",
       providerId: "019b7f4d-a100-7000-8000-000000000002",
       providerVersion: 1,
       modelId: "pi-fixture-model",
-      skillName: "text-organize",
+      skillNames: ["text-organize"],
       createdAt: "2026-08-14T00:00:00.000Z",
       updatedAt: "2026-08-14T00:00:00.000Z",
     };
@@ -95,7 +95,7 @@ describe("PiTaskService", () => {
         employee.name,
         employee.providerId,
         employee.modelId,
-        employee.skillName,
+        employee.skillNames[0]!,
         employee.createdAt,
         employee.updatedAt,
       );
@@ -126,6 +126,20 @@ describe("PiTaskService", () => {
         }),
       },
       nativeClient: () => ({
+        copyWorkspaceAsset: async (
+          _sourceRootPath,
+          _sourceRelativePath,
+          _expectedSha256,
+          _expectedSizeBytes,
+          _rootPath,
+          relativePath,
+        ) => ({
+          schemaVersion: 1 as const,
+          relativePath,
+          created: true as const,
+          sha256: createHash("sha256").update("").digest("hex"),
+          sizeBytes: 0,
+        }),
         inspectWorkspaceFile: async (_rootPath, relativePath) => ({
           schemaVersion: 1 as const,
           canonicalPath: `${root}/${relativePath}`,
@@ -307,18 +321,27 @@ describe("PiTaskService", () => {
     const fixture = await startCommandFixture();
     cleanups.push(fixture.close);
     const root = path.join(tmpdir(), `M9-TU-01-${crypto.randomUUID()}`);
-    const source = path.join(root, "source");
+    const source = path.join(root, "coding-task");
+    const textSource = path.join(root, "text-organize");
     const managed = path.join(root, "managed");
-    await mkdir(source, { recursive: true });
-    await writeFile(
-      path.join(source, "SKILL.md"),
-      "---\nname: coding-task\ndescription: 编码任务\n---\n先检查，再修改。\n",
-      "utf8",
+    await writeSkillFixture(
+      source,
+      "coding-task",
+      "编码任务",
+      "先检查，再修改。",
+    );
+    await writeSkillFixture(
+      textSource,
+      "text-organize",
+      "整理文字",
+      "只整理文字。",
     );
     cleanups.push(() => rm(root, { recursive: true, force: true }));
     const library = new SkillLibrary(managed);
-    const preview = await library.previewImport(source);
-    await library.confirmImport(source, preview.digest);
+    for (const skillSource of [source, textSource]) {
+      const preview = await library.previewImport(skillSource);
+      await library.confirmImport(skillSource, preview.digest);
+    }
 
     const database = new DatabaseSync(":memory:");
     applyMigrations(
@@ -328,13 +351,14 @@ describe("PiTaskService", () => {
       ),
     );
     const employee = {
-      schemaVersion: 1 as const,
+      schemaVersion: 2 as const,
       id: "019b7f4d-a200-7000-8000-000000000001",
       name: "小码",
       providerId: "019b7f4d-a200-7000-8000-000000000002",
       providerVersion: 1,
       modelId: "pi-command-model",
-      skillName: "coding-task",
+      // coding-task 故意放在第二项，证明命令能力不依赖“第一项技能”的旧假设。
+      skillNames: ["text-organize", "coding-task"],
       createdAt: "2026-08-15T00:00:00.000Z",
       updatedAt: "2026-08-15T00:00:00.000Z",
     };
@@ -351,7 +375,7 @@ describe("PiTaskService", () => {
         employee.name,
         employee.providerId,
         employee.modelId,
-        employee.skillName,
+        employee.skillNames[0]!,
         employee.createdAt,
         employee.updatedAt,
       );
@@ -378,6 +402,20 @@ describe("PiTaskService", () => {
         }),
       },
       nativeClient: () => ({
+        copyWorkspaceAsset: async (
+          _sourceRootPath,
+          _sourceRelativePath,
+          _expectedSha256,
+          _expectedSizeBytes,
+          _rootPath,
+          relativePath,
+        ) => ({
+          schemaVersion: 1 as const,
+          relativePath,
+          created: true as const,
+          sha256: createHash("sha256").update("").digest("hex"),
+          sizeBytes: 0,
+        }),
         inspectWorkspaceFile: async (_rootPath, relativePath) => ({
           schemaVersion: 1 as const,
           canonicalPath: `${root}/${relativePath}`,
@@ -509,6 +547,568 @@ describe("PiTaskService", () => {
     );
     database.close();
   });
+
+  it("loads only the skill catalog first, then activates and uses resources on demand", async () => {
+    const fixture = await startSkillResourceFixture();
+    cleanups.push(fixture.close);
+    const root = path.join(tmpdir(), `M12-TU-01-${crypto.randomUUID()}`);
+    const managed = path.join(root, "managed");
+    const workspace = path.join(root, "workspace");
+    const textSkill = path.join(root, "text-organize");
+    const templateSkill = path.join(root, "template-skill");
+    await mkdir(workspace, { recursive: true });
+    await writeSkillFixture(
+      textSkill,
+      "text-organize",
+      "只在整理普通文字时使用。",
+      "TEXT-SKILL-INSTRUCTIONS",
+    );
+    await writeSkillFixture(
+      templateSkill,
+      "template-skill",
+      "需要参考模板说明并复制模板文件时使用。",
+      "PRIVATE-FULL-INSTRUCTIONS",
+      {
+        "references/guide.md": "REFERENCE-ONLY",
+        "assets/template.bin": Buffer.from([0, 1, 2, 255]),
+      },
+    );
+    cleanups.push(() => rm(root, { recursive: true, force: true }));
+    const library = new SkillLibrary(managed);
+    for (const directory of [textSkill, templateSkill]) {
+      const preview = await library.previewImport(directory);
+      await library.confirmImport(directory, preview.digest);
+    }
+
+    const database = new DatabaseSync(":memory:");
+    applyMigrations(
+      database,
+      loadMigrations(
+        path.resolve(__dirname, "../../../../packages/storage/migrations"),
+      ),
+    );
+    const employee = {
+      schemaVersion: 2 as const,
+      id: "019b7f4d-a300-7000-8000-000000000001",
+      name: "模板员工",
+      providerId: "019b7f4d-a300-7000-8000-000000000002",
+      providerVersion: 1,
+      modelId: "pi-fixture-model",
+      skillNames: ["text-organize", "template-skill"],
+      createdAt: "2026-08-23T00:00:00.000Z",
+      updatedAt: "2026-08-23T00:00:00.000Z",
+    };
+    database.exec("PRAGMA foreign_keys = OFF");
+    database
+      .prepare(
+        `INSERT INTO pi_employee (
+          id, name, provider_id, provider_version, model_id, skill_name,
+          created_at, updated_at
+        ) VALUES (?, ?, ?, 1, ?, ?, ?, ?)`,
+      )
+      .run(
+        employee.id,
+        employee.name,
+        employee.providerId,
+        employee.modelId,
+        employee.skillNames[0]!,
+        employee.createdAt,
+        employee.updatedAt,
+      );
+    const repository = new PiTaskRepository(database);
+    const workspaceId = "019b7f4d-a300-7000-8000-000000000005";
+    const service = new PiTaskService({
+      companyRepository,
+      employeeRepository: { get: () => employee },
+      taskRepository: repository,
+      skillLibrary: library,
+      workspaceRepository: {
+        getTrusted: () => ({
+          workspaceId,
+          displayPath: "测试工作区",
+          canonicalRootPath: workspace,
+          permissionMode: "READ_WRITE",
+          accessStatus: "AVAILABLE",
+          pathIdentity: {
+            platform: "windows",
+            volumeRoot: "C:",
+            rootCreationTime: "1",
+          },
+          lastVerifiedAt: "2026-08-23T00:00:00.000Z",
+        }),
+      },
+      nativeClient: () => ({
+        copyWorkspaceAsset: async (
+          sourceRootPath,
+          sourceRelativePath,
+          expectedSha256,
+          expectedSizeBytes,
+          rootPath,
+          relativePath,
+        ) => {
+          const bytes = await readFile(
+            path.join(sourceRootPath, ...sourceRelativePath.split("/")),
+          );
+          expect(createHash("sha256").update(bytes).digest("hex")).toBe(
+            expectedSha256,
+          );
+          expect(bytes.byteLength).toBe(expectedSizeBytes);
+          await writeFile(path.join(rootPath, relativePath), bytes, {
+            flag: "wx",
+          });
+          return {
+            schemaVersion: 1 as const,
+            relativePath,
+            created: true as const,
+            sha256: createHash("sha256").update(bytes).digest("hex"),
+            sizeBytes: bytes.byteLength,
+          };
+        },
+        inspectWorkspaceFile: async (_rootPath, relativePath) => {
+          const bytes = await readFile(path.join(workspace, relativePath));
+          return {
+            schemaVersion: 1 as const,
+            canonicalPath: path.join(workspace, relativePath),
+            relativePath,
+            sizeBytes: bytes.byteLength,
+            sha256: createHash("sha256").update(bytes).digest("hex"),
+          };
+        },
+        listWorkspace: async () => ({
+          schemaVersion: 1 as const,
+          relativePath: "",
+          entries: [],
+        }),
+        readWorkspaceText: async () => {
+          throw new Error("not used");
+        },
+        writeWorkspaceText: async () => {
+          throw new Error("not used");
+        },
+      }),
+      resolveRuntime: () => ({
+        endpoint: fixture.endpoint,
+        key: "M12-TU-01-fake-key",
+        timeoutMs: 5_000,
+      }),
+      createId: () => "019b7f4d-a300-7000-8000-000000000006",
+    });
+
+    const started = service.start({
+      schemaVersion: 2,
+      commandId: "019b7f4d-a300-7000-8000-000000000007",
+      companyId,
+      employeeId: employee.id,
+      workspaceId,
+      input: "按参考资料复制模板",
+    });
+    expect(started.ok).toBe(true);
+    if (!started.ok) throw new Error("task did not start");
+    const completed = await waitForTask(repository, started.value.id);
+
+    const firstRequest = JSON.stringify(fixture.requests[0]?.body);
+    expect(firstRequest).toContain("text-organize");
+    expect(firstRequest).toContain("template-skill");
+    expect(firstRequest).not.toContain("PRIVATE-FULL-INSTRUCTIONS");
+    expect(firstRequest).not.toContain("REFERENCE-ONLY");
+    expect(JSON.stringify(fixture.requests.slice(1))).toContain(
+      "PRIVATE-FULL-INSTRUCTIONS",
+    );
+    expect(JSON.stringify(fixture.requests.slice(2))).toContain(
+      "REFERENCE-ONLY",
+    );
+    expect(completed.status).toBe("WAITING_ACCEPTANCE");
+    expect(
+      completed.events
+        .filter(({ kind }) => kind === "TOOL_START")
+        .map(({ content }) => JSON.parse(content).name),
+    ).toEqual([
+      "skill_activate",
+      "skill_list_resources",
+      "skill_read_resource",
+      "skill_copy_asset",
+    ]);
+    expect(await readFile(path.join(workspace, "template.bin"))).toEqual(
+      Buffer.from([0, 1, 2, 255]),
+    );
+    expect(completed.deliverables).toEqual([
+      expect.objectContaining({
+        relativePath: "template.bin",
+        source: "SKILL_ASSET",
+        changeKind: "CREATED",
+      }),
+    ]);
+    expect(JSON.stringify(completed.events)).not.toContain(managed);
+    expect(JSON.stringify(fixture.requests)).not.toContain(managed);
+
+    // 模拟应用在资源已经复制、数据库仍显示处理中时关闭；恢复只核对真实文件，
+    // 不再次调用复制，也不会把资源误记成普通文本写入。
+    const recoveredBytes = Buffer.from([9, 8, 7]);
+    await writeFile(path.join(workspace, "recovered.bin"), recoveredBytes);
+    database
+      .prepare("UPDATE pi_task SET status = 'RUNNING' WHERE id = ?")
+      .run(completed.id);
+    repository.beginWorkspaceWrite({
+      toolCallId: "call-recover-skill-asset",
+      taskId: completed.id,
+      relativePath: "recovered.bin",
+      targetSha256: createHash("sha256").update(recoveredBytes).digest("hex"),
+      operationKind: "SKILL_ASSET",
+      now: "2026-08-23T00:01:00.000Z",
+    });
+    await service.recoverWorkspaceWrites();
+    expect(
+      repository
+        .get(completed.id)
+        ?.deliverables?.find(
+          ({ relativePath }) => relativePath === "recovered.bin",
+        ),
+    ).toMatchObject({ source: "SKILL_ASSET", changeKind: "CREATED" });
+    expect(
+      database
+        .prepare("SELECT status FROM pi_workspace_write WHERE tool_call_id = ?")
+        .get("call-recover-skill-asset"),
+    ).toEqual({ status: "SUCCEEDED" });
+    database.close();
+  });
+
+  it("keeps a copied asset truthful when the user cancels during the native copy", async () => {
+    const fixture = await startSkillResourceFixture([
+      {
+        name: "skill_activate",
+        arguments: { skillName: "template-skill" },
+      },
+      {
+        name: "skill_copy_asset",
+        arguments: {
+          skillName: "template-skill",
+          relativePath: "assets/template.bin",
+          targetRelativePath: "cancelled-template.bin",
+        },
+      },
+    ]);
+    cleanups.push(fixture.close);
+    const root = path.join(tmpdir(), `M12-TU-01-cancel-${crypto.randomUUID()}`);
+    const managed = path.join(root, "managed");
+    const workspace = path.join(root, "workspace");
+    const source = path.join(root, "template-skill");
+    await mkdir(workspace, { recursive: true });
+    await writeSkillFixture(
+      source,
+      "template-skill",
+      "复制模板资源。",
+      "COPY-TEMPLATE",
+      { "assets/template.bin": Buffer.from([4, 3, 2, 1]) },
+    );
+    cleanups.push(() => rm(root, { recursive: true, force: true }));
+    const library = new SkillLibrary(managed);
+    const preview = await library.previewImport(source);
+    await library.confirmImport(source, preview.digest);
+
+    const database = new DatabaseSync(":memory:");
+    applyMigrations(
+      database,
+      loadMigrations(
+        path.resolve(__dirname, "../../../../packages/storage/migrations"),
+      ),
+    );
+    const employee = {
+      schemaVersion: 2 as const,
+      id: "019b7f4d-a310-7000-8000-000000000001",
+      name: "取消测试员工",
+      providerId: "019b7f4d-a310-7000-8000-000000000002",
+      providerVersion: 1,
+      modelId: "pi-fixture-model",
+      skillNames: ["template-skill"],
+      createdAt: "2026-08-23T00:00:00.000Z",
+      updatedAt: "2026-08-23T00:00:00.000Z",
+    };
+    database.exec("PRAGMA foreign_keys = OFF");
+    database
+      .prepare(
+        `INSERT INTO pi_employee (
+          id, name, provider_id, provider_version, model_id, skill_name,
+          created_at, updated_at
+        ) VALUES (?, ?, ?, 1, ?, ?, ?, ?)`,
+      )
+      .run(
+        employee.id,
+        employee.name,
+        employee.providerId,
+        employee.modelId,
+        employee.skillNames[0]!,
+        employee.createdAt,
+        employee.updatedAt,
+      );
+    const repository = new PiTaskRepository(database);
+    const workspaceId = "019b7f4d-a310-7000-8000-000000000003";
+    let releaseCopy: () => void = () => undefined;
+    const copyMayFinish = new Promise<void>((resolve) => {
+      releaseCopy = resolve;
+    });
+    let announceCopyStarted: () => void = () => undefined;
+    const copyStarted = new Promise<void>((resolve) => {
+      announceCopyStarted = resolve;
+    });
+    let copyCount = 0;
+    const service = new PiTaskService({
+      companyRepository,
+      employeeRepository: { get: () => employee },
+      taskRepository: repository,
+      skillLibrary: library,
+      workspaceRepository: {
+        getTrusted: () => ({
+          workspaceId,
+          displayPath: "取消测试工作区",
+          canonicalRootPath: workspace,
+          permissionMode: "READ_WRITE",
+          accessStatus: "AVAILABLE",
+          pathIdentity: {
+            platform: "windows",
+            volumeRoot: "C:",
+            rootCreationTime: "1",
+          },
+          lastVerifiedAt: "2026-08-23T00:00:00.000Z",
+        }),
+      },
+      nativeClient: () => ({
+        copyWorkspaceAsset: async (
+          sourceRootPath,
+          sourceRelativePath,
+          _expectedSha256,
+          _expectedSizeBytes,
+          rootPath,
+          relativePath,
+        ) => {
+          copyCount += 1;
+          announceCopyStarted();
+          await copyMayFinish;
+          const bytes = await readFile(
+            path.join(sourceRootPath, ...sourceRelativePath.split("/")),
+          );
+          await writeFile(path.join(rootPath, relativePath), bytes, {
+            flag: "wx",
+          });
+          return {
+            schemaVersion: 1 as const,
+            relativePath,
+            created: true as const,
+            sha256: createHash("sha256").update(bytes).digest("hex"),
+            sizeBytes: bytes.byteLength,
+          };
+        },
+        inspectWorkspaceFile: async (_rootPath, relativePath) => {
+          const bytes = await readFile(path.join(workspace, relativePath));
+          return {
+            schemaVersion: 1 as const,
+            canonicalPath: path.join(workspace, relativePath),
+            relativePath,
+            sizeBytes: bytes.byteLength,
+            sha256: createHash("sha256").update(bytes).digest("hex"),
+          };
+        },
+        listWorkspace: async () => ({
+          schemaVersion: 1 as const,
+          relativePath: "",
+          entries: [],
+        }),
+        readWorkspaceText: async () => {
+          throw new Error("not used");
+        },
+        writeWorkspaceText: async () => {
+          throw new Error("not used");
+        },
+      }),
+      resolveRuntime: () => ({
+        endpoint: fixture.endpoint,
+        key: "M12-TU-01-cancel-fake-key",
+        timeoutMs: 5_000,
+      }),
+      createId: () => "019b7f4d-a310-7000-8000-000000000004",
+    });
+
+    const started = service.start({
+      schemaVersion: 2,
+      commandId: "019b7f4d-a310-7000-8000-000000000005",
+      companyId,
+      employeeId: employee.id,
+      workspaceId,
+      input: "复制模板并验证取消",
+    });
+    expect(started.ok).toBe(true);
+    if (!started.ok) throw new Error("task did not start");
+    await copyStarted;
+    expect(
+      service.cancel({
+        schemaVersion: 2,
+        commandId: "019b7f4d-a310-7000-8000-000000000006",
+        companyId,
+        taskId: started.value.id,
+      }),
+    ).toMatchObject({ ok: true, value: { status: "CANCELLED" } });
+    releaseCopy();
+    await waitForDeliverable(repository, started.value.id);
+
+    const cancelled = repository.get(started.value.id);
+    expect(cancelled?.status).toBe("CANCELLED");
+    expect(copyCount).toBe(1);
+    expect(
+      await readFile(path.join(workspace, "cancelled-template.bin")),
+    ).toEqual(Buffer.from([4, 3, 2, 1]));
+    // 取消不该伪装成成功任务，但真正已经落盘的文件仍必须如实展示。
+    expect(cancelled?.deliverables).toEqual([
+      expect.objectContaining({
+        relativePath: "cancelled-template.bin",
+        source: "SKILL_ASSET",
+      }),
+    ]);
+    database.close();
+  });
+
+  it("rejects unassigned or missing Skills without exposing managed paths", async () => {
+    const fixture = await startSkillResourceFixture([
+      {
+        name: "skill_activate",
+        arguments: { skillName: "missing-skill" },
+      },
+    ]);
+    cleanups.push(fixture.close);
+    const root = path.join(tmpdir(), `M12-TU-01-reject-${crypto.randomUUID()}`);
+    const managed = path.join(root, "managed");
+    const workspace = path.join(root, "workspace");
+    const source = path.join(root, "text-organize");
+    await mkdir(workspace, { recursive: true });
+    await writeSkillFixture(
+      source,
+      "text-organize",
+      "只在整理文字时使用。",
+      "PRIVATE-TEXT-INSTRUCTIONS",
+    );
+    cleanups.push(() => rm(root, { recursive: true, force: true }));
+    const library = new SkillLibrary(managed);
+    const preview = await library.previewImport(source);
+    await library.confirmImport(source, preview.digest);
+
+    const database = new DatabaseSync(":memory:");
+    applyMigrations(
+      database,
+      loadMigrations(
+        path.resolve(__dirname, "../../../../packages/storage/migrations"),
+      ),
+    );
+    const employee = {
+      schemaVersion: 2 as const,
+      id: "019b7f4d-a320-7000-8000-000000000001",
+      name: "边界员工",
+      providerId: "019b7f4d-a320-7000-8000-000000000002",
+      providerVersion: 1,
+      modelId: "pi-fixture-model",
+      skillNames: ["text-organize"],
+      createdAt: "2026-08-23T00:00:00.000Z",
+      updatedAt: "2026-08-23T00:00:00.000Z",
+    };
+    database.exec("PRAGMA foreign_keys = OFF");
+    database
+      .prepare(
+        `INSERT INTO pi_employee (
+          id, name, provider_id, provider_version, model_id, skill_name,
+          created_at, updated_at
+        ) VALUES (?, ?, ?, 1, ?, ?, ?, ?)`,
+      )
+      .run(
+        employee.id,
+        employee.name,
+        employee.providerId,
+        employee.modelId,
+        employee.skillNames[0]!,
+        employee.createdAt,
+        employee.updatedAt,
+      );
+    const repository = new PiTaskRepository(database);
+    const workspaceId = "019b7f4d-a320-7000-8000-000000000003";
+    let currentEmployee = employee;
+    const taskIds = [
+      "019b7f4d-a320-7000-8000-000000000004",
+      "019b7f4d-a320-7000-8000-000000000005",
+    ];
+    const service = new PiTaskService({
+      companyRepository,
+      employeeRepository: { get: () => currentEmployee },
+      taskRepository: repository,
+      skillLibrary: library,
+      workspaceRepository: {
+        getTrusted: () => ({
+          workspaceId,
+          displayPath: "边界测试工作区",
+          canonicalRootPath: workspace,
+          permissionMode: "READ_WRITE",
+          accessStatus: "AVAILABLE",
+          pathIdentity: {
+            platform: "windows",
+            volumeRoot: "C:",
+            rootCreationTime: "1",
+          },
+          lastVerifiedAt: "2026-08-23T00:00:00.000Z",
+        }),
+      },
+      nativeClient: () => ({
+        copyWorkspaceAsset: async () => {
+          throw new Error("not used");
+        },
+        inspectWorkspaceFile: async () => {
+          throw new Error("not used");
+        },
+        listWorkspace: async () => {
+          throw new Error("not used");
+        },
+        readWorkspaceText: async () => {
+          throw new Error("not used");
+        },
+        writeWorkspaceText: async () => {
+          throw new Error("not used");
+        },
+      }),
+      resolveRuntime: () => ({
+        endpoint: fixture.endpoint,
+        key: "M12-TU-01-fake-key",
+        timeoutMs: 5_000,
+      }),
+      createId: () => taskIds.shift()!,
+    });
+
+    const unassigned = service.start({
+      schemaVersion: 2,
+      commandId: "019b7f4d-a320-7000-8000-000000000006",
+      companyId,
+      employeeId: employee.id,
+      workspaceId,
+      input: "尝试启用未分配技能",
+    });
+    if (!unassigned.ok) throw new Error("task did not start");
+    const rejected = await waitForTask(repository, unassigned.value.id);
+    expect(rejected.status).toBe("FAILED");
+    expect(JSON.stringify(rejected.events)).toContain("没有分配给当前员工");
+    expect(JSON.stringify(rejected.events)).not.toContain(managed);
+    expect(JSON.stringify(fixture.requests[0]?.body)).not.toContain(
+      "PRIVATE-TEXT-INSTRUCTIONS",
+    );
+
+    currentEmployee = { ...employee, skillNames: ["missing-skill"] };
+    const missing = service.start({
+      schemaVersion: 2,
+      commandId: "019b7f4d-a320-7000-8000-000000000007",
+      companyId,
+      employeeId: employee.id,
+      workspaceId,
+      input: "使用已经丢失的技能",
+    });
+    if (!missing.ok) throw new Error("task did not start");
+    const missingResult = await waitForTask(repository, missing.value.id);
+    expect(missingResult.status).toBe("FAILED");
+    expect(missingResult.failureMessage).toContain("missing-skill");
+    expect(missingResult.failureMessage).not.toContain(managed);
+    database.close();
+  });
 });
 
 async function waitForTask(repository: PiTaskRepository, id: string) {
@@ -518,6 +1118,15 @@ async function waitForTask(repository: PiTaskRepository, id: string) {
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
   throw new Error("Pi task did not settle");
+}
+
+async function waitForDeliverable(repository: PiTaskRepository, id: string) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const task = repository.get(id);
+    if ((task?.deliverables?.length ?? 0) > 0) return task;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  throw new Error("Pi task deliverable did not appear");
 }
 
 async function waitForEvent(
@@ -698,6 +1307,131 @@ async function startOpenAiFixture() {
         );
       }),
   };
+}
+
+async function startSkillResourceFixture(
+  fixtureCalls: readonly {
+    readonly arguments: Readonly<Record<string, unknown>>;
+    readonly name: string;
+  }[] = [
+    {
+      name: "skill_activate",
+      arguments: { skillName: "template-skill" },
+    },
+    {
+      name: "skill_list_resources",
+      arguments: { skillName: "template-skill" },
+    },
+    {
+      name: "skill_read_resource",
+      arguments: {
+        skillName: "template-skill",
+        relativePath: "references/guide.md",
+      },
+    },
+    {
+      name: "skill_copy_asset",
+      arguments: {
+        skillName: "template-skill",
+        relativePath: "assets/template.bin",
+        targetRelativePath: "template.bin",
+      },
+    },
+  ],
+) {
+  const requests: Array<{ body: unknown }> = [];
+  const server = createServer((request, response) => {
+    const chunks: Buffer[] = [];
+    request.on("data", (chunk: Buffer) => chunks.push(chunk));
+    request.on("end", () => {
+      const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+      requests.push({ body });
+      response.writeHead(200, {
+        "content-type": "text/event-stream",
+        connection: "keep-alive",
+      });
+      const tool = fixtureCalls[requests.length - 1];
+      if (tool !== undefined) {
+        sendChunk(response, {
+          choices: [
+            {
+              index: 0,
+              delta: {
+                role: "assistant",
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: `call-skill-${requests.length}`,
+                    type: "function",
+                    function: {
+                      name: tool.name,
+                      arguments: JSON.stringify(tool.arguments),
+                    },
+                  },
+                ],
+              },
+              finish_reason: null,
+            },
+          ],
+        });
+        sendChunk(response, {
+          choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }],
+        });
+      } else {
+        sendChunk(response, {
+          choices: [
+            {
+              index: 0,
+              delta: { role: "assistant", content: "模板已经复制完成。" },
+              finish_reason: null,
+            },
+          ],
+        });
+        sendChunk(response, {
+          choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+        });
+      }
+      response.end("data: [DONE]\n\n");
+    });
+  });
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = server.address();
+  if (address === null || typeof address === "string")
+    throw new Error("No port");
+  return {
+    endpoint: `http://127.0.0.1:${address.port}`,
+    requests,
+    close: () =>
+      new Promise<void>((resolve, reject) => {
+        server.closeAllConnections();
+        server.close((error) =>
+          error === undefined ? resolve() : reject(error),
+        );
+      }),
+  };
+}
+
+async function writeSkillFixture(
+  directory: string,
+  name: string,
+  description: string,
+  instructions: string,
+  resources: Readonly<Record<string, string | Uint8Array>> = {},
+) {
+  await mkdir(directory, { recursive: true });
+  await writeFile(
+    path.join(directory, "SKILL.md"),
+    `---\nname: ${name}\ndescription: ${description}\n---\n${instructions}\n`,
+    "utf8",
+  );
+  for (const [relativePath, content] of Object.entries(resources)) {
+    const destination = path.join(directory, ...relativePath.split("/"));
+    await mkdir(path.dirname(destination), { recursive: true });
+    await writeFile(destination, content);
+  }
 }
 
 function sendChunk(

@@ -11,7 +11,11 @@ export const piSkillSchema = z
     schemaVersion: z.literal(1),
     name: z.string().min(1).max(64),
     description: z.string().min(1).max(1024),
-    content: z.string().min(1).max(1_048_576),
+    content: z.string().max(1_048_576),
+    license: z.string().min(1).optional(),
+    compatibility: z.string().min(1).max(500).optional(),
+    metadata: z.record(z.string(), z.string()).optional(),
+    allowedTools: z.string().min(1).optional(),
     source: z.enum(["BUILTIN", "IMPORTED"]),
     readOnly: z.literal(true),
   })
@@ -66,6 +70,10 @@ export const piSkillPreviewImportResultSchema = z.discriminatedUnion("ok", [
           previewId: z.uuidv7(),
           name: z.string().min(1).max(64),
           description: z.string().min(1).max(1024),
+          license: z.string().min(1).optional(),
+          compatibility: z.string().min(1).max(500).optional(),
+          metadata: z.record(z.string(), z.string()).optional(),
+          allowedTools: z.string().min(1).optional(),
           changes: z.array(piSkillFileChangeSchema).max(256),
         })
         .strict(),

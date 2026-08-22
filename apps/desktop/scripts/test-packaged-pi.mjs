@@ -23,7 +23,7 @@ if (!existsSync(executablePath)) {
   throw new Error(`Packaged executable does not exist: ${executablePath}`);
 }
 
-// 最终包直接复用当前 Pi 主流程，不再运行已经退出入口的旧 Goal/Plan 写入旅程。
+// 最终包复用当前 Pi 主流程和标准 Skill 资源旅程，不再运行已退出入口的旧流程。
 const playwrightCli = path.join(
   desktopDirectory,
   "node_modules",
@@ -33,7 +33,7 @@ const playwrightCli = path.join(
 );
 const child = spawn(
   process.execPath,
-  [playwrightCli, "test", "pi-employees.spec.ts"],
+  [playwrightCli, "test", "pi-employees.spec.ts", "pi-skill-resources.spec.ts"],
   {
     cwd: desktopDirectory,
     env: {

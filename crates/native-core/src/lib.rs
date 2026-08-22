@@ -5,8 +5,8 @@ use std::io::{self, BufRead, Read, Write};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use workspace_fs::{
-    WorkspacePathError, inspect_workspace_file, list_workspace, read_workspace_text,
-    resolve_workspace_path, write_workspace_text,
+    WorkspacePathError, copy_workspace_asset, inspect_workspace_file, list_workspace,
+    read_workspace_text, resolve_workspace_path, write_workspace_text,
 };
 
 pub const CRATE_NAME: &str = "native-core";
@@ -59,6 +59,19 @@ struct WorkspaceWriteTextParams {
     relative_path: String,
     content: String,
     base_sha256: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct WorkspaceCopyAssetParams {
+    schema_version: u32,
+    session_token: String,
+    source_root_path: String,
+    source_relative_path: String,
+    expected_sha256: String,
+    expected_size_bytes: u64,
+    root_path: String,
+    relative_path: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -160,6 +173,9 @@ fn process_value(value: Value, expected_session_token: &str) -> RpcResponse {
         }
         "workspace.write_text" => {
             process_workspace_write_text(request.id, request.params, expected_session_token)
+        }
+        "workspace.copy_asset" => {
+            process_workspace_copy_asset(request.id, request.params, expected_session_token)
         }
         _ => RpcResponse::error(request.id, -32601, "Method not found"),
     }
@@ -303,6 +319,44 @@ fn process_workspace_write_text(
         std::path::Path::new(&params.relative_path),
         &params.content,
         params.base_sha256.as_deref(),
+    ) {
+        Ok(result) => match serde_json::to_value(result) {
+            Ok(mut value) => {
+                if let Value::Object(object) = &mut value {
+                    object.insert("schemaVersion".to_owned(), Value::from(SCHEMA_VERSION));
+                }
+                RpcResponse::success(id, value)
+            }
+            Err(_) => RpcResponse::error(id, -32603, "Internal error"),
+        },
+        Err(error) => RpcResponse::workspace_error(id, &error),
+    }
+}
+
+fn process_workspace_copy_asset(
+    id: Value,
+    params: Value,
+    expected_session_token: &str,
+) -> RpcResponse {
+    let params = match serde_json::from_value::<WorkspaceCopyAssetParams>(params) {
+        Ok(params) => params,
+        Err(_) => return RpcResponse::error(id, -32602, "Invalid params"),
+    };
+    if let Some(error) = validate_workspace_request(
+        &id,
+        params.schema_version,
+        &params.session_token,
+        expected_session_token,
+    ) {
+        return error;
+    }
+    match copy_workspace_asset(
+        std::path::Path::new(&params.source_root_path),
+        std::path::Path::new(&params.source_relative_path),
+        &params.expected_sha256,
+        params.expected_size_bytes,
+        std::path::Path::new(&params.root_path),
+        std::path::Path::new(&params.relative_path),
     ) {
         Ok(result) => match serde_json::to_value(result) {
             Ok(mut value) => {
@@ -670,6 +724,51 @@ mod tests {
             "1c34f88707b55e6104c4eb20e71ffa3d33e414b71ef689a15fad0640d0ac58cb"
         );
         assert!(response["result"]["canonicalPath"].is_string());
+
+        fs::remove_dir_all(root)
+    }
+
+    #[test]
+    fn workspace_copy_asset_checks_source_facts_and_hides_managed_path() -> io::Result<()> {
+        let root = temporary_workspace()?;
+        let skill_root = root.join("managed-skill");
+        let workspace_root = root.join("workspace");
+        fs::create_dir_all(skill_root.join("assets"))?;
+        fs::create_dir_all(&workspace_root)?;
+        fs::write(skill_root.join("assets/template.bin"), [0_u8, 1, 2, 255])?;
+        let request = json!({
+            "jsonrpc": "2.0",
+            "id": "workspace-copy-asset",
+            "method": "workspace.copy_asset",
+            "params": {
+                "schemaVersion": SCHEMA_VERSION,
+                "sessionToken": TOKEN,
+                "sourceRootPath": skill_root.to_string_lossy(),
+                "sourceRelativePath": "assets/template.bin",
+                "expectedSha256": "3d1f57c984978ef98a18378c8166c1cb8ede02c03eeb6aee7e2f121dfeee3e56",
+                "expectedSizeBytes": 4,
+                "rootPath": workspace_root.to_string_lossy(),
+                "relativePath": "template.bin"
+            },
+        });
+
+        let response_text = handle_line(&request.to_string(), TOKEN);
+        let response = parse_response(&response_text);
+
+        assert_eq!(response["result"]["relativePath"], "template.bin");
+        assert_eq!(response["result"]["sizeBytes"], 4);
+        assert_eq!(
+            fs::read(workspace_root.join("template.bin"))?,
+            [0, 1, 2, 255]
+        );
+        assert!(!response_text.contains(&skill_root.to_string_lossy().to_string()));
+
+        let mut changed_source = request.clone();
+        changed_source["params"]["expectedSha256"] = Value::from("0".repeat(64));
+        changed_source["params"]["relativePath"] = Value::from("other.bin");
+        let rejected = parse_response(&handle_line(&changed_source.to_string(), TOKEN));
+        assert_eq!(rejected["error"]["data"]["reason"], "CONFLICT");
+        assert!(!workspace_root.join("other.bin").exists());
 
         fs::remove_dir_all(root)
     }

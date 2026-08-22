@@ -705,6 +705,8 @@ Provider 表只保存应用自管 Key Vault 的记录 ID。`key_vault_entry` 保
 
 `0023_pi_employee_skill.sql` 建立 `pi_employee_skill(employee_id, skill_name, position)`。`employee_id + skill_name` 和 `employee_id + position` 分别唯一，删除员工级联删除分配关系；迁移把每名员工原 `skill_name` 复制为位置 `0`，不要求重建员工。新版本以关系表为权威列表，并在保存事务内让旧 `pi_employee.skill_name` 镜像第一项；员工不得保存空列表。
 
+同一迁移给 `pi_workspace_write` 增加 `operation_kind`，只允许 `TEXT_WRITE` 或 `SKILL_ASSET`，使应用重启后能按真实操作类型恢复而不重复复制。`pi_task_deliverable.source` 同步增加 `SKILL_ASSET`；迁移通过重建轻量成果表保留已有记录、主键和索引，不扫描或改写 Workspace 文件。
+
 FTS 同步由事务内 repository 维护并用一致性测试覆盖。
 
 ## 9. 事务示例

@@ -42,7 +42,8 @@ export function EmployeesPage(props: {
   const [name, setName] = useState("");
   const [providerId, setProviderId] = useState("");
   const [modelId, setModelId] = useState("");
-  const [skillName, setSkillName] = useState("text-organize");
+  const [skillNames, setSkillNames] = useState<readonly string[]>([]);
+  const [editingEmployeeId, setEditingEmployeeId] = useState("");
   const [preview, setPreview] = useState<Preview>();
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState(false);
@@ -81,7 +82,7 @@ export function EmployeesPage(props: {
       workspaceResult,
       taskResult,
     ] = await Promise.all([
-      window.desktop.piEmployee.list({ schemaVersion: 1 }),
+      window.desktop.piEmployee.list({ schemaVersion: 2 }),
       window.desktop.piSkill.list({ schemaVersion: 1 }),
       window.desktop.provider.list({ schemaVersion: 1 }),
       window.desktop.workspace.list(),
@@ -116,7 +117,16 @@ export function EmployeesPage(props: {
       }
     }
     if (taskResult.ok) setTasks(taskResult.value);
-    if (skillResult.ok) setSkills(skillResult.value);
+    if (skillResult.ok) {
+      setSkills(skillResult.value);
+      setSkillNames((current) => {
+        if (current.length > 0) return current;
+        const preferred =
+          skillResult.value.find((skill) => skill.name === "text-organize") ??
+          skillResult.value[0];
+        return preferred === undefined ? [] : [preferred.name];
+      });
+    }
     if (providerResult.ok) setProviders(providerResult.value);
     if (workspaceResult.ok) {
       setWorkspaces(workspaceResult.value);
@@ -207,30 +217,45 @@ export function EmployeesPage(props: {
       setMessage(`技能更新失败：${skillErrorMessage(result.error.code)}`);
       return;
     }
-    setSkillName(result.value.name);
+    setSkillNames((current) =>
+      current.includes(result.value.name)
+        ? current
+        : [...current, result.value.name],
+    );
     setMessage(`技能“${result.value.name}”已导入。`);
     await reload();
   };
 
   const saveEmployee = async (event: FormEvent) => {
     event.preventDefault();
-    if (selectedProvider === undefined || modelId === "" || skillName === "") {
-      setMessage("请选择可用的 Provider、模型和技能。");
+    if (
+      selectedProvider === undefined ||
+      modelId === "" ||
+      skillNames.length === 0
+    ) {
+      setMessage("请选择可用的 Provider、模型和至少一项技能。");
       return;
     }
     setPending(true);
     const result = await window.desktop.piEmployee.save({
-      schemaVersion: 1,
+      schemaVersion: 2,
       commandId: createUuidV7(),
+      ...(editingEmployeeId === "" ? {} : { employeeId: editingEmployeeId }),
       name,
       providerId: selectedProvider.id,
       expectedProviderVersion: selectedProvider.version,
       modelId,
-      skillName,
+      skillNames: [...skillNames],
     });
     setPending(false);
     if (!result.ok) {
       setMessage(`员工保存失败：${employeeErrorMessage(result.error.code)}`);
+      return;
+    }
+    if (editingEmployeeId !== "") {
+      setMessage(`员工“${result.value.name}”已更新。`);
+      resetEmployeeForm();
+      await reload();
       return;
     }
     const membership = await window.desktop.piCompany.addEmployee({
@@ -245,10 +270,37 @@ export function EmployeesPage(props: {
       return;
     }
     props.onCompanyChange(membership.value);
-    setName("");
+    resetEmployeeForm();
     setSelectedEmployeeId(result.value.id);
     setMessage(`员工“${result.value.name}”已创建，可以接收任务。`);
     await reload(membership.value);
+  };
+
+  const resetEmployeeForm = () => {
+    setEditingEmployeeId("");
+    setName("");
+    setProviderId("");
+    setModelId("");
+    const preferred =
+      skills.find((skill) => skill.name === "text-organize") ?? skills[0];
+    setSkillNames(preferred === undefined ? [] : [preferred.name]);
+  };
+
+  const editEmployee = (employee: PiEmployee) => {
+    setEditingEmployeeId(employee.id);
+    setName(employee.name);
+    setProviderId(employee.providerId);
+    setModelId(employee.modelId);
+    setSkillNames(employee.skillNames);
+    setMessage(`正在编辑员工“${employee.name}”。`);
+  };
+
+  const toggleSkill = (skillName: string) => {
+    setSkillNames((current) =>
+      current.includes(skillName)
+        ? current.filter((name) => name !== skillName)
+        : [...current, skillName],
+    );
   };
 
   const startTask = async (event: FormEvent) => {
@@ -492,7 +544,7 @@ export function EmployeesPage(props: {
             员工与技能
           </h1>
           <p>
-            每名员工保存自己的模型和技能。先把一名员工配置好，再直接交代任务。
+            每名员工保存自己的模型和多项技能。任务开始后，员工会自行启用匹配的技能。
           </p>
         </div>
       </header>
@@ -521,6 +573,14 @@ export function EmployeesPage(props: {
                 </span>
                 <h3>{skill.name}</h3>
                 <p>{skill.description}</p>
+                {skill.compatibility !== undefined && (
+                  <small>环境说明：{skill.compatibility}</small>
+                )}
+                {skill.allowedTools !== undefined && (
+                  <small>
+                    来源声明工具：{skill.allowedTools}（不会自动获得权限）
+                  </small>
+                )}
                 <small>首版只读</small>
                 <details className="skill-content">
                   <summary>查看技能实际内容</summary>
@@ -618,24 +678,46 @@ export function EmployeesPage(props: {
             </select>
           </div>
           <div className="field field--wide">
-            <label htmlFor="employee-skill">技能</label>
-            <select
-              id="employee-skill"
-              onChange={(event) => setSkillName(event.target.value)}
-              required
-              value={skillName}
+            <span className="field-label" id="employee-skills-label">
+              技能（至少选择一项）
+            </span>
+            <div
+              aria-labelledby="employee-skills-label"
+              className="skill-picker"
+              role="group"
             >
               {skills.map((skill) => (
-                <option key={skill.name} value={skill.name}>
-                  {skill.name} · {skill.source === "BUILTIN" ? "内置" : "导入"}
-                </option>
+                <label className="skill-picker-option" key={skill.name}>
+                  <input
+                    checked={skillNames.includes(skill.name)}
+                    onChange={() => toggleSkill(skill.name)}
+                    type="checkbox"
+                  />
+                  <span>
+                    <strong>{skill.name}</strong>
+                    <small>
+                      {skill.description} ·{" "}
+                      {skill.source === "BUILTIN" ? "内置" : "导入"}
+                    </small>
+                  </span>
+                </label>
               ))}
-            </select>
+            </div>
           </div>
           <div className="form-actions field--wide">
             <button className="primary-button" disabled={pending} type="submit">
-              创建员工
+              {editingEmployeeId === "" ? "创建员工" : "保存员工"}
             </button>
+            {editingEmployeeId !== "" && (
+              <button
+                className="secondary-button"
+                disabled={pending}
+                onClick={resetEmployeeForm}
+                type="button"
+              >
+                取消编辑
+              </button>
+            )}
           </div>
         </form>
 
@@ -661,7 +743,14 @@ export function EmployeesPage(props: {
                   </span>
                   <h3>{employee.name}</h3>
                   <p>模型：{employee.modelId}</p>
-                  <p>技能：{employee.skillName}</p>
+                  <p>技能：{employee.skillNames.join("、")}</p>
+                  <button
+                    className="secondary-button"
+                    onClick={() => editEmployee(employee)}
+                    type="button"
+                  >
+                    编辑员工
+                  </button>
                   <button
                     className="secondary-button"
                     onClick={() =>

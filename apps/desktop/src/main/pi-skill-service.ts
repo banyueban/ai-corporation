@@ -40,6 +40,14 @@ export class PiSkillService {
             name: skill.name,
             description: skill.description,
             content: await this.options.library.readInstructions(skill.name),
+            ...(skill.license === undefined ? {} : { license: skill.license }),
+            ...(skill.compatibility === undefined
+              ? {}
+              : { compatibility: skill.compatibility }),
+            metadata: skill.metadata,
+            ...(skill.allowedTools === undefined
+              ? {}
+              : { allowedTools: skill.allowedTools }),
             source: BUILTIN_SKILL_NAMES.has(skill.name)
               ? ("BUILTIN" as const)
               : ("IMPORTED" as const),
@@ -69,6 +77,16 @@ export class PiSkillService {
           previewId,
           name: preview.name,
           description: preview.description,
+          ...(preview.license === undefined
+            ? {}
+            : { license: preview.license }),
+          ...(preview.compatibility === undefined
+            ? {}
+            : { compatibility: preview.compatibility }),
+          metadata: preview.metadata,
+          ...(preview.allowedTools === undefined
+            ? {}
+            : { allowedTools: preview.allowedTools }),
           changes: [...preview.changes],
         },
       };
@@ -95,6 +113,14 @@ export class PiSkillService {
           name: skill.name,
           description: skill.description,
           content: await this.options.library.readInstructions(skill.name),
+          ...(skill.license === undefined ? {} : { license: skill.license }),
+          ...(skill.compatibility === undefined
+            ? {}
+            : { compatibility: skill.compatibility }),
+          metadata: skill.metadata,
+          ...(skill.allowedTools === undefined
+            ? {}
+            : { allowedTools: skill.allowedTools }),
           source: "IMPORTED",
           readOnly: true,
         },

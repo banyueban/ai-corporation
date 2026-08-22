@@ -43,7 +43,7 @@ describe("PiEmployeeRepository", () => {
       providerId,
       providerVersion: 1,
       modelId: "deepseek-v4-flash",
-      skillName: "text-organize",
+      skillNames: ["text-organize", "coding-task"],
       now: now(),
     });
     expect(repository.list()).toEqual([created]);
@@ -54,11 +54,40 @@ describe("PiEmployeeRepository", () => {
       providerId,
       providerVersion: 1,
       modelId: "deepseek-v4-flash",
-      skillName: "text-organize",
+      skillNames: ["coding-task", "text-organize"],
       now: "2026-08-14T01:00:00.000Z",
     });
     expect(updated.name).toBe("文档员工");
+    expect(updated.skillNames).toEqual(["coding-task", "text-organize"]);
     expect(updated.createdAt).toBe(created.createdAt);
+    expect(
+      database
+        .prepare(
+          "SELECT skill_name, position FROM pi_employee_skill WHERE employee_id = ? ORDER BY position",
+        )
+        .all(id),
+    ).toEqual([
+      { skill_name: "coding-task", position: 0 },
+      { skill_name: "text-organize", position: 1 },
+    ]);
+    expect(
+      database
+        .prepare("SELECT skill_name FROM pi_employee WHERE id = ?")
+        .get(id),
+    ).toEqual({ skill_name: "coding-task" });
+
+    expect(() =>
+      repository.save({
+        id,
+        name: "无效更新",
+        providerId,
+        providerVersion: 1,
+        modelId: "deepseek-v4-flash",
+        skillNames: ["coding-task", "coding-task"],
+        now: "2026-08-14T02:00:00.000Z",
+      }),
+    ).toThrow();
+    expect(repository.get(id)?.name).toBe("文档员工");
   });
 });
 

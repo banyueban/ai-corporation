@@ -9,15 +9,34 @@ import {
   writeFile,
 } from "node:fs/promises";
 import path from "node:path";
+import { parse as parseYaml } from "yaml";
 
 const MAX_SKILL_FILES = 256;
 const MAX_SKILL_BYTES = 10 * 1024 * 1024;
+const MAX_REFERENCE_BYTES = 1024 * 1024;
 const SKILL_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 
 export interface SkillSummary {
+  readonly allowedTools?: string;
+  readonly compatibility?: string;
   readonly description: string;
   readonly directory: string;
+  readonly license?: string;
+  readonly metadata: Readonly<Record<string, string>>;
   readonly name: string;
+}
+
+export interface SkillResourceSummary {
+  readonly kind: "ASSET" | "REFERENCE" | "SCRIPT";
+  readonly relativePath: string;
+  readonly sizeBytes: number;
+}
+
+export interface SkillAssetInspection {
+  readonly rootDirectory: string;
+  readonly relativePath: string;
+  readonly sha256: string;
+  readonly sizeBytes: number;
 }
 
 export interface SkillFileChange {
@@ -26,9 +45,13 @@ export interface SkillFileChange {
 }
 
 export interface SkillImportPreview {
+  readonly allowedTools?: string;
   readonly changes: readonly SkillFileChange[];
+  readonly compatibility?: string;
   readonly description: string;
   readonly digest: string;
+  readonly license?: string;
+  readonly metadata: Readonly<Record<string, string>>;
   readonly name: string;
 }
 
@@ -39,9 +62,14 @@ interface SkillFile {
 }
 
 interface SkillSnapshot {
+  readonly allowedTools?: string;
+  readonly compatibility?: string;
   readonly description: string;
   readonly digest: string;
   readonly files: readonly SkillFile[];
+  readonly instructions: string;
+  readonly license?: string;
+  readonly metadata: Readonly<Record<string, string>>;
   readonly name: string;
 }
 
@@ -73,8 +101,18 @@ export class SkillLibrary {
         path.join(this.rootDirectory, entry.name),
       );
       skills.push({
+        ...(snapshot.allowedTools === undefined
+          ? {}
+          : { allowedTools: snapshot.allowedTools }),
+        ...(snapshot.compatibility === undefined
+          ? {}
+          : { compatibility: snapshot.compatibility }),
         description: snapshot.description,
         directory: path.join(this.rootDirectory, snapshot.name),
+        ...(snapshot.license === undefined
+          ? {}
+          : { license: snapshot.license }),
+        metadata: snapshot.metadata,
         name: snapshot.name,
       });
     }
@@ -82,11 +120,103 @@ export class SkillLibrary {
   }
 
   async readInstructions(name: string): Promise<string> {
-    if (!SKILL_NAME_PATTERN.test(name)) {
-      throw new SkillLibraryError("INVALID_SKILL", "技能名称不正确。");
+    return (await this.#readManagedSnapshot(name)).instructions;
+  }
+
+  async get(name: string): Promise<SkillSummary> {
+    const snapshot = await this.#readManagedSnapshot(name);
+    return {
+      ...(snapshot.allowedTools === undefined
+        ? {}
+        : { allowedTools: snapshot.allowedTools }),
+      ...(snapshot.compatibility === undefined
+        ? {}
+        : { compatibility: snapshot.compatibility }),
+      description: snapshot.description,
+      directory: path.join(this.rootDirectory, snapshot.name),
+      ...(snapshot.license === undefined ? {} : { license: snapshot.license }),
+      metadata: snapshot.metadata,
+      name: snapshot.name,
+    };
+  }
+
+  async listResources(name: string): Promise<readonly SkillResourceSummary[]> {
+    const snapshot = await this.#readManagedSnapshot(name);
+    return snapshot.files.flatMap((file): SkillResourceSummary[] => {
+      const kind = resourceKind(file.relativePath);
+      return kind === undefined
+        ? []
+        : [
+            {
+              kind,
+              relativePath: file.relativePath,
+              sizeBytes: file.bytes.byteLength,
+            },
+          ];
+    });
+  }
+
+  async readReference(
+    name: string,
+    relativePath: string,
+  ): Promise<{
+    readonly content: string;
+    readonly relativePath: string;
+    readonly sha256: string;
+    readonly sizeBytes: number;
+  }> {
+    requireResourcePath(relativePath, "references");
+    const snapshot = await this.#readManagedSnapshot(name);
+    const file = snapshot.files.find(
+      (candidate) => candidate.relativePath === relativePath,
+    );
+    if (file === undefined) {
+      throw new SkillLibraryError("INVALID_SKILL", "参考资料不存在。");
     }
-    // 只读取应用自己的副本，避免来源目录变化影响员工运行。
-    return readFile(path.join(this.rootDirectory, name, "SKILL.md"), "utf8");
+    if (file.bytes.byteLength > MAX_REFERENCE_BYTES) {
+      throw new SkillLibraryError("SKILL_TOO_LARGE", "参考资料超过 1 MiB。");
+    }
+    let content: string;
+    try {
+      content = new TextDecoder("utf-8", { fatal: true }).decode(file.bytes);
+    } catch {
+      throw new SkillLibraryError(
+        "INVALID_SKILL",
+        "参考资料不是普通 UTF-8 文本。",
+      );
+    }
+    if (content.includes("\0")) {
+      throw new SkillLibraryError(
+        "INVALID_SKILL",
+        "参考资料不是普通 UTF-8 文本。",
+      );
+    }
+    return {
+      content,
+      relativePath,
+      sha256: file.digest,
+      sizeBytes: file.bytes.byteLength,
+    };
+  }
+
+  async inspectAsset(
+    name: string,
+    relativePath: string,
+  ): Promise<SkillAssetInspection> {
+    requireResourcePath(relativePath, "assets");
+    const snapshot = await this.#readManagedSnapshot(name);
+    const file = snapshot.files.find(
+      (candidate) => candidate.relativePath === relativePath,
+    );
+    if (file === undefined) {
+      throw new SkillLibraryError("INVALID_SKILL", "技能资源不存在。");
+    }
+    return {
+      rootDirectory: path.join(this.rootDirectory, name),
+      relativePath,
+      sha256: file.digest,
+      sizeBytes: file.bytes.byteLength,
+    };
   }
 
   async previewImport(sourceDirectory: string): Promise<SkillImportPreview> {
@@ -99,9 +229,17 @@ export class SkillLibrary {
       if (!isMissing(error)) throw error;
     }
     return {
+      ...(incoming.allowedTools === undefined
+        ? {}
+        : { allowedTools: incoming.allowedTools }),
       changes: compareFiles(current?.files ?? [], incoming.files),
+      ...(incoming.compatibility === undefined
+        ? {}
+        : { compatibility: incoming.compatibility }),
       description: incoming.description,
       digest: incoming.digest,
+      ...(incoming.license === undefined ? {} : { license: incoming.license }),
+      metadata: incoming.metadata,
       name: incoming.name,
     };
   }
@@ -143,10 +281,35 @@ export class SkillLibrary {
     }
 
     return {
+      ...(incoming.allowedTools === undefined
+        ? {}
+        : { allowedTools: incoming.allowedTools }),
+      ...(incoming.compatibility === undefined
+        ? {}
+        : { compatibility: incoming.compatibility }),
       description: incoming.description,
       directory: target,
+      ...(incoming.license === undefined ? {} : { license: incoming.license }),
+      metadata: incoming.metadata,
       name: incoming.name,
     };
+  }
+
+  async #readManagedSnapshot(name: string): Promise<SkillSnapshot> {
+    if (!SKILL_NAME_PATTERN.test(name) || name.length > 64) {
+      throw new SkillLibraryError("INVALID_SKILL", "技能名称不正确。");
+    }
+    // 运行时只重新核对应用自管副本，不相信模型提交的路径。
+    try {
+      return await readSnapshot(path.join(this.rootDirectory, name));
+    } catch (error) {
+      if (error instanceof SkillLibraryError) throw error;
+      // 文件系统原始错误可能包含应用内部绝对路径，不能进入模型或过程区。
+      throw new SkillLibraryError(
+        "INVALID_SKILL",
+        `技能“${name}”不存在或无法读取。`,
+      );
+    }
   }
 }
 
@@ -168,6 +331,7 @@ async function readSnapshot(directory: string): Promise<SkillSnapshot> {
   }
   const parsed = parseSkillMarkdown(
     Buffer.from(skillFile.bytes).toString("utf8"),
+    path.basename(root),
   );
   const digest = createHash("sha256");
   for (const file of files) {
@@ -230,53 +394,128 @@ async function collectFiles(
   }
 }
 
-function parseSkillMarkdown(markdown: string): {
+function parseSkillMarkdown(
+  markdown: string,
+  directoryName: string,
+): {
+  readonly allowedTools?: string;
+  readonly compatibility?: string;
   readonly description: string;
+  readonly instructions: string;
+  readonly license?: string;
+  readonly metadata: Readonly<Record<string, string>>;
   readonly name: string;
 } {
   const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/u.exec(markdown);
   const header = match?.[1];
-  if (header === undefined) {
+  const frontmatter = match?.[0];
+  if (header === undefined || frontmatter === undefined) {
     throw new SkillLibraryError(
       "INVALID_SKILL",
       "SKILL.md 缺少 YAML 头信息。 ",
     );
   }
-  const fields = new Map<string, string>();
-  for (const line of header.split(/\r?\n/u)) {
-    const field = /^([a-z-]+):\s*(.+)$/u.exec(line);
-    const key = field?.[1];
-    const value = field?.[2];
-    if (key !== undefined && value !== undefined) {
-      fields.set(key, stripQuotes(value.trim()));
-    }
+  let fields: unknown;
+  try {
+    fields = parseYaml(header, { maxAliasCount: 0, uniqueKeys: true });
+  } catch {
+    throw new SkillLibraryError(
+      "INVALID_SKILL",
+      "SKILL.md 的 YAML 头信息不正确。",
+    );
   }
-  const name = fields.get("name");
-  const description = fields.get("description");
+  if (!isPlainObject(fields)) {
+    throw new SkillLibraryError(
+      "INVALID_SKILL",
+      "SKILL.md 的 YAML 头信息不正确。",
+    );
+  }
+  const name = fields.name;
+  const description = fields.description;
+  const license = optionalString(fields.license);
+  const compatibility = optionalString(fields.compatibility);
+  const allowedTools = optionalString(fields["allowed-tools"]);
+  const metadata = parseStringMap(fields.metadata);
   if (
-    name === undefined ||
+    typeof name !== "string" ||
     !SKILL_NAME_PATTERN.test(name) ||
     name.length > 64 ||
-    description === undefined ||
+    name !== directoryName ||
+    typeof description !== "string" ||
     description.length === 0 ||
-    description.length > 1024
+    description.length > 1024 ||
+    (fields.license !== undefined && license === undefined) ||
+    (fields.compatibility !== undefined &&
+      (compatibility === undefined || compatibility.length > 500)) ||
+    (fields["allowed-tools"] !== undefined && allowedTools === undefined) ||
+    (fields.metadata !== undefined && metadata === undefined)
   ) {
     throw new SkillLibraryError(
       "INVALID_SKILL",
       "SKILL.md 的 name 或 description 不符合要求。",
     );
   }
-  return { description, name };
+  return {
+    ...(allowedTools === undefined ? {} : { allowedTools }),
+    ...(compatibility === undefined ? {} : { compatibility }),
+    description,
+    instructions: markdown.slice(frontmatter.length).trimStart(),
+    ...(license === undefined ? {} : { license }),
+    metadata: metadata ?? {},
+    name,
+  };
 }
 
-function stripQuotes(value: string): string {
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function parseStringMap(
+  value: unknown,
+): Readonly<Record<string, string>> | undefined {
+  if (value === undefined) return {};
+  if (!isPlainObject(value)) return undefined;
+  const entries = Object.entries(value);
   if (
-    (value.startsWith('"') && value.endsWith('"')) ||
-    (value.startsWith("'") && value.endsWith("'"))
+    entries.length > 64 ||
+    entries.some(
+      ([key, item]) =>
+        key.length === 0 ||
+        key.length > 128 ||
+        typeof item !== "string" ||
+        item.length > 1024,
+    )
   ) {
-    return value.slice(1, -1);
+    return undefined;
   }
-  return value;
+  return Object.fromEntries(entries) as Readonly<Record<string, string>>;
+}
+
+function resourceKind(
+  relativePath: string,
+): SkillResourceSummary["kind"] | undefined {
+  if (relativePath.startsWith("references/")) return "REFERENCE";
+  if (relativePath.startsWith("assets/")) return "ASSET";
+  if (relativePath.startsWith("scripts/")) return "SCRIPT";
+  return undefined;
+}
+
+function requireResourcePath(relativePath: string, directory: string): void {
+  const portable = relativePath.replaceAll("\\", "/");
+  if (
+    portable !== relativePath ||
+    !portable.startsWith(`${directory}/`) ||
+    portable.endsWith("/") ||
+    portable
+      .split("/")
+      .some((part) => part.length === 0 || part === "." || part === "..")
+  ) {
+    throw new SkillLibraryError("UNSAFE_ENTRY", "技能资源路径不正确。");
+  }
 }
 
 function compareFiles(

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   WORKSPACE_CANONICALIZE_RPC_METHOD,
+  WORKSPACE_COPY_ASSET_RPC_METHOD,
   WORKSPACE_LIST_IPC_CHANNEL,
   WORKSPACE_LIST_RPC_METHOD,
   WORKSPACE_READ_TEXT_RPC_METHOD,
@@ -10,6 +11,8 @@ import {
   WORKSPACE_WRITE_TEXT_RPC_METHOD,
   workspaceCanonicalizeRpcRequestSchema,
   workspaceCanonicalizeRpcResponseSchema,
+  workspaceCopyAssetRpcRequestSchema,
+  workspaceCopyAssetRpcResponseSchema,
   workspaceListIpcResultSchema,
   workspaceListRpcRequestSchema,
   workspaceListRpcResponseSchema,
@@ -234,6 +237,46 @@ describe("workspace protocol", () => {
           previousSha256: null,
           sha256,
           sizeBytes: 6,
+        },
+      }).success,
+    ).toBe(true);
+  });
+
+  it("keeps Skill asset source and Workspace target inside the trusted RPC", () => {
+    const request = {
+      jsonrpc: "2.0" as const,
+      id: "skill-asset-1",
+      method: WORKSPACE_COPY_ASSET_RPC_METHOD,
+      params: {
+        schemaVersion: WORKSPACE_SCHEMA_VERSION,
+        sessionToken: "a".repeat(64),
+        sourceRootPath: "C:\\app-data\\pi-skills\\template-skill",
+        sourceRelativePath: "assets/template.bin",
+        expectedSha256: "ab".repeat(32),
+        expectedSizeBytes: 4,
+        rootPath: "E:\\projects\\example",
+        relativePath: "template.bin",
+      },
+    };
+    expect(workspaceCopyAssetRpcRequestSchema.safeParse(request).success).toBe(
+      true,
+    );
+    expect(
+      workspaceCopyAssetRpcRequestSchema.safeParse({
+        ...request,
+        params: { ...request.params, unexpected: true },
+      }).success,
+    ).toBe(false);
+    expect(
+      workspaceCopyAssetRpcResponseSchema.safeParse({
+        jsonrpc: "2.0",
+        id: "skill-asset-1",
+        result: {
+          schemaVersion: 1,
+          relativePath: "template.bin",
+          created: true,
+          sha256: "ab".repeat(32),
+          sizeBytes: 4,
         },
       }).success,
     ).toBe(true);

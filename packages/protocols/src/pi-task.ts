@@ -47,7 +47,7 @@ const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/u);
 export const piTaskDeliverableSchema = z
   .object({
     relativePath: z.string().min(1).max(32_767),
-    source: z.enum(["WORKSPACE_WRITE", "COMMAND_REGISTERED"]),
+    source: z.enum(["WORKSPACE_WRITE", "COMMAND_REGISTERED", "SKILL_ASSET"]),
     changeKind: z.enum(["CREATED", "MODIFIED", "REGISTERED"]),
     sha256: sha256Schema,
     sizeBytes: z.number().int().nonnegative().max(104_857_600),

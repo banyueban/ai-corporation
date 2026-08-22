@@ -114,6 +114,15 @@ pub struct WorkspaceTextWrite {
     size_bytes: u64,
 }
 
+#[derive(Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceAssetCopy {
+    relative_path: String,
+    created: bool,
+    sha256: String,
+    size_bytes: u64,
+}
+
 /// Lists a bounded, non-sensitive view of an authorized workspace.
 pub fn list_workspace(
     root: &Path,
@@ -299,6 +308,85 @@ pub fn write_workspace_text(
         previous_sha256,
         sha256: target_hash,
         size_bytes: content.len() as u64,
+    })
+}
+
+/// Copies one verified Skill asset into a new workspace file without overwriting.
+pub fn copy_workspace_asset(
+    source_root: &Path,
+    source_relative_path: &Path,
+    expected_sha256: &str,
+    expected_size_bytes: u64,
+    workspace_root: &Path,
+    target_relative_path: &Path,
+) -> Result<WorkspaceAssetCopy, WorkspacePathError> {
+    use atomicwrites::{AtomicFile, OverwriteBehavior};
+
+    // Main 只会传应用自管 Skill 的根目录；Native 再次限制来源必须位于
+    // 该根目录的 assets/ 下，避免协议调用把任意 Skill 文件当成资源复制。
+    let mut source_components = source_relative_path.components();
+    if !matches!(source_components.next(), Some(Component::Normal(first)) if first == "assets")
+        || source_components.next().is_none()
+    {
+        return Err(WorkspacePathError::new(WorkspacePathErrorCode::InvalidPath));
+    }
+    reject_sensitive(source_relative_path)?;
+    let source = resolve_workspace_path(source_root, source_relative_path)?;
+    if !source.target_exists() {
+        return Err(WorkspacePathError::new(WorkspacePathErrorCode::NotFound));
+    }
+    if !source.canonical_path().is_file() {
+        return Err(WorkspacePathError::new(WorkspacePathErrorCode::NotFile));
+    }
+    let source_metadata =
+        fs::metadata(source.canonical_path()).map_err(classify_candidate_error)?;
+    if source_metadata.len() > MAX_DELIVERABLE_BYTES {
+        return Err(WorkspacePathError::new(
+            WorkspacePathErrorCode::FileTooLarge,
+        ));
+    }
+    let bytes = fs::read(source.canonical_path()).map_err(classify_candidate_error)?;
+    if bytes.len() as u64 != source_metadata.len() {
+        return Err(WorkspacePathError::new(WorkspacePathErrorCode::Conflict));
+    }
+    let source_sha256 = hash_bytes(&bytes);
+    if source_metadata.len() != expected_size_bytes || source_sha256 != expected_sha256 {
+        return Err(WorkspacePathError::new(WorkspacePathErrorCode::Conflict));
+    }
+
+    reject_sensitive(target_relative_path)?;
+    let target = resolve_workspace_path(workspace_root, target_relative_path)?;
+    if target.relative_path().as_os_str().is_empty() {
+        return Err(WorkspacePathError::new(WorkspacePathErrorCode::NotFile));
+    }
+    if target.target_exists() {
+        return Err(WorkspacePathError::new(WorkspacePathErrorCode::Conflict));
+    }
+    let parent = target
+        .canonical_path()
+        .parent()
+        .ok_or_else(|| WorkspacePathError::new(WorkspacePathErrorCode::InvalidPath))?;
+    if !parent.is_dir() {
+        return Err(WorkspacePathError::new(
+            WorkspacePathErrorCode::NotDirectory,
+        ));
+    }
+
+    AtomicFile::new(
+        target.canonical_path(),
+        OverwriteBehavior::DisallowOverwrite,
+    )
+    .write(|file| {
+        file.write_all(&bytes)?;
+        file.sync_all()
+    })
+    .map_err(|_| WorkspacePathError::new(WorkspacePathErrorCode::WriteFailed))?;
+
+    Ok(WorkspaceAssetCopy {
+        relative_path: portable_relative(target.relative_path()),
+        created: true,
+        sha256: source_sha256,
+        size_bytes: bytes.len() as u64,
     })
 }
 
@@ -704,8 +792,9 @@ mod tests {
 
     use super::{
         PERMISSION_PROBE_PREFIX, PermissionMode, WorkspacePathError, WorkspacePathErrorCode,
-        classify_candidate_error, cleanup_probe_with, inspect_workspace_file, list_workspace,
-        read_workspace_text, resolve_workspace_path, write_workspace_text,
+        classify_candidate_error, cleanup_probe_with, copy_workspace_asset, hash_bytes,
+        inspect_workspace_file, list_workspace, read_workspace_text, resolve_workspace_path,
+        write_workspace_text,
     };
 
     static FIXTURE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
@@ -974,6 +1063,69 @@ mod tests {
             fs::read_to_string(fixture.root.join("result.md"))?,
             "user change"
         );
+        fixture.cleanup()
+    }
+
+    #[test]
+    fn copies_binary_assets_without_overwriting_workspace_files() -> io::Result<()> {
+        let fixture = Fixture::create()?;
+        let skill_root = fixture.base.join("skill");
+        fs::create_dir_all(skill_root.join("assets"))?;
+        fs::write(skill_root.join("assets/template.bin"), [0_u8, 1, 2, 255])?;
+        let expected_sha256 = hash_bytes(&[0_u8, 1, 2, 255]);
+
+        let copied = copy_workspace_asset(
+            &skill_root,
+            Path::new("assets/template.bin"),
+            &expected_sha256,
+            4,
+            &fixture.root,
+            Path::new("template.bin"),
+        )
+        .map_err(io::Error::other)?;
+        assert!(copied.created);
+        assert_eq!(fs::read(fixture.root.join("template.bin"))?, [0, 1, 2, 255]);
+
+        let conflict = rejected(
+            copy_workspace_asset(
+                &skill_root,
+                Path::new("assets/template.bin"),
+                &expected_sha256,
+                4,
+                &fixture.root,
+                Path::new("template.bin"),
+            ),
+            "an existing workspace file must not be overwritten",
+        );
+        assert_eq!(conflict.code(), WorkspacePathErrorCode::Conflict);
+
+        let wrong_hash = rejected(
+            copy_workspace_asset(
+                &skill_root,
+                Path::new("assets/template.bin"),
+                &"0".repeat(64),
+                4,
+                &fixture.root,
+                Path::new("other.bin"),
+            ),
+            "a source changed after inspection must not be copied",
+        );
+        assert_eq!(wrong_hash.code(), WorkspacePathErrorCode::Conflict);
+        assert!(!fixture.root.join("other.bin").exists());
+
+        fs::write(skill_root.join("SKILL.md"), "instructions")?;
+        let outside_assets = rejected(
+            copy_workspace_asset(
+                &skill_root,
+                Path::new("SKILL.md"),
+                &hash_bytes(b"instructions"),
+                12,
+                &fixture.root,
+                Path::new("instructions.md"),
+            ),
+            "only assets are valid copy sources",
+        );
+        assert_eq!(outside_assets.code(), WorkspacePathErrorCode::InvalidPath);
         fixture.cleanup()
     }
 
