@@ -120,4 +120,5 @@
 - 本地 `pnpm check` 已通过：Protocol 64、Provider 28、Storage 108、Desktop 162、Native Core 8、Workspace FS 10，并通过格式、类型、Clippy 和 Secret scan；
 - 开发态和 Windows `win-unpacked` 的员工真实窗口旅程各 2 条通过，覆盖自动登记、命令登记、预览、外部变化、文件丢失、真实检查、失败部分成果、验收和 1024×700、1440×900、200% 布局；
 - Windows 安装包已生成，大小 106172900 字节，SHA-256 为 `4F3858F8DBCEA52C9E1C8BD363B8AC897D8D88F4055C1C2AF6422F50A8C296F5`；
-- 当前实现尚未提交，Windows/macOS CI 尚未运行，用户尚未使用当前安装包人工验收，所以 20 项验收断言保持未勾选，任务状态保持“进行中”。
+- 实现提交 `3678954f70d1a0a9f3397f01ea6e9f6350fb90eb` 的 macOS Apple Silicon CI 已通过；Windows x64 在“工程检查”阶段失败，后续窗口和打包步骤未执行；当前正在复验，不能把这次失败写成通过；
+- 用户尚未使用当前安装包人工验收，所以 20 项验收断言保持未勾选，任务状态保持“进行中”。
