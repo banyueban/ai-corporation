@@ -377,7 +377,7 @@ export function EmployeesPage(props: {
       result.ok
         ? action === "open"
           ? "已用系统默认软件打开文件。"
-          : "已在文件夹中定位交付文件。"
+          : "已请求系统在文件夹中定位交付文件。"
         : deliverableErrorMessage(result.error.code),
     );
   };

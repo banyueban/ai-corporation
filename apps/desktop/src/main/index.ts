@@ -915,16 +915,12 @@ void app.whenReady().then(async () => {
       workspaceRepository,
       nativeClient: () => nativeCoreClient,
       openPath: (canonicalPath) => shell.openPath(canonicalPath),
-      showItemInFolder: (canonicalPath) =>
-        shell.showItemInFolder(canonicalPath),
-      resolveRuntime: (providerId, providerVersion, modelId) => {
+      revealPath: (canonicalDirectoryPath) =>
+        shell.openPath(canonicalDirectoryPath),
+      resolveRuntime: (providerId, modelId) => {
         if (providerService === undefined)
           throw new Error("Provider unavailable");
-        return providerService.resolvePiRuntime(
-          providerId,
-          providerVersion,
-          modelId,
-        );
+        return providerService.resolveCurrentPiRuntime(providerId, modelId);
       },
     });
     await piTaskService.recoverWorkspaceWrites();

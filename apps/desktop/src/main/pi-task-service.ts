@@ -84,7 +84,6 @@ export class PiTaskService {
         | undefined;
       readonly resolveRuntime: (
         providerId: string,
-        providerVersion: number,
         modelId: string,
       ) => {
         readonly endpoint: string;
@@ -94,7 +93,7 @@ export class PiTaskService {
       readonly createId?: () => string;
       readonly clock?: () => string;
       readonly openPath?: (canonicalPath: string) => Promise<string>;
-      readonly showItemInFolder?: (canonicalPath: string) => void;
+      readonly revealPath?: (canonicalDirectoryPath: string) => Promise<string>;
     },
   ) {}
 
@@ -168,7 +167,9 @@ export class PiTaskService {
         located.workspace.canonicalRootPath,
         request.relativePath,
       );
-      const error = await this.options.openPath(inspected.canonicalPath);
+      const error = await this.options.openPath(
+        desktopShellPath(inspected.canonicalPath),
+      );
       return error.length === 0
         ? { ok: true, value: { status: "OPENED" } }
         : deliverableFailure("INTERNAL");
@@ -187,11 +188,16 @@ export class PiTaskService {
         located.workspace.canonicalRootPath,
         request.relativePath,
       );
-      if (this.options.showItemInFolder === undefined) {
+      if (this.options.revealPath === undefined) {
         return deliverableFailure("INTERNAL");
       }
-      this.options.showItemInFolder(inspected.canonicalPath);
-      return { ok: true, value: { status: "REVEALED" } };
+      // 直接打开父文件夹并检查系统返回值，不能把一次无法确认的调用假报成成功。
+      const error = await this.options.revealPath(
+        path.dirname(desktopShellPath(inspected.canonicalPath)),
+      );
+      return error.length === 0
+        ? { ok: true, value: { status: "REVEALED" } }
+        : deliverableFailure("INTERNAL");
     } catch (error) {
       return deliverableFailure(mapActionError(error));
     }
@@ -330,7 +336,6 @@ export class PiTaskService {
       }
       const runtime = this.options.resolveRuntime(
         employee.providerId,
-        employee.providerVersion,
         employee.modelId,
       );
       const workspace = this.#requireWorkspace(request.workspaceId);
@@ -439,7 +444,6 @@ export class PiTaskService {
       if (employee === undefined) return failure("NOT_FOUND");
       const runtime = this.options.resolveRuntime(
         employee.providerId,
-        employee.providerVersion,
         employee.modelId,
       );
       if (task.workspaceId === undefined) return failure("WORKSPACE_NOT_READY");
@@ -1258,4 +1262,18 @@ function failure(
     | "INTERNAL",
 ): PiTaskResult {
   return { ok: false, error: { code, message: "任务操作失败" } };
+}
+
+/** Electron 的系统文件操作不接受 Windows canonicalize 产生的特殊路径前缀。 */
+export function desktopShellPath(
+  canonicalPath: string,
+  platform: NodeJS.Platform = process.platform,
+): string {
+  if (platform !== "win32") return canonicalPath;
+  if (canonicalPath.startsWith("\\\\?\\UNC\\")) {
+    return `\\\\${canonicalPath.slice(8)}`;
+  }
+  return canonicalPath.startsWith("\\\\?\\")
+    ? canonicalPath.slice(4)
+    : canonicalPath;
 }

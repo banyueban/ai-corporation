@@ -11,7 +11,7 @@ import {
 } from "@ai-corporation/storage";
 import { afterEach, describe, expect, it } from "vitest";
 import { SkillLibrary } from "./skill-library";
-import { PiTaskService } from "./pi-task-service";
+import { desktopShellPath, PiTaskService } from "./pi-task-service";
 
 describe("PiTaskService", () => {
   const cleanups: Array<() => Promise<void>> = [];
@@ -32,6 +32,18 @@ describe("PiTaskService", () => {
 
   afterEach(async () => {
     await Promise.all(cleanups.splice(0).map((cleanup) => cleanup()));
+  });
+
+  it("removes Windows special path prefixes before using the system shell", () => {
+    expect(desktopShellPath("\\\\?\\C:\\work\\result.md", "win32")).toBe(
+      "C:\\work\\result.md",
+    );
+    expect(
+      desktopShellPath("\\\\?\\UNC\\server\\share\\result.md", "win32"),
+    ).toBe("\\\\server\\share\\result.md");
+    expect(desktopShellPath("/work/result.md", "darwin")).toBe(
+      "/work/result.md",
+    );
   });
 
   it("streams model output, writes a real workspace text result, and waits for acceptance", async () => {
@@ -156,7 +168,10 @@ describe("PiTaskService", () => {
         opened.push(canonicalPath);
         return "";
       },
-      showItemInFolder: (canonicalPath) => revealed.push(canonicalPath),
+      revealPath: async (canonicalDirectoryPath) => {
+        revealed.push(canonicalDirectoryPath);
+        return "";
+      },
       createId: () => "019b7f4d-a100-7000-8000-000000000003",
     });
 
@@ -239,7 +254,7 @@ describe("PiTaskService", () => {
       value: { status: "REVEALED" },
     });
     expect(opened).toEqual([`${root}/result.md`]);
-    expect(revealed).toEqual([`${root}/result.md`]);
+    expect(revealed).toEqual([root]);
     repository.upsertDeliverable({
       taskId: completed.id,
       relativePath: "unsafe.js",

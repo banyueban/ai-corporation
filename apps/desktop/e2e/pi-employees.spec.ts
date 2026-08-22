@@ -74,6 +74,26 @@ test("user creates and restores an independent Pi employee in the visible window
     expect(providerAfterEmployee.ok).toBe(true);
     if (!providerAfterEmployee.ok) throw new Error("Provider list failed");
     expect(providerAfterEmployee.value[0]?.selectedModelId).toBeUndefined();
+    const provider = providerAfterEmployee.value[0];
+    if (provider === undefined) throw new Error("Provider is missing");
+    const providerUpdate = await page.evaluate(
+      async ({ currentProvider }) => {
+        const desktop = (window as unknown as { desktop: DesktopApi }).desktop;
+        return desktop.provider.save({
+          schemaVersion: 1,
+          commandId: "019b7f4d-a000-7000-8000-000000000105",
+          providerId: currentProvider.id,
+          expectedVersion: currentProvider.version,
+          name: "Pi 验收 Provider（已更新）",
+          endpoint: currentProvider.endpoint,
+          configStatus: currentProvider.configStatus,
+          apiDialect: "CHAT_COMPLETIONS",
+          generationTimeoutMs: 60_000,
+        });
+      },
+      { currentProvider: provider },
+    );
+    expect(providerUpdate.ok).toBe(true);
     await page.getByRole("button", { name: "添加工作区" }).click();
     await expect(
       page.getByText("工作区已加入当前公司，可以用于这次任务。"),

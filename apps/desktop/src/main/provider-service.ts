@@ -499,6 +499,31 @@ export class ProviderService {
     };
   }
 
+  /**
+   * 员工长期绑定 Provider 和模型，不绑定某次编辑产生的历史版本号。
+   * 每次开始任务都重新检查当前 Provider、Key 和模型，避免正常更新配置后老员工失效。
+   */
+  resolveCurrentPiRuntime(
+    providerId: string,
+    modelId: string,
+  ): {
+    readonly endpoint: string;
+    readonly key: string;
+    readonly timeoutMs: number;
+  } {
+    const provider = this.#repository.get(providerId);
+    if (provider === undefined) {
+      throw new ProviderRuntimeUnavailableError("NOT_FOUND");
+    }
+    this.assertReady(providerId, provider.version, modelId);
+    const stored = this.#repository.getEncryptedKey(providerId);
+    return {
+      endpoint: provider.endpoint,
+      key: this.#vault.decrypt(stored.encrypted, stored.entryId),
+      timeoutMs: provider.generationTimeoutMs ?? 60_000,
+    };
+  }
+
   #rememberFinishedConnectionTest(requestId: string): void {
     rememberFinished(
       requestId,

@@ -9,7 +9,6 @@ const workspaceId = "019b0000-0000-7000-8000-000000000034";
 const taskId = "019b0000-0000-7000-8000-000000000035";
 type ResolveRuntime = (
   providerId: string,
-  providerVersion: number,
   modelId: string,
 ) => {
   readonly endpoint: string;
