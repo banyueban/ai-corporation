@@ -3,7 +3,7 @@
 | 字段 | 内容 |
 | --- | --- |
 | 任务单元 ID | M12-TU-01 |
-| 状态 | 进行中 |
+| 状态 | 完成 |
 | 所属 Milestone | Milestone 12：标准 Agent Skills 运行底座 |
 | 主要结果 | 一名员工可以拥有多项标准 Skill；用户直接交代任务后，员工只加载简短目录，自动启用匹配 Skill，并按需读取参考资料或把资源复制成真实工作成果。 |
 | 基线提交 | `ed9140f553f602495a27c401988791ece8b2d9b3` |
@@ -104,7 +104,7 @@
 - [x] 15. Given Renderer 重载或应用在模型/只读工具/复制操作间中断，When 恢复，Then 已完成事实保持，进行中副作用不自动重放，同一资源不重复登记。Evidence：重载、进程重启和幂等测试。
 - [x] 16. Given 1024×700、1440×900 和 200% 缩放，When 创建多 Skill 员工并查看长名称、长用途和工具过程，Then 无竖排、重叠、遮挡或关键操作不可见。Evidence：布局断言和开发态截图人工检查。
 - [x] 17. Given Windows 开发态与最终打包程序，When 完成“多 Skill → 自动启用 → 读 reference → 复制 asset → 查看成果”连续旅程，Then 真实窗口可交互且结果与文件一致。Evidence：开发态和打包程序 Electron E2E。
-- [ ] 18. Given 当前验收候选提交，When Windows x64 与 macOS Apple Silicon CI 运行，Then 工程检查、真实窗口、应用构建、打包程序检查和 artifact 上传全部通过。Evidence：同一提交的 GitHub Actions jobs；平台证据不互相替代。
+- [x] 18. Given 当前验收候选提交，When Windows x64 与 macOS Apple Silicon CI 运行，Then 工程检查、真实窗口、应用构建、打包程序检查和 artifact 上传全部通过。Evidence：同一提交的 GitHub Actions jobs；平台证据不互相替代。
 
 ## 9. 隔离与干扰控制
 
@@ -126,8 +126,13 @@
 
 ## 11. 完成规则
 
-只有 18 项验收断言全部取得当前提交直接证据、所有适用检查通过、P0/P1 为 0、P2/P3 已登记，并且文档、协议、迁移、实现、开发态窗口和最终打包程序一致，M12-TU-01 才能标记“完成”。本任务完成只代表多 Skill、自动启用和资源闭环完成；脚本、环境管理、真实公开 Skill 验收和 Milestone 12 仍保持未完成。
+只有 18 项验收断言全部取得当前提交直接证据、所有适用检查通过、P0/P1 为 0、P2/P3 已登记，文档、协议、迁移、实现、开发态窗口和最终打包程序一致，并且用户使用当前 Windows 安装包人工验收通过，M12-TU-01 才能标记“完成”。本任务完成只代表多 Skill、自动启用和资源闭环完成；脚本、环境管理、真实公开 Skill 验收和 Milestone 12 仍保持未完成。
 
-## 12. 就绪结论
+## 12. 完成结论
 
-用户已明确确认多 Skill、自动选择、专门 Skill 工具、正式标准解析，以及环境管理采用 `5C + 6A`。本合同把脚本和环境拆给 `M12-TU-02`，把真实公开 Skill 验收登记为 `DE-019`，不削减 Milestone 12 已承诺内容。基线、迁移编号、接口、共享冲突区、异常、安全、恢复、平台与证据均已明确，没有未决产品歧义，可以实施。
+- 验收候选提交为 `314d5efb1796eb7b6fd2ca786754a176e99cbcd6`；
+- 本地 `pnpm check` 通过：Protocol 67、Provider 28、Storage 109、Desktop 176、Native Core 9、Workspace FS 11，并通过格式、类型、Clippy 和 Secret scan；
+- Windows 开发态和最终打包程序完成多 Skill、自动启用、读取 reference、复制 asset、查看成果和重启不重放连续旅程，1024×700、1440×900 和 200% 布局通过；
+- GitHub Actions run `32591896190` 对同一候选提交通过：Windows x64 6 分 23 秒，macOS Apple Silicon 4 分 8 秒，两边均完成工程检查、真实窗口、应用构建、打包程序检查和安装包上传；
+- 用户于 2026-08-24 使用当前 Windows 安装包完成人工验收并确认通过；18 项断言全部关闭，P0/P1 为 0，没有已知 P2/P3；
+- M12-TU-01 完成；`M12-TU-02` 的脚本运行、环境检查和隔离自动安装仍未开始，Milestone 12 不随本任务自动完成。
