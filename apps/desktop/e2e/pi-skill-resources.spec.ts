@@ -385,9 +385,10 @@ test("employee installs a private Python, runs standard Skill scripts, and reuse
     await javaScriptEnvironmentCard
       .getByRole("button", { name: "自动安装" })
       .click();
+    // CI 首次安装 npm 依赖会受下载速度影响；给真实安装留出时间，但超过一分钟仍失败。
     await expect(
       page.getByRole("heading", { name: "是否允许本任务运行程序？" }),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 60_000 });
     await page.getByRole("button", { name: "允许本任务运行程序" }).click();
     await expect(
       page.getByRole("heading", { name: "等待你验收" }),
