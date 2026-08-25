@@ -217,6 +217,8 @@ allowed-tools: Bash(git:*) Read
     await writeSkill(mismatched, "text-organize", "整理文字", {});
     await expect(library.previewImport(mismatched)).rejects.toMatchObject({
       code: "INVALID_SKILL",
+      message:
+        "文件夹名称“wrong-folder”必须与 SKILL.md 中的 name“text-organize”一致。",
     });
   });
 

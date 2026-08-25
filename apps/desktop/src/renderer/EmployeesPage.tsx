@@ -11,6 +11,7 @@ import type {
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type Dispatch,
   type FormEvent,
@@ -54,6 +55,7 @@ export function EmployeesPage(props: {
   const [skillNames, setSkillNames] = useState<readonly string[]>([]);
   const [editingEmployeeId, setEditingEmployeeId] = useState("");
   const [preview, setPreview] = useState<Preview>();
+  const [skillImportMessage, setSkillImportMessage] = useState("");
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState(false);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
@@ -64,6 +66,8 @@ export function EmployeesPage(props: {
   const [tasks, setTasks] = useState<readonly PiTask[]>([]);
   const [deliverablePreview, setDeliverablePreview] =
     useState<DeliverablePreview>();
+  const skillImportMessageRef = useRef<HTMLParagraphElement>(null);
+  const skillImportPreviewRef = useRef<HTMLDivElement>(null);
 
   const readyProviders = useMemo(
     () => providers.filter(isReadyProvider),
@@ -194,44 +198,83 @@ export function EmployeesPage(props: {
     setDeliverablePreview(undefined);
   }, [currentTask?.id]);
 
+  useEffect(() => {
+    if (preview === undefined) return;
+    const animationFrame = window.requestAnimationFrame(() => {
+      // 文件夹选择窗口关闭后，必须把第二次确认明确交到用户眼前。
+      skillImportPreviewRef.current?.focus();
+      skillImportPreviewRef.current?.scrollIntoView({ block: "center" });
+    });
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [preview]);
+
+  const focusSkillImportMessage = () => {
+    window.requestAnimationFrame(() => {
+      skillImportMessageRef.current?.focus();
+      skillImportMessageRef.current?.scrollIntoView({ block: "center" });
+    });
+  };
+
   const previewImport = async () => {
     setPending(true);
-    setMessage("正在读取技能文件夹。");
+    setSkillImportMessage("正在读取技能文件夹。");
     const result = await window.desktop.piSkill.previewImport({
       schemaVersion: 1,
     });
     setPending(false);
     if (!result.ok) {
-      setMessage(
+      const details =
+        result.error.message === "技能操作失败"
+          ? skillErrorMessage(result.error.code)
+          : result.error.message;
+      setSkillImportMessage(
         result.error.code === "CANCELLED"
           ? "已取消导入。"
-          : `技能无法导入：${skillErrorMessage(result.error.code)}`,
+          : `技能无法导入：${details}`,
       );
+      focusSkillImportMessage();
       return;
     }
     setPreview(result.value);
-    setMessage("请确认下面的变化，确认前不会覆盖现有技能。");
+    setSkillImportMessage("已读取技能文件夹，请确认下面的变化。");
   };
 
   const confirmImport = async () => {
     if (preview === undefined) return;
     setPending(true);
+    setSkillImportMessage(`正在导入技能“${preview.name}”。`);
     const result = await window.desktop.piSkill.confirmImport({
       schemaVersion: 1,
       previewId: preview.previewId,
     });
     setPending(false);
-    setPreview(undefined);
     if (!result.ok) {
-      setMessage(`技能更新失败：${skillErrorMessage(result.error.code)}`);
+      setPreview(undefined);
+      const details =
+        result.error.message === "技能操作失败"
+          ? skillErrorMessage(result.error.code)
+          : result.error.message;
+      setSkillImportMessage(`技能导入失败：${details} 请重新选择文件夹。`);
+      focusSkillImportMessage();
       return;
     }
+    setPreview(undefined);
+    // 先使用确认接口返回的真实 Skill 更新界面，不让后续整页刷新掩盖成功结果。
+    setSkills((current) =>
+      [
+        ...current.filter((skill) => skill.name !== result.value.name),
+        result.value,
+      ].sort((left, right) => left.name.localeCompare(right.name)),
+    );
     setSkillNames((current) =>
       current.includes(result.value.name)
         ? current
         : [...current, result.value.name],
     );
-    setMessage(`技能“${result.value.name}”已导入。`);
+    setSkillImportMessage(
+      `技能“${result.value.name}”已导入，并已加入新员工的技能选择。`,
+    );
+    focusSkillImportMessage();
     await reload();
   };
 
@@ -580,6 +623,14 @@ export function EmployeesPage(props: {
               导入技能文件夹
             </button>
           </div>
+          <p
+            aria-live="polite"
+            className="employee-message skill-import-message"
+            ref={skillImportMessageRef}
+            tabIndex={-1}
+          >
+            {skillImportMessage}
+          </p>
           <div className="employee-card-grid">
             {skills.map((skill) => (
               <article className="employee-card" key={skill.name}>
@@ -605,7 +656,12 @@ export function EmployeesPage(props: {
             ))}
           </div>
           {preview !== undefined && (
-            <div className="provider-disclosure" role="alert">
+            <div
+              className="provider-disclosure"
+              ref={skillImportPreviewRef}
+              role="alert"
+              tabIndex={-1}
+            >
               <h3>确认导入：{preview.name}</h3>
               <p>{preview.description}</p>
               {preview.changes.length === 0 ? (

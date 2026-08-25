@@ -530,8 +530,20 @@ function parseSkillMarkdown(
   if (
     typeof name !== "string" ||
     !SKILL_NAME_PATTERN.test(name) ||
-    name.length > 64 ||
-    name !== directoryName ||
+    name.length > 64
+  ) {
+    throw new SkillLibraryError(
+      "INVALID_SKILL",
+      "SKILL.md 的 name 必须是有效的标准 Skill 名称。",
+    );
+  }
+  if (name !== directoryName) {
+    throw new SkillLibraryError(
+      "INVALID_SKILL",
+      `文件夹名称“${directoryName}”必须与 SKILL.md 中的 name“${name}”一致。`,
+    );
+  }
+  if (
     typeof description !== "string" ||
     description.length === 0 ||
     description.length > 1024 ||
@@ -543,7 +555,7 @@ function parseSkillMarkdown(
   ) {
     throw new SkillLibraryError(
       "INVALID_SKILL",
-      "SKILL.md 的 name 或 description 不符合要求。",
+      "SKILL.md 的 description 或可选信息不符合要求。",
     );
   }
   return {

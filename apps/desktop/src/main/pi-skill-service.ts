@@ -91,7 +91,7 @@ export class PiSkillService {
         },
       };
     } catch (error) {
-      return failure(mapSkillError(error));
+      return failure(mapSkillError(error), safeSkillErrorMessage(error));
     }
   }
 
@@ -126,13 +126,18 @@ export class PiSkillService {
         },
       };
     } catch (error) {
-      return failure(mapSkillError(error));
+      return failure(mapSkillError(error), safeSkillErrorMessage(error));
     }
   }
 }
 
 function mapSkillError(error: unknown) {
   return error instanceof SkillLibraryError ? error.code : "INTERNAL";
+}
+
+function safeSkillErrorMessage(error: unknown): string | undefined {
+  // SkillLibraryError 只包含经过设计的相对名称和用户可执行说明，不含内部绝对路径。
+  return error instanceof SkillLibraryError ? error.message.trim() : undefined;
 }
 
 function failure(
@@ -146,6 +151,7 @@ function failure(
     | "PREVIEW_EXPIRED"
     | "STORAGE_UNAVAILABLE"
     | "INTERNAL",
+  message = "技能操作失败",
 ): PiSkillItemResult & PiSkillListResult & PiSkillPreviewImportResult {
-  return { ok: false, error: { code, message: "技能操作失败" } };
+  return { ok: false, error: { code, message } };
 }

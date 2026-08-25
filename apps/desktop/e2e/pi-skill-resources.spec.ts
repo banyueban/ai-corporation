@@ -15,6 +15,127 @@ const RESOURCE_SKILL = "presentation-template-production-assets";
 const PRIVATE_INSTRUCTIONS = "M12-PRIVATE-FULL-INSTRUCTIONS";
 const REFERENCE_CONTENT = "M12-REFERENCE-CONTENT";
 
+test("user imports a script Skill and can select it for a new employee", async () => {
+  const userDataDirectory = mkdtempSync(
+    path.join(tmpdir(), "M12-TU-02-import-user-data-"),
+  );
+  const sourceParent = mkdtempSync(
+    path.join(tmpdir(), "M12-TU-02-import-source-"),
+  );
+  writeManagedScriptFixture(sourceParent, "m12-runtime-manual");
+  const sourceDirectory = path.join(sourceParent, "m12-runtime-manual");
+  const app = await launchApplication(userDataDirectory);
+
+  try {
+    // 测试只替代系统文件夹选择窗口，确认导入、复制、刷新和员工表单都走真实产品链路。
+    await app.evaluate(({ dialog }, selectedDirectory) => {
+      dialog.showOpenDialog = async () => ({
+        canceled: false,
+        filePaths: [selectedDirectory],
+      });
+    }, sourceDirectory);
+    const page = await app.firstWindow();
+    await app.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()[0]?.setSize(1024, 700);
+    });
+    await page.getByRole("button", { name: "控制台" }).click();
+    await page.getByLabel("公司名称").fill("Skill 导入验收公司");
+    await page.getByRole("button", { name: "新建公司" }).click();
+
+    await page.getByRole("button", { name: "导入技能文件夹" }).click();
+    const importConfirmation = page.getByRole("alert").filter({
+      has: page.getByRole("heading", {
+        name: "确认导入：m12-runtime-manual",
+      }),
+    });
+    await expect(importConfirmation).toBeVisible();
+    await expect(importConfirmation).toBeInViewport();
+    await expect(importConfirmation).toBeFocused();
+    await page.getByRole("button", { name: "确认导入" }).click();
+
+    await expect(
+      page.getByText(
+        "技能“m12-runtime-manual”已导入，并已加入新员工的技能选择。",
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("article").filter({
+        has: page.getByRole("heading", { name: "m12-runtime-manual" }),
+      }),
+    ).toBeVisible();
+    await expect(page.getByLabel(/m12-runtime-manual/u)).toBeVisible();
+    await expect(page.getByLabel(/m12-runtime-manual/u)).toBeChecked();
+    await page.screenshot({
+      animations: "disabled",
+      path: path.resolve(
+        __dirname,
+        "../../../release",
+        `m12-tu02-skill-import-${process.env.AI_CORPORATION_PACKAGED_EXE === undefined ? "dev" : "packaged"}-${process.platform}-${process.arch}-1024x700.png`,
+      ),
+    });
+  } finally {
+    await app.close().catch(() => undefined);
+    await removeTemporaryDirectory(userDataDirectory);
+    await removeTemporaryDirectory(sourceParent);
+  }
+});
+
+test("user sees why an invalid Skill folder was not imported", async () => {
+  const userDataDirectory = mkdtempSync(
+    path.join(tmpdir(), "M12-TU-02-invalid-import-user-data-"),
+  );
+  const sourceParent = mkdtempSync(
+    path.join(tmpdir(), "M12-TU-02-invalid-import-source-"),
+  );
+  const sourceDirectory = path.join(sourceParent, "wrong-folder-name");
+  mkdirSync(sourceDirectory, { recursive: true });
+  writeFileSync(
+    path.join(sourceDirectory, "SKILL.md"),
+    "---\nname: expected-folder-name\ndescription: 验证错误提示必须出现在眼前。\n---\n",
+    "utf8",
+  );
+  const app = await launchApplication(userDataDirectory);
+
+  try {
+    await app.evaluate(({ dialog }, selectedDirectory) => {
+      dialog.showOpenDialog = async () => ({
+        canceled: false,
+        filePaths: [selectedDirectory],
+      });
+    }, sourceDirectory);
+    const page = await app.firstWindow();
+    await app.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()[0]?.setSize(1024, 700);
+    });
+    await page.getByRole("button", { name: "控制台" }).click();
+    await page.getByLabel("公司名称").fill("无效 Skill 提示公司");
+    await page.getByRole("button", { name: "新建公司" }).click();
+
+    await page.getByRole("button", { name: "导入技能文件夹" }).click();
+    const failure = page.getByText(
+      "技能无法导入：文件夹名称“wrong-folder-name”必须与 SKILL.md 中的 name“expected-folder-name”一致。",
+    );
+    await expect(failure).toBeVisible();
+    await expect(failure).toBeInViewport();
+    await expect(failure).toBeFocused();
+    await expect(
+      page.getByRole("heading", { name: "expected-folder-name" }),
+    ).toHaveCount(0);
+    await page.screenshot({
+      animations: "disabled",
+      path: path.resolve(
+        __dirname,
+        "../../../release",
+        `m12-tu02-skill-import-error-${process.env.AI_CORPORATION_PACKAGED_EXE === undefined ? "dev" : "packaged"}-${process.platform}-${process.arch}-1024x700.png`,
+      ),
+    });
+  } finally {
+    await app.close().catch(() => undefined);
+    await removeTemporaryDirectory(userDataDirectory);
+    await removeTemporaryDirectory(sourceParent);
+  }
+});
+
 test("employee automatically activates one of multiple Skills and copies its asset", async () => {
   test.setTimeout(60_000);
   const fixture = await startProviderFixture();
@@ -447,14 +568,17 @@ test("employee installs a private Python, runs standard Skill scripts, and reuse
   }
 });
 
-function writeManagedScriptFixture(managedRoot: string): void {
-  const skillRoot = path.join(managedRoot, "script-runtime-fixture");
+function writeManagedScriptFixture(
+  managedRoot: string,
+  skillName = "script-runtime-fixture",
+): void {
+  const skillRoot = path.join(managedRoot, skillName);
   mkdirSync(path.join(skillRoot, "references"), { recursive: true });
   mkdirSync(path.join(skillRoot, "scripts"), { recursive: true });
   writeFileSync(
     path.join(skillRoot, "SKILL.md"),
     `---
-name: script-runtime-fixture
+name: ${skillName}
 description: 需要运行标准 JavaScript、Python 或当前系统原生脚本并生成工作区文件时使用。
 ---
 先选择与用户任务匹配的 scripts/ 脚本，再把工作区逻辑路径作为独立参数传入。

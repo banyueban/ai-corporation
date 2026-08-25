@@ -51,7 +51,8 @@ const piSkillErrorSchema = z
       "STORAGE_UNAVAILABLE",
       "INTERNAL",
     ]),
-    message: z.literal("技能操作失败"),
+    // 只传递主进程整理过的安全说明，让用户在操作位置直接知道哪里不符合要求。
+    message: z.string().min(1).max(500),
   })
   .strict();
 

@@ -708,6 +708,10 @@ h3 {
   margin-top: 1rem;
 }
 
+.skill-import-message {
+  margin: -0.5rem 0 1rem;
+}
+
 .field {
   display: grid;
   grid-template-columns: minmax(0, 1fr);

@@ -3,12 +3,12 @@
 | 属性 | 当前值 |
 | --- | --- |
 | 当前产品版本 | Pi 重启版真实工作阶段 |
-| 当前阶段 | Milestone 12 第二个任务等待 Windows 安装包人工验收 |
+| 当前阶段 | Milestone 12 第二个任务修复人工验收首步失败 |
 | 当前 Milestone | Milestone 12：标准 Agent Skills 运行底座 |
 | 当前任务单元 | M12-TU-02（进行中） |
-| 总体状态 | Milestone 7–11 和 M12-TU-01 已完成；M12-TU-02 的当前候选已经通过本地完整工程、开发态真实窗口、Windows 最终打包程序和 Windows/macOS CI，等待用户 Windows 安装包人工验收；Milestone 12 尚未验收完成 |
+| 总体状态 | Milestone 7–11 和 M12-TU-01 已完成；M12-TU-02 首次人工验收在导入验收 Skill 时失败，原因是提供的本地文件夹名称与 SKILL.md 的 name 不一致，且软件没有把原因显示在操作位置；当前修复候选已通过本地完整工程、开发态真实窗口和 Windows 最终打包程序检查，尚待新提交的 Windows/macOS CI 与用户复验；Milestone 12 尚未验收完成 |
 | 最近更新 | 2026-08-25 |
-| 下一检查点 | 用户使用当前 Windows 安装包核对环境计划、自动安装、脚本过程和真实成果；通过前不关闭 M12-TU-02 或 Milestone 12 |
+| 下一检查点 | 当前修复候选提交并通过 Windows/macOS CI 后，用户先复验“导入技能文件夹”一步；首步通过后再继续环境计划、自动安装、脚本过程和真实成果验收 |
 
 ## 1. 当前结论
 
@@ -18,7 +18,7 @@ AI Corporation 已切换到 Pi 路线。新产品以“好用是第一原则”�
 
 M12-TU-01 已完成：一名员工可选择多项 Skill，旧员工会保留原 Skill；任务开始时模型只看到名称和用途，再按任务启用完整说明、读取参考资料或复制资源成真实成果。Windows/macOS 自动检查和用户 Windows 安装包人工验收均已通过。
 
-M12-TU-02 已按用户确认的 `1A + 2A + 3A + 4A` 完成当前候选实现：JavaScript 使用软件自身运行能力；Python 缺失时安装到应用自管目录；Windows 使用 PowerShell，macOS 使用 Shell；自动识别 PEP 723、`requirements.txt`、`package.json` 和结构化包名/版本；默认使用可复用的 Skill 独立环境；系统安装仅允许受限 winget/Homebrew 计划并再次确认。当前候选已通过本地完整工程、开发态真实窗口和 Windows 最终打包程序检查，仍需同一提交的 Windows/macOS CI 和用户人工验收，不代表脚本、安装包或 Milestone 已通过最终验收。
+M12-TU-02 已按用户确认的 `1A + 2A + 3A + 4A` 完成当前候选实现：JavaScript 使用软件自身运行能力；Python 缺失时安装到应用自管目录；Windows 使用 PowerShell，macOS 使用 Shell；自动识别 PEP 723、`requirements.txt`、`package.json` 和结构化包名/版本；默认使用可复用的 Skill 独立环境；系统安装仅允许受限 winget/Homebrew 计划并再次确认。首次人工验收在第一步导入验收 Skill 时失败：项目提供的本地验收文件夹名称与 `SKILL.md` 的 `name` 不一致，软件虽然拒绝了无效 Skill，却把原因显示在长页面底部，用户在当前操作位置看不到。当前修复候选已改正本地验收 Skill，并让导入预览、成功和具体失败原因直接出现在技能区；它已通过本地完整工程、开发态真实窗口和 Windows 最终打包程序检查，仍需新提交的 Windows/macOS CI 和用户重新人工验收。
 
 M7-TU-01 和 Milestone 7 已完成：用户可以创建一名拥有独立模型和技能的员工，直接交代真实任务，实时查看模型与安全演示工具过程，并在员工自查后决定退回修改或验收完成。用户于 2026-08-15 使用包含布局修复的新 Windows 安装包完成人工验收并确认通过。
 
@@ -93,7 +93,7 @@ M7-TU-01 和 Milestone 7 已完成：用户可以创建一名拥有独立模型�
 - [x] 多 Skill 数据迁移和员工设置；
 - [x] Skill 简短目录、自动启用、参考资料读取和资源复制；
 - [x] 脚本运行、环境检查和应用自管独立环境自动安装已经实现并通过本地专项测试（M12-TU-02）；
-- [ ] M12-TU-02 用户人工验收；当前候选的 Windows/macOS CI、Windows 本地开发态与最终打包程序检查已通过；
+- [ ] M12-TU-02 用户人工验收；首次验收在导入验收 Skill 时失败，当前修复候选的 Windows 本地开发态与最终打包程序检查已通过，新提交的 Windows/macOS CI 尚未执行；
 - [x] M12-TU-01 的 Windows/macOS 自动验收和最终安装包检查；
 - [x] M12-TU-01 的用户 Windows 安装包人工验收。
 
@@ -113,7 +113,7 @@ M12-TU-02 只交付标准 Skill 的常用脚本与环境闭环：
 
 ## 5. 活跃阻塞与已确认决策
 
-当前没有代码或外部阻塞。M12-TU-02 当前候选已经通过本地完整工程、开发态真实窗口、Windows 最终打包程序和同一提交的 Windows/macOS CI，剩余门禁只有用户 Windows 安装包人工验收。用户已确认：一名员工拥有多项 Skill 并按任务自动选择；JavaScript 使用软件运行能力，Python 缺失时装入软件自管目录，Windows/macOS 分别支持 PowerShell/Shell；自动识别 PEP 723、requirements、package.json 和结构化包名/版本；默认使用 Skill 独立环境；系统程序只用受限 winget/Homebrew 方案并再次确认。未来环境员工复用同一工具，真实公开 Skill 另做端到端验收。
+当前没有代码或外部阻塞。M12-TU-02 当前修复候选需要先提交并取得同一提交的 Windows/macOS CI，再交给用户重新人工验收。首次人工验收已经明确失败，不能沿用之前“只剩用户验收”的结论。用户已确认：一名员工拥有多项 Skill 并按任务自动选择；JavaScript 使用软件运行能力，Python 缺失时装入软件自管目录，Windows/macOS 分别支持 PowerShell/Shell；自动识别 PEP 723、requirements、package.json 和结构化包名/版本；默认使用 Skill 独立环境；系统程序只用受限 winget/Homebrew 方案并再次确认。未来环境员工复用同一工具，真实公开 Skill 另做端到端验收。
 
 M11-TU-01 采用“受控写入自动登记，命令产物经 `workspace.register_deliverable` 核实后登记”的方案，不扫描整个工作区，也不把模型文字当成文件证据。
 
@@ -176,11 +176,13 @@ M11-TU-01 采用“受控写入自动登记，命令产物经 `workspace.registe
 - 验收候选提交 `314d5efb1796eb7b6fd2ca786754a176e99cbcd6` 的 GitHub Actions run `32591896190` 已通过：Windows x64（6 分 23 秒）和 macOS Apple Silicon（4 分 8 秒）均完成工程检查、真实窗口、应用构建、打包程序检查和安装包上传；
 - 用户于 2026-08-24 使用当前 Windows 安装包完成人工验收并确认通过；M12-TU-01 的 18 项断言全部关闭，P0/P1 为 0。脚本和环境能力仍属于 M12-TU-02，Milestone 12 保持未完成。
 - M12-TU-02 当前候选已实现 JavaScript、Python、Windows PowerShell 和 macOS Shell 的结构化脚本运行，自动识别 PEP 723、`requirements.txt`、`package.json` 与结构化依赖，默认建立可复用的 Skill 独立环境；安装批准、系统安装二次批准、复检、脚本授权、过程记录和成果核对保持分离；
-- 本地正常 Windows 权限下 `pnpm check` 通过：协议 67、Provider 28、存储 109、桌面 194、Native Core 9、Workspace FS 11，并通过状态、任务合同、格式、类型、Clippy 和 Secret scan；命令 Runner 的 10 项专项测试确认取消和超时返回前完整进程树已经退出，并连续运行 10 轮、100 次断言全部通过；完整窗口验收与打包程序验收后均没有测试残留进程；
-- 开发态真实窗口为当前主流程 7 条通过、5 条按现有入口或本地真实 Key 开关明确跳过；Windows 最终打包程序的普通员工、编码员工、多 Skill 资源和 M12 环境脚本旅程 4 条全部通过，真实覆盖 npm 安装、应用自管 CPython 下载、独立环境复用、原生脚本执行和成果展示；安装卡还用键盘直接验证了“暂不安装”不运行脚本，以及重新发起后“自动安装”继续任务；
+- 首次人工验收的第一步失败：原验收文件夹为 `release/M12-TU-02-manual-skill`，但 `SKILL.md` 的 `name` 为 `m12-runtime-manual`，不符合标准 Skill 的同名规则；软件正确拒绝了无效 Skill，但错误只出现在长页面底部，用户无法在导入位置看到；
+- 当前修复候选使用同名的本地验收目录 `release/m12-runtime-manual`；导入预览会自动滚动并获得焦点，确认成功后技能卡片和新员工技能选项立即出现，失败时按钮下直接显示具体原因；成功与失败两条开发态及打包版真实窗口检查均通过，截图已人工核对无隐藏或遮挡；
+- 本地正常 Windows 权限下 `pnpm check` 通过：协议 69、Provider 28、存储 109、桌面 194、Native Core 9、Workspace FS 11，并通过状态、任务合同、格式、类型、Clippy 和 Secret scan；
+- 开发态真实窗口为当前主流程 9 条通过、5 条按现有入口或本地真实 Key 开关明确跳过；Windows 最终打包程序的普通员工、编码员工、技能导入成功与失败、多 Skill 资源和 M12 环境脚本旅程最终一轮 6 条全部通过。打包版完整回归首轮曾在旧编码员工的命令超时检查出现一次 10 秒等待超时，单独复跑和完整第二轮均通过，保留为测试偶发卡顿事实，不冒充首轮通过；
 - 最终包包含固定 uv `0.11.15` 和 npm `11.6.2` 运行资源；1024×700、1440×900 和 200% 截图已人工检查，没有竖排、重叠、横向溢出、遮挡或关键按钮不可见；
-- 当前 Windows 安装包位于 `release/AI Corporation Desktop Setup 0.1.0.exe`，大小 124957198 字节，SHA-256 为 `84279931781D1E94A9D6CAC6E3E4D8AC24CFF40E310C0003994AC888E6B07EE2`；
-- 验收候选提交 `724b365ca813f835ff495558e05e050785c4fb4a` 的 GitHub Actions run `32814669739` 已通过：Windows x64（7 分 18 秒）和 macOS Apple Silicon（4 分 56 秒）均完成工程检查、真实窗口、应用构建、打包程序专项旅程和安装包上传；只有 GitHub Action 的 Node.js 20 弃用提示，没有产品失败；用户人工验收仍未取得，M12-TU-02 与 Milestone 12 均保持未完成。
+- 当前 Windows 安装包位于 `release/AI Corporation Desktop Setup 0.1.0.exe`，大小 124957679 字节，SHA-256 为 `79F11DB88D04C84532E57F6B466765005488EEDE2A860AEBD7F6FB55FC52F054`；
+- 上一个验收候选提交 `724b365ca813f835ff495558e05e050785c4fb4a` 的 GitHub Actions run `32814669739` 已通过，但用户人工验收随后在 Skill 导入首步失败；当前修复改变了源码、协议和测试，不能复用该旧提交的 CI 作为当前候选证据，新提交的 Windows/macOS CI 尚未取得。M12-TU-02 与 Milestone 12 均保持未完成。
 
 ## 7. 阶段复盘与下一步
 
