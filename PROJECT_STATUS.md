@@ -177,7 +177,7 @@ M11-TU-01 采用“受控写入自动登记，命令产物经 `workspace.registe
 - 用户于 2026-08-24 使用当前 Windows 安装包完成人工验收并确认通过；M12-TU-01 的 18 项断言全部关闭，P0/P1 为 0。脚本和环境能力仍属于 M12-TU-02，Milestone 12 保持未完成。
 - M12-TU-02 当前候选已实现 JavaScript、Python、Windows PowerShell 和 macOS Shell 的结构化脚本运行，自动识别 PEP 723、`requirements.txt`、`package.json` 与结构化依赖，默认建立可复用的 Skill 独立环境；安装批准、系统安装二次批准、复检、脚本授权、过程记录和成果核对保持分离；
 - 本地正常 Windows 权限下 `pnpm check` 通过：协议 67、Provider 28、存储 109、桌面 193、Native Core 9、Workspace FS 11，并通过状态、任务合同、格式、类型、Clippy 和 Secret scan；命令 Runner 的 9 项专项测试确认取消和超时返回前完整进程树已经退出，完整窗口验收与打包程序验收后均没有测试残留进程；
-- 开发态真实窗口为当前主流程 7 条通过、5 条按现有入口或本地真实 Key 开关明确跳过；Windows 最终打包程序的普通员工、编码员工、多 Skill 资源和 M12 环境脚本旅程 4 条全部通过，真实覆盖 npm 安装、应用自管 CPython 下载、独立环境复用、原生脚本执行和成果展示；
+- 开发态真实窗口为当前主流程 7 条通过、5 条按现有入口或本地真实 Key 开关明确跳过；Windows 最终打包程序的普通员工、编码员工、多 Skill 资源和 M12 环境脚本旅程 4 条全部通过，真实覆盖 npm 安装、应用自管 CPython 下载、独立环境复用、原生脚本执行和成果展示；安装卡还用键盘直接验证了“暂不安装”不运行脚本，以及重新发起后“自动安装”继续任务；
 - 最终包包含固定 uv `0.11.15` 和 npm `11.6.2` 运行资源；1024×700、1440×900 和 200% 截图已人工检查，没有竖排、重叠、横向溢出、遮挡或关键按钮不可见；
 - 当前 Windows 安装包位于 `release/AI Corporation Desktop Setup 0.1.0.exe`，大小 124956055 字节，SHA-256 为 `7DBE703CDC03F2EB587D8407153A353F3A5A572A4D3B291DEB0B2E5EAD6C61A9`；当前提交的 Windows/macOS CI 和用户人工验收仍未取得，M12-TU-02 与 Milestone 12 均保持未完成。
 

@@ -290,6 +290,25 @@ test("employee installs a private Python, runs standard Skill scripts, and reuse
     await expect(environmentCard.getByText(/不修改系统 PATH/u)).toBeVisible();
     await expect(environmentCard.getByText(/第三方代码/u)).toBeVisible();
 
+    // 安装卡必须能完全用键盘操作。先用 Enter 选择暂不安装，并确认脚本
+    // 没有偷偷运行；随后重新发起同一任务，再用键盘批准安装。
+    const deferInstallButton = environmentCard.getByRole("button", {
+      name: "暂不安装",
+    });
+    await deferInstallButton.focus();
+    await expect(deferInstallButton).toBeFocused();
+    await deferInstallButton.press("Enter");
+    await expect(page.getByRole("heading", { name: "失败" })).toBeVisible();
+    expect(() =>
+      readFileSync(path.join(taskWorkspace, "py-result.txt"), "utf8"),
+    ).toThrow();
+
+    await page
+      .getByLabel("任务内容")
+      .fill("重新运行 Skill 的 Python 脚本并生成 py-result.txt");
+    await page.getByRole("button", { name: "开始任务" }).click();
+    await expect(environmentHeading).toBeVisible();
+
     await app.evaluate(({ BrowserWindow }) => {
       const window = BrowserWindow.getAllWindows()[0];
       window?.setSize(1024, 700);
@@ -351,7 +370,9 @@ test("employee installs a private Python, runs standard Skill scripts, and reuse
       ),
     });
 
-    await automaticInstallButton.click();
+    await automaticInstallButton.focus();
+    await expect(automaticInstallButton).toBeFocused();
+    await automaticInstallButton.press("Enter");
     await expect(
       page.getByRole("heading", { name: "是否允许本任务运行程序？" }),
     ).toBeVisible({ timeout: 180_000 });
@@ -513,6 +534,20 @@ async function startScriptProviderFixture() {
         scriptRelativePath: "scripts/create.cjs",
         args: ["{{workspace}}/js-result.txt"],
         expectedOutputs: ["js-result.txt"],
+      },
+    },
+    undefined,
+    {
+      name: "skill_activate",
+      arguments: { skillName: "script-runtime-fixture" },
+    },
+    {
+      name: "skill_run_script",
+      arguments: {
+        skillName: "script-runtime-fixture",
+        scriptRelativePath: "scripts/create.py",
+        args: ["{{workspace}}/py-result.txt"],
+        expectedOutputs: ["py-result.txt"],
       },
     },
     undefined,
