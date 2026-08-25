@@ -179,7 +179,8 @@ M11-TU-01 采用“受控写入自动登记，命令产物经 `workspace.registe
 - 本地正常 Windows 权限下 `pnpm check` 通过：协议 67、Provider 28、存储 109、桌面 194、Native Core 9、Workspace FS 11，并通过状态、任务合同、格式、类型、Clippy 和 Secret scan；命令 Runner 的 10 项专项测试确认取消和超时返回前完整进程树已经退出，并连续运行 10 轮、100 次断言全部通过；完整窗口验收与打包程序验收后均没有测试残留进程；
 - 开发态真实窗口为当前主流程 7 条通过、5 条按现有入口或本地真实 Key 开关明确跳过；Windows 最终打包程序的普通员工、编码员工、多 Skill 资源和 M12 环境脚本旅程 4 条全部通过，真实覆盖 npm 安装、应用自管 CPython 下载、独立环境复用、原生脚本执行和成果展示；安装卡还用键盘直接验证了“暂不安装”不运行脚本，以及重新发起后“自动安装”继续任务；
 - 最终包包含固定 uv `0.11.15` 和 npm `11.6.2` 运行资源；1024×700、1440×900 和 200% 截图已人工检查，没有竖排、重叠、横向溢出、遮挡或关键按钮不可见；
-- 当前 Windows 安装包位于 `release/AI Corporation Desktop Setup 0.1.0.exe`，大小 124957198 字节，SHA-256 为 `84279931781D1E94A9D6CAC6E3E4D8AC24CFF40E310C0003994AC888E6B07EE2`；当前提交的 Windows/macOS CI 和用户人工验收仍未取得，M12-TU-02 与 Milestone 12 均保持未完成。
+- 当前 Windows 安装包位于 `release/AI Corporation Desktop Setup 0.1.0.exe`，大小 124957198 字节，SHA-256 为 `84279931781D1E94A9D6CAC6E3E4D8AC24CFF40E310C0003994AC888E6B07EE2`；
+- 提交 `a626d548e8601f3f2fb88873410ae97551e43809` 的 GitHub Actions run `32814129083` 中，macOS 完整流水线通过；Windows 没有在 M12 或命令 Runner 失败，而是旧 M1 公司状态测试准备临时数据库超过默认 10 秒后被停止，因此该 run 不算通过。当前候选只把这条测试的准备/清理等待上限调为 30 秒，不改变业务断言，本地专项 21 条和 `pnpm check` 已通过；新提交的双平台 CI 和用户人工验收仍未取得，M12-TU-02 与 Milestone 12 均保持未完成。
 
 ## 7. 阶段复盘与下一步
 
