@@ -105,9 +105,9 @@ test("saved real Provider repairs code and runs its test", async () => {
       );
     await page.getByRole("button", { name: "开始任务" }).click();
     await expect(
-      page.getByRole("heading", { name: "是否允许本任务运行命令？" }),
+      page.getByRole("heading", { name: "是否允许本任务运行程序？" }),
     ).toBeVisible({ timeout: 120_000 });
-    await page.getByRole("button", { name: "允许本任务运行命令" }).click();
+    await page.getByRole("button", { name: "允许本任务运行程序" }).click();
     await expect(page.getByRole("heading", { name: "等待你验收" })).toBeVisible(
       { timeout: 120_000 },
     );

@@ -707,6 +707,8 @@ Provider 表只保存应用自管 Key Vault 的记录 ID。`key_vault_entry` 保
 
 同一迁移给 `pi_workspace_write` 增加 `operation_kind`，只允许 `TEXT_WRITE` 或 `SKILL_ASSET`，使应用重启后能按真实操作类型恢复而不重复复制。`pi_task_deliverable.source` 同步增加 `SKILL_ASSET`；迁移通过重建轻量成果表保留已有记录、主键和索引，不扫描或改写 Workspace 文件。
 
+M12-TU-02 不增加 `0024`：脚本与环境安装启动前继续写现有 `pi_command_call.STARTING`，完成后记录真实终态，启动恢复把遗留运行记录改为 `UNKNOWN`；可见计划和结果继续进入 `pi_task_event`。Skill 独立环境使用应用自管文件系统中的原子 `READY` 清单，不把机器绝对路径写入 SQLite；项目环境只写当前 Workspace 的明确子目录且不进入 `pi_task_deliverable`。只有复检成功的清单可被复用，临时或未知环境不能投影为成功。
+
 FTS 同步由事务内 repository 维护并用一致性测试覆盖。
 
 ## 9. 事务示例

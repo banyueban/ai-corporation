@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
+import path from "node:path";
 
 const MAX_OUTPUT_BYTES = 50 * 1024;
 const DEFAULT_TIMEOUT_MS = 120_000;
@@ -18,6 +19,18 @@ export interface CommandResult {
   readonly truncated: boolean;
 }
 
+export interface StructuredCommandInput {
+  readonly executable: string;
+  readonly args: readonly string[];
+  readonly cwd: string;
+  /** 只允许可信 Main 代码补充运行所需变量，模型不能填写。 */
+  readonly environment?: Readonly<Record<string, string>>;
+  readonly displayCommand: string;
+  readonly signal?: AbortSignal;
+  readonly timeoutMs?: number;
+  readonly onUpdate?: (update: CommandUpdate) => void;
+}
+
 /**
  * Runs a command through the platform's normal command interpreter.
  * The structure follows pi-coding-agent's bash tool, adapted to AI Corporation's
@@ -30,9 +43,54 @@ export async function runSystemCommand(input: {
   readonly timeoutMs?: number;
   readonly onUpdate?: (update: CommandUpdate) => void;
 }): Promise<CommandResult> {
+  const child = createShellProcess(input.command, input.cwd);
+  return runSpawnedCommand({
+    child,
+    command: input.command,
+    ...(input.onUpdate === undefined ? {} : { onUpdate: input.onUpdate }),
+    ...(input.signal === undefined ? {} : { signal: input.signal }),
+    ...(input.timeoutMs === undefined ? {} : { timeoutMs: input.timeoutMs }),
+  });
+}
+
+/**
+ * Runs a trusted executable with an argument array and never invokes a shell.
+ * Skill scripts, package managers and fixed system installers use this path so
+ * model text cannot turn into command syntax.
+ */
+export async function runStructuredCommand(
+  input: StructuredCommandInput,
+): Promise<CommandResult> {
+  const child = spawn(input.executable, [...input.args], {
+    cwd: input.cwd,
+    detached: process.platform !== "win32",
+    env: {
+      ...safeCommandEnvironment(process.env),
+      ...input.environment,
+    },
+    shell: false,
+    stdio: ["ignore", "pipe", "pipe"],
+    windowsHide: true,
+  });
+  return runSpawnedCommand({
+    child,
+    command: input.displayCommand,
+    ...(input.onUpdate === undefined ? {} : { onUpdate: input.onUpdate }),
+    ...(input.signal === undefined ? {} : { signal: input.signal }),
+    ...(input.timeoutMs === undefined ? {} : { timeoutMs: input.timeoutMs }),
+  });
+}
+
+async function runSpawnedCommand(input: {
+  readonly child: ChildProcess;
+  readonly command: string;
+  readonly onUpdate?: (update: CommandUpdate) => void;
+  readonly signal?: AbortSignal;
+  readonly timeoutMs?: number;
+}): Promise<CommandResult> {
   const startedAt = Date.now();
   const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const child = createShellProcess(input.command, input.cwd);
+  const { child } = input;
   let stdout = "";
   let stderr = "";
   let truncated = false;
@@ -40,6 +98,7 @@ export async function runSystemCommand(input: {
   let truncationReported = false;
   let timedOut = false;
   let settled = false;
+  let stopPromise: Promise<void> | undefined;
 
   const append = (stream: "stdout" | "stderr", chunk: Buffer) => {
     const text = chunk.toString("utf8");
@@ -76,9 +135,13 @@ export async function runSystemCommand(input: {
   child.stdout?.on("data", (chunk: Buffer) => append("stdout", chunk));
   child.stderr?.on("data", (chunk: Buffer) => append("stderr", chunk));
 
-  const stop = async () => {
-    if (settled || child.pid === undefined) return;
-    await killProcessTree(child);
+  const stop = () => {
+    if (settled || child.pid === undefined) return Promise.resolve();
+    // 同一条命令可能同时收到任务取消和超时，只执行一次进程树清理。
+    // 更重要的是，下面会等待 taskkill/信号真正结束，不能只看到外层
+    // shell 退出就提前告诉上层“已经停止”。
+    stopPromise ??= killProcessTree(child);
+    return stopPromise;
   };
   const onAbort = () => void stop();
   input.signal?.addEventListener("abort", onAbort, { once: true });
@@ -92,6 +155,7 @@ export async function runSystemCommand(input: {
       child.once("error", reject);
       child.once("exit", (code) => resolve(code));
     });
+    if (stopPromise !== undefined) await stopPromise;
     settled = true;
     if (input.signal?.aborted === true) throw new CommandCancelledError();
     if (timedOut) throw new CommandTimeoutError();
@@ -174,14 +238,18 @@ async function killProcessTree(child: ChildProcess): Promise<void> {
   const pid = child.pid;
   if (pid === undefined) return;
   if (process.platform === "win32") {
-    await new Promise<void>((resolve) => {
-      const killer = spawn("taskkill", ["/pid", String(pid), "/t", "/f"], {
-        windowsHide: true,
-        stdio: "ignore",
-      });
-      killer.once("error", () => resolve());
-      killer.once("exit", () => resolve());
-    });
+    // taskkill /T 在外层 cmd 先退出时偶尔会漏掉已经变成孤儿的子程序。
+    // 先拍一张进程树快照并从最深层向外清理，再对根进程做一次 /T 兜底。
+    const descendants = await listWindowsDescendantPids(pid);
+    for (const descendantPid of descendants.reverse()) {
+      await runWindowsTaskkill(descendantPid);
+    }
+    await runWindowsTaskkill(pid);
+    try {
+      child.kill("SIGKILL");
+    } catch {
+      // taskkill 已经结束根进程时会到这里，属于正常结果。
+    }
     return;
   }
   try {
@@ -195,6 +263,89 @@ async function killProcessTree(child: ChildProcess): Promise<void> {
   } catch {
     // 进程树已经退出就是成功，不把 ESRCH 当作失败。
   }
+}
+
+/**
+ * Uses the Windows process table only during cancellation/timeout. The command
+ * is fixed trusted code and the only inserted value is an integer PID.
+ */
+async function listWindowsDescendantPids(rootPid: number): Promise<number[]> {
+  const systemRoot = process.env.SystemRoot ?? "C:\\Windows";
+  const powershell = path.join(
+    systemRoot,
+    "System32",
+    "WindowsPowerShell",
+    "v1.0",
+    "powershell.exe",
+  );
+  const script = [
+    `$all = @(Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId)`,
+    `$pending = @(${rootPid})`,
+    "$result = @()",
+    "while ($pending.Count -gt 0) {",
+    "  $parents = @($pending)",
+    "  $pending = @()",
+    "  foreach ($item in $all) {",
+    "    $itemPid = [int]$item.ProcessId",
+    "    if ($parents -contains [int]$item.ParentProcessId -and $result -notcontains $itemPid) {",
+    "      $result += $itemPid",
+    "      $pending += $itemPid",
+    "    }",
+    "  }",
+    "}",
+    '[Console]::Out.Write(($result -join ","))',
+  ].join("\n");
+
+  return new Promise((resolve) => {
+    const inspector = spawn(
+      powershell,
+      ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script],
+      {
+        windowsHide: true,
+        stdio: ["ignore", "pipe", "ignore"],
+      },
+    );
+    let output = "";
+    let finished = false;
+    const finish = (pids: number[]) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timeout);
+      resolve(pids);
+    };
+    const timeout = setTimeout(() => {
+      inspector.kill();
+      finish([]);
+    }, 3_000);
+    inspector.stdout?.on("data", (chunk: Buffer) => {
+      if (output.length < 64 * 1024) output += chunk.toString("utf8");
+    });
+    inspector.once("error", () => finish([]));
+    inspector.once("close", () => {
+      const pids = output
+        .trim()
+        .split(",")
+        .map((value) => Number(value))
+        .filter(
+          (value) =>
+            Number.isSafeInteger(value) && value > 0 && value !== rootPid,
+        );
+      finish([...new Set(pids)]);
+    });
+  });
+}
+
+async function runWindowsTaskkill(pid: number): Promise<void> {
+  const systemRoot = process.env.SystemRoot ?? "C:\\Windows";
+  const taskkill = path.join(systemRoot, "System32", "taskkill.exe");
+  await new Promise<void>((resolve) => {
+    const killer = spawn(taskkill, ["/pid", String(pid), "/t", "/f"], {
+      windowsHide: true,
+      stdio: "ignore",
+    });
+    killer.once("error", () => resolve());
+    killer.once("close", () => resolve());
+  });
 }
 
 export class CommandCancelledError extends Error {

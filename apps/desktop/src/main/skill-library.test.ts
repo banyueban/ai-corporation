@@ -162,7 +162,13 @@ allowed-tools: Bash(git:*) Read
         relativePath: "references/guide.md",
         sizeBytes: 12,
       },
-      { kind: "SCRIPT", relativePath: "scripts/check.js", sizeBytes: 18 },
+      {
+        available: "AVAILABLE",
+        kind: "SCRIPT",
+        relativePath: "scripts/check.js",
+        runtime: "JAVASCRIPT",
+        sizeBytes: 18,
+      },
     ]);
     await expect(
       library.readReference("text-organize", "references/guide.md"),
@@ -176,6 +182,34 @@ allowed-tools: Bash(git:*) Read
     await expect(
       library.readReference("text-organize", "assets/template.bin"),
     ).rejects.toMatchObject({ code: "UNSAFE_ENTRY" });
+  });
+
+  it("inspects supported scripts and copies the exact managed snapshot", async () => {
+    await writeSkill(source, "text-organize", "整理文字", {
+      "package.json": '{"dependencies":{"kleur":"4.1.5"}}',
+      "scripts/check.js": "console.log('ok');",
+    });
+    const preview = await library.previewImport(source);
+    await library.confirmImport(source, preview.digest);
+    const inspection = await library.inspectScript(
+      "text-organize",
+      "scripts/check.js",
+    );
+    const target = path.join(sourceRoot, "runtime-copy");
+
+    expect(inspection).toMatchObject({
+      digest: preview.digest,
+      runtime: "JAVASCRIPT",
+      scriptContent: "console.log('ok');",
+    });
+    await library.materializeRuntimeCopy(
+      "text-organize",
+      inspection.digest,
+      target,
+    );
+    await expect(
+      readFile(path.join(target, "scripts/check.js"), "utf8"),
+    ).resolves.toBe("console.log('ok');");
   });
 
   it("requires the official skill name to match its parent folder", async () => {

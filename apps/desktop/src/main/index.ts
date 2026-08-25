@@ -182,6 +182,7 @@ import {
 } from "./pi-task-ipc";
 import { PiTaskService } from "./pi-task-service";
 import { SkillLibrary } from "./skill-library";
+import { SkillEnvironmentManager } from "./skill-environment";
 import { createUuidV7 } from "./uuid-v7";
 import {
   handleProviderCancelConnectionTest,
@@ -865,6 +866,13 @@ void app.whenReady().then(async () => {
     const skillLibrary = new SkillLibrary(
       path.join(app.getPath("userData"), "pi-skills"),
     );
+    const skillEnvironmentManager = new SkillEnvironmentManager({
+      rootDirectory: path.join(app.getPath("userData"), "skill-environments"),
+      runtimeDirectory: app.isPackaged
+        ? path.join(process.resourcesPath, "runtime")
+        : path.join(app.getAppPath(), "build", "runtime"),
+      skillLibrary,
+    });
     // 每个内置技能都复制到应用自管目录，开发态和安装包行为一致。
     for (const builtinSkillName of ["text-organize", "coding-task"]) {
       const builtinSkillDirectory = path.join(
@@ -912,6 +920,7 @@ void app.whenReady().then(async () => {
       employeeRepository: piEmployeeRepository,
       taskRepository: piTaskRepository,
       skillLibrary,
+      environmentManager: skillEnvironmentManager,
       workspaceRepository,
       nativeClient: () => nativeCoreClient,
       openPath: (canonicalPath) => shell.openPath(canonicalPath),

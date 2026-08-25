@@ -118,7 +118,7 @@ test("user creates and restores an independent Pi employee in the visible window
     ).toBeVisible();
     await expect(page.getByText("result.md", { exact: true })).toBeVisible();
     await expect(page.getByText("新建", { exact: false })).toBeVisible();
-    await expect(page.getByText("本任务没有运行命令检查。")).toBeVisible();
+    await expect(page.getByText("本任务没有运行程序检查。")).toBeVisible();
     await page.getByRole("button", { name: "查看内容" }).click();
     await expect(page.getByText("内容未变化")).toBeVisible();
     await expect(page.getByText("整理完成：测试文字。").first()).toBeVisible();
@@ -429,7 +429,7 @@ test("coding employee asks once, streams a real command, and asks again for high
       .fill("修复 calculator.js 中的加法错误，并运行 check.js 验证结果");
     await page.getByRole("button", { name: "开始任务" }).click();
     await expect(
-      page.getByRole("heading", { name: "是否允许本任务运行命令？" }),
+      page.getByRole("heading", { name: "是否允许本任务运行程序？" }),
     ).toBeVisible();
     await expect(
       page.getByText(
@@ -450,7 +450,7 @@ test("coding employee asks once, streams a real command, and asks again for high
     expect(
       readFileSync(path.join(taskWorkspace, "calculator.js"), "utf8"),
     ).toBe("export const add = (a, b) => a + b;\n");
-    await page.getByRole("button", { name: "允许本任务运行命令" }).click();
+    await page.getByRole("button", { name: "允许本任务运行程序" }).click();
     await expect(
       page.getByRole("heading", { name: "等待你验收" }),
     ).toBeVisible();
@@ -483,7 +483,7 @@ test("coding employee asks once, streams a real command, and asks again for high
     ).toHaveCount(2);
     await page.getByText("查看完整模型和工具过程").click();
     await expect(page.getByText("calculator.js").first()).toBeVisible();
-    await expect(page.getByText("命令实时输出").first()).toBeVisible();
+    await expect(page.getByText("程序实时输出").first()).toBeVisible();
     await expect(page.getByText(/M9-E2E-OK/u).first()).toBeVisible();
     await expect(page.getByText("工具结果").first()).toBeVisible();
     await page.getByText("查看完整模型和工具过程").click();
@@ -532,7 +532,7 @@ test("coding employee asks once, streams a real command, and asks again for high
     await page.getByLabel("任务内容").fill("验证任务级命令拒绝");
     await page.getByRole("button", { name: "开始任务" }).click();
     await expect(
-      page.getByRole("heading", { name: "是否允许本任务运行命令？" }),
+      page.getByRole("heading", { name: "是否允许本任务运行程序？" }),
     ).toBeVisible();
     expect(existsSync(path.join(taskWorkspace, "rejected-command.txt"))).toBe(
       false,
@@ -545,7 +545,7 @@ test("coding employee asks once, streams a real command, and asks again for high
 
     await page.getByLabel("任务内容").fill("验证高风险确认");
     await page.getByRole("button", { name: "开始任务" }).click();
-    await page.getByRole("button", { name: "允许本任务运行命令" }).click();
+    await page.getByRole("button", { name: "允许本任务运行程序" }).click();
     await expect(
       page.getByRole("heading", { name: "是否批准这条高风险命令？" }),
     ).toBeVisible();
@@ -557,14 +557,14 @@ test("coding employee asks once, streams a real command, and asks again for high
 
     await page.getByLabel("任务内容").fill("验证取消正在运行的命令");
     await page.getByRole("button", { name: "开始任务" }).click();
-    await page.getByRole("button", { name: "允许本任务运行命令" }).click();
+    await page.getByRole("button", { name: "允许本任务运行程序" }).click();
     await expect(page.getByText(/M9-CANCEL-START/u).first()).toBeVisible();
     await page.getByRole("button", { name: "停止任务" }).click();
     await expect(page.getByRole("heading", { name: "已停止" })).toBeVisible();
 
     await page.getByLabel("任务内容").fill("验证命令超时");
     await page.getByRole("button", { name: "开始任务" }).click();
-    await page.getByRole("button", { name: "允许本任务运行命令" }).click();
+    await page.getByRole("button", { name: "允许本任务运行程序" }).click();
     await expect(page.getByRole("heading", { name: "运行失败" })).toBeVisible({
       timeout: 10_000,
     });
@@ -741,16 +741,9 @@ async function startCodingProviderFixture() {
     response.writeHead(404, { "content-type": "application/json" });
     response.end(JSON.stringify({ error: { code: "not_found" } }));
   });
-  await new Promise<void>((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", resolve);
-  });
-  const address = server.address();
-  if (address === null || typeof address === "string") {
-    throw new Error("M9-TU-01 fixture did not expose a TCP port");
-  }
+  const port = await listenOnFetchReachablePort(server);
   return {
-    endpoint: `http://127.0.0.1:${address.port}`,
+    endpoint: `http://127.0.0.1:${port}`,
     close: () =>
       new Promise<void>((resolve, reject) => {
         server.closeAllConnections();
@@ -1078,16 +1071,9 @@ async function startProviderFixture() {
     response.writeHead(404, { "content-type": "application/json" });
     response.end(JSON.stringify({ error: { code: "not_found" } }));
   });
-  await new Promise<void>((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", resolve);
-  });
-  const address = server.address();
-  if (address === null || typeof address === "string") {
-    throw new Error("M7-TU-01 fixture did not expose a TCP port");
-  }
+  const port = await listenOnFetchReachablePort(server);
   return {
-    endpoint: `http://127.0.0.1:${address.port}`,
+    endpoint: `http://127.0.0.1:${port}`,
     modelRequests: () => modelRequests,
     close: () =>
       new Promise<void>((resolve, reject) => {
@@ -1126,6 +1112,51 @@ function launchApplication(userDataDirectory: string, taskWorkspace?: string) {
         : { AI_CORPORATION_E2E_WORKSPACE_PATH: taskWorkspace }),
     },
   });
+}
+
+/**
+ * Windows 偶尔会把随机端口分到 6665 等 Fetch 明确禁用的端口。测试服务
+ * 必须先用真实网络请求自检，不能把一个实际不可连接的地址交给桌面程序。
+ */
+async function listenOnFetchReachablePort(
+  server: import("node:http").Server,
+): Promise<number> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    await new Promise<void>((resolve, reject) => {
+      const onError = (error: Error) => {
+        server.off("listening", onListening);
+        reject(error);
+      };
+      const onListening = () => {
+        server.off("error", onError);
+        resolve();
+      };
+      server.once("error", onError);
+      server.once("listening", onListening);
+      server.listen(0, "127.0.0.1");
+    });
+    const address = server.address();
+    if (address === null || typeof address === "string") {
+      throw new Error("Provider fixture did not expose a TCP port");
+    }
+    try {
+      const response = await fetch(`http://127.0.0.1:${address.port}/models`, {
+        signal: AbortSignal.timeout(1_000),
+      });
+      if (response.ok) return address.port;
+      lastError = new Error(
+        `Provider fixture self-check returned ${response.status}`,
+      );
+    } catch (error) {
+      lastError = error;
+    }
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+  throw new Error(
+    `Provider fixture did not expose a reachable port: ${String(lastError)}`,
+  );
 }
 
 function sendChunk(

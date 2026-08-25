@@ -96,13 +96,15 @@ type ToolDescriptor = {
 - `skill.list_resources`：只列出已启用 Skill 的受限相对资源路径、类型和大小；
 - `skill.read_resource`：只读取已启用 Skill 的 `references/` 普通 UTF-8 文本；
 - `skill.copy_asset`：只把已启用 Skill 的 `assets/` 文件复制到当前任务工作区，并沿用工作区边界、并发保护和成果登记；
-- `skill.run_script`：由 M12-TU-02 接入现有命令授权与环境管理，本任务只保留协议位置，不提供虚假的可运行状态。
+- `skill.run_script`：运行已启用 Skill 的受支持脚本；只接受 Skill 名称、`scripts/` 相对路径、参数和结构化依赖，先复用环境准备，再经过现有任务脚本授权。
 
 这些工具接收 Skill 名称和相对路径，Main 侧从当前公司、员工、任务和应用自管 Skill 副本重新求值。`allowed-tools` 只作为 Skill 来源信息，不参与权限计算。Pi 模型使用对应的下划线函数名，Tool Registry 保持点号 ID。
 
 ### 3.10 环境管理工具
 
-M12-TU-02 提供独立环境管理工具：先检查运行程序和依赖，缺失时返回可读的安装计划；用户选择自动安装后优先写入项目或 Skill 独立环境，系统级安装必须另行确认。安装、取消、失败和复检均形成真实工具状态，结果未知时不得自动重放或显示成功。未来环境员工只能复用该工具，不能得到额外权限。
+`environment.prepare` 先检查脚本类型、运行程序和依赖。JavaScript 使用应用 Node/npm；Python 使用随包固定 uv 和应用自管 CPython；依赖从 PEP 723、`requirements.txt`、`package.json` 或模型提交的结构化包名/版本中得到，不接受原始安装命令。
+
+默认环境按 Skill 内容与依赖摘要保存在应用自管目录，可跨任务和公司复用；只有 Skill 明确要求时才使用当前 Workspace 的项目环境。缺失时返回可读安装计划；用户选择自动安装后先安装到临时目录，复检通过再原子标记 `READY`。系统程序只允许受限 winget/Homebrew 计划并另行确认。安装、取消、失败和复检均形成真实工具状态，结果未知时不得自动重放或显示成功。未来环境员工只能复用该工具，不能得到额外权限。
 
 ## 4. 命令 Profile
 
@@ -131,6 +133,13 @@ type ProcessProfile = {
 - 取消、超时或应用退出时必须终止整个进程树；
 - 恢复时不得自动重放结果未知的命令。
 
+Skill 脚本和环境安装不使用完整 shell 命令协议。它们使用固定程序和参数：
+
+- JavaScript 由 Electron Node 模式启动，Python 由独立环境解释器启动，Windows PowerShell 与 macOS `/bin/sh` 使用固定参数；
+- npm、uv、winget 和 Homebrew 的动态部分只来自严格校验的包名、版本、ID 或 formula，不能包含命令字符、URL、本地路径或额外开关；
+- 模型不能提供 `cwd`、环境变量或真实可执行路径；Main 从当前任务、Workspace、Skill 和已批准计划重新求值；
+- 独立环境安装批准、系统安装批准和任务脚本授权分别绑定各自指纹，互不替代。
+
 ## 5. 原生执行边界
 
 Rust Native Core 负责工作区文件副作用：
@@ -141,7 +150,7 @@ Rust Native Core 负责工作区文件副作用：
 - 原子替换；
 - 平台错误标准化。
 
-Electron Main 的可信命令 Runner 负责完整系统命令的启动、stdout/stderr 流、输出裁剪、超时和整个进程树终止。它不把命令执行下放给 Renderer，也不向命令环境提供应用秘密。TypeScript 还负责 Tool 语义、Schema、Policy 请求、事件、持久化和 Artifact 转换。
+Electron Main 的可信命令 Runner 负责完整系统命令的启动、stdout/stderr 流、输出裁剪、超时和整个进程树终止。结构化 Process Runner 复用同一套流、超时和终止能力，但只接收可信 Main 生成的 executable + args。两者都不把执行下放给 Renderer，也不向进程环境提供应用秘密。TypeScript 还负责 Tool 语义、Schema、Policy 请求、事件、持久化和 Artifact 转换。
 
 ## 6. 调用流程
 
@@ -167,6 +176,7 @@ Agent Tool Call
 - 当前 Pi 任务的写入使用工具调用 ID 作为幂等键，并在执行前记录目标相对路径、基线哈希和目标哈希；
 - 当前 Pi 任务的成果以任务和相对路径为唯一归属；受控写入自动登记，命令产物经真实文件核对后登记；
 - 命令默认不可假设幂等；
+- Skill 脚本与安装同样默认不可假设幂等；环境只有在临时目录安装完成并复检后才原子写入 `READY` 清单；
 - Tool Invocation 在执行前记录 `STARTING`；
 - 成功后记录 commit/effect evidence；
 - 崩溃后无法确定命令结果时返回 `UNKNOWN` 并请求人工；
@@ -221,6 +231,9 @@ Registry 只加载：
 - Change Set 幂等；
 - 取消竞态；
 - 插件 Tool 权限收敛。
+- PEP 723、requirements、package.json 与结构化依赖解析和注入拒绝；
+- Skill 环境复用、内容变化失效、安装批准、系统安装二次批准、复检与原子清单；
+- JavaScript/Python/PowerShell/Shell 结构化执行、秘密环境、取消、超时和崩溃不重放。
 
 ## 12. v0.1 模块验收断言
 

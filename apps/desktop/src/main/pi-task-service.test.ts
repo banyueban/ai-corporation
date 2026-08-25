@@ -11,6 +11,7 @@ import {
 } from "@ai-corporation/storage";
 import { afterEach, describe, expect, it } from "vitest";
 import { SkillLibrary } from "./skill-library";
+import { SkillEnvironmentManager } from "./skill-environment";
 import { desktopShellPath, PiTaskService } from "./pi-task-service";
 
 describe("PiTaskService", () => {
@@ -772,6 +773,246 @@ describe("PiTaskService", () => {
     database.close();
   });
 
+  it("approves a Skill environment separately, then runs its script and registers a real output", async () => {
+    const fixture = await startSkillResourceFixture([
+      {
+        name: "skill_activate",
+        arguments: { skillName: "script-worker" },
+      },
+      {
+        name: "skill_run_script",
+        arguments: {
+          skillName: "script-worker",
+          scriptRelativePath: "scripts/create.js",
+          args: ["{{workspace}}/result.txt"],
+          expectedOutputs: ["result.txt"],
+        },
+      },
+    ]);
+    cleanups.push(fixture.close);
+    const root = path.join(tmpdir(), `M12-TU-02-task-${crypto.randomUUID()}`);
+    const managed = path.join(root, "managed");
+    const environments = path.join(root, "environments");
+    const workspace = path.join(root, "workspace");
+    const source = path.join(root, "script-worker");
+    await mkdir(workspace, { recursive: true });
+    await writeSkillFixture(
+      source,
+      "script-worker",
+      "运行标准 Skill 脚本创建结果。",
+      "先运行 scripts/create.js。",
+      {
+        "package.json": '{"dependencies":{"kleur":"4.1.5"}}',
+        "scripts/create.js": "console.log('fixture');\n",
+      },
+    );
+    cleanups.push(() => rm(root, { recursive: true, force: true }));
+    const library = new SkillLibrary(managed);
+    const preview = await library.previewImport(source);
+    await library.confirmImport(source, preview.digest);
+    const environmentManager = new SkillEnvironmentManager({
+      rootDirectory: environments,
+      runtimeDirectory: path.join(root, "runtime"),
+      skillLibrary: library,
+      runner: async (input) => {
+        if (input.args[1] === "install") {
+          const packageDirectory = path.join(
+            input.cwd,
+            "node_modules",
+            "kleur",
+          );
+          await mkdir(packageDirectory, { recursive: true });
+          await writeFile(
+            path.join(packageDirectory, "package.json"),
+            '{"name":"kleur","version":"4.1.5"}',
+            "utf8",
+          );
+        } else if (
+          input.args[0]?.endsWith("scripts\\create.js") ||
+          input.args[0]?.endsWith("scripts/create.js")
+        ) {
+          const target = input.args[1];
+          if (target === undefined)
+            throw new Error("fixture output path missing");
+          await writeFile(target, "真实脚本结果", "utf8");
+          input.onUpdate?.({
+            stream: "stdout",
+            text: `created:${target}`,
+          });
+        }
+        return {
+          command: input.displayCommand,
+          durationMs: 3,
+          exitCode: 0,
+          stderr: "",
+          stdout: `ok:${input.cwd}`,
+          timedOut: false,
+          truncated: false,
+        };
+      },
+    });
+
+    const database = new DatabaseSync(":memory:");
+    applyMigrations(
+      database,
+      loadMigrations(
+        path.resolve(__dirname, "../../../../packages/storage/migrations"),
+      ),
+    );
+    const employee = {
+      schemaVersion: 2 as const,
+      id: "019b7f4d-a330-7000-8000-000000000001",
+      name: "脚本员工",
+      providerId: "019b7f4d-a330-7000-8000-000000000002",
+      providerVersion: 1,
+      modelId: "pi-fixture-model",
+      skillNames: ["script-worker"],
+      createdAt: "2026-08-25T00:00:00.000Z",
+      updatedAt: "2026-08-25T00:00:00.000Z",
+    };
+    database.exec("PRAGMA foreign_keys = OFF");
+    database
+      .prepare(
+        `INSERT INTO pi_employee (
+          id, name, provider_id, provider_version, model_id, skill_name,
+          created_at, updated_at
+        ) VALUES (?, ?, ?, 1, ?, ?, ?, ?)`,
+      )
+      .run(
+        employee.id,
+        employee.name,
+        employee.providerId,
+        employee.modelId,
+        employee.skillNames[0]!,
+        employee.createdAt,
+        employee.updatedAt,
+      );
+    const repository = new PiTaskRepository(database);
+    const workspaceId = "019b7f4d-a330-7000-8000-000000000003";
+    const service = new PiTaskService({
+      companyRepository,
+      employeeRepository: { get: () => employee },
+      taskRepository: repository,
+      skillLibrary: library,
+      environmentManager,
+      workspaceRepository: {
+        getTrusted: () => ({
+          workspaceId,
+          displayPath: "脚本测试工作区",
+          canonicalRootPath: workspace,
+          permissionMode: "READ_WRITE",
+          accessStatus: "AVAILABLE",
+          pathIdentity: {
+            platform: "windows",
+            volumeRoot: "C:",
+            rootCreationTime: "1",
+          },
+          lastVerifiedAt: "2026-08-25T00:00:00.000Z",
+        }),
+      },
+      nativeClient: () => ({
+        copyWorkspaceAsset: async () => {
+          throw new Error("not used");
+        },
+        inspectWorkspaceFile: async (_rootPath, relativePath) => {
+          const bytes = await readFile(path.join(workspace, relativePath));
+          return {
+            schemaVersion: 1 as const,
+            canonicalPath: path.join(workspace, relativePath),
+            relativePath,
+            sizeBytes: bytes.byteLength,
+            sha256: createHash("sha256").update(bytes).digest("hex"),
+          };
+        },
+        listWorkspace: async () => ({
+          schemaVersion: 1 as const,
+          relativePath: "",
+          entries: [],
+        }),
+        readWorkspaceText: async () => {
+          throw new Error("not used");
+        },
+        writeWorkspaceText: async () => {
+          throw new Error("not used");
+        },
+      }),
+      resolveRuntime: () => ({
+        endpoint: fixture.endpoint,
+        key: "M12-TU-02-fake-key",
+        timeoutMs: 5_000,
+      }),
+      createId: () => "019b7f4d-a330-7000-8000-000000000004",
+    });
+
+    const started = service.start({
+      schemaVersion: 2,
+      commandId: "019b7f4d-a330-7000-8000-000000000005",
+      companyId,
+      employeeId: employee.id,
+      workspaceId,
+      input: "使用 Skill 脚本创建结果",
+    });
+    if (!started.ok) throw new Error("task did not start");
+    const environmentApproval = await waitForApprovalKind(
+      repository,
+      started.value.id,
+      "ENVIRONMENT",
+    );
+    expect(environmentApproval.details).toMatchObject({
+      network: true,
+      location: expect.stringContaining("独立环境"),
+      risk: expect.stringContaining("第三方代码"),
+    });
+    expect(
+      service.resolveCommandApproval({
+        schemaVersion: 2,
+        commandId: "019b7f4d-a330-7000-8000-000000000006",
+        companyId,
+        taskId: started.value.id,
+        approvalId: environmentApproval.approvalId,
+        decision: "APPROVE",
+      }).ok,
+    ).toBe(true);
+
+    const executionApproval = await waitForApprovalKind(
+      repository,
+      started.value.id,
+      "TASK",
+    );
+    expect(
+      service.resolveCommandApproval({
+        schemaVersion: 2,
+        commandId: "019b7f4d-a330-7000-8000-000000000007",
+        companyId,
+        taskId: started.value.id,
+        approvalId: executionApproval.approvalId,
+        decision: "APPROVE",
+      }).ok,
+    ).toBe(true);
+    const completed = await waitForTask(repository, started.value.id);
+
+    expect(completed.status).toBe("WAITING_ACCEPTANCE");
+    expect(await readFile(path.join(workspace, "result.txt"), "utf8")).toBe(
+      "真实脚本结果",
+    );
+    expect(completed.deliverables).toEqual([
+      expect.objectContaining({
+        relativePath: "result.txt",
+        source: "COMMAND_REGISTERED",
+      }),
+    ]);
+    expect(completed.checks?.map(({ status }) => status)).toEqual([
+      "SUCCEEDED",
+      "SUCCEEDED",
+    ]);
+    expect(JSON.stringify(completed.events)).not.toContain(environments);
+    expect(JSON.stringify(completed.events)).not.toContain(workspace);
+    expect(JSON.stringify(fixture.requests[0]?.body)).toContain(
+      "skill_run_script",
+    );
+    database.close();
+  });
+
   it("keeps a copied asset truthful when the user cancels during the native copy", async () => {
     const fixture = await startSkillResourceFixture([
       {
@@ -1142,6 +1383,42 @@ async function waitForEvent(
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
   throw new Error(`Pi task event did not appear: ${kind}`);
+}
+
+async function waitForApprovalKind(
+  repository: PiTaskRepository,
+  id: string,
+  kind: "ENVIRONMENT" | "TASK",
+): Promise<{
+  readonly approvalId: string;
+  readonly details?: {
+    readonly location: string;
+    readonly network: boolean;
+    readonly risk: string;
+  };
+}> {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    for (const event of repository.get(id)?.events ?? []) {
+      if (event.kind !== "APPROVAL_REQUIRED") continue;
+      const value = JSON.parse(event.content) as {
+        approvalId?: unknown;
+        details?: unknown;
+        kind?: unknown;
+      };
+      if (value.kind === kind && typeof value.approvalId === "string") {
+        return value as {
+          readonly approvalId: string;
+          readonly details?: {
+            readonly location: string;
+            readonly network: boolean;
+            readonly risk: string;
+          };
+        };
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  throw new Error(`Pi task approval did not appear: ${kind}`);
 }
 
 async function startCommandFixture() {

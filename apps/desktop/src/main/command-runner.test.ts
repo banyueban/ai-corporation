@@ -6,6 +6,7 @@ import {
   classifyCommandRisk,
   CommandCancelledError,
   CommandTimeoutError,
+  runStructuredCommand,
   runSystemCommand,
   safeCommandEnvironment,
   windowsShellWorkingDirectory,
@@ -42,6 +43,25 @@ describe("command runner", () => {
     expect(await readFile(path.join(root, "result.txt"), "utf8")).toBe("saved");
   });
 
+  it("passes structured arguments literally without invoking a shell", async () => {
+    const root = path.join(
+      tmpdir(),
+      `M12-TU-02-structured-${crypto.randomUUID()}`,
+    );
+    roots.push(root);
+    await mkdir(root, { recursive: true });
+    const result = await runStructuredCommand({
+      args: ["-e", "process.stdout.write(process.argv[1])", "hello && whoami"],
+      cwd: root,
+      displayCommand: "node Skill/scripts/run.js <arguments>",
+      executable: process.execPath,
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe("hello && whoami");
+    expect(result.command).toBe("node Skill/scripts/run.js <arguments>");
+  });
+
   it("kills a timed out command instead of reporting success", async () => {
     const root = path.join(tmpdir(), `M9-TU-01-timeout-${crypto.randomUUID()}`);
     roots.push(root);
@@ -56,19 +76,34 @@ describe("command runner", () => {
     ).rejects.toBeInstanceOf(CommandTimeoutError);
   });
 
-  it("kills the command when its task is cancelled", async () => {
+  it("does not report cancellation until the command process is gone", async () => {
     const root = path.join(tmpdir(), `M9-TU-01-cancel-${crypto.randomUUID()}`);
     roots.push(root);
     await mkdir(root, { recursive: true });
     const controller = new AbortController();
+    let commandPid: number | undefined;
+    let confirmStarted: () => void = () => undefined;
+    const started = new Promise<void>((resolve) => {
+      confirmStarted = resolve;
+    });
     const running = runSystemCommand({
-      command: `${quote(process.execPath)} -e "setInterval(() => {}, 1000)"`,
+      command: `${quote(process.execPath)} -e "console.log('M9-PID:' + process.pid); setInterval(() => {}, 1000)"`,
       cwd: root,
       signal: controller.signal,
+      onUpdate: ({ text }) => {
+        const match = /M9-PID:(\d+)/u.exec(text);
+        if (match?.[1] !== undefined) {
+          commandPid = Number(match[1]);
+          confirmStarted();
+        }
+      },
     });
-    setTimeout(() => controller.abort(), 100);
+    await started;
+    controller.abort();
 
     await expect(running).rejects.toBeInstanceOf(CommandCancelledError);
+    expect(commandPid).toBeTypeOf("number");
+    expect(isProcessAlive(commandPid as number)).toBe(false);
   });
 
   it("kills child processes together with a cancelled command", async () => {
@@ -165,4 +200,14 @@ describe("command runner", () => {
 
 function quote(value: string): string {
   return `"${value.replaceAll('"', '\\"')}"`;
+}
+
+/** 取消结果返回时，被取消的程序必须已经真正退出。 */
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
 }

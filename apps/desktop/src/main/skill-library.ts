@@ -14,6 +14,7 @@ import { parse as parseYaml } from "yaml";
 const MAX_SKILL_FILES = 256;
 const MAX_SKILL_BYTES = 10 * 1024 * 1024;
 const MAX_REFERENCE_BYTES = 1024 * 1024;
+const MAX_SCRIPT_BYTES = 1024 * 1024;
 const SKILL_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 
 export interface SkillSummary {
@@ -27,9 +28,26 @@ export interface SkillSummary {
 }
 
 export interface SkillResourceSummary {
+  readonly available?:
+    "AVAILABLE" | "UNSUPPORTED_PLATFORM" | "UNSUPPORTED_TYPE";
   readonly kind: "ASSET" | "REFERENCE" | "SCRIPT";
   readonly relativePath: string;
+  readonly runtime?: SkillScriptRuntime;
   readonly sizeBytes: number;
+}
+
+export type SkillScriptRuntime =
+  "JAVASCRIPT" | "PYTHON" | "POWERSHELL" | "SHELL";
+
+export interface SkillScriptInspection {
+  readonly digest: string;
+  readonly metadata: Readonly<Record<string, string>>;
+  readonly packageJson?: string;
+  readonly relativePath: string;
+  readonly requirements?: string;
+  readonly runtime: SkillScriptRuntime;
+  readonly scriptContent: string;
+  readonly skillName: string;
 }
 
 export interface SkillAssetInspection {
@@ -148,12 +166,85 @@ export class SkillLibrary {
         ? []
         : [
             {
+              ...(kind === "SCRIPT"
+                ? scriptResourceDetails(file.relativePath)
+                : {}),
               kind,
               relativePath: file.relativePath,
               sizeBytes: file.bytes.byteLength,
             },
           ];
     });
+  }
+
+  async inspectScript(
+    name: string,
+    relativePath: string,
+  ): Promise<SkillScriptInspection> {
+    requireResourcePath(relativePath, "scripts");
+    const snapshot = await this.#readManagedSnapshot(name);
+    const file = snapshot.files.find(
+      (candidate) => candidate.relativePath === relativePath,
+    );
+    if (file === undefined) {
+      throw new SkillLibraryError("INVALID_SKILL", "技能脚本不存在。");
+    }
+    if (file.bytes.byteLength > MAX_SCRIPT_BYTES) {
+      throw new SkillLibraryError("SKILL_TOO_LARGE", "技能脚本超过 1 MiB。");
+    }
+    const details = scriptResourceDetails(relativePath);
+    if (details.available !== "AVAILABLE" || details.runtime === undefined) {
+      throw new SkillLibraryError(
+        "INVALID_SKILL",
+        details.available === "UNSUPPORTED_PLATFORM"
+          ? "这个脚本不支持当前系统。"
+          : "这个脚本类型暂不支持。",
+      );
+    }
+    const scriptContent = decodeRuntimeText(file.bytes, "技能脚本");
+    const packageFile = snapshot.files.find(
+      (candidate) => candidate.relativePath === "package.json",
+    );
+    const requirementsFile = snapshot.files.find(
+      (candidate) => candidate.relativePath === "requirements.txt",
+    );
+    return {
+      digest: snapshot.digest,
+      metadata: snapshot.metadata,
+      ...(packageFile === undefined
+        ? {}
+        : {
+            packageJson: decodeRuntimeText(packageFile.bytes, "package.json"),
+          }),
+      relativePath,
+      ...(requirementsFile === undefined
+        ? {}
+        : {
+            requirements: decodeRuntimeText(
+              requirementsFile.bytes,
+              "requirements.txt",
+            ),
+          }),
+      runtime: details.runtime,
+      scriptContent,
+      skillName: snapshot.name,
+    };
+  }
+
+  /** Writes the exact validated snapshot into an environment staging folder. */
+  async materializeRuntimeCopy(
+    name: string,
+    expectedDigest: string,
+    targetDirectory: string,
+  ): Promise<void> {
+    const snapshot = await this.#readManagedSnapshot(name);
+    if (snapshot.digest !== expectedDigest) {
+      throw new SkillLibraryError(
+        "SOURCE_CHANGED",
+        "技能在环境准备期间发生了变化，请重新检查。",
+      );
+    }
+    await writeSnapshot(targetDirectory, snapshot.files);
   }
 
   async readReference(
@@ -502,6 +593,43 @@ function resourceKind(
   if (relativePath.startsWith("assets/")) return "ASSET";
   if (relativePath.startsWith("scripts/")) return "SCRIPT";
   return undefined;
+}
+
+function scriptResourceDetails(relativePath: string): {
+  readonly available: "AVAILABLE" | "UNSUPPORTED_PLATFORM" | "UNSUPPORTED_TYPE";
+  readonly runtime?: SkillScriptRuntime;
+} {
+  const extension = path.extname(relativePath).toLowerCase();
+  if ([".js", ".mjs", ".cjs"].includes(extension)) {
+    return { available: "AVAILABLE", runtime: "JAVASCRIPT" };
+  }
+  if (extension === ".py") {
+    return { available: "AVAILABLE", runtime: "PYTHON" };
+  }
+  if (extension === ".ps1") {
+    return process.platform === "win32"
+      ? { available: "AVAILABLE", runtime: "POWERSHELL" }
+      : { available: "UNSUPPORTED_PLATFORM", runtime: "POWERSHELL" };
+  }
+  if (extension === ".sh") {
+    return process.platform === "darwin"
+      ? { available: "AVAILABLE", runtime: "SHELL" }
+      : { available: "UNSUPPORTED_PLATFORM", runtime: "SHELL" };
+  }
+  return { available: "UNSUPPORTED_TYPE" };
+}
+
+function decodeRuntimeText(bytes: Uint8Array, name: string): string {
+  if (bytes.byteLength > MAX_SCRIPT_BYTES) {
+    throw new SkillLibraryError("SKILL_TOO_LARGE", `${name} 超过 1 MiB。`);
+  }
+  try {
+    const content = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    if (!content.includes("\0")) return content;
+  } catch {
+    // 统一在下方返回不包含内部路径的固定错误。
+  }
+  throw new SkillLibraryError("INVALID_SKILL", `${name} 不是普通 UTF-8 文本。`);
 }
 
 function requireResourcePath(relativePath: string, directory: string): void {

@@ -37,11 +37,19 @@ import {
   type NativeCoreClient,
 } from "./native-core-client";
 import type { SkillLibrary } from "./skill-library";
+import type { SkillDependency } from "./skill-dependencies";
+import {
+  type SkillEnvironmentRequest,
+  type SkillEnvironmentSummary,
+  type SkillInstallPlan,
+  type SkillEnvironmentManager,
+} from "./skill-environment";
 import { createUuidV7 } from "./uuid-v7";
 import {
   classifyCommandRisk,
   CommandCancelledError,
   CommandTimeoutError,
+  type CommandResult,
   runSystemCommand,
 } from "./command-runner";
 
@@ -53,7 +61,26 @@ interface ActiveTask {
 interface PendingCommandApproval {
   readonly approvalId: string;
   readonly command: string;
+  readonly details?: SkillInstallPlan;
+  readonly kind: CommandApprovalKind;
   readonly resolve: (approved: boolean) => void;
+}
+
+type CommandApprovalKind =
+  "TASK" | "HIGH_RISK" | "ENVIRONMENT" | "SYSTEM_INSTALL";
+
+interface SkillEnvironmentToolParams {
+  readonly dependencies?: readonly SkillDependency[];
+  readonly projectReason?: string;
+  readonly scope?: "SKILL" | "PROJECT";
+  readonly scriptRelativePath: string;
+  readonly skillName: string;
+}
+
+interface SkillRunScriptToolParams extends SkillEnvironmentToolParams {
+  readonly args: readonly string[];
+  readonly expectedOutputs?: readonly string[];
+  readonly timeoutSeconds?: number;
 }
 
 export class PiTaskService {
@@ -72,6 +99,7 @@ export class PiTaskService {
       >;
       readonly taskRepository: PiTaskRepository;
       readonly skillLibrary: SkillLibrary;
+      readonly environmentManager?: SkillEnvironmentManager;
       readonly workspaceRepository: Pick<WorkspaceRepository, "getTrusted">;
       readonly nativeClient: () =>
         | Pick<
@@ -429,6 +457,7 @@ export class PiTaskService {
           approvalId: pending.approvalId,
           command: pending.command,
           decision: request.decision,
+          kind: pending.kind,
         },
         null,
         2,
@@ -738,6 +767,87 @@ export class PiTaskService {
         description: "复制到当前任务工作区的新文件相对路径",
       }),
     });
+    const dependencyParameters = Type.Array(
+      Type.Object({
+        ecosystem: Type.String({
+          description: "依赖类型：JAVASCRIPT、PYTHON 或 SYSTEM",
+          pattern: "^(JAVASCRIPT|PYTHON|SYSTEM)$",
+        }),
+        name: Type.String({
+          description: "普通包名，或系统中应出现的可执行程序名",
+          maxLength: 128,
+          minLength: 1,
+        }),
+        installId: Type.Optional(
+          Type.String({
+            description: "SYSTEM 依赖必填的 winget ID 或 Homebrew formula",
+            maxLength: 128,
+          }),
+        ),
+        version: Type.Optional(
+          Type.String({
+            description: "普通 registry 版本；SYSTEM 依赖不要填写",
+            maxLength: 128,
+          }),
+        ),
+      }),
+      { maxItems: 64 },
+    );
+    const environmentPrepareParameters = Type.Object({
+      skillName: Type.String({ description: "已经启用的技能名称" }),
+      scriptRelativePath: Type.String({
+        description: "scripts/ 下要检查的脚本相对路径",
+      }),
+      scope: Type.Optional(
+        Type.String({
+          description: "默认 SKILL；只有技能明确要求时才使用 PROJECT",
+          pattern: "^(SKILL|PROJECT)$",
+        }),
+      ),
+      projectReason: Type.Optional(
+        Type.String({
+          description: "使用 PROJECT 时必须填写技能要求项目环境的原因",
+          maxLength: 500,
+        }),
+      ),
+      dependencies: Type.Optional(dependencyParameters),
+    });
+    const skillRunScriptParameters = Type.Object({
+      skillName: Type.String({ description: "已经启用的技能名称" }),
+      scriptRelativePath: Type.String({
+        description: "scripts/ 下要运行的脚本相对路径",
+      }),
+      args: Type.Array(
+        Type.String({
+          description:
+            "独立参数；用 {{workspace}} 表示当前工作区，不要填写绝对路径或 shell 命令",
+          maxLength: 16_384,
+        }),
+        { maxItems: 64 },
+      ),
+      expectedOutputs: Type.Optional(
+        Type.Array(
+          Type.String({
+            description: "脚本应生成并需要登记的 Workspace 相对文件路径",
+          }),
+          { maxItems: 32 },
+        ),
+      ),
+      timeoutSeconds: Type.Optional(Type.Integer({ maximum: 600, minimum: 1 })),
+      scope: Type.Optional(
+        Type.String({
+          description: "默认 SKILL；只有技能明确要求时才使用 PROJECT",
+          pattern: "^(SKILL|PROJECT)$",
+        }),
+      ),
+      projectReason: Type.Optional(
+        Type.String({
+          description: "使用 PROJECT 时必须填写技能要求项目环境的原因",
+          maxLength: 500,
+        }),
+      ),
+      dependencies: Type.Optional(dependencyParameters),
+    });
     const tools: AgentTool[] = [
       {
         name: "skill_activate",
@@ -763,7 +873,7 @@ export class PiTaskService {
         name: "skill_list_resources",
         label: "列出技能资源",
         description:
-          "列出已启用技能的参考资料、可复制资源和脚本；本阶段脚本只显示，不能运行。",
+          "列出已启用技能的参考资料、可复制资源和脚本，并显示脚本在当前系统是否可运行。",
         parameters: skillResourceParameters,
         executionMode: "sequential",
         execute: async (_toolCallId, params, signal) => {
@@ -773,14 +883,7 @@ export class PiTaskService {
           const resources =
             await this.options.skillLibrary.listResources(skillName);
           requireRunningTask(taskSignal, signal);
-          return toolResult({
-            skillName,
-            resources: resources.map((resource) => ({
-              ...resource,
-              available:
-                resource.kind === "SCRIPT" ? "NOT_YET_RUNNABLE" : "AVAILABLE",
-            })),
-          });
+          return toolResult({ skillName, resources });
         },
       },
       {
@@ -1053,7 +1156,7 @@ export class PiTaskService {
         name: "workspace_register_deliverable",
         label: "登记交付文件",
         description:
-          "把命令已经生成的真实文件登记到交付成果区。只登记最终要交给用户的文件。",
+          "把程序或命令已经生成的真实文件登记到交付成果区。只登记最终要交给用户的文件。",
         parameters: registerParameters,
         executionMode: "sequential",
         execute: async (toolCallId, params) => {
@@ -1081,6 +1184,120 @@ export class PiTaskService {
         },
       },
     ];
+    const environmentManager = this.options.environmentManager;
+    if (environmentManager !== undefined) {
+      tools.push(
+        {
+          name: "environment_prepare",
+          label: "准备技能环境",
+          description:
+            "检查已启用技能的脚本、运行程序和依赖；缺少内容时生成清楚的安装计划并等待用户决定。",
+          parameters: environmentPrepareParameters,
+          executionMode: "sequential",
+          execute: async (toolCallId, params, signal) => {
+            const values = params as SkillEnvironmentToolParams;
+            requireActiveSkill(activeSkills, values.skillName);
+            const commandSignal = combinedTaskSignal(taskSignal, signal);
+            requireRunningTask(taskSignal, signal);
+            const environment = await this.#ensureSkillEnvironment(
+              taskId,
+              environmentRequest(values, workspaceRoot),
+              commandSignal,
+              toolCallId,
+            );
+            return toolResult({ status: "READY", environment });
+          },
+        },
+        {
+          name: "skill_run_script",
+          label: "运行技能脚本",
+          description:
+            "运行已启用技能 scripts/ 中受支持的脚本；环境未就绪时先生成安装计划，脚本参数不会经过 shell。",
+          parameters: skillRunScriptParameters,
+          executionMode: "sequential",
+          execute: async (toolCallId, params, signal) => {
+            const values = params as SkillRunScriptToolParams;
+            requireActiveSkill(activeSkills, values.skillName);
+            const commandSignal = combinedTaskSignal(taskSignal, signal);
+            requireRunningTask(taskSignal, signal);
+            const request = environmentRequest(values, workspaceRoot);
+            const environment = await this.#ensureSkillEnvironment(
+              taskId,
+              request,
+              commandSignal,
+            );
+            const displayCommand = skillScriptDisplayCommand(values);
+            if (!this.options.taskRepository.hasCommandGrant(taskId)) {
+              const approved = await this.#requestCommandApproval(
+                taskId,
+                displayCommand,
+                "TASK",
+                "技能脚本会使用你当前的系统账户运行，并可按参数访问当前工作区；软件目前不能把它与电脑上的其他文件彻底隔开。批准只对本任务有效。",
+                commandSignal,
+              );
+              if (!approved) throw new Error("用户没有允许本任务运行脚本。");
+              this.options.taskRepository.grantCommandsForTask(
+                taskId,
+                this.#now(),
+              );
+            }
+            const result = await this.#recordManagedProcess(
+              taskId,
+              toolCallId,
+              displayCommand,
+              () =>
+                environmentManager.runScript(request, {
+                  args: values.args,
+                  signal: commandSignal,
+                  timeoutMs: (values.timeoutSeconds ?? 120) * 1_000,
+                  onUpdate: (update) => {
+                    this.#event(
+                      taskId,
+                      "TOOL_UPDATE",
+                      JSON.stringify(
+                        { command: displayCommand, ...update },
+                        null,
+                        2,
+                      ),
+                    );
+                  },
+                }),
+            );
+            const expectedOutputs = [...new Set(values.expectedOutputs ?? [])];
+            const inspectedOutputs = await Promise.all(
+              expectedOutputs.map((relativePath) =>
+                this.#native().inspectWorkspaceFile(
+                  workspaceRoot,
+                  relativePath,
+                ),
+              ),
+            );
+            requireRunningTask(taskSignal, signal);
+            for (const inspected of inspectedOutputs) {
+              this.options.taskRepository.upsertDeliverable({
+                taskId,
+                relativePath: inspected.relativePath,
+                source: "COMMAND_REGISTERED",
+                changeKind: "REGISTERED",
+                sha256: inspected.sha256,
+                sizeBytes: inspected.sizeBytes,
+                sourceCallId: toolCallId,
+                registeredAt: this.#now(),
+              });
+            }
+            return toolResult({
+              ...result,
+              environment,
+              deliverables: inspectedOutputs.map((item) => ({
+                relativePath: item.relativePath,
+                sha256: item.sha256,
+                sizeBytes: item.sizeBytes,
+              })),
+            });
+          },
+        },
+      );
+    }
     if (skillNames.includes("coding-task")) {
       const commandParameters = Type.Object({
         command: Type.String({
@@ -1194,12 +1411,123 @@ export class PiTaskService {
     return tools;
   }
 
+  async #ensureSkillEnvironment(
+    taskId: string,
+    request: SkillEnvironmentRequest,
+    signal: AbortSignal,
+    firstInstallCallId?: string,
+  ): Promise<SkillEnvironmentSummary> {
+    const manager = this.options.environmentManager;
+    if (manager === undefined) {
+      throw new Error("技能环境工具还没有装入软件。");
+    }
+    let installationCount = 0;
+    for (let cycle = 0; cycle < 3; cycle += 1) {
+      requireRunningTask(signal, undefined);
+      const check = await manager.check(request);
+      if (check.status === "READY") return check.environment;
+      if (check.status === "MANUAL_REQUIRED") {
+        this.#event(
+          taskId,
+          "TOOL_UPDATE",
+          JSON.stringify({ environmentPlan: check.plan }, null, 2),
+        );
+        throw new Error(`${check.plan.reason} ${check.plan.command}`);
+      }
+      const approved = await this.#requestCommandApproval(
+        taskId,
+        check.plan.command,
+        check.plan.kind === "SYSTEM_INSTALL" ? "SYSTEM_INSTALL" : "ENVIRONMENT",
+        check.plan.reason,
+        signal,
+        check.plan,
+      );
+      if (!approved) {
+        throw new Error(
+          check.plan.kind === "SYSTEM_INSTALL"
+            ? "用户没有允许安装系统程序，脚本没有运行。"
+            : "用户选择暂不安装独立环境，脚本没有运行。",
+        );
+      }
+      const callId =
+        installationCount === 0 && firstInstallCallId !== undefined
+          ? firstInstallCallId
+          : createUuidV7();
+      installationCount += 1;
+      await this.#recordManagedProcess(taskId, callId, check.plan.command, () =>
+        manager.install(check.plan.id, {
+          signal,
+          onUpdate: (update) => {
+            this.#event(
+              taskId,
+              "TOOL_UPDATE",
+              JSON.stringify(
+                { command: check.plan.command, ...update },
+                null,
+                2,
+              ),
+            );
+          },
+        }),
+      );
+      // 安装退出码为 0 仍不能证明环境可用；下一轮必须重新复检。
+    }
+    throw new Error("安装后多次复检仍未就绪，脚本没有运行。");
+  }
+
+  async #recordManagedProcess(
+    taskId: string,
+    toolCallId: string,
+    command: string,
+    run: () => Promise<CommandResult>,
+  ): Promise<CommandResult> {
+    this.options.taskRepository.beginCommandCall({
+      command,
+      now: this.#now(),
+      taskId,
+      toolCallId,
+    });
+    let recorded = false;
+    try {
+      const result = await run();
+      const status = result.exitCode === 0 ? "SUCCEEDED" : "FAILED";
+      this.options.taskRepository.finishCommandCall(
+        toolCallId,
+        status,
+        result,
+        this.#now(),
+      );
+      recorded = true;
+      if (result.exitCode !== 0) {
+        throw new Error(`运行退出码为 ${result.exitCode ?? "未知"}。`);
+      }
+      return result;
+    } catch (error) {
+      if (!recorded) {
+        const status =
+          error instanceof CommandCancelledError
+            ? "CANCELLED"
+            : error instanceof CommandTimeoutError
+              ? "TIMED_OUT"
+              : "FAILED";
+        this.options.taskRepository.finishCommandCall(
+          toolCallId,
+          status,
+          { error: readableError(error) },
+          this.#now(),
+        );
+      }
+      throw error;
+    }
+  }
+
   #requestCommandApproval(
     taskId: string,
     command: string,
-    kind: "TASK" | "HIGH_RISK",
+    kind: CommandApprovalKind,
     reason: string,
     signal?: AbortSignal,
+    details?: SkillInstallPlan,
   ): Promise<boolean> {
     if (signal?.aborted === true) return Promise.resolve(false);
     const approvalId = createUuidV7();
@@ -1220,12 +1548,24 @@ export class PiTaskService {
       this.#pendingCommandApprovals.set(taskId, {
         approvalId,
         command,
+        ...(details === undefined ? {} : { details }),
+        kind,
         resolve: finish,
       });
       this.#event(
         taskId,
         "APPROVAL_REQUIRED",
-        JSON.stringify({ approvalId, command, kind, reason }, null, 2),
+        JSON.stringify(
+          {
+            approvalId,
+            command,
+            kind,
+            reason,
+            ...(details === undefined ? {} : { details }),
+          },
+          null,
+          2,
+        ),
       );
     });
   }
@@ -1337,6 +1677,42 @@ export class PiTaskService {
   }
 }
 
+function environmentRequest(
+  params: SkillEnvironmentToolParams,
+  workspaceRoot: string,
+): SkillEnvironmentRequest {
+  return {
+    ...(params.dependencies === undefined
+      ? {}
+      : { dependencies: params.dependencies }),
+    ...(params.projectReason === undefined
+      ? {}
+      : { projectReason: params.projectReason }),
+    scope: params.scope ?? "SKILL",
+    scriptRelativePath: params.scriptRelativePath,
+    skillName: params.skillName,
+    workspaceRoot,
+  };
+}
+
+function combinedTaskSignal(
+  taskSignal: AbortSignal,
+  toolSignal: AbortSignal | undefined,
+): AbortSignal {
+  return toolSignal === undefined
+    ? taskSignal
+    : AbortSignal.any([taskSignal, toolSignal]);
+}
+
+function skillScriptDisplayCommand(params: SkillRunScriptToolParams): string {
+  const args = params.args.map((argument) =>
+    /[\s"']/u.test(argument) ? JSON.stringify(argument) : argument,
+  );
+  return `Skill/${params.scriptRelativePath}${
+    args.length === 0 ? "" : ` ${args.join(" ")}`
+  }`;
+}
+
 function buildSystemPrompt(
   employeeName: string,
   skills: readonly { readonly description: string; readonly name: string }[],
@@ -1344,7 +1720,7 @@ function buildSystemPrompt(
   const catalog = skills
     .map((skill) => `- ${skill.name}：${skill.description}`)
     .join("\n");
-  return `你是 AI Corporation 的员工“${employeeName}”。\n\n你可以使用以下技能：\n${catalog}\n\n先根据用户任务选择真正匹配的技能，并调用 skill_activate 启用它；不要为了凑数启用无关技能。启用后如需额外资料，先用 skill_list_resources 查看，再按需用 skill_read_resource 读取 references/，或用 skill_copy_asset 把 assets/ 文件复制到工作区。scripts/ 当前只可查看，不能运行。\n\n请直接完成用户交代的真实工作区任务。先用 workspace_list 了解目录；需要参考已有内容时用 workspace_read_text。创建文本文件时直接调用 workspace_write_text 且省略 baseSha256；修改已有文本时必须先读取，再把读取结果中的 sha256 原样作为 baseSha256。拥有编码任务技能时还可以调用 workspace_run_command 运行真实检查和测试。workspace_write_text 和 skill_copy_asset 成功后软件会自动登记交付文件；命令生成了最终交付文件后，必须逐个调用 workspace_register_deliverable 登记。没有登记的命令文件不会出现在交付成果区。不得声称执行了工具没有真正完成的操作。完成后请说明实际创建或修改的相对路径、运行过的检查和真实结果，并提醒用户验收。`;
+  return `你是 AI Corporation 的员工“${employeeName}”。\n\n你可以使用以下技能：\n${catalog}\n\n先根据用户任务选择真正匹配的技能，并调用 skill_activate 启用它；不要为了凑数启用无关技能。启用后如需额外资料，先用 skill_list_resources 查看，再按需用 skill_read_resource 读取 references/，或用 skill_copy_asset 把 assets/ 文件复制到工作区。需要运行 scripts/ 时，使用 environment_prepare 检查环境，或直接使用 skill_run_script 让软件在缺少环境时先向用户给出安装方案。只提交技能名、scripts/ 相对路径、独立参数和结构化依赖，不得编造 shell 安装命令、绝对路径或环境变量。\n\n请直接完成用户交代的真实工作区任务。先用 workspace_list 了解目录；需要参考已有内容时用 workspace_read_text。创建文本文件时直接调用 workspace_write_text 且省略 baseSha256；修改已有文本时必须先读取，再把读取结果中的 sha256 原样作为 baseSha256。拥有编码任务技能时还可以调用 workspace_run_command 运行真实检查和测试。workspace_write_text 和 skill_copy_asset 成功后软件会自动登记交付文件；skill_run_script 已知会生成哪些文件时填写 expectedOutputs 自动核对并登记，其他命令生成的最终交付文件必须逐个调用 workspace_register_deliverable 登记。没有登记的文件不会出现在交付成果区。不得声称执行了工具没有真正完成的操作。完成后请说明实际创建或修改的相对路径、运行过的检查和真实结果，并提醒用户验收。`;
 }
 
 function requireActiveSkill(activeSkills: ReadonlySet<string>, name: string) {

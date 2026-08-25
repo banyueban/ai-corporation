@@ -10,3 +10,19 @@ AI Corporation 的编码 Skill 与命令工具借鉴了 `pi-coding-agent v0.84.1
 - Copyright: the pi project contributors
 
 AI Corporation 没有引入 `pi-coding-agent` 运行时，也没有复制其 TUI、凭据、会话或扩展加载入口。实际实现已经按 AI Corporation 的任务授权、事件记录和恢复方式改写。
+
+## uv
+
+AI Corporation Desktop 随安装包提供固定版本 `uv 0.11.15`，仅用于在软件自管目录下载 CPython、创建 Skill 独立环境和安装已获用户批准的 Python 包。
+
+- Source: https://github.com/astral-sh/uv/releases/tag/0.11.15
+- License: Apache-2.0 OR MIT
+- Copyright: the uv project contributors
+
+## npm CLI
+
+AI Corporation Desktop 随安装包提供固定版本 `npm 11.6.2`，仅用于在 Skill 独立环境安装已获用户批准的普通 npm registry 包，不使用用户的全局 npm。
+
+- Source: https://registry.npmjs.org/npm/-/npm-11.6.2.tgz
+- License: Artistic-2.0
+- Copyright: npm, Inc. and npm CLI contributors

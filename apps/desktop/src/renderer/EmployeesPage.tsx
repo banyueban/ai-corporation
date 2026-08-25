@@ -27,7 +27,16 @@ type DeliverablePreview = Extract<
 type CommandApproval = {
   readonly approvalId: string;
   readonly command: string;
-  readonly kind: "TASK" | "HIGH_RISK";
+  readonly details?: {
+    readonly items: readonly string[];
+    readonly location: string;
+    readonly network: boolean;
+    readonly risk: string;
+    readonly source: string;
+    readonly systemImpact: string;
+    readonly title: string;
+  };
+  readonly kind: "TASK" | "HIGH_RISK" | "ENVIRONMENT" | "SYSTEM_INSTALL";
   readonly reason: string;
 };
 
@@ -385,7 +394,13 @@ export function EmployeesPage(props: {
     }
     rememberTask(result.value, setCurrentTask);
     setMessage(
-      decision === "APPROVE" ? "已批准，员工会继续执行。" : "已拒绝这次命令。",
+      decision === "APPROVE"
+        ? "已批准，员工会继续执行。"
+        : commandApproval.kind === "ENVIRONMENT"
+          ? "已选择暂不安装，脚本不会运行。"
+          : commandApproval.kind === "SYSTEM_INSTALL"
+            ? "已拒绝系统安装，脚本不会运行。"
+            : "已拒绝这次命令。",
     );
   };
 
@@ -581,7 +596,7 @@ export function EmployeesPage(props: {
                     来源声明工具：{skill.allowedTools}（不会自动获得权限）
                   </small>
                 )}
-                <small>首版只读</small>
+                <small>说明按需加载；受支持脚本可在明确授权后运行</small>
                 <details className="skill-content">
                   <summary>查看技能实际内容</summary>
                   <pre>{skill.content}</pre>
@@ -831,7 +846,7 @@ export function EmployeesPage(props: {
                 </button>
               </div>
               <small>
-                员工可在这里读取和修改代码。编码员工首次运行命令时会说明真实风险并请你确认。
+                员工可在这里读取和修改文件。首次运行程序时会说明真实风险并请你确认。
               </small>
               {companyWorkspaces.length > 0 && (
                 <div className="company-workspace-options">
@@ -950,7 +965,7 @@ export function EmployeesPage(props: {
                   <h5>交付文件</h5>
                   {(currentTask.deliverables ?? []).length === 0 ? (
                     <p className="empty-copy">
-                      没有已登记文件。命令生成的文件只有经过登记后才会出现在这里。
+                      没有已登记文件。程序或命令生成的文件只有经过核对并登记后才会出现在这里。
                     </p>
                   ) : (
                     (currentTask.deliverables ?? []).map((item) => (
@@ -1028,7 +1043,7 @@ export function EmployeesPage(props: {
                 <div className="pi-delivery-checks">
                   <h5>真实检查</h5>
                   {(currentTask.checks ?? []).length === 0 ? (
-                    <p className="empty-copy">本任务没有运行命令检查。</p>
+                    <p className="empty-copy">本任务没有运行程序检查。</p>
                   ) : (
                     (currentTask.checks ?? []).map((check, index) => (
                       <article
@@ -1057,21 +1072,37 @@ export function EmployeesPage(props: {
               {commandApproval !== undefined && (
                 <section className="provider-disclosure" role="alert">
                   <p className="empty-kicker">
-                    {commandApproval.kind === "TASK"
-                      ? "本任务首次运行命令"
-                      : "高风险命令"}
+                    {approvalKicker(commandApproval.kind)}
                   </p>
-                  <h4>
-                    {commandApproval.kind === "TASK"
-                      ? "是否允许本任务运行命令？"
-                      : "是否批准这条高风险命令？"}
-                  </h4>
+                  <h4>{approvalTitle(commandApproval)}</h4>
                   <p>{commandApproval.reason}</p>
                   {commandApproval.kind === "TASK" && (
                     <p>
                       批准后，本任务中的普通查看、检查、测试和构建不会反复询问；新任务会重新询问。依赖安装、删除、Git
                       写操作和发布仍会单独确认。
                     </p>
+                  )}
+                  {commandApproval.details !== undefined && (
+                    <>
+                      <ul>
+                        {commandApproval.details.items.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                      <p>
+                        来源：{commandApproval.details.source}
+                        <br />
+                        位置：{commandApproval.details.location}
+                        <br />
+                        联网：
+                        {commandApproval.details.network ? "需要" : "不需要"}
+                        <br />
+                        影响：{commandApproval.details.systemImpact}
+                      </p>
+                      <p className="error-copy">
+                        风险：{commandApproval.details.risk}
+                      </p>
+                    </>
                   )}
                   <pre>{commandApproval.command}</pre>
                   <div className="form-actions">
@@ -1081,7 +1112,7 @@ export function EmployeesPage(props: {
                       onClick={() => void resolveCommandApproval("REJECT")}
                       type="button"
                     >
-                      拒绝
+                      {approvalRejectLabel(commandApproval.kind)}
                     </button>
                     <button
                       className="primary-button"
@@ -1089,9 +1120,7 @@ export function EmployeesPage(props: {
                       onClick={() => void resolveCommandApproval("APPROVE")}
                       type="button"
                     >
-                      {commandApproval.kind === "TASK"
-                        ? "允许本任务运行命令"
-                        : "批准这条命令"}
+                      {approvalApproveLabel(commandApproval.kind)}
                     </button>
                   </div>
                 </section>
@@ -1241,7 +1270,7 @@ function deliveryStatusLabel(status: PiTask["status"]): string {
 function deliverableChangeLabel(
   kind: NonNullable<PiTask["deliverables"]>[number]["changeKind"],
 ): string {
-  return { CREATED: "新建", MODIFIED: "修改", REGISTERED: "命令生成" }[kind];
+  return { CREATED: "新建", MODIFIED: "修改", REGISTERED: "程序生成" }[kind];
 }
 
 function checkStatusLabel(
@@ -1280,6 +1309,33 @@ function deliverableErrorMessage(code: string): string {
   return messages[code] ?? "交付文件操作失败，请查看文件和工作区状态。";
 }
 
+function approvalKicker(kind: CommandApproval["kind"]): string {
+  if (kind === "TASK") return "本任务首次运行程序";
+  if (kind === "HIGH_RISK") return "高风险命令";
+  if (kind === "ENVIRONMENT") return "技能独立环境";
+  return "系统级安装";
+}
+
+function approvalTitle(approval: CommandApproval): string {
+  if (approval.details?.title !== undefined) return approval.details.title;
+  return approval.kind === "TASK"
+    ? "是否允许本任务运行程序？"
+    : "是否批准这条高风险命令？";
+}
+
+function approvalRejectLabel(kind: CommandApproval["kind"]): string {
+  if (kind === "ENVIRONMENT") return "暂不安装";
+  if (kind === "SYSTEM_INSTALL") return "不安装";
+  return "拒绝";
+}
+
+function approvalApproveLabel(kind: CommandApproval["kind"]): string {
+  if (kind === "TASK") return "允许本任务运行程序";
+  if (kind === "ENVIRONMENT") return "自动安装";
+  if (kind === "SYSTEM_INSTALL") return "允许系统安装";
+  return "批准这条命令";
+}
+
 function eventLabel(kind: PiTask["events"][number]["kind"]): string {
   const labels: Record<PiTask["events"][number]["kind"], string> = {
     PROGRESS: "进度",
@@ -1288,9 +1344,9 @@ function eventLabel(kind: PiTask["events"][number]["kind"]): string {
     TOOL_START: "工具开始",
     TOOL_RESULT: "工具结果",
     TOOL_ERROR: "工具失败",
-    TOOL_UPDATE: "命令实时输出",
-    APPROVAL_REQUIRED: "等待你的命令确认",
-    APPROVAL_RESOLVED: "命令确认结果",
+    TOOL_UPDATE: "程序实时输出",
+    APPROVAL_REQUIRED: "等待你的确认",
+    APPROVAL_RESOLVED: "确认结果",
   };
   return labels[kind];
 }
@@ -1319,8 +1375,12 @@ function parseApproval(content: string): CommandApproval | undefined {
     if (
       typeof value.approvalId === "string" &&
       typeof value.command === "string" &&
-      (value.kind === "TASK" || value.kind === "HIGH_RISK") &&
-      typeof value.reason === "string"
+      (value.kind === "TASK" ||
+        value.kind === "HIGH_RISK" ||
+        value.kind === "ENVIRONMENT" ||
+        value.kind === "SYSTEM_INSTALL") &&
+      typeof value.reason === "string" &&
+      (value.details === undefined || validApprovalDetails(value.details))
     ) {
       return value as CommandApproval;
     }
@@ -1328,6 +1388,23 @@ function parseApproval(content: string): CommandApproval | undefined {
     // 旧事件或损坏事件不应让整个员工页面崩溃。
   }
   return undefined;
+}
+
+function validApprovalDetails(
+  value: unknown,
+): value is NonNullable<CommandApproval["details"]> {
+  if (typeof value !== "object" || value === null) return false;
+  const details = value as Partial<NonNullable<CommandApproval["details"]>>;
+  return (
+    Array.isArray(details.items) &&
+    details.items.every((item) => typeof item === "string") &&
+    typeof details.location === "string" &&
+    typeof details.network === "boolean" &&
+    typeof details.risk === "string" &&
+    typeof details.source === "string" &&
+    typeof details.systemImpact === "string" &&
+    typeof details.title === "string"
+  );
 }
 
 function taskErrorMessage(code: string): string {

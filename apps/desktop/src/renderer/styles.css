@@ -781,6 +781,11 @@ h3 {
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
+.provider-disclosure li,
+.provider-disclosure p {
+  overflow-wrap: anywhere;
+}
+
 .clarification-list,
 .analysis-actions {
   display: grid;

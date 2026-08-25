@@ -100,7 +100,7 @@ test("employee automatically activates one of multiple Skills and copies its ass
       ).toBeVisible();
     }
     await expect(
-      page.locator("pre").filter({ hasText: "NOT_YET_RUNNABLE" }).first(),
+      page.locator("pre").filter({ hasText: "AVAILABLE" }).first(),
     ).toBeVisible();
 
     const requests = fixture.requests();
@@ -211,6 +211,441 @@ test("employee automatically activates one of multiple Skills and copies its ass
     await removeTemporaryDirectory(taskWorkspace);
   }
 });
+
+test("employee installs a private Python, runs standard Skill scripts, and reuses the environment", async () => {
+  test.setTimeout(240_000);
+  const fixture = await startScriptProviderFixture();
+  const userDataDirectory = mkdtempSync(
+    path.join(tmpdir(), "M12-TU-02-electron-user-data-"),
+  );
+  const taskWorkspace = mkdtempSync(
+    path.join(tmpdir(), "M12-TU-02-script-workspace-"),
+  );
+  const managedSkillRoot = path.join(userDataDirectory, "pi-skills");
+  writeManagedScriptFixture(managedSkillRoot);
+  const app = await launchApplication(userDataDirectory, taskWorkspace);
+
+  try {
+    const page = await app.firstWindow();
+    await page.getByRole("button", { name: "设置" }).click();
+    await page.getByLabel("名称").fill("M12 脚本 Provider");
+    await page.getByLabel("API 基础 URL").fill(fixture.endpoint);
+    await page.getByLabel("API Key").fill("M12-TU-02-e2e-fake-key");
+    await page.getByRole("button", { name: "保存模型服务商" }).click();
+    await page.getByRole("button", { name: "测试连接" }).click();
+    await expect(page.getByRole("heading", { name: "已验证" })).toBeVisible();
+
+    await page.getByRole("button", { name: "控制台" }).click();
+    await page.getByLabel("公司名称").fill("标准脚本公司");
+    await page.getByRole("button", { name: "新建公司" }).click();
+    await page.getByLabel(/script-runtime-fixture/u).check();
+    await page.getByLabel("员工姓名").fill("标准脚本员工");
+    await page
+      .getByLabel("Provider")
+      .selectOption({ label: "M12 脚本 Provider" });
+    await page.getByLabel("模型").selectOption("pi-script-fixture-model");
+    await page.getByRole("button", { name: "创建员工" }).click();
+    await page.getByRole("button", { name: "添加工作区" }).click();
+
+    await page
+      .getByLabel("任务内容")
+      .fill("运行 Skill 的 JavaScript 脚本并生成 js-result.txt");
+    await page.getByRole("button", { name: "开始任务" }).click();
+    const javaScriptEnvironmentHeading = page.getByRole("heading", {
+      name: "准备“script-runtime-fixture”的独立环境",
+    });
+    await expect(javaScriptEnvironmentHeading).toBeVisible();
+    const javaScriptEnvironmentCard = page
+      .locator("section.provider-disclosure")
+      .filter({ has: javaScriptEnvironmentHeading });
+    await expect(
+      javaScriptEnvironmentCard.getByText(/npm registry/u),
+    ).toBeVisible();
+    await javaScriptEnvironmentCard
+      .getByRole("button", { name: "自动安装" })
+      .click();
+    await expect(
+      page.getByRole("heading", { name: "是否允许本任务运行程序？" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "允许本任务运行程序" }).click();
+    await expect(
+      page.getByRole("heading", { name: "等待你验收" }),
+    ).toBeVisible();
+    expect(
+      readFileSync(path.join(taskWorkspace, "js-result.txt"), "utf8"),
+    ).toBe("JS:标准脚本参考资料");
+
+    await page
+      .getByLabel("任务内容")
+      .fill("运行 Skill 的 Python 脚本并生成 py-result.txt");
+    await page.getByRole("button", { name: "开始任务" }).click();
+    const environmentHeading = page.getByRole("heading", {
+      name: "准备“script-runtime-fixture”的独立环境",
+    });
+    await expect(environmentHeading).toBeVisible();
+    const environmentCard = page
+      .locator("section.provider-disclosure")
+      .filter({ has: environmentHeading });
+    await expect(environmentCard.getByText(/固定 uv/u)).toBeVisible();
+    await expect(environmentCard.getByText(/不修改系统 PATH/u)).toBeVisible();
+    await expect(environmentCard.getByText(/第三方代码/u)).toBeVisible();
+
+    await app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0];
+      window?.setSize(1024, 700);
+      window?.webContents.setZoomFactor(1);
+    });
+    await environmentHeading.scrollIntoViewIfNeeded();
+    await waitForPaint(page);
+    await expectPageHasNoHorizontalOverflow(page);
+    await page.screenshot({
+      animations: "disabled",
+      path: path.resolve(
+        __dirname,
+        "../../../release",
+        `m12-tu02-environment-${process.env.AI_CORPORATION_PACKAGED_EXE === undefined ? "dev" : "packaged"}-${process.platform}-${process.arch}-1024x700.png`,
+      ),
+    });
+    await app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0];
+      window?.webContents.setZoomFactor(2);
+    });
+    await environmentHeading.scrollIntoViewIfNeeded();
+    await waitForPaint(page);
+    await expectPageHasNoHorizontalOverflow(page);
+    await captureElectronViewport(
+      app,
+      path.resolve(
+        __dirname,
+        "../../../release",
+        `m12-tu02-environment-${process.env.AI_CORPORATION_PACKAGED_EXE === undefined ? "dev" : "packaged"}-${process.platform}-${process.arch}-1024x700-200-percent.png`,
+      ),
+    );
+    const automaticInstallButton = environmentCard.getByRole("button", {
+      name: "自动安装",
+    });
+    await automaticInstallButton.scrollIntoViewIfNeeded();
+    await expect(automaticInstallButton).toBeInViewport();
+    await captureElectronViewport(
+      app,
+      path.resolve(
+        __dirname,
+        "../../../release",
+        `m12-tu02-environment-actions-${process.env.AI_CORPORATION_PACKAGED_EXE === undefined ? "dev" : "packaged"}-${process.platform}-${process.arch}-1024x700-200-percent.png`,
+      ),
+    );
+    await app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0];
+      window?.setSize(1440, 900);
+      window?.webContents.setZoomFactor(1);
+    });
+    await environmentHeading.scrollIntoViewIfNeeded();
+    await waitForPaint(page);
+    await expectPageHasNoHorizontalOverflow(page);
+    await page.screenshot({
+      animations: "disabled",
+      path: path.resolve(
+        __dirname,
+        "../../../release",
+        `m12-tu02-environment-${process.env.AI_CORPORATION_PACKAGED_EXE === undefined ? "dev" : "packaged"}-${process.platform}-${process.arch}-1440x900.png`,
+      ),
+    });
+
+    await automaticInstallButton.click();
+    await expect(
+      page.getByRole("heading", { name: "是否允许本任务运行程序？" }),
+    ).toBeVisible({ timeout: 180_000 });
+    await page.getByRole("button", { name: "允许本任务运行程序" }).click();
+    await expect(
+      page.getByRole("heading", { name: "等待你验收" }),
+    ).toBeVisible();
+    expect(
+      readFileSync(path.join(taskWorkspace, "py-result.txt"), "utf8"),
+    ).toBe("PY:标准脚本参考资料");
+    await page.getByText("查看完整模型和工具过程").click();
+    await expect(
+      page.locator("pre").filter({ hasText: "skill_run_script" }).first(),
+    ).toBeVisible();
+    await expect(
+      page.locator("code").filter({ hasText: "uv venv" }),
+    ).toBeVisible();
+    expect(await page.locator("body").innerText()).not.toContain(
+      userDataDirectory,
+    );
+
+    // 第二次运行同一 Python Skill 只重新询问本任务执行权，不重复安装环境。
+    await page
+      .getByLabel("任务内容")
+      .fill("再次运行 Python 脚本并生成 py-result-reused.txt");
+    await page.getByRole("button", { name: "开始任务" }).click();
+    await expect(
+      page.getByRole("heading", { name: "是否允许本任务运行程序？" }),
+    ).toBeVisible();
+    await expect(environmentHeading).toHaveCount(0);
+    await page.getByRole("button", { name: "允许本任务运行程序" }).click();
+    await expect(
+      page.getByRole("heading", { name: "等待你验收" }),
+    ).toBeVisible();
+    expect(
+      readFileSync(path.join(taskWorkspace, "py-result-reused.txt"), "utf8"),
+    ).toBe("PY:标准脚本参考资料");
+    await expect(page.locator(".pi-delivery-check")).toHaveCount(1);
+
+    const nativeOutput =
+      process.platform === "win32" ? "native-windows.txt" : "native-macos.txt";
+    await page
+      .getByLabel("任务内容")
+      .fill(`运行当前系统原生脚本并生成 ${nativeOutput}`);
+    await page.getByRole("button", { name: "开始任务" }).click();
+    await expect(
+      page.getByRole("heading", { name: "是否允许本任务运行程序？" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "允许本任务运行程序" }).click();
+    await expect(
+      page.getByRole("heading", { name: "等待你验收" }),
+    ).toBeVisible();
+    expect(readFileSync(path.join(taskWorkspace, nativeOutput), "utf8")).toBe(
+      process.platform === "win32" ? "NATIVE-WINDOWS" : "NATIVE-MACOS",
+    );
+
+    const firstTools = (
+      fixture.requests()[0] as {
+        readonly tools?: readonly {
+          readonly function?: { readonly name?: string };
+        }[];
+      }
+    ).tools?.map((tool) => tool.function?.name);
+    expect(firstTools).toEqual(
+      expect.arrayContaining(["environment_prepare", "skill_run_script"]),
+    );
+  } finally {
+    await app.close().catch(() => undefined);
+    await fixture.close();
+    await removeTemporaryDirectory(userDataDirectory);
+    await removeTemporaryDirectory(taskWorkspace);
+  }
+});
+
+function writeManagedScriptFixture(managedRoot: string): void {
+  const skillRoot = path.join(managedRoot, "script-runtime-fixture");
+  mkdirSync(path.join(skillRoot, "references"), { recursive: true });
+  mkdirSync(path.join(skillRoot, "scripts"), { recursive: true });
+  writeFileSync(
+    path.join(skillRoot, "SKILL.md"),
+    `---
+name: script-runtime-fixture
+description: 需要运行标准 JavaScript、Python 或当前系统原生脚本并生成工作区文件时使用。
+---
+先选择与用户任务匹配的 scripts/ 脚本，再把工作区逻辑路径作为独立参数传入。
+`,
+    "utf8",
+  );
+  writeFileSync(
+    path.join(skillRoot, "references", "input.txt"),
+    "标准脚本参考资料",
+    "utf8",
+  );
+  writeFileSync(
+    path.join(skillRoot, "package.json"),
+    '{"dependencies":{"kleur":"4.1.5"}}',
+    "utf8",
+  );
+  writeFileSync(
+    path.join(skillRoot, "scripts", "create.cjs"),
+    `const fs = require("node:fs");
+const path = require("node:path");
+require("kleur");
+const reference = fs.readFileSync(path.join("references", "input.txt"), "utf8");
+fs.writeFileSync(process.argv[2], ` +
+      "`JS:${reference}`" +
+      `, "utf8");
+console.log("JavaScript Skill result created");
+`,
+    "utf8",
+  );
+  writeFileSync(
+    path.join(skillRoot, "scripts", "create.py"),
+    `from pathlib import Path
+import sys
+reference = Path("references/input.txt").read_text(encoding="utf-8")
+Path(sys.argv[1]).write_text(f"PY:{reference}", encoding="utf-8")
+print("Python Skill result created")
+`,
+    "utf8",
+  );
+  writeFileSync(
+    path.join(skillRoot, "scripts", "native.ps1"),
+    `$ErrorActionPreference = "Stop"
+Set-Content -LiteralPath $args[0] -Value "NATIVE-WINDOWS" -Encoding Ascii -NoNewline
+Write-Output "Windows Skill result created"
+`,
+    "utf8",
+  );
+  writeFileSync(
+    path.join(skillRoot, "scripts", "native.sh"),
+    `#!/bin/sh
+printf 'NATIVE-MACOS' > "$1"
+printf 'macOS Skill result created\\n'
+`,
+    "utf8",
+  );
+}
+
+async function startScriptProviderFixture() {
+  const requests: unknown[] = [];
+  const nativePath =
+    process.platform === "win32" ? "scripts/native.ps1" : "scripts/native.sh";
+  const nativeOutput =
+    process.platform === "win32" ? "native-windows.txt" : "native-macos.txt";
+  const calls = [
+    {
+      name: "skill_activate",
+      arguments: { skillName: "script-runtime-fixture" },
+    },
+    {
+      name: "skill_list_resources",
+      arguments: { skillName: "script-runtime-fixture" },
+    },
+    {
+      name: "skill_run_script",
+      arguments: {
+        skillName: "script-runtime-fixture",
+        scriptRelativePath: "scripts/create.cjs",
+        args: ["{{workspace}}/js-result.txt"],
+        expectedOutputs: ["js-result.txt"],
+      },
+    },
+    undefined,
+    {
+      name: "skill_activate",
+      arguments: { skillName: "script-runtime-fixture" },
+    },
+    {
+      name: "skill_run_script",
+      arguments: {
+        skillName: "script-runtime-fixture",
+        scriptRelativePath: "scripts/create.py",
+        args: ["{{workspace}}/py-result.txt"],
+        expectedOutputs: ["py-result.txt"],
+      },
+    },
+    undefined,
+    {
+      name: "skill_activate",
+      arguments: { skillName: "script-runtime-fixture" },
+    },
+    {
+      name: "skill_run_script",
+      arguments: {
+        skillName: "script-runtime-fixture",
+        scriptRelativePath: "scripts/create.py",
+        args: ["{{workspace}}/py-result-reused.txt"],
+        expectedOutputs: ["py-result-reused.txt"],
+      },
+    },
+    undefined,
+    {
+      name: "skill_activate",
+      arguments: { skillName: "script-runtime-fixture" },
+    },
+    {
+      name: "skill_run_script",
+      arguments: {
+        skillName: "script-runtime-fixture",
+        scriptRelativePath: nativePath,
+        args: [`{{workspace}}/${nativeOutput}`],
+        expectedOutputs: [nativeOutput],
+      },
+    },
+    undefined,
+  ] as const;
+  const server = createServer((request, response) => {
+    if (request.url === "/models") {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(
+        JSON.stringify({ data: [{ id: "pi-script-fixture-model" }] }),
+      );
+      return;
+    }
+    if (request.url !== "/chat/completions") {
+      response.writeHead(404, { "content-type": "application/json" });
+      response.end(JSON.stringify({ error: { code: "not_found" } }));
+      return;
+    }
+    const chunks: Buffer[] = [];
+    request.on("data", (chunk: Buffer) => chunks.push(chunk));
+    request.on("end", () => {
+      const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+      requests.push(body);
+      response.writeHead(200, { "content-type": "text/event-stream" });
+      const call = calls[requests.length - 1];
+      if (call !== undefined) {
+        sendChunk(response, {
+          model: "pi-script-fixture-model",
+          choices: [
+            {
+              index: 0,
+              delta: {
+                role: "assistant",
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: `call-m12-tu02-${requests.length}`,
+                    type: "function",
+                    function: {
+                      name: call.name,
+                      arguments: JSON.stringify(call.arguments),
+                    },
+                  },
+                ],
+              },
+              finish_reason: null,
+            },
+          ],
+        });
+        sendChunk(response, {
+          model: "pi-script-fixture-model",
+          choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }],
+        });
+      } else {
+        sendChunk(response, {
+          model: "pi-script-fixture-model",
+          choices: [
+            {
+              index: 0,
+              delta: {
+                role: "assistant",
+                content: "标准 Skill 脚本已真实运行并生成文件，请验收。",
+              },
+              finish_reason: null,
+            },
+          ],
+        });
+        sendChunk(response, {
+          model: "pi-script-fixture-model",
+          choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+        });
+      }
+      response.end("data: [DONE]\n\n");
+    });
+  });
+  await listenOnSafePort(server);
+  const address = server.address();
+  if (address === null || typeof address === "string") {
+    throw new Error("M12-TU-02 fixture did not expose a TCP port");
+  }
+  return {
+    endpoint: `http://127.0.0.1:${address.port}`,
+    requests: () => [...requests],
+    close: () =>
+      new Promise<void>((resolve, reject) => {
+        server.closeAllConnections();
+        server.close((error) =>
+          error === undefined ? resolve() : reject(error),
+        );
+      }),
+  };
+}
 
 function writeManagedSkillFixture(managedRoot: string): void {
   const skillRoot = path.join(managedRoot, RESOURCE_SKILL);
