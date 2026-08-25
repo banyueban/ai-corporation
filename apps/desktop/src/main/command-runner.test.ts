@@ -9,6 +9,7 @@ import {
   runStructuredCommand,
   runSystemCommand,
   safeCommandEnvironment,
+  windowsDescendantsFromToolhelp,
   windowsShellWorkingDirectory,
 } from "./command-runner";
 
@@ -74,7 +75,7 @@ describe("command runner", () => {
         timeoutMs: 100,
       }),
     ).rejects.toBeInstanceOf(CommandTimeoutError);
-  });
+  }, 20_000);
 
   it("does not report cancellation until the command process is gone", async () => {
     const root = path.join(tmpdir(), `M9-TU-01-cancel-${crypto.randomUUID()}`);
@@ -104,7 +105,7 @@ describe("command runner", () => {
     await expect(running).rejects.toBeInstanceOf(CommandCancelledError);
     expect(commandPid).toBeTypeOf("number");
     expect(isProcessAlive(commandPid as number)).toBe(false);
-  });
+  }, 20_000);
 
   it("kills child processes together with a cancelled command", async () => {
     const root = path.join(
@@ -150,7 +151,7 @@ describe("command runner", () => {
     await expect(
       readFile(path.join(root, "child-survived.txt"), "utf8"),
     ).rejects.toMatchObject({ code: "ENOENT" });
-  });
+  }, 20_000);
 
   it("removes likely secrets but keeps normal developer environment", () => {
     const env = safeCommandEnvironment({
@@ -177,6 +178,16 @@ describe("command runner", () => {
     expect(
       windowsShellWorkingDirectory("\\\\?\\UNC\\server\\share\\project"),
     ).toBe("\\\\server\\share\\project");
+  });
+
+  it("parses a Windows native process snapshot", () => {
+    expect(
+      windowsDescendantsFromToolhelp(
+        "AC_PROCESS_SNAPSHOT_V1\n0,4\n400,500\n500,600\n500,700\n",
+        400,
+      ),
+    ).toEqual([500, 600, 700]);
+    expect(windowsDescendantsFromToolhelp("not snapshot", 400)).toBeUndefined();
   });
 
   it("caps live and final output with an explicit truncation marker", async () => {

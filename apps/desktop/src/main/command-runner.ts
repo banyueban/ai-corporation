@@ -270,6 +270,193 @@ async function killProcessTree(child: ChildProcess): Promise<void> {
  * is fixed trusted code and the only inserted value is an integer PID.
  */
 async function listWindowsDescendantPids(rootPid: number): Promise<number[]> {
+  // Windows 的原生进程快照不依赖可能冷启动或卡住的 WMI 服务。
+  // 企业策略禁用 Add-Type 时，再退回 Get-CimInstance。
+  const toolhelpResult = await listWindowsDescendantPidsWithToolhelp(rootPid);
+  if (toolhelpResult !== undefined) return toolhelpResult;
+  return listWindowsDescendantPidsWithPowerShell(rootPid);
+}
+
+const WINDOWS_TOOLHELP_SNAPSHOT_SCRIPT = String.raw`
+$ErrorActionPreference = 'Stop'
+Add-Type -TypeDefinition @'
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using System.Text;
+
+public static class AiCorporationProcessSnapshot {
+  private const uint SnapshotProcesses = 0x00000002;
+
+  [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+  private struct ProcessEntry {
+    public uint Size;
+    public uint Usage;
+    public uint ProcessId;
+    public IntPtr DefaultHeapId;
+    public uint ModuleId;
+    public uint Threads;
+    public uint ParentProcessId;
+    public int PriorityClassBase;
+    public uint Flags;
+    [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+    public string FileName;
+  }
+
+  [DllImport("kernel32.dll", SetLastError = true)]
+  private static extern IntPtr CreateToolhelp32Snapshot(uint flags, uint processId);
+
+  [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true, EntryPoint = "Process32FirstW")]
+  [return: MarshalAs(UnmanagedType.Bool)]
+  private static extern bool Process32First(IntPtr snapshot, ref ProcessEntry entry);
+
+  [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true, EntryPoint = "Process32NextW")]
+  [return: MarshalAs(UnmanagedType.Bool)]
+  private static extern bool Process32Next(IntPtr snapshot, ref ProcessEntry entry);
+
+  [DllImport("kernel32.dll", SetLastError = true)]
+  [return: MarshalAs(UnmanagedType.Bool)]
+  private static extern bool CloseHandle(IntPtr handle);
+
+  public static string Read() {
+    IntPtr snapshot = CreateToolhelp32Snapshot(SnapshotProcesses, 0);
+    if (snapshot == new IntPtr(-1)) {
+      throw new Win32Exception(Marshal.GetLastWin32Error());
+    }
+    StringBuilder result = new StringBuilder("AC_PROCESS_SNAPSHOT_V1\n");
+    try {
+      ProcessEntry entry = new ProcessEntry();
+      entry.Size = (uint)Marshal.SizeOf(typeof(ProcessEntry));
+      if (!Process32First(snapshot, ref entry)) {
+        return result.ToString();
+      }
+      do {
+        result.Append(entry.ParentProcessId).Append(',').Append(entry.ProcessId).Append('\n');
+        entry.Size = (uint)Marshal.SizeOf(typeof(ProcessEntry));
+      } while (Process32Next(snapshot, ref entry));
+      return result.ToString();
+    } finally {
+      CloseHandle(snapshot);
+    }
+  }
+}
+'@
+[Console]::Out.Write([AiCorporationProcessSnapshot]::Read())
+`;
+
+async function listWindowsDescendantPidsWithToolhelp(
+  rootPid: number,
+): Promise<number[] | undefined> {
+  const systemRoot = process.env.SystemRoot ?? "C:\\Windows";
+  const powershell = path.join(
+    systemRoot,
+    "System32",
+    "WindowsPowerShell",
+    "v1.0",
+    "powershell.exe",
+  );
+  const encodedScript = Buffer.from(
+    WINDOWS_TOOLHELP_SNAPSHOT_SCRIPT,
+    "utf16le",
+  ).toString("base64");
+  return new Promise((resolve) => {
+    const inspector = spawn(
+      powershell,
+      [
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-EncodedCommand",
+        encodedScript,
+      ],
+      {
+        windowsHide: true,
+        stdio: ["ignore", "pipe", "ignore"],
+      },
+    );
+    let output = "";
+    let finished = false;
+    const finish = (pids: number[] | undefined) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timeout);
+      resolve(pids);
+    };
+    const timeout = setTimeout(() => {
+      inspector.kill();
+      finish(undefined);
+    }, 5_000);
+    inspector.stdout?.on("data", (chunk: Buffer) => {
+      if (output.length < 1024 * 1024) output += chunk.toString("utf8");
+    });
+    inspector.once("error", () => finish(undefined));
+    inspector.once("close", (code) => {
+      finish(
+        code === 0
+          ? windowsDescendantsFromToolhelp(output, rootPid)
+          : undefined,
+      );
+    });
+  });
+}
+
+/** 把 Windows 原生快照输出转成从近到远的后代进程号。 */
+export function windowsDescendantsFromToolhelp(
+  output: string,
+  rootPid: number,
+): number[] | undefined {
+  const marker = "AC_PROCESS_SNAPSHOT_V1";
+  const markerIndex = output.indexOf(marker);
+  if (markerIndex < 0) return undefined;
+  const pairs: Array<readonly [number, number]> = [];
+  for (const line of output
+    .slice(markerIndex + marker.length)
+    .split(/\r?\n/u)) {
+    const [parentText, pidText] = line.trim().split(",");
+    const parentPid = Number(parentText);
+    const pid = Number(pidText);
+    if (
+      Number.isSafeInteger(parentPid) &&
+      parentPid >= 0 &&
+      Number.isSafeInteger(pid) &&
+      pid > 0
+    ) {
+      pairs.push([parentPid, pid]);
+    }
+  }
+  return collectWindowsDescendants(pairs, rootPid);
+}
+
+function collectWindowsDescendants(
+  pairs: ReadonlyArray<readonly [number, number]>,
+  rootPid: number,
+): number[] {
+  const childrenByParent = new Map<number, number[]>();
+  for (const [parentPid, pid] of pairs) {
+    if (pid === rootPid) continue;
+    const children = childrenByParent.get(parentPid) ?? [];
+    children.push(pid);
+    childrenByParent.set(parentPid, children);
+  }
+  const result: number[] = [];
+  let pending = [rootPid];
+  while (pending.length > 0) {
+    const next: number[] = [];
+    for (const parentPid of pending) {
+      for (const pid of childrenByParent.get(parentPid) ?? []) {
+        if (result.includes(pid)) continue;
+        result.push(pid);
+        next.push(pid);
+      }
+    }
+    pending = next;
+  }
+  return result;
+}
+
+async function listWindowsDescendantPidsWithPowerShell(
+  rootPid: number,
+): Promise<number[]> {
   const systemRoot = process.env.SystemRoot ?? "C:\\Windows";
   const powershell = path.join(
     systemRoot,
@@ -279,7 +466,7 @@ async function listWindowsDescendantPids(rootPid: number): Promise<number[]> {
     "powershell.exe",
   );
   const script = [
-    `$all = @(Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId)`,
+    `$all = @(Get-CimInstance Win32_Process -Property ProcessId, ParentProcessId)`,
     `$pending = @(${rootPid})`,
     "$result = @()",
     "while ($pending.Count -gt 0) {",
@@ -316,7 +503,8 @@ async function listWindowsDescendantPids(rootPid: number): Promise<number[]> {
     const timeout = setTimeout(() => {
       inspector.kill();
       finish([]);
-    }, 3_000);
+      // GitHub 的冷启动曾超过三秒；宁可等待可靠快照，也不能假装进程树已停。
+    }, 12_000);
     inspector.stdout?.on("data", (chunk: Buffer) => {
       if (output.length < 64 * 1024) output += chunk.toString("utf8");
     });

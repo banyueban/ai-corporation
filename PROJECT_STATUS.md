@@ -18,7 +18,7 @@ AI Corporation 已切换到 Pi 路线。新产品以“好用是第一原则”�
 
 M12-TU-01 已完成：一名员工可选择多项 Skill，旧员工会保留原 Skill；任务开始时模型只看到名称和用途，再按任务启用完整说明、读取参考资料或复制资源成真实成果。Windows/macOS 自动检查和用户 Windows 安装包人工验收均已通过。
 
-M12-TU-02 已按用户确认的 `1A + 2A + 3A + 4A` 完成当前候选实现：JavaScript 使用软件自身运行能力；Python 缺失时安装到应用自管目录；Windows 使用 PowerShell，macOS 使用 Shell；自动识别 PEP 723、`requirements.txt`、`package.json` 和结构化包名/版本；默认使用可复用的 Skill 独立环境；系统安装仅允许受限 winget/Homebrew 计划并再次确认。当前仍在完成同一候选代码的完整检查，不代表脚本、安装包或 Milestone 已通过最终验收。
+M12-TU-02 已按用户确认的 `1A + 2A + 3A + 4A` 完成当前候选实现：JavaScript 使用软件自身运行能力；Python 缺失时安装到应用自管目录；Windows 使用 PowerShell，macOS 使用 Shell；自动识别 PEP 723、`requirements.txt`、`package.json` 和结构化包名/版本；默认使用可复用的 Skill 独立环境；系统安装仅允许受限 winget/Homebrew 计划并再次确认。当前候选已通过本地完整工程、开发态真实窗口和 Windows 最终打包程序检查，仍需同一提交的 Windows/macOS CI 和用户人工验收，不代表脚本、安装包或 Milestone 已通过最终验收。
 
 M7-TU-01 和 Milestone 7 已完成：用户可以创建一名拥有独立模型和技能的员工，直接交代真实任务，实时查看模型与安全演示工具过程，并在员工自查后决定退回修改或验收完成。用户于 2026-08-15 使用包含布局修复的新 Windows 安装包完成人工验收并确认通过。
 
@@ -176,10 +176,10 @@ M11-TU-01 采用“受控写入自动登记，命令产物经 `workspace.registe
 - 验收候选提交 `314d5efb1796eb7b6fd2ca786754a176e99cbcd6` 的 GitHub Actions run `32591896190` 已通过：Windows x64（6 分 23 秒）和 macOS Apple Silicon（4 分 8 秒）均完成工程检查、真实窗口、应用构建、打包程序检查和安装包上传；
 - 用户于 2026-08-24 使用当前 Windows 安装包完成人工验收并确认通过；M12-TU-01 的 18 项断言全部关闭，P0/P1 为 0。脚本和环境能力仍属于 M12-TU-02，Milestone 12 保持未完成。
 - M12-TU-02 当前候选已实现 JavaScript、Python、Windows PowerShell 和 macOS Shell 的结构化脚本运行，自动识别 PEP 723、`requirements.txt`、`package.json` 与结构化依赖，默认建立可复用的 Skill 独立环境；安装批准、系统安装二次批准、复检、脚本授权、过程记录和成果核对保持分离；
-- 本地正常 Windows 权限下 `pnpm check` 通过：协议 67、Provider 28、存储 109、桌面 193、Native Core 9、Workspace FS 11，并通过状态、任务合同、格式、类型、Clippy 和 Secret scan；命令 Runner 的 9 项专项测试确认取消和超时返回前完整进程树已经退出，完整窗口验收与打包程序验收后均没有测试残留进程；
+- 本地正常 Windows 权限下 `pnpm check` 通过：协议 67、Provider 28、存储 109、桌面 194、Native Core 9、Workspace FS 11，并通过状态、任务合同、格式、类型、Clippy 和 Secret scan；命令 Runner 的 10 项专项测试确认取消和超时返回前完整进程树已经退出，并连续运行 10 轮、100 次断言全部通过；完整窗口验收与打包程序验收后均没有测试残留进程；
 - 开发态真实窗口为当前主流程 7 条通过、5 条按现有入口或本地真实 Key 开关明确跳过；Windows 最终打包程序的普通员工、编码员工、多 Skill 资源和 M12 环境脚本旅程 4 条全部通过，真实覆盖 npm 安装、应用自管 CPython 下载、独立环境复用、原生脚本执行和成果展示；安装卡还用键盘直接验证了“暂不安装”不运行脚本，以及重新发起后“自动安装”继续任务；
 - 最终包包含固定 uv `0.11.15` 和 npm `11.6.2` 运行资源；1024×700、1440×900 和 200% 截图已人工检查，没有竖排、重叠、横向溢出、遮挡或关键按钮不可见；
-- 当前 Windows 安装包位于 `release/AI Corporation Desktop Setup 0.1.0.exe`，大小 124956055 字节，SHA-256 为 `7DBE703CDC03F2EB587D8407153A353F3A5A572A4D3B291DEB0B2E5EAD6C61A9`；当前提交的 Windows/macOS CI 和用户人工验收仍未取得，M12-TU-02 与 Milestone 12 均保持未完成。
+- 当前 Windows 安装包位于 `release/AI Corporation Desktop Setup 0.1.0.exe`，大小 124957198 字节，SHA-256 为 `84279931781D1E94A9D6CAC6E3E4D8AC24CFF40E310C0003994AC888E6B07EE2`；当前提交的 Windows/macOS CI 和用户人工验收仍未取得，M12-TU-02 与 Milestone 12 均保持未完成。
 
 ## 7. 阶段复盘与下一步
 
