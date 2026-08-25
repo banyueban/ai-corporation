@@ -3,12 +3,12 @@
 | 属性 | 当前值 |
 | --- | --- |
 | 当前产品版本 | Pi 重启版真实工作阶段 |
-| 当前阶段 | Milestone 12 第二个任务等待双平台 CI 与人工验收 |
+| 当前阶段 | Milestone 12 第二个任务等待 Windows 安装包人工验收 |
 | 当前 Milestone | Milestone 12：标准 Agent Skills 运行底座 |
 | 当前任务单元 | M12-TU-02（进行中） |
-| 总体状态 | Milestone 7–11 和 M12-TU-01 已完成；M12-TU-02 的当前候选已经通过本地完整工程、开发态真实窗口和 Windows 最终打包程序检查，等待当前提交的 Windows/macOS CI 和用户 Windows 安装包人工验收；Milestone 12 尚未验收完成 |
+| 总体状态 | Milestone 7–11 和 M12-TU-01 已完成；M12-TU-02 的当前候选已经通过本地完整工程、开发态真实窗口、Windows 最终打包程序和 Windows/macOS CI，等待用户 Windows 安装包人工验收；Milestone 12 尚未验收完成 |
 | 最近更新 | 2026-08-25 |
-| 下一检查点 | 提交并推送当前候选，确认同一提交的 Windows/macOS CI 与安装包上传通过，再交给用户人工验收 |
+| 下一检查点 | 用户使用当前 Windows 安装包核对环境计划、自动安装、脚本过程和真实成果；通过前不关闭 M12-TU-02 或 Milestone 12 |
 
 ## 1. 当前结论
 
@@ -93,7 +93,7 @@ M7-TU-01 和 Milestone 7 已完成：用户可以创建一名拥有独立模型�
 - [x] 多 Skill 数据迁移和员工设置；
 - [x] Skill 简短目录、自动启用、参考资料读取和资源复制；
 - [x] 脚本运行、环境检查和应用自管独立环境自动安装已经实现并通过本地专项测试（M12-TU-02）；
-- [ ] M12-TU-02 当前候选的 Windows/macOS CI 和用户人工验收；Windows 本地开发态与最终打包程序检查已通过；
+- [ ] M12-TU-02 用户人工验收；当前候选的 Windows/macOS CI、Windows 本地开发态与最终打包程序检查已通过；
 - [x] M12-TU-01 的 Windows/macOS 自动验收和最终安装包检查；
 - [x] M12-TU-01 的用户 Windows 安装包人工验收。
 
@@ -113,7 +113,7 @@ M12-TU-02 只交付标准 Skill 的常用脚本与环境闭环：
 
 ## 5. 活跃阻塞与已确认决策
 
-当前没有代码或外部阻塞。M12-TU-02 当前候选已经通过本地完整工程、开发态真实窗口和 Windows 最终打包程序检查，剩余门禁是同一提交的 Windows/macOS CI 和用户 Windows 安装包人工验收。用户已确认：一名员工拥有多项 Skill 并按任务自动选择；JavaScript 使用软件运行能力，Python 缺失时装入软件自管目录，Windows/macOS 分别支持 PowerShell/Shell；自动识别 PEP 723、requirements、package.json 和结构化包名/版本；默认使用 Skill 独立环境；系统程序只用受限 winget/Homebrew 方案并再次确认。未来环境员工复用同一工具，真实公开 Skill 另做端到端验收。
+当前没有代码或外部阻塞。M12-TU-02 当前候选已经通过本地完整工程、开发态真实窗口、Windows 最终打包程序和同一提交的 Windows/macOS CI，剩余门禁只有用户 Windows 安装包人工验收。用户已确认：一名员工拥有多项 Skill 并按任务自动选择；JavaScript 使用软件运行能力，Python 缺失时装入软件自管目录，Windows/macOS 分别支持 PowerShell/Shell；自动识别 PEP 723、requirements、package.json 和结构化包名/版本；默认使用 Skill 独立环境；系统程序只用受限 winget/Homebrew 方案并再次确认。未来环境员工复用同一工具，真实公开 Skill 另做端到端验收。
 
 M11-TU-01 采用“受控写入自动登记，命令产物经 `workspace.register_deliverable` 核实后登记”的方案，不扫描整个工作区，也不把模型文字当成文件证据。
 
@@ -180,7 +180,7 @@ M11-TU-01 采用“受控写入自动登记，命令产物经 `workspace.registe
 - 开发态真实窗口为当前主流程 7 条通过、5 条按现有入口或本地真实 Key 开关明确跳过；Windows 最终打包程序的普通员工、编码员工、多 Skill 资源和 M12 环境脚本旅程 4 条全部通过，真实覆盖 npm 安装、应用自管 CPython 下载、独立环境复用、原生脚本执行和成果展示；安装卡还用键盘直接验证了“暂不安装”不运行脚本，以及重新发起后“自动安装”继续任务；
 - 最终包包含固定 uv `0.11.15` 和 npm `11.6.2` 运行资源；1024×700、1440×900 和 200% 截图已人工检查，没有竖排、重叠、横向溢出、遮挡或关键按钮不可见；
 - 当前 Windows 安装包位于 `release/AI Corporation Desktop Setup 0.1.0.exe`，大小 124957198 字节，SHA-256 为 `84279931781D1E94A9D6CAC6E3E4D8AC24CFF40E310C0003994AC888E6B07EE2`；
-- 提交 `a626d548e8601f3f2fb88873410ae97551e43809` 的 GitHub Actions run `32814129083` 中，macOS 完整流水线通过；Windows 没有在 M12 或命令 Runner 失败，而是旧 M1 公司状态测试准备临时数据库超过默认 10 秒后被停止，因此该 run 不算通过。当前候选只把这条测试的准备/清理等待上限调为 30 秒，不改变业务断言，本地专项 21 条和 `pnpm check` 已通过；新提交的双平台 CI 和用户人工验收仍未取得，M12-TU-02 与 Milestone 12 均保持未完成。
+- 验收候选提交 `724b365ca813f835ff495558e05e050785c4fb4a` 的 GitHub Actions run `32814669739` 已通过：Windows x64（7 分 18 秒）和 macOS Apple Silicon（4 分 56 秒）均完成工程检查、真实窗口、应用构建、打包程序专项旅程和安装包上传；只有 GitHub Action 的 Node.js 20 弃用提示，没有产品失败；用户人工验收仍未取得，M12-TU-02 与 Milestone 12 均保持未完成。
 
 ## 7. 阶段复盘与下一步
 
