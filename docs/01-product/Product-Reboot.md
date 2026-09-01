@@ -130,3 +130,13 @@ Skill 继续由用户明确导入并由 AI Corporation 保存独立副本。Skil
 软件自动识别 PEP 723、`requirements.txt` 和 `package.json` 中的依赖。Skill 只在文字中说明依赖时，员工可以提交包名和版本组成的结构化列表，不能提交任意安装命令。默认给每项 Skill 建立可跨任务和公司复用的独立环境；Skill 明确要求项目环境时才写入当前 Workspace。Skill 或依赖变化后必须重新检查。
 
 缺少运行环境时，软件必须说明缺什么并提供“自动安装”或“暂不安装”。独立环境安装需要单独批准；系统级安装只允许受限 winget 或 Homebrew 方案，并再次展示精确命令和影响。安装后必须复检通过再继续任务。当前由环境管理工具处理，未来可以增加专门环境员工复用该工具，但不能绕过同一审批边界。
+
+## 11. 首个真实公开 Skill
+
+Milestone 13 固定使用 Anthropic `skills` 仓库提交 `3b3fad96af16a10759d930941b4520ba0c40edae` 中未经修改的 `slack-gif-creator`，许可证为 Apache 2.0。它必须按原目录导入、分配给员工并由员工按任务自动启用，不能为了适配 AI Corporation 修改公开 Skill 的说明、依赖或代码。
+
+该 Skill 本身没有可直接运行的 `scripts/`，而是提供 `core/` Python 工具。因此，员工会在当前 Workspace 写入一份普通 Python 脚本；软件使用该 Skill 的独立环境运行脚本，并让脚本只读使用 Skill 自带的 `core/`。工作区脚本、Skill 内容和真实成果都必须重新核对，模型与界面不得看到应用自管 Skill 或环境的绝对路径。
+
+首次运行时，软件识别公开 `requirements.txt` 中的 Pillow、imageio、imageio-ffmpeg 和 numpy，展示安装计划并经用户批准后安装到可复用的 Skill 独立环境。环境就绪后仍需单独批准本任务运行脚本。生成的动画 GIF 经真实文件和 Skill validator 核对后进入成果区，并可在软件内播放预览、用系统打开或查看所在位置。
+
+这一阶段只证明首个真实公开 Python Skill 的完整流程。它不交付附件入口、通用图片编辑、视频、Office、在线市场或任意公开 Skill 兼容；这些能力继续按真实需求另建任务。

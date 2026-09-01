@@ -76,6 +76,16 @@ AI Corporation 只从用户明确导入后形成的应用自管副本运行 Skil
 
 `skill.run_script` 会先调用同一环境准备逻辑；已经就绪就直接进入任务脚本授权，缺少内容就先展示安装计划。安装批准和脚本执行授权相互独立。脚本 stdout、stderr、退出码、耗时、截断和错误进入现有工具过程；零退出码不能代替真实成果核对。
 
+### 5.6 `skill.run_workspace_script`
+
+运行员工已经写入当前 Workspace 的普通 Python 脚本，并让脚本使用一项已启用 Skill 的独立环境和只读运行副本。该工具用于公开 Skill 只提供可导入库、没有 `scripts/` 入口的真实情况；它不能把工作区里的任意程序包装成通用执行权限。
+
+模型只提交 Skill 名称、工作区脚本相对路径、可选结构化依赖、参数和预期成果相对路径，不能提交可执行程序、shell 命令、工作目录、环境变量或应用内部绝对路径。当前只支持 `.py`；其他工作区脚本运行程序由后续独立任务处理。
+
+每次调用都重新核对公司、员工、任务、Workspace、Skill 分配和启用状态，并通过 Native Core 读取当前脚本内容与摘要，拒绝绝对路径、`..`、链接、目录、二进制、超限文件和并发变化。软件把已核对脚本复制到该环境的一次性私有运行目录，以 Workspace 为工作目录启动 Python，并在内部设置只指向该 Skill 运行副本的模块搜索路径；运行结束后删除一次性脚本。模型、Renderer、日志和错误只显示逻辑名称与相对路径。
+
+环境准备、安装批准、运行批准、过程展示、取消、超时、重启恢复和成果核对全部沿用 `skill.run_script` 的边界。安装批准不能代替运行批准，脚本零退出码也不能代替预期成果的真实核对。
+
 ## 6. 环境管理
 
 环境管理使用 `environment.prepare` / `environment_prepare`：
@@ -95,7 +105,7 @@ AI Corporation 只从用户明确导入后形成的应用自管副本运行 Skil
 
 - `M12-TU-01`：标准解析、多 Skill 分配、自动启用、参考资料读取和资源复制；
 - `M12-TU-02`：脚本运行、环境检查、隔离自动安装、系统安装再确认和恢复；
-- 后续独立 Milestone：导入一个真实公开标准 Skill，完成端到端验收。
+- `M13-TU-01`：导入未经修改的真实公开 `slack-gif-creator`，通过工作区 Python 脚本桥接其 `core/`，完成真实 GIF 生成、核对、预览和最终安装包验收。
 
 前一个任务通过不代表脚本和自动安装已交付；两个任务都通过后，Milestone 12 才能关闭。
 
@@ -109,4 +119,4 @@ AI Corporation 只从用户明确导入后形成的应用自管副本运行 Skil
 - API Key、Key Vault 和应用认证秘密不进入脚本或安装进程；脚本以用户当前 OS 账户运行，当前没有 OS 级强沙箱，批准卡必须如实说明；
 - 应用自管 Skill/环境绝对路径不返回模型或 Renderer。逻辑 Workspace 位置由 Main 转换，成果仍通过 Workspace 可信边界核对。
 
-Tool Registry 使用上面的点号 ID；提供给 Pi 模型的函数名分别使用 `skill_activate`、`skill_list_resources`、`skill_read_resource`、`skill_copy_asset` 和 `skill_run_script`，避免不同层各自发明名字。
+Tool Registry 使用上面的点号 ID；提供给 Pi 模型的函数名分别使用 `skill_activate`、`skill_list_resources`、`skill_read_resource`、`skill_copy_asset`、`skill_run_script` 和 `skill_run_workspace_script`，避免不同层各自发明名字。

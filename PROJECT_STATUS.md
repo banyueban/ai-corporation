@@ -3,12 +3,12 @@
 | 属性 | 当前值 |
 | --- | --- |
 | 当前产品版本 | Pi 重启版真实工作阶段 |
-| 当前阶段 | Milestone 12 已完成，等待确定下一阶段 |
-| 当前 Milestone | Milestone 12：标准 Agent Skills 运行底座（完成） |
-| 当前任务单元 | M12-TU-02（完成） |
-| 总体状态 | Milestone 7–12 全部完成；M12-TU-02 的 22 项验收断言、本地工程检查、Windows 开发态与最终打包程序、Windows/macOS CI 和用户 Windows 安装包人工验收全部通过；环境员工、真实公开 Skill 兼容、更多脚本生态及附件、图片、视频、Office 和多员工能力仍属于后续范围 |
-| 最近更新 | 2026-08-26 |
-| 下一检查点 | 由用户确定下一阶段优先方向；开始新实现前先建立任务合同，并复用 Milestone 12 已落实的真实导入、网络安装等待和人工验收门禁 |
+| 当前阶段 | Milestone 13 任务合同已就绪，尚未开始功能实现 |
+| 当前 Milestone | Milestone 13：真实公开 Skill 兼容验收（进行中） |
+| 当前任务单元 | M13-TU-01（就绪） |
+| 总体状态 | Milestone 7–12 全部完成；用户已选择用未经修改的公开 `slack-gif-creator` 完成首个真实 Skill 连续验收，M13-TU-01 合同与权威设计已建立；工作区 Python 桥接、真实 GIF 生成与预览尚未实现或验收，不得标记通过 |
+| 最近更新 | 2026-09-01 |
+| 下一检查点 | 按 M13-TU-01 实现工作区 Python 脚本桥接与 GIF 安全预览，并先取得本地专项测试证据 |
 
 ## 1. 当前结论
 
@@ -19,6 +19,8 @@ AI Corporation 已切换到 Pi 路线。新产品以“好用是第一原则”�
 M12-TU-01 已完成：一名员工可选择多项 Skill，旧员工会保留原 Skill；任务开始时模型只看到名称和用途，再按任务启用完整说明、读取参考资料或复制资源成真实成果。Windows/macOS 自动检查和用户 Windows 安装包人工验收均已通过。
 
 M12-TU-02 已完成：JavaScript 使用软件自身运行能力；Python 缺失时安装到应用自管目录；Windows 使用 PowerShell，macOS 使用 Shell；自动识别 PEP 723、`requirements.txt`、`package.json` 和结构化包名/版本；默认使用可复用的 Skill 独立环境；系统安装仅允许受限 winget/Homebrew 计划并再次确认。用户已使用当前 Windows 安装包确认技能导入、Python 独立环境计划、自动安装、脚本执行、真实成果、完整过程可见和环境复用全部通过。验收候选 `66c924f` 的本地完整检查和 Windows/macOS CI 也全部通过，M12-TU-02 与 Milestone 12 关闭。
+
+M13-TU-01 已就绪但尚未实施：目标固定为 Anthropic `skills` 仓库提交 `3b3fad96af16a10759d930941b4520ba0c40edae` 的原版 `slack-gif-creator`。由于该 Skill 提供 `core/` 而没有 `scripts/`，本任务增加受控的工作区 Python 脚本桥接，复用 Skill 独立环境生成并核对真实 GIF，在成果区播放动画。当前只有决策和合同，不存在实现、自动验收、安装包或人工验收通过结论。
 
 M7-TU-01 和 Milestone 7 已完成：用户可以创建一名拥有独立模型和技能的员工，直接交代真实任务，实时查看模型与安全演示工具过程，并在员工自查后决定退回修改或验收完成。用户于 2026-08-15 使用包含布局修复的新 Windows 安装包完成人工验收并确认通过。
 
@@ -97,23 +99,33 @@ M7-TU-01 和 Milestone 7 已完成：用户可以创建一名拥有独立模型�
 - [x] M12-TU-01 的 Windows/macOS 自动验收和最终安装包检查；
 - [x] M12-TU-01 的用户 Windows 安装包人工验收。
 
+## 3F. Milestone 13 实施状态
+
+- [x] 用户已选择首个真实公开 Skill 和完整验收范围；
+- [x] M13-TU-01 任务合同与相关产品、运行和 UI 设计已建立；
+- [ ] 导入并逐文件核对固定提交中的原版 `slack-gif-creator`；
+- [ ] 工作区 Python 脚本使用已启用 Skill 的独立环境和 `core/`；
+- [ ] 自动准备四项公开依赖，复用环境且不随机升级；
+- [ ] 真实 GIF 生成、validator 核对、成果登记和动画预览；
+- [ ] 本地完整检查、开发态与最终打包程序验收；
+- [ ] Windows/macOS CI；
+- [ ] 用户 Windows 安装包人工验收。
+
 ## 4. 当前任务边界
 
-M12-TU-02 只交付标准 Skill 的常用脚本与环境闭环：
+M13-TU-01 只交付一个固定公开 Skill 的完整真实流程：
 
-- 支持 JavaScript、Python、Windows PowerShell 和 macOS Shell；其他运行程序由 DE-020 跟踪；
-- 自动识别 PEP 723、`requirements.txt`、`package.json` 和模型提交的结构化包名/版本，不接受任意安装命令；
-- 默认创建可跨任务和公司复用的 Skill 独立环境；只有 Skill 明确要求时才使用当前 Workspace 项目环境；
-- 独立环境安装、系统安装和脚本执行分别批准；系统安装只允许受限 winget/Homebrew 计划；
-- 安装后必须复检通过再继续；取消、失败、超时、结果未知和重启不重放、不冒充成功；
-- 脚本过程可见但不泄露 API Key 或应用自管绝对路径；成果仍需真实文件核对和登记；
-- 现有文本、编码、命令、多 Skill 资源和成果闭环必须继续可用。
+- 公开来源固定为提交 `3b3fad96af16a10759d930941b4520ba0c40edae` 的 `slack-gif-creator`，导入内容不得修改；
+- 新增工作区 Python 脚本桥接，只允许当前任务、当前 Workspace、已分配且已启用 Skill；
+- 复用现有独立环境、安装批准、任务运行批准、过程展示、取消、恢复和成果核对；
+- 真实生成并核对动画 GIF，不超过 5 MiB 时在成果区直接播放，也保留打开和查看所在位置；
+- 现有文本、编码、多 Skill、Skill 自带脚本和成果流程必须继续可用。
 
-本任务不实现环境员工、更多脚本生态、在线市场或任意公开 Skill 兼容声明。环境员工由 DE-018 跟踪，真实公开市场 Skill 由 DE-019 的后续独立 Milestone 验收。
+本任务不增加附件入口、通用图片编辑、视频、Office、在线市场、更多脚本运行程序、环境员工或多员工协作，也不宣称任意公开 Skill 已兼容。
 
 ## 5. 活跃阻塞与已确认决策
 
-当前没有活跃阻塞。M12-TU-02 与 Milestone 12 已完成，下一阶段尚未选择。用户已确认：一名员工拥有多项 Skill 并按任务自动选择；JavaScript 使用软件运行能力，Python 缺失时装入软件自管目录，Windows/macOS 分别支持 PowerShell/Shell；自动识别 PEP 723、requirements、package.json 和结构化包名/版本；默认使用 Skill 独立环境；系统程序只用受限 winget/Homebrew 方案并再次确认。未来环境员工复用同一工具，真实公开 Skill 另做端到端验收。
+当前没有活跃阻塞。用户已选择 M13-TU-01 采用方案 A：直接兼容未经修改的公开 `slack-gif-creator`，完成导入、分配、自动启用、环境准备、真实 GIF 生成、动画预览和最终安装包人工验收。公开 Skill 没有 `scripts/`，因此按合同增加受控工作区 Python 脚本桥接；这不是修改公开 Skill，也不放宽现有审批和 Workspace 边界。
 
 M11-TU-01 采用“受控写入自动登记，命令产物经 `workspace.register_deliverable` 核实后登记”的方案，不扫描整个工作区，也不把模型文字当成文件证据。
 
