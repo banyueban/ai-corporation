@@ -1093,7 +1093,17 @@ export function EmployeesPage(props: {
                         这不是登记时的原内容，文件后来被修改过。
                       </p>
                     )}
-                    <pre>{deliverablePreview.content}</pre>
+                    {deliverablePreview.content.startsWith(
+                      "data:image/gif;base64,",
+                    ) ? (
+                      <img
+                        alt={`${deliverablePreview.relativePath} 动画预览`}
+                        className="pi-delivery-gif-preview"
+                        src={deliverablePreview.content}
+                      />
+                    ) : (
+                      <pre>{deliverablePreview.content}</pre>
+                    )}
                   </section>
                 )}
                 <div className="pi-delivery-checks">

@@ -668,6 +668,17 @@ h3 {
   font-family: inherit;
 }
 
+.pi-delivery-gif-preview {
+  display: block;
+  width: auto;
+  max-width: min(100%, 640px);
+  max-height: 480px;
+  object-fit: contain;
+  border: 1px solid #27364b;
+  border-radius: 12px;
+  background: #101a29;
+}
+
 .pi-delivery-file,
 .pi-delivery-check {
   display: grid;

@@ -10,6 +10,7 @@ import {
   type Model,
 } from "@earendil-works/pi-ai";
 import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 import type {
@@ -58,6 +59,8 @@ interface ActiveTask {
   readonly agent?: Agent;
 }
 
+const MAX_GIF_PREVIEW_BYTES = 5 * 1024 * 1024;
+
 interface PendingCommandApproval {
   readonly approvalId: string;
   readonly command: string;
@@ -80,6 +83,15 @@ interface SkillEnvironmentToolParams {
 interface SkillRunScriptToolParams extends SkillEnvironmentToolParams {
   readonly args: readonly string[];
   readonly expectedOutputs?: readonly string[];
+  readonly timeoutSeconds?: number;
+}
+
+interface SkillRunWorkspaceScriptToolParams {
+  readonly args: readonly string[];
+  readonly dependencies?: readonly SkillDependency[];
+  readonly expectedOutputs?: readonly string[];
+  readonly scriptRelativePath: string;
+  readonly skillName: string;
   readonly timeoutSeconds?: number;
 }
 
@@ -158,6 +170,49 @@ export class PiTaskService {
     const located = this.#locateDeliverable(request);
     if (!located.ok) return located.result;
     try {
+      if (path.extname(request.relativePath).toLowerCase() === ".gif") {
+        const inspected = await this.#native().inspectWorkspaceFile(
+          located.workspace.canonicalRootPath,
+          request.relativePath,
+        );
+        if (inspected.sizeBytes > MAX_GIF_PREVIEW_BYTES) {
+          return deliverableFailure("PREVIEW_UNAVAILABLE");
+        }
+        const bytes = await readFile(inspected.canonicalPath);
+        const sha256 = createHash("sha256").update(bytes).digest("hex");
+        if (
+          bytes.byteLength !== inspected.sizeBytes ||
+          sha256 !== inspected.sha256 ||
+          !isStructurallyValidGif(bytes)
+        ) {
+          return deliverableFailure("PREVIEW_UNAVAILABLE");
+        }
+        // Recheck after reading so a concurrent replacement cannot be shown as
+        // the file we just verified.
+        const current = await this.#native().inspectWorkspaceFile(
+          located.workspace.canonicalRootPath,
+          request.relativePath,
+        );
+        if (
+          current.sha256 !== sha256 ||
+          current.sizeBytes !== bytes.byteLength
+        ) {
+          return deliverableFailure("PREVIEW_UNAVAILABLE");
+        }
+        return {
+          ok: true,
+          value: {
+            relativePath: current.relativePath,
+            content: `data:image/gif;base64,${bytes.toString("base64")}`,
+            sizeBytes: current.sizeBytes,
+            sha256: current.sha256,
+            integrity:
+              current.sha256 === located.deliverable.sha256
+                ? "CURRENT"
+                : "CHANGED",
+          },
+        };
+      }
       const current = await this.#native().readWorkspaceText(
         located.workspace.canonicalRootPath,
         request.relativePath,
@@ -848,6 +903,30 @@ export class PiTaskService {
       ),
       dependencies: Type.Optional(dependencyParameters),
     });
+    const skillRunWorkspaceScriptParameters = Type.Object({
+      skillName: Type.String({ description: "已经启用的技能名称" }),
+      scriptRelativePath: Type.String({
+        description: "当前 Workspace 中要运行的 .py 文件相对路径",
+      }),
+      args: Type.Array(
+        Type.String({
+          description:
+            "独立参数；用 {{workspace}} 表示当前工作区，不要填写绝对路径或 shell 命令",
+          maxLength: 16_384,
+        }),
+        { maxItems: 64 },
+      ),
+      expectedOutputs: Type.Optional(
+        Type.Array(
+          Type.String({
+            description: "脚本应生成并需要登记的 Workspace 相对文件路径",
+          }),
+          { maxItems: 32 },
+        ),
+      ),
+      timeoutSeconds: Type.Optional(Type.Integer({ maximum: 600, minimum: 1 })),
+      dependencies: Type.Optional(dependencyParameters),
+    });
     const tools: AgentTool[] = [
       {
         name: "skill_activate",
@@ -1296,6 +1375,123 @@ export class PiTaskService {
             });
           },
         },
+        {
+          name: "skill_run_workspace_script",
+          label: "用技能环境运行工作区脚本",
+          description:
+            "运行当前 Workspace 中的 Python 脚本，并让它使用已启用技能的独立环境和只读工具代码；公开技能没有 scripts/ 时使用。",
+          parameters: skillRunWorkspaceScriptParameters,
+          executionMode: "sequential",
+          execute: async (toolCallId, params, signal) => {
+            const values = params as SkillRunWorkspaceScriptToolParams;
+            requireActiveSkill(activeSkills, values.skillName);
+            const commandSignal = combinedTaskSignal(taskSignal, signal);
+            requireRunningTask(taskSignal, signal);
+            // Native Core is the authority for the Workspace path, file kind and
+            // UTF-8 bytes. The model never supplies the private content fields.
+            const initialScript = await this.#native().readWorkspaceText(
+              workspaceRoot,
+              values.scriptRelativePath,
+            );
+            const request = workspaceScriptEnvironmentRequest(
+              values,
+              workspaceRoot,
+              initialScript.content,
+              initialScript.sha256,
+            );
+            const environment = await this.#ensureSkillEnvironment(
+              taskId,
+              request,
+              commandSignal,
+            );
+            const beforeApproval = await this.#native().readWorkspaceText(
+              workspaceRoot,
+              values.scriptRelativePath,
+            );
+            if (beforeApproval.sha256 !== initialScript.sha256) {
+              throw new Error(
+                "工作区脚本在环境准备期间发生了变化，请重新发起运行。",
+              );
+            }
+            const displayCommand = workspaceSkillScriptDisplayCommand(values);
+            if (!this.options.taskRepository.hasCommandGrant(taskId)) {
+              const approved = await this.#requestCommandApproval(
+                taskId,
+                displayCommand,
+                "TASK",
+                "工作区 Python 会使用你当前的系统账户运行，并使用已启用 Skill 的工具代码；软件目前不能把它与电脑上的其他文件彻底隔开。批准只对本任务有效。",
+                commandSignal,
+              );
+              if (!approved) throw new Error("用户没有允许本任务运行脚本。");
+              this.options.taskRepository.grantCommandsForTask(
+                taskId,
+                this.#now(),
+              );
+            }
+            const beforeRun = await this.#native().readWorkspaceText(
+              workspaceRoot,
+              values.scriptRelativePath,
+            );
+            if (beforeRun.sha256 !== initialScript.sha256) {
+              throw new Error(
+                "工作区脚本在批准后发生了变化，本次没有运行。请检查后重新发起。",
+              );
+            }
+            const result = await this.#recordManagedProcess(
+              taskId,
+              toolCallId,
+              displayCommand,
+              () =>
+                environmentManager.runWorkspaceScript(request, {
+                  args: values.args,
+                  signal: commandSignal,
+                  timeoutMs: (values.timeoutSeconds ?? 120) * 1_000,
+                  onUpdate: (update) => {
+                    this.#event(
+                      taskId,
+                      "TOOL_UPDATE",
+                      JSON.stringify(
+                        { command: displayCommand, ...update },
+                        null,
+                        2,
+                      ),
+                    );
+                  },
+                }),
+            );
+            const expectedOutputs = [...new Set(values.expectedOutputs ?? [])];
+            const inspectedOutputs = await Promise.all(
+              expectedOutputs.map((relativePath) =>
+                this.#native().inspectWorkspaceFile(
+                  workspaceRoot,
+                  relativePath,
+                ),
+              ),
+            );
+            requireRunningTask(taskSignal, signal);
+            for (const inspected of inspectedOutputs) {
+              this.options.taskRepository.upsertDeliverable({
+                taskId,
+                relativePath: inspected.relativePath,
+                source: "COMMAND_REGISTERED",
+                changeKind: "REGISTERED",
+                sha256: inspected.sha256,
+                sizeBytes: inspected.sizeBytes,
+                sourceCallId: toolCallId,
+                registeredAt: this.#now(),
+              });
+            }
+            return toolResult({
+              ...result,
+              environment,
+              deliverables: inspectedOutputs.map((item) => ({
+                relativePath: item.relativePath,
+                sha256: item.sha256,
+                sizeBytes: item.sizeBytes,
+              })),
+            });
+          },
+        },
       );
     }
     if (skillNames.includes("coding-task")) {
@@ -1695,6 +1891,26 @@ function environmentRequest(
   };
 }
 
+function workspaceScriptEnvironmentRequest(
+  params: SkillRunWorkspaceScriptToolParams,
+  workspaceRoot: string,
+  scriptContent: string,
+  scriptSha256: string,
+): SkillEnvironmentRequest {
+  return {
+    ...(params.dependencies === undefined
+      ? {}
+      : { dependencies: params.dependencies }),
+    scope: "SKILL",
+    scriptRelativePath: params.scriptRelativePath,
+    scriptSource: "WORKSPACE",
+    skillName: params.skillName,
+    workspaceRoot,
+    workspaceScriptContent: scriptContent,
+    workspaceScriptSha256: scriptSha256,
+  };
+}
+
 function combinedTaskSignal(
   taskSignal: AbortSignal,
   toolSignal: AbortSignal | undefined,
@@ -1713,6 +1929,17 @@ function skillScriptDisplayCommand(params: SkillRunScriptToolParams): string {
   }`;
 }
 
+function workspaceSkillScriptDisplayCommand(
+  params: SkillRunWorkspaceScriptToolParams,
+): string {
+  const args = params.args.map((argument) =>
+    /[\s"']/u.test(argument) ? JSON.stringify(argument) : argument,
+  );
+  return `Python Workspace/${params.scriptRelativePath}${
+    args.length === 0 ? "" : ` ${args.join(" ")}`
+  }`;
+}
+
 function buildSystemPrompt(
   employeeName: string,
   skills: readonly { readonly description: string; readonly name: string }[],
@@ -1720,7 +1947,7 @@ function buildSystemPrompt(
   const catalog = skills
     .map((skill) => `- ${skill.name}：${skill.description}`)
     .join("\n");
-  return `你是 AI Corporation 的员工“${employeeName}”。\n\n你可以使用以下技能：\n${catalog}\n\n先根据用户任务选择真正匹配的技能，并调用 skill_activate 启用它；不要为了凑数启用无关技能。启用后如需额外资料，先用 skill_list_resources 查看，再按需用 skill_read_resource 读取 references/，或用 skill_copy_asset 把 assets/ 文件复制到工作区。需要运行 scripts/ 时，使用 environment_prepare 检查环境，或直接使用 skill_run_script 让软件在缺少环境时先向用户给出安装方案。只提交技能名、scripts/ 相对路径、独立参数和结构化依赖，不得编造 shell 安装命令、绝对路径或环境变量。\n\n请直接完成用户交代的真实工作区任务。先用 workspace_list 了解目录；需要参考已有内容时用 workspace_read_text。创建文本文件时直接调用 workspace_write_text 且省略 baseSha256；修改已有文本时必须先读取，再把读取结果中的 sha256 原样作为 baseSha256。拥有编码任务技能时还可以调用 workspace_run_command 运行真实检查和测试。workspace_write_text 和 skill_copy_asset 成功后软件会自动登记交付文件；skill_run_script 已知会生成哪些文件时填写 expectedOutputs 自动核对并登记，其他命令生成的最终交付文件必须逐个调用 workspace_register_deliverable 登记。没有登记的文件不会出现在交付成果区。不得声称执行了工具没有真正完成的操作。完成后请说明实际创建或修改的相对路径、运行过的检查和真实结果，并提醒用户验收。`;
+  return `你是 AI Corporation 的员工“${employeeName}”。\n\n你可以使用以下技能：\n${catalog}\n\n先根据用户任务选择真正匹配的技能，并调用 skill_activate 启用它；不要为了凑数启用无关技能。启用后如需额外资料，先用 skill_list_resources 查看，再按需用 skill_read_resource 读取 references/，或用 skill_copy_asset 把 assets/ 文件复制到工作区。需要运行 scripts/ 时，使用 environment_prepare 检查环境，或直接使用 skill_run_script 让软件在缺少环境时先向用户给出安装方案。公开技能如果只提供可导入的 Python 工具代码而没有 scripts/，先用 workspace_write_text 在工作区写入普通 .py 文件，再用 skill_run_workspace_script 运行。只提交技能名、相对路径、独立参数和结构化依赖，不得编造 shell 安装命令、绝对路径或环境变量。\n\n请直接完成用户交代的真实工作区任务。先用 workspace_list 了解目录；需要参考已有内容时用 workspace_read_text。创建文本文件时直接调用 workspace_write_text 且省略 baseSha256；修改已有文本时必须先读取，再把读取结果中的 sha256 原样作为 baseSha256。拥有编码任务技能时还可以调用 workspace_run_command 运行真实检查和测试。workspace_write_text 和 skill_copy_asset 成功后软件会自动登记交付文件；skill_run_script 和 skill_run_workspace_script 已知会生成哪些文件时填写 expectedOutputs 自动核对并登记，其他命令生成的最终交付文件必须逐个调用 workspace_register_deliverable 登记。没有登记的文件不会出现在交付成果区。不得声称执行了工具没有真正完成的操作。完成后请说明实际创建或修改的相对路径、运行过的检查和真实结果，并提醒用户验收。`;
 }
 
 function requireActiveSkill(activeSkills: ReadonlySet<string>, name: string) {
@@ -1807,6 +2034,65 @@ function mapActionError(error: unknown): DeliverableErrorCode {
   return error instanceof WorkspaceNativeError && error.reason === "NOT_FOUND"
     ? "FILE_MISSING"
     : "INTERNAL";
+}
+
+/**
+ * Checks the bounded GIF container without loading native codecs in Main.
+ * Renderer animation is allowed only after every block stays in bounds and at
+ * least one complete image frame reaches a final trailer.
+ */
+function isStructurallyValidGif(bytes: Buffer): boolean {
+  if (bytes.byteLength < 14) return false;
+  const header = bytes.subarray(0, 6).toString("ascii");
+  if (header !== "GIF87a" && header !== "GIF89a") return false;
+  if (bytes.readUInt16LE(6) === 0 || bytes.readUInt16LE(8) === 0) return false;
+  const screenPacked = bytes[10] ?? 0;
+  let cursor = 13;
+  if ((screenPacked & 0x80) !== 0) {
+    cursor += 3 * 2 ** ((screenPacked & 0x07) + 1);
+  }
+  let imageCount = 0;
+  while (cursor < bytes.byteLength) {
+    const marker = bytes[cursor];
+    cursor += 1;
+    if (marker === 0x3b) {
+      return imageCount > 0 && cursor === bytes.byteLength;
+    }
+    if (marker === 0x21) {
+      if (cursor >= bytes.byteLength) return false;
+      cursor += 1; // Extension label.
+      cursor = skipGifSubBlocks(bytes, cursor);
+      if (cursor < 0) return false;
+      continue;
+    }
+    if (marker !== 0x2c || cursor + 9 > bytes.byteLength) return false;
+    const width = bytes.readUInt16LE(cursor + 4);
+    const height = bytes.readUInt16LE(cursor + 6);
+    const imagePacked = bytes[cursor + 8] ?? 0;
+    if (width === 0 || height === 0) return false;
+    cursor += 9;
+    if ((imagePacked & 0x80) !== 0) {
+      cursor += 3 * 2 ** ((imagePacked & 0x07) + 1);
+    }
+    if (cursor >= bytes.byteLength) return false;
+    cursor += 1; // LZW minimum code size.
+    cursor = skipGifSubBlocks(bytes, cursor);
+    if (cursor < 0) return false;
+    imageCount += 1;
+  }
+  return false;
+}
+
+function skipGifSubBlocks(bytes: Buffer, start: number): number {
+  let cursor = start;
+  while (cursor < bytes.byteLength) {
+    const size = bytes[cursor] ?? 0;
+    cursor += 1;
+    if (size === 0) return cursor;
+    cursor += size;
+    if (cursor > bytes.byteLength) return -1;
+  }
+  return -1;
 }
 
 /** Opens only passive document/data formats; code and scripts stay in-app. */

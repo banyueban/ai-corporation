@@ -231,6 +231,53 @@ export class SkillLibrary {
     };
   }
 
+  /**
+   * Builds the same trusted runtime description for a Python script that lives
+   * in the current Workspace. The imported Skill remains byte-for-byte intact;
+   * only its root requirements and managed runtime copy are reused.
+   */
+  async inspectWorkspacePython(
+    name: string,
+    relativePath: string,
+    scriptContent: string,
+  ): Promise<SkillScriptInspection> {
+    if (!relativePath.toLowerCase().endsWith(".py")) {
+      throw new SkillLibraryError(
+        "INVALID_SKILL",
+        "当前只支持运行工作区中的 Python 脚本。",
+      );
+    }
+    if (Buffer.byteLength(scriptContent, "utf8") > MAX_SCRIPT_BYTES) {
+      throw new SkillLibraryError("SKILL_TOO_LARGE", "工作区脚本超过 1 MiB。");
+    }
+    if (scriptContent.includes("\0")) {
+      throw new SkillLibraryError(
+        "INVALID_SKILL",
+        "工作区脚本不是普通 UTF-8 文本。",
+      );
+    }
+    const snapshot = await this.#readManagedSnapshot(name);
+    const requirementsFile = snapshot.files.find(
+      (candidate) => candidate.relativePath === "requirements.txt",
+    );
+    return {
+      digest: snapshot.digest,
+      metadata: snapshot.metadata,
+      relativePath,
+      ...(requirementsFile === undefined
+        ? {}
+        : {
+            requirements: decodeRuntimeText(
+              requirementsFile.bytes,
+              "requirements.txt",
+            ),
+          }),
+      runtime: "PYTHON",
+      scriptContent,
+      skillName: snapshot.name,
+    };
+  }
+
   /** Writes the exact validated snapshot into an environment staging folder. */
   async materializeRuntimeCopy(
     name: string,

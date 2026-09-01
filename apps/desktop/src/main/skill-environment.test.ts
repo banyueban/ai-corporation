@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -172,6 +172,96 @@ describe("standard Skill script environments", () => {
       "utf8",
     );
     expect(manifest).not.toContain(root);
+  });
+
+  it("runs a verified Workspace Python script with an unmodified Skill core", async () => {
+    await importSkill(library, sourceRoot, "public-gif-tool", {
+      "requirements.txt": "pillow>=10.0.0\nimageio>=2.31.0\nnumpy>=1.24.0\n",
+      "core/gif_builder.py": "PUBLIC_SKILL_CORE = True\n",
+    });
+    const scriptContent =
+      "from core.gif_builder import PUBLIC_SKILL_CORE\nprint(PUBLIC_SKILL_CORE)\n";
+    const scriptSha256 = createHash("sha256")
+      .update(scriptContent, "utf8")
+      .digest("hex");
+    const calls: Array<{
+      readonly args: readonly string[];
+      readonly cwd: string;
+      readonly environment?: Readonly<Record<string, string>>;
+    }> = [];
+    const manager = createManager(library, environmentRoot, {
+      runner: async (input) => {
+        calls.push({
+          args: input.args,
+          cwd: input.cwd,
+          ...(input.environment === undefined
+            ? {}
+            : { environment: input.environment }),
+        });
+        if (input.args[0] === "venv") {
+          const venv = input.args.at(-1) ?? "";
+          const executable =
+            process.platform === "win32"
+              ? path.join(venv, "Scripts", "python.exe")
+              : path.join(venv, "bin", "python");
+          await mkdir(path.dirname(executable), { recursive: true });
+          await writeFile(executable, "fixture", "utf8");
+        }
+        if (input.args[0] === "-c") return commandResult("3.12\n");
+        return commandResult("True\n");
+      },
+    });
+    const request: SkillEnvironmentRequest = {
+      scope: "SKILL",
+      scriptRelativePath: "make-animation.py",
+      scriptSource: "WORKSPACE",
+      skillName: "public-gif-tool",
+      workspaceRoot,
+      workspaceScriptContent: scriptContent,
+      workspaceScriptSha256: scriptSha256,
+    };
+
+    const check = await manager.check(request);
+    expect(check).toMatchObject({
+      status: "INSTALL_REQUIRED",
+      plan: {
+        items: expect.arrayContaining([
+          "Python：pillow>=10.0.0",
+          "Python：imageio>=2.31.0",
+          "Python：numpy>=1.24.0",
+        ]),
+      },
+    });
+    if (check.status !== "INSTALL_REQUIRED")
+      throw new Error("missing fixture plan");
+    await manager.install(check.plan.id);
+    const result = await manager.runWorkspaceScript(request, { args: [] });
+
+    expect(result).toMatchObject({ exitCode: 0, stdout: "True\n" });
+    const runCall = calls.at(-1);
+    expect(runCall?.cwd).toBe(workspaceRoot);
+    expect(runCall?.environment?.PYTHONPATH).toContain("skill");
+    expect(runCall?.environment?.PYTHONPATH).not.toBe(managedRoot);
+    expect(runCall?.environment).toMatchObject({
+      PYTHONIOENCODING: "utf-8",
+      PYTHONUTF8: "1",
+    });
+    expect(runCall?.args[0]).not.toContain(workspaceRoot);
+    await expect(
+      readFile(
+        path.join(
+          runCall?.environment?.PYTHONPATH ?? "",
+          "core",
+          "gif_builder.py",
+        ),
+        "utf8",
+      ),
+    ).resolves.toBe("PUBLIC_SKILL_CORE = True\n");
+    const runRoot = path.join(
+      path.dirname(runCall?.environment?.PYTHONPATH ?? ""),
+      ".runs",
+    );
+    await expect(readdir(runRoot)).resolves.toEqual([]);
   });
 
   it("does not leave READY after a failed private installation", async () => {

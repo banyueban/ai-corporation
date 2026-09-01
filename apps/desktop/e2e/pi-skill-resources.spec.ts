@@ -569,6 +569,308 @@ test("employee installs a private Python, runs standard Skill scripts, and reuse
   }
 });
 
+test("user imports the pinned public GIF Skill and previews a real animation", async () => {
+  // The public wheels are fetched from the real package index. Keep this one
+  // network acceptance aligned with the product's ten-minute install limit.
+  test.setTimeout(900_000);
+  const fixture = await startPublicGifProviderFixture();
+  const userDataDirectory = mkdtempSync(
+    path.join(tmpdir(), "M13-TU-01-electron-user-data-"),
+  );
+  const taskWorkspace = mkdtempSync(
+    path.join(tmpdir(), "M13-TU-01-gif-workspace-"),
+  );
+  const publicSkillDirectory = path.resolve(
+    __dirname,
+    "../test-fixtures/public-skills/slack-gif-creator",
+  );
+  const app = await launchApplication(userDataDirectory, taskWorkspace);
+
+  try {
+    await app.evaluate(({ dialog }, selectedDirectory) => {
+      dialog.showOpenDialog = async () => ({
+        canceled: false,
+        filePaths: [selectedDirectory],
+      });
+    }, publicSkillDirectory);
+    const page = await app.firstWindow();
+    await page.getByRole("button", { name: "设置" }).click();
+    await page.getByLabel("名称").fill("M13 公开 GIF Provider");
+    await page.getByLabel("API 基础 URL").fill(fixture.endpoint);
+    await page.getByLabel("API Key").fill("M13-TU-01-e2e-fake-key");
+    await page.getByRole("button", { name: "保存模型服务商" }).click();
+    await page.getByRole("button", { name: "测试连接" }).click();
+    await expect(page.getByRole("heading", { name: "已验证" })).toBeVisible();
+
+    await page.getByRole("button", { name: "控制台" }).click();
+    await page.getByLabel("公司名称").fill("真实公开 GIF Skill 公司");
+    await page.getByRole("button", { name: "新建公司" }).click();
+    await page.getByRole("button", { name: "导入技能文件夹" }).click();
+    await expect(
+      page.getByRole("heading", { name: "确认导入：slack-gif-creator" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "确认导入" }).click();
+    await expect(page.getByLabel(/slack-gif-creator/u)).toBeVisible();
+    await page.getByLabel(/coding-task/u).check();
+    await page.getByLabel(/slack-gif-creator/u).check();
+    await page.getByLabel(/text-organize/u).uncheck();
+    await page.getByLabel("员工姓名").fill("公开 GIF 制作员工");
+    await page
+      .getByLabel("Provider")
+      .selectOption({ label: "M13 公开 GIF Provider" });
+    await page.getByLabel("模型").selectOption("pi-public-gif-model");
+    await page.getByRole("button", { name: "创建员工" }).click();
+    await page.getByRole("button", { name: "添加工作区" }).click();
+
+    await page
+      .getByLabel("任务内容")
+      .fill("使用公开 GIF Skill 制作一个 128×128 的彩色圆点移动动画。");
+    await page.getByRole("button", { name: "开始任务" }).click();
+    const environmentHeading = page.getByRole("heading", {
+      name: "准备“slack-gif-creator”的独立环境",
+    });
+    await expect(environmentHeading).toBeVisible();
+    const environmentCard = page
+      .locator("section.provider-disclosure")
+      .filter({ has: environmentHeading });
+    for (const dependency of [
+      "pillow>=10.0.0",
+      "imageio>=2.31.0",
+      "imageio-ffmpeg>=0.4.9",
+      "numpy>=1.24.0",
+    ]) {
+      await expect(
+        environmentCard.getByText(`Python：${dependency}`, { exact: true }),
+      ).toBeVisible();
+    }
+    await environmentCard.getByRole("button", { name: "自动安装" }).click();
+    await expect(
+      page.getByRole("heading", { name: "是否允许本任务运行程序？" }),
+    ).toBeVisible({ timeout: 600_000 });
+    await page.getByRole("button", { name: "允许本任务运行程序" }).click();
+    await expect(page.getByRole("heading", { name: "等待你验收" })).toBeVisible(
+      { timeout: 90_000 },
+    );
+
+    const output = path.join(taskWorkspace, "public-skill-animation.gif");
+    const bytes = readFileSync(output);
+    expect(bytes.subarray(0, 6).toString("ascii")).toMatch(/^GIF8[79]a$/u);
+    const gifCard = page.locator("article.pi-delivery-file").filter({
+      has: page.getByText("public-skill-animation.gif", { exact: true }),
+    });
+    await gifCard.getByRole("button", { name: "查看内容" }).click();
+    const preview = page.getByRole("img", {
+      name: "public-skill-animation.gif 动画预览",
+    });
+    await expect(preview).toBeVisible();
+    await expect(preview).toHaveJSProperty("naturalWidth", 128);
+    await expect(preview).toHaveJSProperty("naturalHeight", 128);
+    expect(await preview.getAttribute("src")).toMatch(
+      /^data:image\/gif;base64,/u,
+    );
+    await page.getByText("查看完整模型和工具过程").click();
+    await expect(
+      page
+        .locator("pre")
+        .filter({ hasText: "skill_run_workspace_script" })
+        .first(),
+    ).toBeVisible();
+    await expect(
+      page.locator("pre").filter({ hasText: "VALIDATED:12" }).first(),
+    ).toBeVisible();
+    expect(await page.locator("body").innerText()).not.toContain(
+      userDataDirectory,
+    );
+    await page.screenshot({
+      path: path.resolve(
+        __dirname,
+        "../../../release",
+        `m13-public-gif-preview-${process.env.AI_CORPORATION_PACKAGED_EXE === undefined ? "dev" : "packaged"}-${process.platform}-${process.arch}.png`,
+      ),
+    });
+
+    // The same Skill dependencies must be reused on the next task. Only this
+    // task's execution approval is requested; no random upgrade is started.
+    await page
+      .getByLabel("任务内容")
+      .fill("再次使用同一公开 GIF Skill 生成第二个动画。");
+    await page.getByRole("button", { name: "开始任务" }).click();
+    await expect(
+      page.getByRole("heading", { name: "是否允许本任务运行程序？" }),
+    ).toBeVisible();
+    await expect(environmentHeading).toHaveCount(0);
+    await page.getByRole("button", { name: "允许本任务运行程序" }).click();
+    await expect(page.getByRole("heading", { name: "等待你验收" })).toBeVisible(
+      { timeout: 90_000 },
+    );
+    expect(
+      readFileSync(path.join(taskWorkspace, "public-skill-animation-2.gif"))
+        .subarray(0, 6)
+        .toString("ascii"),
+    ).toMatch(/^GIF8[79]a$/u);
+    const firstTools = (
+      fixture.requests()[0] as {
+        readonly tools?: readonly {
+          readonly function?: { readonly name?: string };
+        }[];
+      }
+    ).tools?.map((tool) => tool.function?.name);
+    expect(firstTools).toEqual(
+      expect.arrayContaining([
+        "workspace_write_text",
+        "skill_run_workspace_script",
+      ]),
+    );
+  } finally {
+    await app.close().catch(() => undefined);
+    await fixture.close();
+    await removeTemporaryDirectory(userDataDirectory);
+    await removeTemporaryDirectory(taskWorkspace);
+  }
+});
+
+async function startPublicGifProviderFixture() {
+  const requests: unknown[] = [];
+  const calls = [
+    {
+      name: "skill_activate",
+      arguments: { skillName: "slack-gif-creator" },
+    },
+    {
+      name: "workspace_write_text",
+      arguments: {
+        relativePath: "make-public-animation.py",
+        content: publicGifScript("public-skill-animation.gif"),
+      },
+    },
+    {
+      name: "skill_run_workspace_script",
+      arguments: {
+        skillName: "slack-gif-creator",
+        scriptRelativePath: "make-public-animation.py",
+        args: [],
+        expectedOutputs: ["public-skill-animation.gif"],
+        timeoutSeconds: 120,
+      },
+    },
+    undefined,
+    {
+      name: "skill_activate",
+      arguments: { skillName: "slack-gif-creator" },
+    },
+    {
+      name: "workspace_write_text",
+      arguments: {
+        relativePath: "make-public-animation-2.py",
+        content: publicGifScript("public-skill-animation-2.gif"),
+      },
+    },
+    {
+      name: "skill_run_workspace_script",
+      arguments: {
+        skillName: "slack-gif-creator",
+        scriptRelativePath: "make-public-animation-2.py",
+        args: [],
+        expectedOutputs: ["public-skill-animation-2.gif"],
+        timeoutSeconds: 120,
+      },
+    },
+    undefined,
+  ] as const;
+  const server = createServer((request, response) => {
+    if (request.url === "/models") {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({ data: [{ id: "pi-public-gif-model" }] }));
+      return;
+    }
+    if (request.url !== "/chat/completions") {
+      response.writeHead(404, { "content-type": "application/json" });
+      response.end(JSON.stringify({ error: { code: "not_found" } }));
+      return;
+    }
+    const chunks: Buffer[] = [];
+    request.on("data", (chunk: Buffer) => chunks.push(chunk));
+    request.on("end", () => {
+      const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+      requests.push(body);
+      response.writeHead(200, { "content-type": "text/event-stream" });
+      const call = calls[requests.length - 1];
+      if (call !== undefined) {
+        sendChunk(response, {
+          model: "pi-public-gif-model",
+          choices: [
+            {
+              index: 0,
+              delta: {
+                role: "assistant",
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: `call-m13-${requests.length}`,
+                    type: "function",
+                    function: {
+                      name: call.name,
+                      arguments: JSON.stringify(call.arguments),
+                    },
+                  },
+                ],
+              },
+              finish_reason: null,
+            },
+          ],
+        });
+        sendChunk(response, {
+          model: "pi-public-gif-model",
+          choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }],
+        });
+      } else {
+        sendChunk(response, {
+          model: "pi-public-gif-model",
+          choices: [
+            {
+              index: 0,
+              delta: {
+                role: "assistant",
+                content:
+                  "公开 GIF Skill 已生成并验证真实动画，请在成果区验收。",
+              },
+              finish_reason: null,
+            },
+          ],
+        });
+        sendChunk(response, {
+          model: "pi-public-gif-model",
+          choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+        });
+      }
+      response.end("data: [DONE]\n\n");
+    });
+  });
+  await listenOnSafePort(server);
+  const address = server.address();
+  if (address === null || typeof address === "string") {
+    throw new Error("M13-TU-01 fixture did not expose a TCP port");
+  }
+  return {
+    endpoint: `http://127.0.0.1:${address.port}`,
+    requests: () => [...requests],
+    close: () =>
+      new Promise<void>((resolve, reject) => {
+        server.closeAllConnections();
+        server.close((error) =>
+          error === undefined ? resolve() : reject(error),
+        );
+      }),
+  };
+}
+
+function publicGifScript(output: string): string {
+  return readFileSync(
+    path.resolve(__dirname, "../test-fixtures/public-gif-workspace-script.py"),
+    "utf8",
+  ).replaceAll("public-skill-animation.gif", output);
+}
+
 function writeManagedScriptFixture(
   managedRoot: string,
   skillName = "script-runtime-fixture",

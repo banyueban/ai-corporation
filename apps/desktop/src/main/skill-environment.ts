@@ -41,7 +41,12 @@ export interface SkillEnvironmentRequest {
   readonly projectReason?: string;
   readonly scope: SkillEnvironmentScope;
   readonly scriptRelativePath: string;
+  /** Main-only source marker; the model cannot provide private script bytes. */
+  readonly scriptSource?: "SKILL" | "WORKSPACE";
   readonly skillName: string;
+  /** Trusted UTF-8 content read through Native Core for WORKSPACE scripts. */
+  readonly workspaceScriptContent?: string;
+  readonly workspaceScriptSha256?: string;
   /** 可信 Workspace 根由 Main 填写，模型永远不能提交这个值。 */
   readonly workspaceRoot: string;
 }
@@ -91,6 +96,7 @@ interface EnvironmentContext {
   readonly inspection: SkillScriptInspection;
   readonly locationLabel: string;
   readonly request: SkillEnvironmentRequest;
+  readonly scriptSource: "SKILL" | "WORKSPACE";
   readonly skillDirectory: string;
 }
 
@@ -339,14 +345,119 @@ export class SkillEnvironmentManager {
     }
   }
 
+  /**
+   * Runs a Native-Core-verified Workspace Python file in a disposable private
+   * copy while exposing only the imported Skill runtime through PYTHONPATH.
+   */
+  async runWorkspaceScript(
+    request: SkillEnvironmentRequest,
+    input: {
+      readonly args: readonly string[];
+      readonly onUpdate?: (update: CommandUpdate) => void;
+      readonly signal?: AbortSignal;
+      readonly timeoutMs?: number;
+    },
+  ): Promise<CommandResult> {
+    const context = await this.#resolveContext(request);
+    if (context.scriptSource !== "WORKSPACE") {
+      throw new SkillEnvironmentError("这不是工作区脚本运行请求。");
+    }
+    if (!(await this.#isReady(context))) {
+      throw new SkillEnvironmentError("技能环境还没有准备好，请先完成安装。");
+    }
+    if ((await this.#missingSystemDependencies(context)).length > 0) {
+      throw new SkillEnvironmentError("技能需要的系统程序还没有安装好。");
+    }
+    const nativeProgram = await this.#nativeRuntimeProgram(context);
+    if (nativeProgram === undefined) {
+      throw new SkillEnvironmentError("当前系统缺少运行这个脚本所需的程序。");
+    }
+    const content = request.workspaceScriptContent;
+    const expectedSha256 = request.workspaceScriptSha256;
+    if (
+      content === undefined ||
+      expectedSha256 === undefined ||
+      sha256(content) !== expectedSha256
+    ) {
+      throw new SkillEnvironmentError("工作区脚本内容与核对结果不一致。");
+    }
+    const logicalArgs = validateScriptArguments(input.args);
+    const processArgs = logicalArgs.map((argument) =>
+      resolveWorkspaceArgument(argument, request.workspaceRoot),
+    );
+    const runDirectory = path.join(
+      context.environmentDirectory,
+      ".runs",
+      randomUUID(),
+    );
+    const privateScript = path.join(runDirectory, "workspace-script.py");
+    const displayCommand = `Python Workspace/${request.scriptRelativePath}${
+      logicalArgs.length === 0
+        ? ""
+        : ` ${logicalArgs.map(displayArgument).join(" ")}`
+    }`;
+    const onUpdate =
+      input.onUpdate === undefined
+        ? undefined
+        : (update: CommandUpdate) =>
+            input.onUpdate?.({
+              ...update,
+              text: this.#sanitizeText(update.text, context),
+            });
+    await mkdir(runDirectory, { recursive: true });
+    try {
+      await writeFile(privateScript, content, { encoding: "utf8", flag: "wx" });
+      const result = await this.#runner({
+        args: [privateScript, ...processArgs],
+        cwd: request.workspaceRoot,
+        displayCommand,
+        environment: {
+          AI_CORPORATION_WORKSPACE: request.workspaceRoot,
+          PYTHONDONTWRITEBYTECODE: "1",
+          PYTHONIOENCODING: "utf-8",
+          PYTHONNOUSERSITE: "1",
+          PYTHONPATH: context.skillDirectory,
+          PYTHONUTF8: "1",
+        },
+        executable: nativeProgram,
+        ...(onUpdate === undefined ? {} : { onUpdate }),
+        ...(input.signal === undefined ? {} : { signal: input.signal }),
+        ...(input.timeoutMs === undefined
+          ? {}
+          : { timeoutMs: input.timeoutMs }),
+      });
+      return this.#sanitizeResult(result, context, displayCommand);
+    } catch (error) {
+      if (
+        error instanceof CommandCancelledError ||
+        error instanceof CommandTimeoutError
+      ) {
+        throw error;
+      }
+      throw new SkillEnvironmentError(
+        this.#sanitizeText(readableError(error), context),
+      );
+    } finally {
+      await rm(runDirectory, { recursive: true, force: true });
+    }
+  }
+
   async #resolveContext(
     request: SkillEnvironmentRequest,
   ): Promise<EnvironmentContext> {
     validateRequest(request);
-    const inspection = await this.options.skillLibrary.inspectScript(
-      request.skillName,
-      request.scriptRelativePath,
-    );
+    const scriptSource = request.scriptSource ?? "SKILL";
+    const inspection =
+      scriptSource === "WORKSPACE"
+        ? await this.options.skillLibrary.inspectWorkspacePython(
+            request.skillName,
+            request.scriptRelativePath,
+            request.workspaceScriptContent ?? "",
+          )
+        : await this.options.skillLibrary.inspectScript(
+            request.skillName,
+            request.scriptRelativePath,
+          );
     const dependencies = resolveSkillDependencies(
       inspection,
       request.dependencies ?? [],
@@ -383,6 +494,7 @@ export class SkillEnvironmentManager {
           ? "软件自己的 Skill 独立环境"
           : "当前工作区的 .ai-corporation/skill-environments 目录",
       request,
+      scriptSource,
       skillDirectory: path.join(environmentDirectory, "skill"),
     };
   }
@@ -762,13 +874,21 @@ export class SkillEnvironmentManager {
   }
 
   async #verifyRuntimeContents(context: EnvironmentContext): Promise<void> {
-    const script = path.join(
-      context.skillDirectory,
-      ...context.inspection.relativePath.split("/"),
-    );
-    const scriptStat = await stat(script);
-    if (!scriptStat.isFile())
-      throw new SkillEnvironmentError("技能脚本副本不存在。");
+    const requiredRuntimeFile =
+      context.scriptSource === "WORKSPACE"
+        ? path.join(context.skillDirectory, "SKILL.md")
+        : path.join(
+            context.skillDirectory,
+            ...context.inspection.relativePath.split("/"),
+          );
+    const scriptStat = await stat(requiredRuntimeFile);
+    if (!scriptStat.isFile()) {
+      throw new SkillEnvironmentError(
+        context.scriptSource === "WORKSPACE"
+          ? "技能运行副本不存在。"
+          : "技能脚本副本不存在。",
+      );
+    }
     if (context.inspection.runtime === "JAVASCRIPT") {
       await access(this.#nodeExecutable);
       await Promise.all(
@@ -802,7 +922,9 @@ export class SkillEnvironmentManager {
         displayCommand: "检查 Skill 私有 Python 和依赖",
         environment: {
           PYTHONDONTWRITEBYTECODE: "1",
+          PYTHONIOENCODING: "utf-8",
           PYTHONNOUSERSITE: "1",
+          PYTHONUTF8: "1",
         },
         executable,
         timeoutMs: 30_000,
@@ -905,7 +1027,9 @@ export class SkillEnvironmentManager {
         args: [scriptPath, ...args],
         environment: {
           PYTHONDONTWRITEBYTECODE: "1",
+          PYTHONIOENCODING: "utf-8",
           PYTHONNOUSERSITE: "1",
+          PYTHONUTF8: "1",
         },
         executable: nativeProgram,
       };
@@ -1000,6 +1124,25 @@ export class SkillEnvironmentManager {
 }
 
 function validateRequest(request: SkillEnvironmentRequest): void {
+  const scriptSource = request.scriptSource ?? "SKILL";
+  if (scriptSource !== "SKILL" && scriptSource !== "WORKSPACE") {
+    throw new SkillEnvironmentError("脚本来源不正确。");
+  }
+  if (scriptSource === "WORKSPACE") {
+    const relativePath = request.scriptRelativePath.replaceAll("\\", "/");
+    if (
+      relativePath.length === 0 ||
+      path.win32.isAbsolute(relativePath) ||
+      path.posix.isAbsolute(relativePath) ||
+      /(?:^|\/)\.\.(?:\/|$)/u.test(relativePath) ||
+      !relativePath.toLowerCase().endsWith(".py") ||
+      request.workspaceScriptContent === undefined ||
+      request.workspaceScriptSha256 === undefined ||
+      !/^[a-f0-9]{64}$/u.test(request.workspaceScriptSha256)
+    ) {
+      throw new SkillEnvironmentError("工作区 Python 脚本信息不正确。");
+    }
+  }
   if (request.scope === "PROJECT") {
     const reason = request.projectReason?.trim() ?? "";
     if (reason.length < 2 || reason.length > 500) {

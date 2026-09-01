@@ -141,14 +141,26 @@ describe("PiTaskService", () => {
           sha256: createHash("sha256").update("").digest("hex"),
           sizeBytes: 0,
         }),
-        inspectWorkspaceFile: async (_rootPath, relativePath) => ({
-          schemaVersion: 1 as const,
-          canonicalPath: `${root}/${relativePath}`,
-          relativePath,
-          sizeBytes: 0,
-          sha256:
-            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        }),
+        inspectWorkspaceFile: async (_rootPath, relativePath) => {
+          if (relativePath === "animated.gif") {
+            const bytes = await readFile(path.join(root, relativePath));
+            return {
+              schemaVersion: 1 as const,
+              canonicalPath: path.join(root, relativePath),
+              relativePath,
+              sizeBytes: bytes.byteLength,
+              sha256: createHash("sha256").update(bytes).digest("hex"),
+            };
+          }
+          return {
+            schemaVersion: 1 as const,
+            canonicalPath: `${root}/${relativePath}`,
+            relativePath,
+            sizeBytes: 0,
+            sha256:
+              "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          };
+        },
         listWorkspace: async (_rootPath, relativePath) => ({
           schemaVersion: 1,
           relativePath: relativePath ?? "",
@@ -270,6 +282,44 @@ describe("PiTaskService", () => {
     });
     expect(opened).toEqual([`${root}/result.md`]);
     expect(revealed).toEqual([root]);
+    const gifBytes = Buffer.from(
+      "R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==",
+      "base64",
+    );
+    await writeFile(path.join(root, "animated.gif"), gifBytes);
+    repository.upsertDeliverable({
+      taskId: completed.id,
+      relativePath: "animated.gif",
+      source: "COMMAND_REGISTERED",
+      changeKind: "REGISTERED",
+      sha256: createHash("sha256").update(gifBytes).digest("hex"),
+      sizeBytes: gifBytes.byteLength,
+      sourceCallId: "call-gif",
+      registeredAt: "2026-08-14T00:00:00.400Z",
+    });
+    await expect(
+      service.previewDeliverable({
+        ...deliverableRequest,
+        relativePath: "animated.gif",
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      value: {
+        content: expect.stringMatching(/^data:image\/gif;base64,/u),
+        integrity: "CURRENT",
+        sizeBytes: gifBytes.byteLength,
+      },
+    });
+    await writeFile(path.join(root, "animated.gif"), "not-a-gif", "utf8");
+    await expect(
+      service.previewDeliverable({
+        ...deliverableRequest,
+        relativePath: "animated.gif",
+      }),
+    ).resolves.toMatchObject({
+      ok: false,
+      error: { code: "PREVIEW_UNAVAILABLE" },
+    });
     repository.upsertDeliverable({
       taskId: completed.id,
       relativePath: "unsafe.js",
@@ -1009,6 +1059,9 @@ describe("PiTaskService", () => {
     expect(JSON.stringify(completed.events)).not.toContain(workspace);
     expect(JSON.stringify(fixture.requests[0]?.body)).toContain(
       "skill_run_script",
+    );
+    expect(JSON.stringify(fixture.requests[0]?.body)).toContain(
+      "skill_run_workspace_script",
     );
     database.close();
   });

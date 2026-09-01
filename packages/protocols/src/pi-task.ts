@@ -202,8 +202,10 @@ export const piTaskDeliverablePreviewResultSchema = z.discriminatedUnion("ok", [
       value: z
         .object({
           relativePath: z.string().min(1).max(32_767),
-          content: z.string().max(1_048_576),
-          sizeBytes: z.number().int().nonnegative().max(1_048_576),
+          // Text remains capped by Native Core at 1 MiB. A verified GIF up to
+          // 5 MiB expands when encoded as a data URL for the sandboxed Renderer.
+          content: z.string().max(7_000_000),
+          sizeBytes: z.number().int().nonnegative().max(5_242_880),
           sha256: sha256Schema,
           integrity: z.enum(["CURRENT", "CHANGED"]),
         })
