@@ -3,12 +3,12 @@
 | 属性 | 当前值 |
 | --- | --- |
 | 当前产品版本 | Pi 重启版真实工作阶段 |
-| 当前阶段 | Milestone 13 功能实现与开发态真实窗口已通过，正在做全量回归和最终包验收 |
+| 当前阶段 | Milestone 13 的实现、本地完整检查、最终打包程序和双平台 CI 已通过，等待用户安装包人工验收 |
 | 当前 Milestone | Milestone 13：真实公开 Skill 兼容验收（进行中） |
-| 当前任务单元 | M13-TU-01（进行中） |
-| 总体状态 | Milestone 7–12 全部完成；M13-TU-01 已实现受控工作区 Python 桥接和安全 GIF 预览，固定公开 Skill 逐文件测试、专项测试及 Windows 开发态连续真实旅程通过；全量工程检查、最终打包程序、双平台 CI 和用户安装包人工验收尚未完成，不得关闭任务 |
+| 当前任务单元 | M13-TU-01（进行中，等待用户人工验收） |
+| 总体状态 | Milestone 7–12 全部完成；M13-TU-01 的固定公开 Skill、受控工作区 Python 桥接、安全 GIF 预览、本地完整检查、Windows 最终打包程序连续旅程及 Windows/macOS CI 均已通过；18 项断言中的 01–17 已有直接证据，用户安装包人工验收尚未完成，因此任务和 Milestone 13 保持进行中 |
 | 最近更新 | 2026-09-02 |
-| 下一检查点 | 完成 `pnpm check` 与全量开发态回归，再生成最终 Windows 安装包并运行同一公开 Skill 打包版旅程 |
+| 下一检查点 | 用户使用当前 Windows 安装包完成公开 Skill 导入、员工分配、环境安装、GIF 生成、过程查看、动画预览和真实文件人工验收 |
 
 ## 1. 当前结论
 
@@ -20,7 +20,7 @@ M12-TU-01 已完成：一名员工可选择多项 Skill，旧员工会保留原 
 
 M12-TU-02 已完成：JavaScript 使用软件自身运行能力；Python 缺失时安装到应用自管目录；Windows 使用 PowerShell，macOS 使用 Shell；自动识别 PEP 723、`requirements.txt`、`package.json` 和结构化包名/版本；默认使用可复用的 Skill 独立环境；系统安装仅允许受限 winget/Homebrew 计划并再次确认。用户已使用当前 Windows 安装包确认技能导入、Python 独立环境计划、自动安装、脚本执行、真实成果、完整过程可见和环境复用全部通过。验收候选 `66c924f` 的本地完整检查和 Windows/macOS CI 也全部通过，M12-TU-02 与 Milestone 12 关闭。
 
-M13-TU-01 正在实施：目标固定为 Anthropic `skills` 仓库提交 `3b3fad96af16a10759d930941b4520ba0c40edae` 的原版 `slack-gif-creator`。受控工作区 Python 脚本桥接、独立环境、Windows UTF-8 输出、安全 GIF 预览已实现；开发态真实窗口已连续完成原版导入、员工分配、四项公开依赖安装、四个 `core/` 模块使用、12 帧 GIF validator 核对、动画预览和第二任务环境复用。最终包、双平台 CI 和用户人工验收仍未完成。
+M13-TU-01 等待用户人工验收：目标固定为 Anthropic `skills` 仓库提交 `3b3fad96af16a10759d930941b4520ba0c40edae` 的原版 `slack-gif-creator`。受控工作区 Python 脚本桥接、独立环境、Windows UTF-8 输出、安全 GIF 预览已实现；开发态和最终打包程序均连续完成原版导入、员工分配、四项公开依赖安装、四个 `core/` 模块使用、12 帧 GIF validator 核对、动画预览和第二任务环境复用。本地完整检查及同一候选提交的 Windows/macOS CI 已通过，只剩用户对当前 Windows 安装包的真实人工验收。
 
 M7-TU-01 和 Milestone 7 已完成：用户可以创建一名拥有独立模型和技能的员工，直接交代真实任务，实时查看模型与安全演示工具过程，并在员工自查后决定退回修改或验收完成。用户于 2026-08-15 使用包含布局修复的新 Windows 安装包完成人工验收并确认通过。
 
@@ -107,8 +107,8 @@ M7-TU-01 和 Milestone 7 已完成：用户可以创建一名拥有独立模型�
 - [x] 工作区 Python 脚本使用已启用 Skill 的独立环境和 `core/`；
 - [x] 自动准备四项公开依赖，复用环境且不随机升级；
 - [x] 真实 GIF 生成、validator 核对、成果登记和动画预览；
-- [ ] 本地完整检查、开发态与最终打包程序验收；
-- [ ] Windows/macOS CI；
+- [x] 本地完整检查、开发态与最终打包程序验收；
+- [x] Windows/macOS CI；
 - [ ] 用户 Windows 安装包人工验收。
 
 ## 4. 当前任务边界
@@ -201,6 +201,12 @@ M11-TU-01 采用“受控写入自动登记，命令产物经 `workspace.registe
 - 最终包包含固定 uv `0.11.15` 和 npm `11.6.2` 运行资源；1024×700、1440×900 和 200% 截图已人工检查，没有竖排、重叠、横向溢出、遮挡或关键按钮不可见；
 - 当前 Windows 安装包位于 `release/AI Corporation Desktop Setup 0.1.0.exe`，大小 124957679 字节，SHA-256 为 `79F11DB88D04C84532E57F6B466765005488EEDE2A860AEBD7F6FB55FC52F054`；
 - 修复候选提交 `f09280ff2251319ebcd65ed46459bbe25a8602da` 的 GitHub Actions run `32863405640` 已通过：macOS Apple Silicon（4 分 58 秒）和 Windows x64（9 分 28 秒）均完成工程检查、真实窗口、应用构建、打包程序专项旅程和安装包上传；只有 GitHub Action 的 Node.js 20 弃用提示，没有产品失败。用户尚未重新人工验收，M12-TU-02 与 Milestone 12 均保持未完成。
+- M13-TU-01 的公开 Skill 快照已按提交 `3b3fad96af16a10759d930941b4520ba0c40edae` 逐文件哈希核对，Apache 2.0 许可证、`SKILL.md`、四项依赖和 `core/` 四个 Python 文件保持原样；测试辅助脚本位于公开 Skill 目录之外；
+- 本地正常 Windows 权限下 `pnpm check` 通过：协议 69、Provider 28、存储 109、桌面 197、Native Core 9、Workspace FS 11，并通过状态、任务合同、格式、类型、Clippy 和 Secret scan；检查期间发现忙碌机器上停止任务可能等待进程快照过久，候选提交 `30523ae95c0dbe5b1f981216f88a6dac6773c017` 已改为先立即结束进程树、再补杀快照进程，专项 10 项和完整检查均通过；
+- Windows 开发态与最终打包程序均完成原版公开 Skill 的连续真实旅程：真实导入、与编码 Skill 同时分配、自动启用、四项依赖安装、工作区脚本调用四个 `core/` 模块、12 帧 128×128 GIF validator 核对、成果登记、软件内动画预览和第二任务环境复用；最终打包程序完整员工与 Skill 回归 7 条通过；
+- GIF 页面在 1024×700、1440×900 和 200% 下完成无横向溢出、动画与操作可达检查；1024×700 和 1440×900 截图已人工核对。Windows Electron 在 200% 下的截图接口不保留滚动位置，因此该尺寸只记录真实控件位置与可操作性断言，不把错误截图冒充视觉证据；
+- 当前 Windows 安装包位于 `release/AI Corporation Desktop Setup 0.1.0.exe`，大小 124959619 字节，SHA-256 为 `7856AE0D5398270AA7743C854F9DE3D570C8F180DA54CC29C0F195B5ACC6A33C`；
+- 候选提交 `30523ae95c0dbe5b1f981216f88a6dac6773c017` 的 GitHub Actions run `33600482928` 已通过：Windows x64 7 分 54 秒、macOS Apple Silicon 5 分 35 秒，两边均完成工程检查、真实窗口、应用构建、最终打包程序专项旅程和安装包上传；只有 GitHub Action 的 Node.js 20 弃用提示，没有产品失败。M13-TU-01 的 01–17 条断言已有直接证据，第 18 条用户安装包人工验收保持未完成。
 
 ## 7. 阶段复盘与下一步
 
