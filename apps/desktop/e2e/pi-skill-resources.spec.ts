@@ -578,8 +578,10 @@ test("user imports the pinned public GIF Skill and previews a real animation", a
     path.join(tmpdir(), "M13-TU-01-electron-user-data-"),
   );
   const taskWorkspace = mkdtempSync(
-    path.join(tmpdir(), "M13-TU-01-gif-workspace-"),
+    path.join(tmpdir(), "M13-TU-01-中文验收工作区-"),
   );
+  // 真实用户工作区可能同时包含中文路径和已有子目录。目录条目必须走
+  // 完整 Native Core 协议，不能再用始终为空的临时目录掩盖序列化问题。
   const publicSkillDirectory = path.resolve(
     __dirname,
     "../test-fixtures/public-skills/slack-gif-creator",
@@ -621,6 +623,9 @@ test("user imports the pinned public GIF Skill and previews a real animation", a
     await page.getByLabel("模型").selectOption("pi-public-gif-model");
     await page.getByRole("button", { name: "创建员工" }).click();
     await page.getByRole("button", { name: "添加工作区" }).click();
+    // 工作区选择的测试保护要求初次选择时为空；软件安全接收后，再模拟
+    // 用户实际使用中已经存在的中文子目录。
+    mkdirSync(path.join(taskWorkspace, "已有目录"), { recursive: true });
 
     await page
       .getByLabel("任务内容")
@@ -775,10 +780,12 @@ test("user imports the pinned public GIF Skill and previews a real animation", a
     ).tools?.map((tool) => tool.function?.name);
     expect(firstTools).toEqual(
       expect.arrayContaining([
+        "workspace_list",
         "workspace_write_text",
         "skill_run_workspace_script",
       ]),
     );
+    expect(JSON.stringify(fixture.requests())).toContain("已有目录");
   } finally {
     await app.close().catch(() => undefined);
     await fixture.close();
@@ -793,6 +800,10 @@ async function startPublicGifProviderFixture() {
     {
       name: "skill_activate",
       arguments: { skillName: "slack-gif-creator" },
+    },
+    {
+      name: "workspace_list",
+      arguments: { relativePath: "" },
     },
     {
       name: "workspace_write_text",
@@ -815,6 +826,10 @@ async function startPublicGifProviderFixture() {
     {
       name: "skill_activate",
       arguments: { skillName: "slack-gif-creator" },
+    },
+    {
+      name: "workspace_list",
+      arguments: { relativePath: "" },
     },
     {
       name: "workspace_write_text",

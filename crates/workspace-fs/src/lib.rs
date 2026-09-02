@@ -83,6 +83,9 @@ impl fmt::Display for WorkspacePathError {
 pub struct WorkspaceListEntry {
     relative_path: String,
     kind: &'static str,
+    // 目录没有可展示的文件大小。协议约定此时省略字段，不能序列化成
+    // null，否则桌面端会把整次目录列表判为无效响应。
+    #[serde(skip_serializing_if = "Option::is_none")]
     size_bytes: Option<u64>,
 }
 

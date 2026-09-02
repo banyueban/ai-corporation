@@ -669,6 +669,47 @@ mod tests {
     }
 
     #[test]
+    fn workspace_list_omits_size_for_directories_in_a_unicode_workspace() -> io::Result<()> {
+        let parent = temporary_workspace()?;
+        let root = parent.join("中文工作区");
+        fs::create_dir_all(root.join("已有目录"))?;
+        fs::write(root.join("已有目录").join("说明.txt"), "ok")?;
+        let response = parse_response(&handle_line(
+            &json!({
+                "jsonrpc": "2.0",
+                "id": "workspace-list-unicode",
+                "method": "workspace.list",
+                "params": {
+                    "schemaVersion": SCHEMA_VERSION,
+                    "sessionToken": TOKEN,
+                    "rootPath": root.to_string_lossy(),
+                    "relativePath": "",
+                },
+            })
+            .to_string(),
+            TOKEN,
+        ));
+
+        let entries = response["result"]["entries"]
+            .as_array()
+            .ok_or_else(|| io::Error::other("workspace list must return entries"))?;
+        let directory = entries
+            .iter()
+            .find(|entry| entry["relativePath"] == "已有目录")
+            .ok_or_else(|| io::Error::other("unicode directory must be listed"))?;
+        assert_eq!(directory["kind"], "DIRECTORY");
+        assert!(directory.get("sizeBytes").is_none());
+        let file = entries
+            .iter()
+            .find(|entry| entry["relativePath"] == "已有目录/说明.txt")
+            .ok_or_else(|| io::Error::other("unicode file must be listed"))?;
+        assert_eq!(file["kind"], "FILE");
+        assert_eq!(file["sizeBytes"], 2);
+
+        fs::remove_dir_all(parent)
+    }
+
+    #[test]
     fn workspace_canonicalize_rejects_escape_without_path_disclosure() -> io::Result<()> {
         let root = temporary_workspace()?;
         let response_text = handle_line(
