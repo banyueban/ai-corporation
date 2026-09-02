@@ -238,9 +238,12 @@ async function killProcessTree(child: ChildProcess): Promise<void> {
   const pid = child.pid;
   if (pid === undefined) return;
   if (process.platform === "win32") {
-    // taskkill /T 在外层 cmd 先退出时偶尔会漏掉已经变成孤儿的子程序。
-    // 先拍一张进程树快照并从最深层向外清理，再对根进程做一次 /T 兜底。
-    const descendants = await listWindowsDescendantPids(pid);
+    // 进程快照在忙碌机器上可能需要数秒，不能等它完成后才开始停止任务。
+    // 立即用 taskkill /T 清理当前进程树，同时拍快照；随后再从最深层
+    // 补杀快照中的进程，兼顾停止速度和外层 cmd 提前退出后的孤儿进程。
+    const descendantsPromise = listWindowsDescendantPids(pid);
+    await runWindowsTaskkill(pid);
+    const descendants = await descendantsPromise;
     for (const descendantPid of descendants.reverse()) {
       await runWindowsTaskkill(descendantPid);
     }

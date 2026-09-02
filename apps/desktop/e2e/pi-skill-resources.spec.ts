@@ -681,11 +681,69 @@ test("user imports the pinned public GIF Skill and previews a real animation", a
     expect(await page.locator("body").innerText()).not.toContain(
       userDataDirectory,
     );
+    // GIF 预览是本任务新增的真实界面，不能只复用旧页面的布局证据。
+    // 三种窗口状态都直接检查横向溢出和成果操作是否仍然可达。
+    await app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0];
+      window?.setSize(1024, 700);
+      window?.webContents.setZoomFactor(1);
+    });
+    await gifCard.scrollIntoViewIfNeeded();
+    await waitForPaint(page);
+    await expectPageHasNoHorizontalOverflow(page);
+    await expect(
+      gifCard.getByRole("button", { name: "查看所在位置" }),
+    ).toBeInViewport();
     await page.screenshot({
       path: path.resolve(
         __dirname,
         "../../../release",
-        `m13-public-gif-preview-${process.env.AI_CORPORATION_PACKAGED_EXE === undefined ? "dev" : "packaged"}-${process.platform}-${process.arch}.png`,
+        `m13-public-gif-preview-${process.env.AI_CORPORATION_PACKAGED_EXE === undefined ? "dev" : "packaged"}-${process.platform}-${process.arch}-1024x700.png`,
+      ),
+    });
+
+    await app.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()[0]?.webContents.setZoomFactor(2);
+    });
+    // 200% 时一张成果卡会高于可视区，直接滚到动画本身才是在验证用户
+    // 能否真正看到内容，而不是要求整张卡一次全部塞进窗口。
+    await preview.evaluate((element) =>
+      element.scrollIntoView({ block: "center", inline: "nearest" }),
+    );
+    await page.bringToFront();
+    await waitForPaint(page);
+    await expectPageHasNoHorizontalOverflow(page);
+    await expect(preview).toBeInViewport();
+    // Playwright 在 Windows 200% 缩放时可能返回黑图；应用窗口自身截图
+    // 可以保留真实画面，且上面的可视区断言仍独立验证动画可达。
+    await captureElectronViewport(
+      app,
+      path.resolve(
+        __dirname,
+        "../../../release",
+        `m13-public-gif-preview-${process.env.AI_CORPORATION_PACKAGED_EXE === undefined ? "dev" : "packaged"}-${process.platform}-${process.arch}-1024x700-200-percent.png`,
+      ),
+    );
+    const zoomedRevealButton = gifCard.getByRole("button", {
+      name: "查看所在位置",
+    });
+    await zoomedRevealButton.scrollIntoViewIfNeeded();
+    await expect(zoomedRevealButton).toBeInViewport();
+
+    await app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0];
+      window?.setSize(1440, 900);
+      window?.webContents.setZoomFactor(1);
+    });
+    await gifCard.scrollIntoViewIfNeeded();
+    await waitForPaint(page);
+    await expectPageHasNoHorizontalOverflow(page);
+    await expect(preview).toBeInViewport();
+    await page.screenshot({
+      path: path.resolve(
+        __dirname,
+        "../../../release",
+        `m13-public-gif-preview-${process.env.AI_CORPORATION_PACKAGED_EXE === undefined ? "dev" : "packaged"}-${process.platform}-${process.arch}-1440x900.png`,
       ),
     });
 
