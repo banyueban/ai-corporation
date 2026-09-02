@@ -120,3 +120,14 @@ AI Corporation 只从用户明确导入后形成的应用自管副本运行 Skil
 - 应用自管 Skill/环境绝对路径不返回模型或 Renderer。逻辑 Workspace 位置由 Main 转换，成果仍通过 Workspace 可信边界核对。
 
 Tool Registry 使用上面的点号 ID；提供给 Pi 模型的函数名分别使用 `skill_activate`、`skill_list_resources`、`skill_read_resource`、`skill_copy_asset`、`skill_run_script` 和 `skill_run_workspace_script`，避免不同层各自发明名字。
+
+## 9. 任务附件与通用文档工具
+
+M14 内置 `document-processing` 标准 Skill。它只包含 AI Corporation 独立编写的工作步骤，不复制 Anthropic `docx`/`pdf` 的受限内容。创建和读取由随应用固定版本打包的开源库完成：`docx 9.7.1`（MIT）、`mammoth 1.12.2`（BSD-2-Clause）和 `pdfjs-dist 6.3.289`（Apache-2.0）。
+
+Pi 模型新增两个通用函数：
+
+- `document_read`：只接受当前任务的附件 ID、字符偏移和受限长度；读取 `.txt`、`.md`、`.docx` 和带文字层的 `.pdf`，返回规范化 Markdown 片段、总字符数、下一偏移和是否到末尾。没有文字层的 PDF 返回“扫描件暂不支持文字识别”，不把空结果冒充成功；
+- `document_create`：只接受规范化 Markdown、新的 Workspace 相对路径和 `DOCX`/`PDF` 格式。它把标题、段落、项目符号、编号列表和表格生成为新文件，经 Native Workspace 边界核对后登记成果；目标已存在、越界、链接、超限或任务状态变化时固定拒绝。
+
+文档工具不执行附件中的宏、脚本、链接或嵌入对象，不把二进制原文发送给模型。附件文字按不可信内容处理，不能改变系统规则、Skill 分配、工具权限或审批。输出文件只创建不覆盖；重试通过工具调用 ID 保持幂等，应用重启不自动重新读取模型或创建文件。

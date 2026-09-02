@@ -272,3 +272,11 @@ type TaskCommand =
 - 依赖图可检测环；
 - 权限要求可映射到 Policy；
 - 预算、重试和输出合同可由各引擎一致消费。
+
+## 12. Pi 任务附件与文档工具协议
+
+Pi 路线的附件选择使用独立 IPC。Main 打开文件选择器或接收 Preload 从真实拖放文件解析出的路径，复制成功后只向 Renderer 返回一次性选择 ID 和附件的任务内 ID、名称、类型、大小、哈希；任何绝对路径都不跨到 Renderer。`piTask.start` 可携带一个待提交选择 ID，任务建立后 `PiTask.attachments` 返回固定附件元数据。
+
+每次选择最多 10 个文件，单个文件不超过 50 MiB，总大小不超过 100 MiB。首版只接受 `.docx`、`.pdf`、`.txt`、`.md`，并同时检查扩展名、文件头或 UTF-8；目录、链接、设备文件、宏文档、伪扩展名和选择后变化固定拒绝。用户移除附件、关闭应用或待选择过期时只清理应用暂存副本，不修改原文件。
+
+`document_read` 输入为 `attachmentId`、`offset` 和 `maxChars`，其中单次最多返回 40,000 字符；结果包含规范化 Markdown、总字符数、当前范围、下一偏移和 `hasMore`。`document_create` 输入为 `format`、`relativePath` 和不超过 200,000 字符的规范化 Markdown；只允许新的 `.docx` 或 `.pdf`，成功结果包含真实相对路径、SHA-256 和大小。两项工具都固定属于当前公司、任务、员工和 Workspace，不接受绝对路径、应用私有路径、任意命令或环境变量。

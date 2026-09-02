@@ -140,3 +140,11 @@ Milestone 13 固定使用 Anthropic `skills` 仓库提交 `3b3fad96af16a10759d93
 首次运行时，软件识别公开 `requirements.txt` 中的 Pillow、imageio、imageio-ffmpeg 和 numpy，展示安装计划并经用户批准后安装到可复用的 Skill 独立环境。环境就绪后仍需单独批准本任务运行脚本。生成的动画 GIF 经真实文件和 Skill validator 核对后进入成果区，并可在软件内播放预览、用系统打开或查看所在位置。
 
 这一阶段只证明首个真实公开 Python Skill 的完整流程。它不交付附件入口、通用图片编辑、视频、Office、在线市场或任意公开 Skill 兼容；这些能力继续按真实需求另建任务。
+
+## 12. 任务附件与首个文档闭环
+
+Milestone 14 让用户直接给员工添加真实文件，不要求先把文件复制到 Workspace。用户选择或拖入 `.docx`、`.pdf`、`.txt`、`.md` 后，AI Corporation 为当前任务保存一份应用自管副本，原文件不修改；界面、模型和 Skill 只看到附件名称、类型、大小和任务内 ID，不看到原始绝对路径或应用私有路径。
+
+首版内置一个由 AI Corporation 独立编写、符合标准 Agent Skills 格式的“文档处理”Skill。Skill 通过通用的 `document_read` 和 `document_create` 工具读取附件、生成新的 Word 或 PDF；处理步骤保留在 Skill 中，工具不写死具体写作任务。其他符合标准的 Skill 以后可以复用同一工具。
+
+首版支持 Word、文本、Markdown 和带文字层的普通 PDF。Word 修改保留标题、段落、列表和表格等常用逻辑结构，但不承诺复杂页眉、目录、文本框、修订或像素级排版完全不变；扫描 PDF 没有可提取文字时明确说明暂不支持文字识别。所有处理结果写成 Workspace 中的新文件，不覆盖附件原件或已有文件。

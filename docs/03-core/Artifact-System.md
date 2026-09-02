@@ -37,6 +37,8 @@ Artifact Manifest、版本、生命周期、完整性、引用和 Change Set 字
 
 Pi 重启路线在 M11 先交付轻量的 `pi_task_deliverable`：它只记录当前任务工作区内已经真实写入或核实的文件路径、哈希、大小、来源和差异，用于成果展示与人工验收。它不接入旧 Goal/Plan 的 Artifact 生命周期，也不冒充完整版本树；完整跨任务版本、来源图和 Managed Artifact Store 以后单独接入。
 
+M14 增加轻量 `pi_task_attachment` 作为任务输入边界。用户选择文件后，Main 先复制到应用自管暂存目录并计算哈希；任务成功建立时移动到按 Task 隔离的私有目录并写入数据库。记录只保存任务内 ID、原文件名、媒体类型、大小、哈希和私有存储文件名，不保存用户原始绝对路径。附件副本不可被模型或 Renderer 原地修改，任务输出仍必须写到当前 Workspace 并作为 `pi_task_deliverable` 登记。
+
 ## 5. 工作区变更
 
 工作区写入采用 Change Set：

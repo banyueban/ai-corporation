@@ -190,6 +190,7 @@ Planner 保存 `DRAFT/PENDING` 后由本地验证器处理。验证失败只提�
 | 完整 Prompt/响应       | 默认不长期保存；调试模式脱敏                                                                                                                                |
 | 文件绝对路径           | SQLite，可视为敏感                                                                                                                                          |
 | Artifact 内容          | Managed Store / Workspace                                                                                                                                   |
+| Pi 任务附件            | 应用自管任务目录保存不可变副本；SQLite 只保存任务内 ID、原文件名、媒体类型、大小、SHA-256 和私有存储文件名，不保存用户原始绝对路径 |
 | 费用与 Token           | SQLite                                                                                                                                                      |
 | 审批理由               | SQLite，脱敏                                                                                                                                                |
 
