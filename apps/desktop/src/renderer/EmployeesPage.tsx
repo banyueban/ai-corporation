@@ -4,6 +4,7 @@ import type {
   PiSkill,
   PiSkillPreviewImportResult,
   PiTask,
+  PiTaskAttachment,
   PiTaskDeliverablePreviewResult,
   ProviderPublic,
   WorkspacePublic,
@@ -61,6 +62,10 @@ export function EmployeesPage(props: {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState("");
   const [taskInput, setTaskInput] = useState("");
+  const [taskAttachments, setTaskAttachments] = useState<
+    readonly PiTaskAttachment[]
+  >([]);
+  const [attachmentMessage, setAttachmentMessage] = useState("");
   const [changeInput, setChangeInput] = useState("");
   const [currentTask, setCurrentTask] = useState<PiTask>();
   const [tasks, setTasks] = useState<readonly PiTask[]>([]);
@@ -68,6 +73,7 @@ export function EmployeesPage(props: {
     useState<DeliverablePreview>();
   const skillImportMessageRef = useRef<HTMLParagraphElement>(null);
   const skillImportPreviewRef = useRef<HTMLDivElement>(null);
+  const taskAttachmentsRef = useRef<readonly PiTaskAttachment[]>([]);
 
   const readyProviders = useMemo(
     () => providers.filter(isReadyProvider),
@@ -179,6 +185,20 @@ export function EmployeesPage(props: {
         });
     }
   }, [props.company.id]);
+
+  useEffect(() => {
+    taskAttachmentsRef.current = taskAttachments;
+  }, [taskAttachments]);
+
+  useEffect(
+    () => () => {
+      const pendingAttachments = taskAttachmentsRef.current;
+      if (pendingAttachments.length > 0) {
+        void window.desktop.piTask.discardAttachments(pendingAttachments);
+      }
+    },
+    [props.company.id],
+  );
 
   useEffect(() => {
     if (currentTask?.status !== "RUNNING") return;
@@ -365,6 +385,11 @@ export function EmployeesPage(props: {
       employeeId: selectedEmployeeId,
       workspaceId: selectedWorkspaceId,
       input: taskInput,
+      ...(taskAttachments.length === 0
+        ? {}
+        : {
+            attachmentIds: taskAttachments.map((attachment) => attachment.id),
+          }),
     });
     setPending(false);
     if (!result.ok) {
@@ -372,7 +397,64 @@ export function EmployeesPage(props: {
       return;
     }
     rememberTask(result.value, setCurrentTask);
+    taskAttachmentsRef.current = [];
+    setTaskAttachments([]);
+    setAttachmentMessage("");
     setMessage("任务已开始，模型输入和输出会在下面持续更新。 ");
+  };
+
+  const addAttachments = async (files?: readonly File[]) => {
+    setPending(true);
+    try {
+      const result =
+        files === undefined
+          ? await window.desktop.piTask.selectAttachments()
+          : await window.desktop.piTask.stageDroppedAttachments(files);
+      if (!result.ok) {
+        setAttachmentMessage("附件没有添加成功，请重试。 ");
+        return;
+      }
+      setTaskAttachments((current) => [
+        ...current,
+        ...result.value.attachments,
+      ]);
+      const accepted = result.value.attachments.length;
+      const rejected = result.value.rejected;
+      setAttachmentMessage(
+        rejected.length === 0
+          ? accepted === 0
+            ? "没有选择附件。"
+            : `已添加 ${accepted} 个附件。`
+          : `${accepted > 0 ? `已添加 ${accepted} 个；` : ""}${rejected
+              .map((item) => `${item.displayName}：${item.reason}`)
+              .join("；")}`,
+      );
+    } catch {
+      setAttachmentMessage("附件没有添加成功，请重试。 ");
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const removeAttachment = async (attachment: PiTaskAttachment) => {
+    setPending(true);
+    try {
+      const result = await window.desktop.piTask.discardAttachments([
+        attachment,
+      ]);
+      if (!result.ok) {
+        setAttachmentMessage("附件暂时无法移除，请重试。 ");
+        return;
+      }
+      setTaskAttachments((current) =>
+        current.filter((item) => item.id !== attachment.id),
+      );
+      setAttachmentMessage(`已移除“${attachment.displayName}”。`);
+    } catch {
+      setAttachmentMessage("附件暂时无法移除，请重试。 ");
+    } finally {
+      setPending(false);
+    }
   };
 
   const taskCommand = async (
@@ -964,6 +1046,72 @@ export function EmployeesPage(props: {
                 value={taskInput}
               />
             </div>
+            <div className="field field--wide">
+              <span className="field-label">任务附件（可选）</span>
+              <div
+                className="task-attachment-dropzone"
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect =
+                    pending || taskAttachments.length >= 10 ? "none" : "copy";
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  if (pending || taskAttachments.length >= 10) {
+                    setAttachmentMessage(
+                      pending
+                        ? "请等当前附件操作结束后再添加。"
+                        : "一次任务最多添加 10 个附件。",
+                    );
+                    return;
+                  }
+                  if (event.dataTransfer.files.length > 0) {
+                    void addAttachments(Array.from(event.dataTransfer.files));
+                  }
+                }}
+              >
+                <p>把 Word、PDF、TXT 或 Markdown 拖到这里</p>
+                <button
+                  className="secondary-button"
+                  disabled={pending || taskAttachments.length >= 10}
+                  onClick={() => void addAttachments()}
+                  type="button"
+                >
+                  选择附件
+                </button>
+                <small>
+                  最多 10 个，单个不超过 50 MiB，总计不超过 100 MiB。
+                </small>
+              </div>
+              {taskAttachments.length > 0 && (
+                <ul className="task-attachment-list" aria-label="待提交附件">
+                  {taskAttachments.map((attachment) => (
+                    <li key={attachment.id}>
+                      <span>
+                        <strong>{attachment.displayName}</strong>
+                        <small>
+                          {attachmentTypeLabel(attachment.mediaType)} ·{" "}
+                          {formatBytes(attachment.sizeBytes)}
+                        </small>
+                      </span>
+                      <button
+                        className="secondary-button"
+                        disabled={pending}
+                        onClick={() => void removeAttachment(attachment)}
+                        type="button"
+                      >
+                        移除
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {attachmentMessage.length > 0 && (
+                <p className="employee-message" role="status">
+                  {attachmentMessage}
+                </p>
+              )}
+            </div>
             <div className="form-actions field--wide">
               <button
                 className="primary-button"
@@ -1000,6 +1148,23 @@ export function EmployeesPage(props: {
                       workspace.workspaceId === currentTask.workspaceId,
                   )?.displayPath ?? "已授权工作区"}
                 </p>
+              )}
+              {(currentTask.attachments?.length ?? 0) > 0 && (
+                <section
+                  className="pi-task-attachments"
+                  aria-label="本次任务附件"
+                >
+                  <strong>任务附件</strong>
+                  <ul>
+                    {currentTask.attachments?.map((attachment) => (
+                      <li key={attachment.id}>
+                        {attachment.displayName} ·{" "}
+                        {attachmentTypeLabel(attachment.mediaType)} ·{" "}
+                        {formatBytes(attachment.sizeBytes)}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
               )}
               <section className="pi-delivery" aria-labelledby="delivery-title">
                 <div className="section-heading">
@@ -1476,10 +1641,19 @@ function validApprovalDetails(
 function taskErrorMessage(code: string): string {
   if (code === "EMPLOYEE_NOT_READY")
     return "员工的 Provider、模型或 Key 已失效";
+  if (code === "ATTACHMENT_NOT_READY")
+    return "附件已变化或过期，请移除后重新选择";
   if (code === "WORKSPACE_NOT_READY") return "请选择一个当前可用、可写的工作区";
   if (code === "ALREADY_RUNNING") return "已有任务正在运行";
   if (code === "INVALID_STATE") return "任务状态已经变化，请刷新后再试";
   return "请检查员工和任务内容后重试";
+}
+
+function attachmentTypeLabel(mediaType: PiTaskAttachment["mediaType"]): string {
+  if (mediaType === "application/pdf") return "PDF";
+  if (mediaType === "text/plain") return "TXT";
+  if (mediaType === "text/markdown") return "Markdown";
+  return "Word";
 }
 
 function rememberTask(

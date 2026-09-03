@@ -124,4 +124,42 @@ describe("PiTaskRepository company boundary", () => {
       }),
     ]);
   });
+
+  it("stores task attachment facts without exposing the private storage name", () => {
+    const taskId = "019d0000-0000-7000-8000-000000000010";
+    const attachmentId = "019d0000-0000-7000-8000-000000000011";
+    const task = repository.create({
+      id: taskId,
+      companyId: "019d0000-0000-7000-8000-000000000012",
+      employeeId: "019d0000-0000-7000-8000-000000000013",
+      workspaceId: "019d0000-0000-7000-8000-000000000014",
+      userInput: "整理附件",
+      now: "2026-09-02T00:00:00.000Z",
+      attachments: [
+        {
+          id: attachmentId,
+          displayName: "说明.md",
+          mediaType: "text/markdown",
+          sizeBytes: 12,
+          sha256: "c".repeat(64),
+          storageName: "019d0000-0000-7000-8000-000000000015.md",
+          createdAt: "2026-09-02T00:00:00.000Z",
+        },
+      ],
+    });
+
+    expect(task.attachments).toEqual([
+      {
+        id: attachmentId,
+        displayName: "说明.md",
+        mediaType: "text/markdown",
+        sizeBytes: 12,
+        sha256: "c".repeat(64),
+      },
+    ]);
+    expect(JSON.stringify(task)).not.toContain("000000000015.md");
+    expect(repository.getAttachment(taskId, attachmentId)?.storageName).toBe(
+      "019d0000-0000-7000-8000-000000000015.md",
+    );
+  });
 });

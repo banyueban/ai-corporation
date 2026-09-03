@@ -79,6 +79,9 @@
   "dependencies": {
     "@earendil-works/pi-agent-core": "0.84.1",
     "@earendil-works/pi-ai": "0.84.1",
+    "docx": "9.7.1",
+    "mammoth": "1.12.2",
+    "pdfjs-dist": "6.3.289",
     "yaml": "2.9.0"
   }
 }

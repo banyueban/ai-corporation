@@ -3,7 +3,7 @@
 | 字段 | 内容 |
 | --- | --- |
 | 任务单元 ID | M14-TU-01 |
-| 状态 | 就绪 |
+| 状态 | 进行中 |
 | 所属 Milestone | Milestone 14：任务附件与文档处理 |
 | 主要结果 | 用户把真实 Word、PDF、文本或 Markdown 添加到员工任务后，员工通过标准文档 Skill 读取内容并在当前 Workspace 生成新的 Word/PDF 成果。 |
 | 基线提交 | `d3efb5d` |

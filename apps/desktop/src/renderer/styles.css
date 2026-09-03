@@ -543,6 +543,59 @@ h3 {
   word-break: break-word;
 }
 
+.task-attachment-dropzone {
+  display: grid;
+  justify-items: start;
+  gap: 0.65rem;
+  padding: 1rem;
+  border: 1px dashed #55739b;
+  border-radius: 0.8rem;
+  background: #0a1320;
+}
+
+.task-attachment-dropzone p,
+.task-attachment-dropzone small {
+  margin: 0;
+}
+
+.task-attachment-list,
+.pi-task-attachments ul {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.task-attachment-list li {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+}
+
+.task-attachment-list span {
+  display: grid;
+  min-width: 0;
+  gap: 0.2rem;
+}
+
+.task-attachment-list strong,
+.pi-task-attachments li {
+  overflow-wrap: anywhere;
+}
+
+.pi-task-attachments {
+  margin: 0.8rem 0;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+}
+
 @media (max-width: 700px) {
   .workspace-task-picker {
     grid-template-columns: minmax(0, 1fr);

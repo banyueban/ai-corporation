@@ -7,6 +7,7 @@ export * from "./pi-company";
 export * from "./pi-employee";
 export * from "./pi-skill";
 export * from "./pi-task";
+export * from "./pi-task-attachment";
 export * from "./plan-review";
 export * from "./plan-validation";
 export * from "./provider-key-vault";

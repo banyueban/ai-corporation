@@ -56,6 +56,9 @@ import {
   PI_TASK_REVEAL_DELIVERABLE_IPC_CHANNEL,
   PI_TASK_RESOLVE_COMMAND_APPROVAL_IPC_CHANNEL,
   PI_TASK_START_IPC_CHANNEL,
+  PI_TASK_ATTACHMENT_SELECT_IPC_CHANNEL,
+  PI_TASK_ATTACHMENT_STAGE_DROPPED_IPC_CHANNEL,
+  PI_TASK_ATTACHMENT_DISCARD_IPC_CHANNEL,
   PROVIDER_CANCEL_CONNECTION_TEST_IPC_CHANNEL,
   PROVIDER_CANCEL_GENERATION_TEST_IPC_CHANNEL,
   PROVIDER_DELETE_KEY_IPC_CHANNEL,
@@ -181,6 +184,12 @@ import {
   handlePiTaskList,
 } from "./pi-task-ipc";
 import { PiTaskService } from "./pi-task-service";
+import { TaskAttachmentService } from "./task-attachment-service";
+import { DocumentService } from "./document-service";
+import {
+  handleAttachmentDiscard,
+  handleAttachmentStage,
+} from "./task-attachment-ipc";
 import { SkillLibrary } from "./skill-library";
 import { SkillEnvironmentManager } from "./skill-environment";
 import { createUuidV7 } from "./uuid-v7";
@@ -234,6 +243,7 @@ let piEmployeeService: PiEmployeeService | undefined;
 let piCompanyService: PiCompanyService | undefined;
 let piSkillService: PiSkillService | undefined;
 let piTaskService: PiTaskService | undefined;
+let taskAttachmentService: TaskAttachmentService | undefined;
 let nativeCoreClient: NativeCoreClient | undefined;
 let organizationActivationService: OrganizationActivationService | undefined;
 let organizationProposalService: OrganizationProposalService | undefined;
@@ -289,6 +299,28 @@ function createMainWindow(): BrowserWindow {
   mainWindow = window;
 
   return window;
+}
+
+async function renderPdf(html: string): Promise<Uint8Array> {
+  const window = new BrowserWindow({
+    show: false,
+    webPreferences: {
+      contextIsolation: true,
+      javascript: false,
+      nodeIntegration: false,
+      sandbox: true,
+    },
+  });
+  try {
+    await window.loadURL(
+      `data:text/html;charset=utf-8,${encodeURIComponent(html)}`,
+    );
+    return new Uint8Array(
+      await window.webContents.printToPDF({ printBackground: true }),
+    );
+  } finally {
+    window.destroy();
+  }
 }
 
 function assertTrustedRenderer(event: IpcMainInvokeEvent): void {
@@ -415,6 +447,60 @@ void app.whenReady().then(async () => {
       ),
     );
   }
+  ipcMain.handle(
+    PI_TASK_ATTACHMENT_SELECT_IPC_CHANNEL,
+    async (event: IpcMainInvokeEvent, request: unknown) => {
+      if (mainWindow === undefined) {
+        return handleAttachmentStage(
+          isTrustedRenderer(event),
+          request,
+          undefined,
+          [],
+        );
+      }
+      const e2ePaths =
+        process.env.AI_CORPORATION_E2E === "1"
+          ? parseE2eAttachmentPaths(
+              process.env.AI_CORPORATION_E2E_ATTACHMENT_PATHS,
+            )
+          : undefined;
+      const selection =
+        e2ePaths === undefined
+          ? await dialog.showOpenDialog(mainWindow, {
+              buttonLabel: "添加附件",
+              filters: [
+                { name: "文档", extensions: ["docx", "pdf", "txt", "md"] },
+              ],
+              properties: ["openFile", "multiSelections"],
+              title: "添加任务附件",
+            })
+          : { canceled: e2ePaths.length === 0, filePaths: e2ePaths };
+      return handleAttachmentStage(
+        isTrustedRenderer(event),
+        request,
+        taskAttachmentService,
+        selection.canceled ? [] : selection.filePaths,
+      );
+    },
+  );
+  ipcMain.handle(
+    PI_TASK_ATTACHMENT_STAGE_DROPPED_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleAttachmentStage(
+        isTrustedRenderer(event),
+        request,
+        taskAttachmentService,
+      ),
+  );
+  ipcMain.handle(
+    PI_TASK_ATTACHMENT_DISCARD_IPC_CHANNEL,
+    (event: IpcMainInvokeEvent, request: unknown) =>
+      handleAttachmentDiscard(
+        isTrustedRenderer(event),
+        request,
+        taskAttachmentService,
+      ),
+  );
   for (const [channel, action] of [
     [PI_TASK_PREVIEW_DELIVERABLE_IPC_CHANNEL, "preview"],
     [PI_TASK_OPEN_DELIVERABLE_IPC_CHANNEL, "open"],
@@ -874,7 +960,11 @@ void app.whenReady().then(async () => {
       skillLibrary,
     });
     // 每个内置技能都复制到应用自管目录，开发态和安装包行为一致。
-    for (const builtinSkillName of ["text-organize", "coding-task"]) {
+    for (const builtinSkillName of [
+      "text-organize",
+      "coding-task",
+      "document-processing",
+    ]) {
       const builtinSkillDirectory = path.join(
         app.getAppPath(),
         app.isPackaged ? "skills" : "resources/skills",
@@ -915,12 +1005,18 @@ void app.whenReady().then(async () => {
       workspaceRepository,
     });
     const piTaskRepository = new PiTaskRepository(workspaceDatabase);
+    taskAttachmentService = new TaskAttachmentService(
+      path.join(app.getPath("userData"), "pi-task-attachments"),
+    );
     piTaskService = new PiTaskService({
       companyRepository: piCompanyRepository,
       employeeRepository: piEmployeeRepository,
       taskRepository: piTaskRepository,
       skillLibrary,
       environmentManager: skillEnvironmentManager,
+      attachmentService: taskAttachmentService,
+      documentService: new DocumentService(),
+      renderPdf,
       workspaceRepository,
       nativeClient: () => nativeCoreClient,
       openPath: (canonicalPath) => shell.openPath(canonicalPath),
@@ -1012,6 +1108,21 @@ void app.whenReady().then(async () => {
   });
 });
 
+function parseE2eAttachmentPaths(
+  value: string | undefined,
+): string[] | undefined {
+  if (value === undefined) return undefined;
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) &&
+      parsed.every((item) => typeof item === "string")
+      ? parsed
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
@@ -1060,6 +1171,9 @@ app.on("before-quit", (event) => {
   ipcMain.removeHandler(PI_TASK_PREVIEW_DELIVERABLE_IPC_CHANNEL);
   ipcMain.removeHandler(PI_TASK_OPEN_DELIVERABLE_IPC_CHANNEL);
   ipcMain.removeHandler(PI_TASK_REVEAL_DELIVERABLE_IPC_CHANNEL);
+  ipcMain.removeHandler(PI_TASK_ATTACHMENT_SELECT_IPC_CHANNEL);
+  ipcMain.removeHandler(PI_TASK_ATTACHMENT_STAGE_DROPPED_IPC_CHANNEL);
+  ipcMain.removeHandler(PI_TASK_ATTACHMENT_DISCARD_IPC_CHANNEL);
   ipcMain.removeHandler(PROVIDER_LIST_IPC_CHANNEL);
   ipcMain.removeHandler(PROVIDER_TEST_CONNECTION_IPC_CHANNEL);
   ipcMain.removeHandler(PROVIDER_CANCEL_CONNECTION_TEST_IPC_CHANNEL);

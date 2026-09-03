@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   WORKSPACE_CANONICALIZE_RPC_METHOD,
   WORKSPACE_COPY_ASSET_RPC_METHOD,
+  WORKSPACE_CREATE_BINARY_RPC_METHOD,
   WORKSPACE_LIST_IPC_CHANNEL,
   WORKSPACE_LIST_RPC_METHOD,
   WORKSPACE_READ_TEXT_RPC_METHOD,
@@ -13,6 +14,8 @@ import {
   workspaceCanonicalizeRpcResponseSchema,
   workspaceCopyAssetRpcRequestSchema,
   workspaceCopyAssetRpcResponseSchema,
+  workspaceCreateBinaryRpcRequestSchema,
+  workspaceCreateBinaryRpcResponseSchema,
   workspaceListIpcResultSchema,
   workspaceListRpcRequestSchema,
   workspaceListRpcResponseSchema,
@@ -323,6 +326,43 @@ describe("workspace protocol", () => {
         },
       }).success,
     ).toBe(false);
+  });
+
+  it("accepts bounded binary creation and rejects extra path powers", () => {
+    const request = {
+      jsonrpc: "2.0" as const,
+      id: "binary-1",
+      method: WORKSPACE_CREATE_BINARY_RPC_METHOD,
+      params: {
+        schemaVersion: WORKSPACE_SCHEMA_VERSION,
+        sessionToken: "a".repeat(32),
+        rootPath: "E:\\projects\\example",
+        relativePath: "result.pdf",
+        contentBase64: "JVBERi0xLjcK",
+      },
+    };
+    expect(
+      workspaceCreateBinaryRpcRequestSchema.safeParse(request).success,
+    ).toBe(true);
+    expect(
+      workspaceCreateBinaryRpcRequestSchema.safeParse({
+        ...request,
+        params: { ...request.params, overwrite: true },
+      }).success,
+    ).toBe(false);
+    expect(
+      workspaceCreateBinaryRpcResponseSchema.safeParse({
+        jsonrpc: "2.0",
+        id: "binary-1",
+        result: {
+          schemaVersion: WORKSPACE_SCHEMA_VERSION,
+          relativePath: "result.pdf",
+          created: true,
+          sha256: "a".repeat(64),
+          sizeBytes: 9,
+        },
+      }).success,
+    ).toBe(true);
   });
 
   it("rejects unsafe Workspace IPC requests and errors", () => {

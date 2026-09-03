@@ -12,6 +12,7 @@
     "e2e/**/*.ts",
     "playwright.config.ts",
     "src/**/*.test.ts",
+    "src/main/**/*.d.ts",
     "src/main/native-core-path.ts",
     "src/main/window-options.ts",
     "vitest.config.ts"

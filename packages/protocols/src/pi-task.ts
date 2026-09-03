@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { piTaskAttachmentSchema } from "./pi-task-attachment";
 
 export const PI_TASK_START_IPC_CHANNEL = "pi-task:start" as const;
 export const PI_TASK_GET_IPC_CHANNEL = "pi-task:get" as const;
@@ -47,7 +48,12 @@ const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/u);
 export const piTaskDeliverableSchema = z
   .object({
     relativePath: z.string().min(1).max(32_767),
-    source: z.enum(["WORKSPACE_WRITE", "COMMAND_REGISTERED", "SKILL_ASSET"]),
+    source: z.enum([
+      "WORKSPACE_WRITE",
+      "COMMAND_REGISTERED",
+      "SKILL_ASSET",
+      "DOCUMENT_CREATE",
+    ]),
     changeKind: z.enum(["CREATED", "MODIFIED", "REGISTERED"]),
     sha256: sha256Schema,
     sizeBytes: z.number().int().nonnegative().max(104_857_600),
@@ -95,6 +101,7 @@ export const piTaskSchema = z
     finalOutput: z.string().optional(),
     failureMessage: z.string().optional(),
     deliverables: z.array(piTaskDeliverableSchema).optional(),
+    attachments: z.array(piTaskAttachmentSchema).max(10).optional(),
     checks: z.array(piTaskCheckSchema).optional(),
     events: z.array(piTaskEventSchema),
     createdAt: z.iso.datetime({ offset: true }),
@@ -108,6 +115,7 @@ export const piTaskStartRequestSchema = z
     employeeId: uuid,
     workspaceId: uuid,
     input: z.string().trim().min(1).max(20_000),
+    attachmentIds: z.array(uuid).max(10).optional(),
   })
   .strict();
 export const piTaskGetRequestSchema = z
@@ -160,6 +168,7 @@ const errorSchema = z
       "UNAUTHORIZED_CALLER",
       "NOT_FOUND",
       "EMPLOYEE_NOT_READY",
+      "ATTACHMENT_NOT_READY",
       "WORKSPACE_NOT_READY",
       "NOT_A_MEMBER",
       "ALREADY_RUNNING",
@@ -205,7 +214,7 @@ export const piTaskDeliverablePreviewResultSchema = z.discriminatedUnion("ok", [
           // Text remains capped by Native Core at 1 MiB. A verified GIF up to
           // 5 MiB expands when encoded as a data URL for the sandboxed Renderer.
           content: z.string().max(7_000_000),
-          sizeBytes: z.number().int().nonnegative().max(5_242_880),
+          sizeBytes: z.number().int().nonnegative().max(104_857_600),
           sha256: sha256Schema,
           integrity: z.enum(["CURRENT", "CHANGED"]),
         })

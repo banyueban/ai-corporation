@@ -5,14 +5,14 @@ use std::io::{self, BufRead, Read, Write};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use workspace_fs::{
-    WorkspacePathError, copy_workspace_asset, inspect_workspace_file, list_workspace,
-    read_workspace_text, resolve_workspace_path, write_workspace_text,
+    WorkspacePathError, copy_workspace_asset, create_workspace_binary, inspect_workspace_file,
+    list_workspace, read_workspace_text, resolve_workspace_path, write_workspace_text,
 };
 
 pub const CRATE_NAME: &str = "native-core";
 pub const SCHEMA_VERSION: u32 = 1;
-// A write request may contain one full 1 MiB UTF-8 document plus JSON overhead.
-pub const MAX_REQUEST_BYTES: usize = 2 * 1024 * 1024;
+// 文档二进制使用 Base64 传输；10 MiB 内容加编码和 JSON 仍必须有硬上限。
+pub const MAX_REQUEST_BYTES: usize = 15 * 1024 * 1024;
 
 const JSON_RPC_VERSION: &str = "2.0";
 
@@ -72,6 +72,16 @@ struct WorkspaceCopyAssetParams {
     expected_size_bytes: u64,
     root_path: String,
     relative_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct WorkspaceCreateBinaryParams {
+    schema_version: u32,
+    session_token: String,
+    root_path: String,
+    relative_path: String,
+    content_base64: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -147,6 +157,57 @@ fn constant_time_eq(left: &str, right: &str) -> bool {
         == 0
 }
 
+/// 解码协议中受限的标准 Base64，拒绝空白、错误填充和其他字母表。
+fn decode_base64(input: &str) -> Option<Vec<u8>> {
+    if input.is_empty() || !input.len().is_multiple_of(4) {
+        return None;
+    }
+    fn value(byte: u8) -> Option<u8> {
+        match byte {
+            b'A'..=b'Z' => Some(byte - b'A'),
+            b'a'..=b'z' => Some(byte - b'a' + 26),
+            b'0'..=b'9' => Some(byte - b'0' + 52),
+            b'+' => Some(62),
+            b'/' => Some(63),
+            _ => None,
+        }
+    }
+
+    let chunks = input.as_bytes().chunks_exact(4);
+    let chunk_count = chunks.len();
+    let mut output = Vec::with_capacity((input.len() / 4) * 3);
+    for (index, chunk) in chunks.enumerate() {
+        let last = index + 1 == chunk_count;
+        let first = value(chunk[0])?;
+        let second = value(chunk[1])?;
+        let third = if chunk[2] == b'=' {
+            None
+        } else {
+            Some(value(chunk[2])?)
+        };
+        let fourth = if chunk[3] == b'=' {
+            None
+        } else {
+            Some(value(chunk[3])?)
+        };
+        if (!last && (third.is_none() || fourth.is_none()))
+            || (third.is_none() && fourth.is_some())
+            || (third.is_none() && second & 0x0f != 0)
+            || (fourth.is_none() && third.is_some_and(|part| part & 0x03 != 0))
+        {
+            return None;
+        }
+        output.push((first << 2) | (second >> 4));
+        if let Some(third) = third {
+            output.push((second << 4) | (third >> 2));
+            if let Some(fourth) = fourth {
+                output.push((third << 6) | fourth);
+            }
+        }
+    }
+    Some(output)
+}
+
 fn process_value(value: Value, expected_session_token: &str) -> RpcResponse {
     let request = match serde_json::from_value::<RpcRequest>(value) {
         Ok(request) => request,
@@ -176,6 +237,9 @@ fn process_value(value: Value, expected_session_token: &str) -> RpcResponse {
         }
         "workspace.copy_asset" => {
             process_workspace_copy_asset(request.id, request.params, expected_session_token)
+        }
+        "workspace.create_binary" => {
+            process_workspace_create_binary(request.id, request.params, expected_session_token)
         }
         _ => RpcResponse::error(request.id, -32601, "Method not found"),
     }
@@ -357,6 +421,45 @@ fn process_workspace_copy_asset(
         params.expected_size_bytes,
         std::path::Path::new(&params.root_path),
         std::path::Path::new(&params.relative_path),
+    ) {
+        Ok(result) => match serde_json::to_value(result) {
+            Ok(mut value) => {
+                if let Value::Object(object) = &mut value {
+                    object.insert("schemaVersion".to_owned(), Value::from(SCHEMA_VERSION));
+                }
+                RpcResponse::success(id, value)
+            }
+            Err(_) => RpcResponse::error(id, -32603, "Internal error"),
+        },
+        Err(error) => RpcResponse::workspace_error(id, &error),
+    }
+}
+
+fn process_workspace_create_binary(
+    id: Value,
+    params: Value,
+    expected_session_token: &str,
+) -> RpcResponse {
+    let params = match serde_json::from_value::<WorkspaceCreateBinaryParams>(params) {
+        Ok(params) => params,
+        Err(_) => return RpcResponse::error(id, -32602, "Invalid params"),
+    };
+    if let Some(error) = validate_workspace_request(
+        &id,
+        params.schema_version,
+        &params.session_token,
+        expected_session_token,
+    ) {
+        return error;
+    }
+    let bytes = match decode_base64(&params.content_base64) {
+        Some(bytes) => bytes,
+        None => return RpcResponse::error(id, -32602, "Invalid params"),
+    };
+    match create_workspace_binary(
+        std::path::Path::new(&params.root_path),
+        std::path::Path::new(&params.relative_path),
+        &bytes,
     ) {
         Ok(result) => match serde_json::to_value(result) {
             Ok(mut value) => {
@@ -811,6 +914,37 @@ mod tests {
         assert_eq!(rejected["error"]["data"]["reason"], "CONFLICT");
         assert!(!workspace_root.join("other.bin").exists());
 
+        fs::remove_dir_all(root)
+    }
+
+    #[test]
+    fn workspace_create_binary_decodes_and_never_overwrites() -> io::Result<()> {
+        let root = temporary_workspace()?;
+        let request = json!({
+            "jsonrpc": "2.0",
+            "id": "workspace-create-binary",
+            "method": "workspace.create_binary",
+            "params": {
+                "schemaVersion": SCHEMA_VERSION,
+                "sessionToken": TOKEN,
+                "rootPath": root.to_string_lossy(),
+                "relativePath": "result.pdf",
+                "contentBase64": "JVBERi0xLjcK"
+            },
+        });
+        let response = parse_response(&handle_line(&request.to_string(), TOKEN));
+        assert_eq!(response["result"]["relativePath"], "result.pdf");
+        assert_eq!(fs::read(root.join("result.pdf"))?, b"%PDF-1.7\n");
+
+        let repeated = parse_response(&handle_line(&request.to_string(), TOKEN));
+        assert_eq!(repeated["error"]["data"]["reason"], "CONFLICT");
+
+        let mut invalid = request.clone();
+        invalid["params"]["relativePath"] = Value::from("invalid.pdf");
+        invalid["params"]["contentBase64"] = Value::from("not base64");
+        let invalid_response = parse_response(&handle_line(&invalid.to_string(), TOKEN));
+        assert_eq!(invalid_response["error"]["code"], -32602);
+        assert!(!root.join("invalid.pdf").exists());
         fs::remove_dir_all(root)
     }
 }

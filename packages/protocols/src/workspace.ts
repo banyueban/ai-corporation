@@ -9,6 +9,8 @@ export const WORKSPACE_INSPECT_FILE_RPC_METHOD =
   "workspace.inspect_file" as const;
 export const WORKSPACE_WRITE_TEXT_RPC_METHOD = "workspace.write_text" as const;
 export const WORKSPACE_COPY_ASSET_RPC_METHOD = "workspace.copy_asset" as const;
+export const WORKSPACE_CREATE_BINARY_RPC_METHOD =
+  "workspace.create_binary" as const;
 export const WORKSPACE_LIST_IPC_CHANNEL = "workspace:list" as const;
 export const WORKSPACE_REVALIDATE_IPC_CHANNEL = "workspace:revalidate" as const;
 export const WORKSPACE_SELECT_IPC_CHANNEL = "workspace:select" as const;
@@ -206,6 +208,22 @@ export const workspaceCopyAssetRpcRequestSchema = z
       .strict(),
   })
   .strict();
+export const workspaceCreateBinaryRpcRequestSchema = z
+  .object({
+    jsonrpc: z.literal("2.0"),
+    id: rpcIdSchema,
+    method: z.literal(WORKSPACE_CREATE_BINARY_RPC_METHOD),
+    params: z
+      .object({
+        schemaVersion: z.literal(WORKSPACE_SCHEMA_VERSION),
+        sessionToken: z.string().min(32).max(256),
+        rootPath: z.string().min(1).max(32_767),
+        relativePath: workspaceRelativePathSchema,
+        contentBase64: z.string().min(1).max(13_981_016),
+      })
+      .strict(),
+  })
+  .strict();
 
 export const workspaceListEntrySchema = z
   .object({
@@ -258,6 +276,7 @@ export const workspaceCopyAssetResultSchema = z
     sizeBytes: z.number().int().nonnegative().max(104_857_600),
   })
   .strict();
+export const workspaceCreateBinaryResultSchema = workspaceCopyAssetResultSchema;
 
 function workspaceOperationRpcResponseSchema<T extends z.ZodType>(result: T) {
   return z
@@ -288,6 +307,8 @@ export const workspaceWriteTextRpcResponseSchema =
   workspaceOperationRpcResponseSchema(workspaceWriteTextResultSchema);
 export const workspaceCopyAssetRpcResponseSchema =
   workspaceOperationRpcResponseSchema(workspaceCopyAssetResultSchema);
+export const workspaceCreateBinaryRpcResponseSchema =
+  workspaceOperationRpcResponseSchema(workspaceCreateBinaryResultSchema);
 
 export const workspaceIpcErrorCodeSchema = z.enum([
   "WORKSPACE_NOT_FOUND",
@@ -377,6 +398,9 @@ export type WorkspaceCanonicalizeResult = z.infer<
 >;
 export type WorkspaceCopyAssetResult = z.infer<
   typeof workspaceCopyAssetResultSchema
+>;
+export type WorkspaceCreateBinaryResult = z.infer<
+  typeof workspaceCreateBinaryResultSchema
 >;
 export type WorkspaceIpcErrorCode = z.infer<typeof workspaceIpcErrorCodeSchema>;
 export type WorkspaceListIpcResult = z.infer<

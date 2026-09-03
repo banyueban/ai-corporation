@@ -8,6 +8,7 @@ import {
   healthRpcResponseSchema,
   WORKSPACE_CANONICALIZE_RPC_METHOD,
   WORKSPACE_COPY_ASSET_RPC_METHOD,
+  WORKSPACE_CREATE_BINARY_RPC_METHOD,
   WORKSPACE_INSPECT_FILE_RPC_METHOD,
   WORKSPACE_LIST_RPC_METHOD,
   WORKSPACE_READ_TEXT_RPC_METHOD,
@@ -17,6 +18,8 @@ import {
   workspaceCanonicalizeRpcResponseSchema,
   workspaceCopyAssetResultSchema,
   workspaceCopyAssetRpcResponseSchema,
+  workspaceCreateBinaryResultSchema,
+  workspaceCreateBinaryRpcResponseSchema,
   workspaceInspectFileResultSchema,
   workspaceInspectFileRpcResponseSchema,
   workspaceListResultSchema,
@@ -28,6 +31,7 @@ import {
   type HealthResult,
   type WorkspaceCanonicalizeResult,
   type WorkspaceCopyAssetResult,
+  type WorkspaceCreateBinaryResult,
   type WorkspaceInspectFileResult,
   type WorkspaceListResult,
   type WorkspacePathErrorReason,
@@ -229,6 +233,24 @@ export class NativeCoreClient {
       },
       workspaceCopyAssetRpcResponseSchema,
       workspaceCopyAssetResultSchema,
+      ASSET_COPY_TIMEOUT_MS,
+    );
+  }
+
+  createWorkspaceBinary(
+    rootPath: string,
+    relativePath: string,
+    content: Uint8Array,
+  ): Promise<WorkspaceCreateBinaryResult> {
+    return this.#workspaceRequest(
+      WORKSPACE_CREATE_BINARY_RPC_METHOD,
+      {
+        rootPath,
+        relativePath,
+        contentBase64: Buffer.from(content).toString("base64"),
+      },
+      workspaceCreateBinaryRpcResponseSchema,
+      workspaceCreateBinaryResultSchema,
       ASSET_COPY_TIMEOUT_MS,
     );
   }

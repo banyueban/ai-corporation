@@ -78,6 +78,9 @@ import type {
   PiTaskResolveCommandApprovalRequest,
   PiTaskResult,
   PiTaskStartRequest,
+  PiTaskAttachment,
+  PiTaskAttachmentDiscardResult,
+  PiTaskAttachmentStageResult,
   ProviderDeleteKeyRequest,
   ProviderCancelConnectionTestRequest,
   ProviderCancelConnectionTestResult,
@@ -238,6 +241,13 @@ export interface DesktopApi {
     revealDeliverable(
       request: PiTaskDeliverableRequest,
     ): Promise<PiTaskDeliverableActionResult>;
+    selectAttachments(): Promise<PiTaskAttachmentStageResult>;
+    stageDroppedAttachments(
+      files: readonly File[],
+    ): Promise<PiTaskAttachmentStageResult>;
+    discardAttachments(
+      attachments: readonly PiTaskAttachment[],
+    ): Promise<PiTaskAttachmentDiscardResult>;
   }>;
   readonly provider: Readonly<{
     cancelConnectionTest(

@@ -163,6 +163,9 @@ import {
   PI_TASK_REVEAL_DELIVERABLE_IPC_CHANNEL,
   PI_TASK_RESOLVE_COMMAND_APPROVAL_IPC_CHANNEL,
   PI_TASK_START_IPC_CHANNEL,
+  PI_TASK_ATTACHMENT_SELECT_IPC_CHANNEL,
+  PI_TASK_ATTACHMENT_STAGE_DROPPED_IPC_CHANNEL,
+  PI_TASK_ATTACHMENT_DISCARD_IPC_CHANNEL,
   piTaskCommandRequestSchema,
   piTaskGetRequestSchema,
   piTaskListRequestSchema,
@@ -174,6 +177,11 @@ import {
   piTaskResolveCommandApprovalRequestSchema,
   piTaskResultSchema,
   piTaskStartRequestSchema,
+  piTaskAttachmentStageResultSchema,
+  piTaskAttachmentDiscardResultSchema,
+  piTaskAttachmentSelectRequestSchema,
+  piTaskAttachmentStageRequestSchema,
+  piTaskAttachmentDiscardRequestSchema,
   type PiTaskCommandRequest,
   type PiTaskGetRequest,
   type PiTaskListRequest,
@@ -181,6 +189,7 @@ import {
   type PiTaskRequestChangesRequest,
   type PiTaskResolveCommandApprovalRequest,
   type PiTaskStartRequest,
+  type PiTaskAttachment,
   PROVIDER_CANCEL_CONNECTION_TEST_IPC_CHANNEL,
   PROVIDER_CANCEL_GENERATION_TEST_IPC_CHANNEL,
   PROVIDER_DELETE_KEY_IPC_CHANNEL,
@@ -224,7 +233,7 @@ import {
   workspaceRevalidateRequestSchema,
   workspaceSelectIpcResultSchema,
 } from "@ai-corporation/protocols";
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { DesktopApi } from "../shared/desktop-api";
 
 async function invokePiTask(channel: string, request: unknown) {
@@ -632,6 +641,43 @@ const desktopApi: DesktopApi = Object.freeze({
           piTaskDeliverableRequestSchema.parse(request),
         ),
       ),
+    selectAttachments: async () => {
+      const request = piTaskAttachmentSelectRequestSchema.parse({
+        schemaVersion: 1,
+        commandId: crypto.randomUUID(),
+      });
+      return piTaskAttachmentStageResultSchema.parse(
+        await ipcRenderer.invoke(
+          PI_TASK_ATTACHMENT_SELECT_IPC_CHANNEL,
+          request,
+        ),
+      );
+    },
+    stageDroppedAttachments: async (files: readonly File[]) => {
+      const request = piTaskAttachmentStageRequestSchema.parse({
+        schemaVersion: 1,
+        commandId: crypto.randomUUID(),
+        paths: Array.from(files, (file) => webUtils.getPathForFile(file)),
+      });
+      return piTaskAttachmentStageResultSchema.parse(
+        await ipcRenderer.invoke(
+          PI_TASK_ATTACHMENT_STAGE_DROPPED_IPC_CHANNEL,
+          request,
+        ),
+      );
+    },
+    discardAttachments: async (attachments: readonly PiTaskAttachment[]) => {
+      const request = piTaskAttachmentDiscardRequestSchema.parse({
+        schemaVersion: 1,
+        attachmentIds: attachments.map((attachment) => attachment.id),
+      });
+      return piTaskAttachmentDiscardResultSchema.parse(
+        await ipcRenderer.invoke(
+          PI_TASK_ATTACHMENT_DISCARD_IPC_CHANNEL,
+          request,
+        ),
+      );
+    },
   }),
   provider: Object.freeze({
     cancelConnectionTest: async (

@@ -1,5 +1,10 @@
 import { DatabaseSync } from "node:sqlite";
-import { piTaskSchema, type PiTask } from "@ai-corporation/protocols";
+import {
+  piTaskSchema,
+  piTaskAttachmentSchema,
+  type PiTask,
+  type PiTaskAttachment,
+} from "@ai-corporation/protocols";
 
 type PiTaskDeliverable = NonNullable<PiTask["deliverables"]>[number];
 
@@ -12,13 +17,18 @@ export interface PendingWorkspaceWrite {
   readonly relativePath: string;
   readonly baseSha256?: string;
   readonly targetSha256: string;
-  readonly operationKind: "SKILL_ASSET" | "TEXT_WRITE";
+  readonly operationKind: "SKILL_ASSET" | "TEXT_WRITE" | "DOCUMENT_BINARY";
 }
 
 export interface PendingCommandCall {
   readonly command: string;
   readonly taskId: string;
   readonly toolCallId: string;
+}
+
+export interface PiTaskAttachmentRecord extends PiTaskAttachment {
+  readonly storageName: string;
+  readonly createdAt: string;
 }
 
 /** Stores every visible model and tool event in the same order it occurred. */
@@ -32,24 +42,70 @@ export class PiTaskRepository {
     readonly workspaceId: string;
     readonly userInput: string;
     readonly now: string;
+    readonly attachments?: readonly PiTaskAttachmentRecord[];
   }): PiTask {
-    this.database
-      .prepare(
-        `INSERT INTO pi_task (
-          id, company_id, employee_id, workspace_id, user_input, status,
-          created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, 'RUNNING', ?, ?)`,
-      )
-      .run(
-        input.id,
-        input.companyId,
-        input.employeeId,
-        input.workspaceId,
-        input.userInput,
-        input.now,
-        input.now,
+    this.database.exec("BEGIN IMMEDIATE");
+    try {
+      this.database
+        .prepare(
+          `INSERT INTO pi_task (
+            id, company_id, employee_id, workspace_id, user_input, status,
+            created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, 'RUNNING', ?, ?)`,
+        )
+        .run(
+          input.id,
+          input.companyId,
+          input.employeeId,
+          input.workspaceId,
+          input.userInput,
+          input.now,
+          input.now,
+        );
+      const insertAttachment = this.database.prepare(
+        `INSERT INTO pi_task_attachment (
+          task_id, id, display_name, media_type, size_bytes, sha256,
+          storage_name, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       );
+      for (const attachment of input.attachments ?? []) {
+        insertAttachment.run(
+          input.id,
+          attachment.id,
+          attachment.displayName,
+          attachment.mediaType,
+          attachment.sizeBytes,
+          attachment.sha256,
+          attachment.storageName,
+          attachment.createdAt,
+        );
+      }
+      this.database.exec("COMMIT");
+    } catch (error) {
+      this.database.exec("ROLLBACK");
+      throw error;
+    }
     return this.require(input.id);
+  }
+
+  getAttachment(
+    taskId: string,
+    attachmentId: string,
+  ): PiTaskAttachmentRecord | undefined {
+    const row = this.database
+      .prepare("SELECT * FROM pi_task_attachment WHERE task_id = ? AND id = ?")
+      .get(taskId, attachmentId);
+    return row === undefined ? undefined : parseAttachmentRecord(row);
+  }
+
+  listAttachmentRecords(taskId: string): readonly PiTaskAttachmentRecord[] {
+    return this.database
+      .prepare(
+        `SELECT * FROM pi_task_attachment WHERE task_id = ?
+        ORDER BY created_at, id`,
+      )
+      .all(taskId)
+      .map(parseAttachmentRecord);
   }
 
   get(id: string): PiTask | undefined {
@@ -160,7 +216,7 @@ export class PiTaskRepository {
     readonly relativePath: string;
     readonly baseSha256?: string;
     readonly targetSha256: string;
-    readonly operationKind?: "SKILL_ASSET" | "TEXT_WRITE";
+    readonly operationKind?: "SKILL_ASSET" | "TEXT_WRITE" | "DOCUMENT_BINARY";
     readonly now: string;
   }): { readonly status: string; readonly result?: unknown } | undefined {
     const existing = this.database
@@ -290,7 +346,8 @@ export class PiTaskRepository {
           typeof row.relative_path !== "string" ||
           typeof row.target_sha256 !== "string" ||
           (row.operation_kind !== "TEXT_WRITE" &&
-            row.operation_kind !== "SKILL_ASSET")
+            row.operation_kind !== "SKILL_ASSET" &&
+            row.operation_kind !== "DOCUMENT_BINARY")
         ) {
           throw new Error("Pending workspace write is invalid");
         }
@@ -450,12 +507,49 @@ export class PiTaskRepository {
         ? {}
         : { failureMessage: row.failure_message }),
       deliverables: this.listDeliverables(row.id),
+      attachments: this.listAttachmentRecords(row.id).map(publicAttachment),
       checks,
       events,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     });
   }
+}
+
+function publicAttachment(
+  attachment: PiTaskAttachmentRecord,
+): PiTaskAttachment {
+  return {
+    id: attachment.id,
+    displayName: attachment.displayName,
+    mediaType: attachment.mediaType,
+    sizeBytes: attachment.sizeBytes,
+    sha256: attachment.sha256,
+  };
+}
+
+function parseAttachmentRecord(
+  row: Readonly<Record<string, unknown>>,
+): PiTaskAttachmentRecord {
+  const parsed = {
+    id: row.id,
+    displayName: row.display_name,
+    mediaType: row.media_type,
+    sizeBytes: row.size_bytes,
+    sha256: row.sha256,
+  };
+  const attachment = piTaskAttachmentSchema.parse(parsed);
+  if (
+    typeof row.storage_name !== "string" ||
+    typeof row.created_at !== "string"
+  ) {
+    throw new Error("Invalid Pi task attachment record");
+  }
+  return {
+    ...attachment,
+    storageName: row.storage_name,
+    createdAt: row.created_at,
+  };
 }
 
 function parseDeliverable(

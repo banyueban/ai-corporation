@@ -11,7 +11,11 @@ import {
 } from "./skill-library";
 import { createUuidV7 } from "./uuid-v7";
 
-const BUILTIN_SKILL_NAMES = new Set(["text-organize", "coding-task"]);
+const BUILTIN_SKILL_NAMES = new Set([
+  "text-organize",
+  "coding-task",
+  "document-processing",
+]);
 
 interface PendingImport {
   readonly preview: SkillImportPreview;

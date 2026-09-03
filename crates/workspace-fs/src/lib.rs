@@ -9,6 +9,7 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 pub const MAX_TEXT_BYTES: usize = 1024 * 1024;
+pub const MAX_BINARY_CREATE_BYTES: usize = 10 * 1024 * 1024;
 pub const MAX_DELIVERABLE_BYTES: u64 = 100 * 1024 * 1024;
 pub const MAX_LIST_ENTRIES: usize = 200;
 pub const MAX_LIST_DEPTH: usize = 3;
@@ -125,6 +126,9 @@ pub struct WorkspaceAssetCopy {
     sha256: String,
     size_bytes: u64,
 }
+
+/// 新建二进制成果的核对结果。二进制接口不允许覆盖已有文件。
+pub type WorkspaceBinaryCreate = WorkspaceAssetCopy;
 
 /// Lists a bounded, non-sensitive view of an authorized workspace.
 pub fn list_workspace(
@@ -311,6 +315,55 @@ pub fn write_workspace_text(
         previous_sha256,
         sha256: target_hash,
         size_bytes: content.len() as u64,
+    })
+}
+
+/// 在工作区中原子创建一个新的二进制文件，绝不覆盖已有目标。
+pub fn create_workspace_binary(
+    root: &Path,
+    candidate_relative_path: &Path,
+    bytes: &[u8],
+) -> Result<WorkspaceBinaryCreate, WorkspacePathError> {
+    use atomicwrites::{AtomicFile, OverwriteBehavior};
+
+    if bytes.is_empty() || bytes.len() > MAX_BINARY_CREATE_BYTES {
+        return Err(WorkspacePathError::new(
+            WorkspacePathErrorCode::FileTooLarge,
+        ));
+    }
+    reject_sensitive(candidate_relative_path)?;
+    let resolution = resolve_workspace_path(root, candidate_relative_path)?;
+    if resolution.relative_path().as_os_str().is_empty() {
+        return Err(WorkspacePathError::new(WorkspacePathErrorCode::NotFile));
+    }
+    if resolution.target_exists() {
+        return Err(WorkspacePathError::new(WorkspacePathErrorCode::Conflict));
+    }
+    let parent = resolution
+        .canonical_path()
+        .parent()
+        .ok_or_else(|| WorkspacePathError::new(WorkspacePathErrorCode::InvalidPath))?;
+    if !parent.is_dir() {
+        return Err(WorkspacePathError::new(
+            WorkspacePathErrorCode::NotDirectory,
+        ));
+    }
+
+    AtomicFile::new(
+        resolution.canonical_path(),
+        OverwriteBehavior::DisallowOverwrite,
+    )
+    .write(|file| {
+        file.write_all(bytes)?;
+        file.sync_all()
+    })
+    .map_err(|_| WorkspacePathError::new(WorkspacePathErrorCode::WriteFailed))?;
+
+    Ok(WorkspaceBinaryCreate {
+        relative_path: portable_relative(resolution.relative_path()),
+        created: true,
+        sha256: hash_bytes(bytes),
+        size_bytes: bytes.len() as u64,
     })
 }
 
@@ -795,9 +848,9 @@ mod tests {
 
     use super::{
         PERMISSION_PROBE_PREFIX, PermissionMode, WorkspacePathError, WorkspacePathErrorCode,
-        classify_candidate_error, cleanup_probe_with, copy_workspace_asset, hash_bytes,
-        inspect_workspace_file, list_workspace, read_workspace_text, resolve_workspace_path,
-        write_workspace_text,
+        classify_candidate_error, cleanup_probe_with, copy_workspace_asset,
+        create_workspace_binary, hash_bytes, inspect_workspace_file, list_workspace,
+        read_workspace_text, resolve_workspace_path, write_workspace_text,
     };
 
     static FIXTURE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
@@ -1129,6 +1182,31 @@ mod tests {
             "only assets are valid copy sources",
         );
         assert_eq!(outside_assets.code(), WorkspacePathErrorCode::InvalidPath);
+        fixture.cleanup()
+    }
+
+    #[test]
+    fn creates_binary_files_atomically_without_overwriting() -> io::Result<()> {
+        let fixture = Fixture::create()?;
+        let created =
+            create_workspace_binary(&fixture.root, Path::new("报告.pdf"), b"%PDF-1.7\nbinary")
+                .map_err(io::Error::other)?;
+        assert!(created.created);
+        assert_eq!(created.relative_path, "报告.pdf");
+        assert_eq!(
+            fs::read(fixture.root.join("报告.pdf"))?,
+            b"%PDF-1.7\nbinary"
+        );
+
+        let conflict = rejected(
+            create_workspace_binary(&fixture.root, Path::new("报告.pdf"), b"changed"),
+            "binary creation must never overwrite an existing file",
+        );
+        assert_eq!(conflict.code(), WorkspacePathErrorCode::Conflict);
+        assert_eq!(
+            fs::read(fixture.root.join("报告.pdf"))?,
+            b"%PDF-1.7\nbinary"
+        );
         fixture.cleanup()
     }
 

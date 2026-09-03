@@ -117,7 +117,12 @@ test("user creates and restores an independent Pi employee in the visible window
       page.getByRole("heading", { name: "交付成果", exact: true }),
     ).toBeVisible();
     await expect(page.getByText("result.md", { exact: true })).toBeVisible();
-    await expect(page.getByText("新建", { exact: false })).toBeVisible();
+    await expect(
+      page
+        .locator(".pi-delivery-file")
+        .filter({ hasText: "result.md" })
+        .getByText("新建", { exact: false }),
+    ).toBeVisible();
     await expect(page.getByText("本任务没有运行程序检查。")).toBeVisible();
     await page.getByRole("button", { name: "查看内容" }).click();
     await expect(page.getByText("内容未变化")).toBeVisible();

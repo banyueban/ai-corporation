@@ -33,7 +33,13 @@ const playwrightCli = path.join(
 );
 const child = spawn(
   process.execPath,
-  [playwrightCli, "test", "pi-employees.spec.ts", "pi-skill-resources.spec.ts"],
+  [
+    playwrightCli,
+    "test",
+    "pi-employees.spec.ts",
+    "pi-skill-resources.spec.ts",
+    "pi-documents.spec.ts",
+  ],
   {
     cwd: desktopDirectory,
     env: {
