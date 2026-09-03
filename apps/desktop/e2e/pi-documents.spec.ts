@@ -125,10 +125,39 @@ test("employee reads a fixed attachment and creates real Word and PDF results", 
     await expect(page.locator(".pi-delivery-preview pre")).toContainText(
       "这是一份由附件整理出的文档",
     );
-    await page.screenshot({
-      path: test.info().outputPath("m14-document-task.png"),
-      fullPage: false,
-    });
+    for (const view of [
+      { label: "1024x700", width: 1024, height: 700, zoom: 1 },
+      { label: "1024x700-200-percent", width: 1024, height: 700, zoom: 2 },
+      { label: "1440x900", width: 1440, height: 900, zoom: 1 },
+    ]) {
+      await app.evaluate(({ BrowserWindow }, target) => {
+        const window = BrowserWindow.getAllWindows()[0];
+        window?.setSize(target.width, target.height);
+        window?.webContents.setZoomFactor(target.zoom);
+      }, view);
+      const deliveryFile = page.locator(".pi-delivery-file").first();
+      await deliveryFile.scrollIntoViewIfNeeded();
+      await page.waitForTimeout(150);
+      expect(
+        await page.evaluate(
+          () =>
+            document.documentElement.scrollWidth <=
+            document.documentElement.clientWidth + 1,
+        ),
+      ).toBe(true);
+      await expect(deliveryFile).toBeInViewport();
+      await expect(
+        deliveryFile.getByRole("button", { name: "查看所在位置" }),
+      ).toBeInViewport();
+      const screenshotPath = test
+        .info()
+        .outputPath(`m14-document-task-${view.label}.png`);
+      if (view.zoom === 2) {
+        await captureElectronViewport(app, screenshotPath);
+      } else {
+        await page.screenshot({ path: screenshotPath, fullPage: false });
+      }
+    }
 
     await page.getByText("查看完整模型和工具过程").click();
     const processDetails = page.locator(".pi-task-details");
@@ -380,4 +409,18 @@ function simpleTextPdf(text: string): Buffer {
     .join("");
   body += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
   return Buffer.from(body, "ascii");
+}
+
+async function captureElectronViewport(
+  app: import("playwright").ElectronApplication,
+  destination: string,
+): Promise<void> {
+  // Playwright 在 Electron 200% 缩放后可能只截到背景，直接从真实窗口取图。
+  const base64 = await app.evaluate(async ({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows()[0];
+    if (window === undefined) throw new Error("M14 window is missing");
+    const image = await window.webContents.capturePage();
+    return image.toPNG().toString("base64");
+  });
+  writeFileSync(destination, Buffer.from(base64, "base64"));
 }
