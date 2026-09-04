@@ -371,12 +371,9 @@ function launchApplication(
   attachmentPaths: readonly string[],
 ) {
   const executablePath = process.env.AI_CORPORATION_PACKAGED_EXE;
-  const sharedArgs = [
-    "--disable-gpu",
-    "--disable-software-rasterizer",
-    "--in-process-gpu",
-    "--no-sandbox",
-  ];
+  // 文档生成依赖 Electron 真实排版。不能同时关闭显卡和软件绘制，
+  // 否则 macOS 的隐藏打印窗口会生成没有文字的空白 PDF。
+  const sharedArgs = ["--no-sandbox"];
   return electron.launch({
     ...(executablePath === undefined ? {} : { executablePath }),
     args:
