@@ -305,6 +305,8 @@ async function renderPdf(html: string): Promise<Uint8Array> {
   const window = new BrowserWindow({
     show: false,
     webPreferences: {
+      // macOS 的隐藏窗口可能在首帧前进入后台，关闭节流可以保证打印前完成排版。
+      backgroundThrottling: false,
       contextIsolation: true,
       javascript: false,
       nodeIntegration: false,
@@ -312,11 +314,20 @@ async function renderPdf(html: string): Promise<Uint8Array> {
     },
   });
   try {
+    const firstPaint = new Promise<void>((resolve) => {
+      window.once("ready-to-show", resolve);
+    });
     await window.loadURL(
       `data:text/html;charset=utf-8,${encodeURIComponent(html)}`,
     );
+    await firstPaint;
     return new Uint8Array(
-      await window.webContents.printToPDF({ printBackground: true }),
+      await window.webContents.printToPDF({
+        // 带文字标记的 PDF 在不同系统上都能被重新读取和核对。
+        generateTaggedPDF: true,
+        preferCSSPageSize: true,
+        printBackground: true,
+      }),
     );
   } finally {
     window.destroy();
