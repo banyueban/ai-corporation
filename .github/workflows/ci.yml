@@ -97,8 +97,30 @@ jobs:
         timeout-minutes: 10
         run: pnpm --filter @ai-corporation/desktop exec install-electron --no
 
-      - name: Run engineering checks
-        run: pnpm check
+      # 与根目录 pnpm check 保持同一顺序，但拆开显示，失败时能直接看出
+      # 是项目记录、前端测试、Rust 测试还是安全扫描出了问题。
+      - name: Check project records and code style
+        run: |
+          pnpm check:status
+          pnpm check:task-units
+          pnpm format:check
+          pnpm lint
+          pnpm typecheck
+
+      - name: Run JavaScript and TypeScript tests
+        run: pnpm test
+
+      - name: Run Rust tests
+        run: pnpm test:rust
+
+      - name: Check Rust code style
+        run: pnpm rust:fmt
+
+      - name: Run Rust lints
+        run: pnpm rust:clippy
+
+      - name: Scan for committed secrets
+        run: pnpm secret:scan
 
       - name: Run Electron health E2E
         run: pnpm test:e2e
