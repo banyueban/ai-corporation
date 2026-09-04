@@ -4,11 +4,15 @@ use std::io::{self, BufRead, Read, Write};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use workspace_fs::{WorkspacePathError, resolve_workspace_path};
+use workspace_fs::{
+    WorkspacePathError, copy_workspace_asset, create_workspace_binary, inspect_workspace_file,
+    list_workspace, read_workspace_text, resolve_workspace_path, write_workspace_text,
+};
 
 pub const CRATE_NAME: &str = "native-core";
 pub const SCHEMA_VERSION: u32 = 1;
-pub const MAX_REQUEST_BYTES: usize = 64 * 1024;
+// 文档二进制使用 Base64 传输；10 MiB 内容加编码和 JSON 仍必须有硬上限。
+pub const MAX_REQUEST_BYTES: usize = 15 * 1024 * 1024;
 
 const JSON_RPC_VERSION: &str = "2.0";
 
@@ -35,6 +39,49 @@ struct WorkspaceCanonicalizeParams {
     session_token: String,
     root_path: String,
     candidate_relative_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct WorkspacePathParams {
+    schema_version: u32,
+    session_token: String,
+    root_path: String,
+    relative_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct WorkspaceWriteTextParams {
+    schema_version: u32,
+    session_token: String,
+    root_path: String,
+    relative_path: String,
+    content: String,
+    base_sha256: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct WorkspaceCopyAssetParams {
+    schema_version: u32,
+    session_token: String,
+    source_root_path: String,
+    source_relative_path: String,
+    expected_sha256: String,
+    expected_size_bytes: u64,
+    root_path: String,
+    relative_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct WorkspaceCreateBinaryParams {
+    schema_version: u32,
+    session_token: String,
+    root_path: String,
+    relative_path: String,
+    content_base64: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -110,6 +157,60 @@ fn constant_time_eq(left: &str, right: &str) -> bool {
         == 0
 }
 
+/// 解码协议中受限的标准 Base64，拒绝空白、错误填充和其他字母表。
+fn decode_base64(input: &str) -> Option<Vec<u8>> {
+    if input.is_empty() || !input.len().is_multiple_of(4) {
+        return None;
+    }
+    fn value(byte: u8) -> Option<u8> {
+        match byte {
+            b'A'..=b'Z' => Some(byte - b'A'),
+            b'a'..=b'z' => Some(byte - b'a' + 26),
+            b'0'..=b'9' => Some(byte - b'0' + 52),
+            b'+' => Some(62),
+            b'/' => Some(63),
+            _ => None,
+        }
+    }
+
+    let (chunks, remainder) = input.as_bytes().as_chunks::<4>();
+    if !remainder.is_empty() {
+        return None;
+    }
+    let chunk_count = chunks.len();
+    let mut output = Vec::with_capacity((input.len() / 4) * 3);
+    for (index, chunk) in chunks.iter().enumerate() {
+        let last = index + 1 == chunk_count;
+        let first = value(chunk[0])?;
+        let second = value(chunk[1])?;
+        let third = if chunk[2] == b'=' {
+            None
+        } else {
+            Some(value(chunk[2])?)
+        };
+        let fourth = if chunk[3] == b'=' {
+            None
+        } else {
+            Some(value(chunk[3])?)
+        };
+        if (!last && (third.is_none() || fourth.is_none()))
+            || (third.is_none() && fourth.is_some())
+            || (third.is_none() && second & 0x0f != 0)
+            || (fourth.is_none() && third.is_some_and(|part| part & 0x03 != 0))
+        {
+            return None;
+        }
+        output.push((first << 2) | (second >> 4));
+        if let Some(third) = third {
+            output.push((second << 4) | (third >> 2));
+            if let Some(fourth) = fourth {
+                output.push((third << 6) | fourth);
+            }
+        }
+    }
+    Some(output)
+}
+
 fn process_value(value: Value, expected_session_token: &str) -> RpcResponse {
     let request = match serde_json::from_value::<RpcRequest>(value) {
         Ok(request) => request,
@@ -125,7 +226,254 @@ fn process_value(value: Value, expected_session_token: &str) -> RpcResponse {
         "workspace.canonicalize" => {
             process_workspace_canonicalize(request.id, request.params, expected_session_token)
         }
+        "workspace.list" => {
+            process_workspace_list(request.id, request.params, expected_session_token)
+        }
+        "workspace.read_text" => {
+            process_workspace_read_text(request.id, request.params, expected_session_token)
+        }
+        "workspace.inspect_file" => {
+            process_workspace_inspect_file(request.id, request.params, expected_session_token)
+        }
+        "workspace.write_text" => {
+            process_workspace_write_text(request.id, request.params, expected_session_token)
+        }
+        "workspace.copy_asset" => {
+            process_workspace_copy_asset(request.id, request.params, expected_session_token)
+        }
+        "workspace.create_binary" => {
+            process_workspace_create_binary(request.id, request.params, expected_session_token)
+        }
         _ => RpcResponse::error(request.id, -32601, "Method not found"),
+    }
+}
+
+fn validate_workspace_request(
+    id: &Value,
+    schema_version: u32,
+    session_token: &str,
+    expected_session_token: &str,
+) -> Option<RpcResponse> {
+    if schema_version != SCHEMA_VERSION {
+        return Some(RpcResponse::error(
+            id.clone(),
+            -32602,
+            "Unsupported schema version",
+        ));
+    }
+    if !constant_time_eq(session_token, expected_session_token) {
+        return Some(RpcResponse::error(id.clone(), -32001, "Unauthorized"));
+    }
+    None
+}
+
+fn process_workspace_list(id: Value, params: Value, expected_session_token: &str) -> RpcResponse {
+    let params = match serde_json::from_value::<WorkspacePathParams>(params) {
+        Ok(params) => params,
+        Err(_) => return RpcResponse::error(id, -32602, "Invalid params"),
+    };
+    if let Some(error) = validate_workspace_request(
+        &id,
+        params.schema_version,
+        &params.session_token,
+        expected_session_token,
+    ) {
+        return error;
+    }
+    match list_workspace(
+        std::path::Path::new(&params.root_path),
+        std::path::Path::new(&params.relative_path),
+    ) {
+        Ok(entries) => RpcResponse::success(
+            id,
+            json!({
+                "schemaVersion": SCHEMA_VERSION,
+                "relativePath": params.relative_path,
+                "entries": entries,
+            }),
+        ),
+        Err(error) => RpcResponse::workspace_error(id, &error),
+    }
+}
+
+fn process_workspace_read_text(
+    id: Value,
+    params: Value,
+    expected_session_token: &str,
+) -> RpcResponse {
+    let params = match serde_json::from_value::<WorkspacePathParams>(params) {
+        Ok(params) => params,
+        Err(_) => return RpcResponse::error(id, -32602, "Invalid params"),
+    };
+    if let Some(error) = validate_workspace_request(
+        &id,
+        params.schema_version,
+        &params.session_token,
+        expected_session_token,
+    ) {
+        return error;
+    }
+    match read_workspace_text(
+        std::path::Path::new(&params.root_path),
+        std::path::Path::new(&params.relative_path),
+    ) {
+        Ok(result) => match serde_json::to_value(result) {
+            Ok(mut value) => {
+                if let Value::Object(object) = &mut value {
+                    object.insert("schemaVersion".to_owned(), Value::from(SCHEMA_VERSION));
+                }
+                RpcResponse::success(id, value)
+            }
+            Err(_) => RpcResponse::error(id, -32603, "Internal error"),
+        },
+        Err(error) => RpcResponse::workspace_error(id, &error),
+    }
+}
+
+fn process_workspace_inspect_file(
+    id: Value,
+    params: Value,
+    expected_session_token: &str,
+) -> RpcResponse {
+    let params = match serde_json::from_value::<WorkspacePathParams>(params) {
+        Ok(params) => params,
+        Err(_) => return RpcResponse::error(id, -32602, "Invalid params"),
+    };
+    if let Some(error) = validate_workspace_request(
+        &id,
+        params.schema_version,
+        &params.session_token,
+        expected_session_token,
+    ) {
+        return error;
+    }
+    match inspect_workspace_file(
+        std::path::Path::new(&params.root_path),
+        std::path::Path::new(&params.relative_path),
+    ) {
+        Ok(result) => match serde_json::to_value(result) {
+            Ok(mut value) => {
+                if let Value::Object(object) = &mut value {
+                    object.insert("schemaVersion".to_owned(), Value::from(SCHEMA_VERSION));
+                }
+                RpcResponse::success(id, value)
+            }
+            Err(_) => RpcResponse::error(id, -32603, "Internal error"),
+        },
+        Err(error) => RpcResponse::workspace_error(id, &error),
+    }
+}
+
+fn process_workspace_write_text(
+    id: Value,
+    params: Value,
+    expected_session_token: &str,
+) -> RpcResponse {
+    let params = match serde_json::from_value::<WorkspaceWriteTextParams>(params) {
+        Ok(params) => params,
+        Err(_) => return RpcResponse::error(id, -32602, "Invalid params"),
+    };
+    if let Some(error) = validate_workspace_request(
+        &id,
+        params.schema_version,
+        &params.session_token,
+        expected_session_token,
+    ) {
+        return error;
+    }
+    match write_workspace_text(
+        std::path::Path::new(&params.root_path),
+        std::path::Path::new(&params.relative_path),
+        &params.content,
+        params.base_sha256.as_deref(),
+    ) {
+        Ok(result) => match serde_json::to_value(result) {
+            Ok(mut value) => {
+                if let Value::Object(object) = &mut value {
+                    object.insert("schemaVersion".to_owned(), Value::from(SCHEMA_VERSION));
+                }
+                RpcResponse::success(id, value)
+            }
+            Err(_) => RpcResponse::error(id, -32603, "Internal error"),
+        },
+        Err(error) => RpcResponse::workspace_error(id, &error),
+    }
+}
+
+fn process_workspace_copy_asset(
+    id: Value,
+    params: Value,
+    expected_session_token: &str,
+) -> RpcResponse {
+    let params = match serde_json::from_value::<WorkspaceCopyAssetParams>(params) {
+        Ok(params) => params,
+        Err(_) => return RpcResponse::error(id, -32602, "Invalid params"),
+    };
+    if let Some(error) = validate_workspace_request(
+        &id,
+        params.schema_version,
+        &params.session_token,
+        expected_session_token,
+    ) {
+        return error;
+    }
+    match copy_workspace_asset(
+        std::path::Path::new(&params.source_root_path),
+        std::path::Path::new(&params.source_relative_path),
+        &params.expected_sha256,
+        params.expected_size_bytes,
+        std::path::Path::new(&params.root_path),
+        std::path::Path::new(&params.relative_path),
+    ) {
+        Ok(result) => match serde_json::to_value(result) {
+            Ok(mut value) => {
+                if let Value::Object(object) = &mut value {
+                    object.insert("schemaVersion".to_owned(), Value::from(SCHEMA_VERSION));
+                }
+                RpcResponse::success(id, value)
+            }
+            Err(_) => RpcResponse::error(id, -32603, "Internal error"),
+        },
+        Err(error) => RpcResponse::workspace_error(id, &error),
+    }
+}
+
+fn process_workspace_create_binary(
+    id: Value,
+    params: Value,
+    expected_session_token: &str,
+) -> RpcResponse {
+    let params = match serde_json::from_value::<WorkspaceCreateBinaryParams>(params) {
+        Ok(params) => params,
+        Err(_) => return RpcResponse::error(id, -32602, "Invalid params"),
+    };
+    if let Some(error) = validate_workspace_request(
+        &id,
+        params.schema_version,
+        &params.session_token,
+        expected_session_token,
+    ) {
+        return error;
+    }
+    let bytes = match decode_base64(&params.content_base64) {
+        Some(bytes) => bytes,
+        None => return RpcResponse::error(id, -32602, "Invalid params"),
+    };
+    match create_workspace_binary(
+        std::path::Path::new(&params.root_path),
+        std::path::Path::new(&params.relative_path),
+        &bytes,
+    ) {
+        Ok(result) => match serde_json::to_value(result) {
+            Ok(mut value) => {
+                if let Value::Object(object) = &mut value {
+                    object.insert("schemaVersion".to_owned(), Value::from(SCHEMA_VERSION));
+                }
+                RpcResponse::success(id, value)
+            }
+            Err(_) => RpcResponse::error(id, -32603, "Internal error"),
+        },
+        Err(error) => RpcResponse::workspace_error(id, &error),
     }
 }
 
@@ -427,6 +775,47 @@ mod tests {
     }
 
     #[test]
+    fn workspace_list_omits_size_for_directories_in_a_unicode_workspace() -> io::Result<()> {
+        let parent = temporary_workspace()?;
+        let root = parent.join("中文工作区");
+        fs::create_dir_all(root.join("已有目录"))?;
+        fs::write(root.join("已有目录").join("说明.txt"), "ok")?;
+        let response = parse_response(&handle_line(
+            &json!({
+                "jsonrpc": "2.0",
+                "id": "workspace-list-unicode",
+                "method": "workspace.list",
+                "params": {
+                    "schemaVersion": SCHEMA_VERSION,
+                    "sessionToken": TOKEN,
+                    "rootPath": root.to_string_lossy(),
+                    "relativePath": "",
+                },
+            })
+            .to_string(),
+            TOKEN,
+        ));
+
+        let entries = response["result"]["entries"]
+            .as_array()
+            .ok_or_else(|| io::Error::other("workspace list must return entries"))?;
+        let directory = entries
+            .iter()
+            .find(|entry| entry["relativePath"] == "已有目录")
+            .ok_or_else(|| io::Error::other("unicode directory must be listed"))?;
+        assert_eq!(directory["kind"], "DIRECTORY");
+        assert!(directory.get("sizeBytes").is_none());
+        let file = entries
+            .iter()
+            .find(|entry| entry["relativePath"] == "已有目录/说明.txt")
+            .ok_or_else(|| io::Error::other("unicode file must be listed"))?;
+        assert_eq!(file["kind"], "FILE");
+        assert_eq!(file["sizeBytes"], 2);
+
+        fs::remove_dir_all(parent)
+    }
+
+    #[test]
     fn workspace_canonicalize_rejects_escape_without_path_disclosure() -> io::Result<()> {
         let root = temporary_workspace()?;
         let response_text = handle_line(
@@ -452,6 +841,113 @@ mod tests {
         assert!(!response_text.contains("sensitive.txt"));
         assert!(!response_text.contains(&root.to_string_lossy().to_string()));
 
+        fs::remove_dir_all(root)
+    }
+
+    #[test]
+    fn workspace_inspect_file_returns_verified_file_facts() -> io::Result<()> {
+        let root = temporary_workspace()?;
+        fs::write(root.join("result.md"), "verified")?;
+        let response = parse_response(&handle_line(
+            &json!({
+                "jsonrpc": "2.0",
+                "id": "workspace-inspect",
+                "method": "workspace.inspect_file",
+                "params": {
+                    "schemaVersion": SCHEMA_VERSION,
+                    "sessionToken": TOKEN,
+                    "rootPath": root.to_string_lossy(),
+                    "relativePath": "result.md",
+                },
+            })
+            .to_string(),
+            TOKEN,
+        ));
+
+        assert_eq!(response["result"]["relativePath"], "result.md");
+        assert_eq!(response["result"]["sizeBytes"], 8);
+        assert_eq!(
+            response["result"]["sha256"],
+            "1c34f88707b55e6104c4eb20e71ffa3d33e414b71ef689a15fad0640d0ac58cb"
+        );
+        assert!(response["result"]["canonicalPath"].is_string());
+
+        fs::remove_dir_all(root)
+    }
+
+    #[test]
+    fn workspace_copy_asset_checks_source_facts_and_hides_managed_path() -> io::Result<()> {
+        let root = temporary_workspace()?;
+        let skill_root = root.join("managed-skill");
+        let workspace_root = root.join("workspace");
+        fs::create_dir_all(skill_root.join("assets"))?;
+        fs::create_dir_all(&workspace_root)?;
+        fs::write(skill_root.join("assets/template.bin"), [0_u8, 1, 2, 255])?;
+        let request = json!({
+            "jsonrpc": "2.0",
+            "id": "workspace-copy-asset",
+            "method": "workspace.copy_asset",
+            "params": {
+                "schemaVersion": SCHEMA_VERSION,
+                "sessionToken": TOKEN,
+                "sourceRootPath": skill_root.to_string_lossy(),
+                "sourceRelativePath": "assets/template.bin",
+                "expectedSha256": "3d1f57c984978ef98a18378c8166c1cb8ede02c03eeb6aee7e2f121dfeee3e56",
+                "expectedSizeBytes": 4,
+                "rootPath": workspace_root.to_string_lossy(),
+                "relativePath": "template.bin"
+            },
+        });
+
+        let response_text = handle_line(&request.to_string(), TOKEN);
+        let response = parse_response(&response_text);
+
+        assert_eq!(response["result"]["relativePath"], "template.bin");
+        assert_eq!(response["result"]["sizeBytes"], 4);
+        assert_eq!(
+            fs::read(workspace_root.join("template.bin"))?,
+            [0, 1, 2, 255]
+        );
+        assert!(!response_text.contains(&skill_root.to_string_lossy().to_string()));
+
+        let mut changed_source = request.clone();
+        changed_source["params"]["expectedSha256"] = Value::from("0".repeat(64));
+        changed_source["params"]["relativePath"] = Value::from("other.bin");
+        let rejected = parse_response(&handle_line(&changed_source.to_string(), TOKEN));
+        assert_eq!(rejected["error"]["data"]["reason"], "CONFLICT");
+        assert!(!workspace_root.join("other.bin").exists());
+
+        fs::remove_dir_all(root)
+    }
+
+    #[test]
+    fn workspace_create_binary_decodes_and_never_overwrites() -> io::Result<()> {
+        let root = temporary_workspace()?;
+        let request = json!({
+            "jsonrpc": "2.0",
+            "id": "workspace-create-binary",
+            "method": "workspace.create_binary",
+            "params": {
+                "schemaVersion": SCHEMA_VERSION,
+                "sessionToken": TOKEN,
+                "rootPath": root.to_string_lossy(),
+                "relativePath": "result.pdf",
+                "contentBase64": "JVBERi0xLjcK"
+            },
+        });
+        let response = parse_response(&handle_line(&request.to_string(), TOKEN));
+        assert_eq!(response["result"]["relativePath"], "result.pdf");
+        assert_eq!(fs::read(root.join("result.pdf"))?, b"%PDF-1.7\n");
+
+        let repeated = parse_response(&handle_line(&request.to_string(), TOKEN));
+        assert_eq!(repeated["error"]["data"]["reason"], "CONFLICT");
+
+        let mut invalid = request.clone();
+        invalid["params"]["relativePath"] = Value::from("invalid.pdf");
+        invalid["params"]["contentBase64"] = Value::from("not base64");
+        let invalid_response = parse_response(&handle_line(&invalid.to_string(), TOKEN));
+        assert_eq!(invalid_response["error"]["code"], -32602);
+        assert!(!root.join("invalid.pdf").exists());
         fs::remove_dir_all(root)
     }
 }

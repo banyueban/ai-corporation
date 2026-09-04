@@ -175,7 +175,8 @@ h3 {
 
 .page {
   min-width: 0;
-  width: min(100%, 78rem);
+  width: auto;
+  max-width: 78rem;
   padding: clamp(2rem, 5vw, 5rem);
 }
 
@@ -187,7 +188,7 @@ h3 {
   margin-bottom: 3rem;
 }
 
-.page-header > div {
+.page-header > div:first-child {
   min-width: 0;
   width: 100%;
   max-width: 46rem;
@@ -432,8 +433,352 @@ h3 {
   background: rgb(15 23 37 / 88%);
 }
 
+.employee-layout {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.employee-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.8rem;
+}
+
+.employee-card {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid #27364b;
+  border-radius: 0.8rem;
+  background: #0c1421;
+}
+
+.employee-card p,
+.employee-card small,
+.employee-message {
+  color: #9eabc0;
+  overflow-wrap: anywhere;
+}
+
+.employee-layout > .selection-panel {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+}
+
+/* 员工页按阅读顺序纵向排列，避免复用 selection-panel 时被拆成窄列。 */
+.employee-layout > .selection-panel > * {
+  grid-column: 1;
+  min-width: 0;
+}
+
+.employee-task-panel {
+  grid-column: 1 / -1;
+}
+
+.workspace-task-picker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: stretch;
+}
+
+/* macOS 会按最长选项计算下拉框宽度，长工作区路径不能反过来撑宽整个页面。 */
+.workspace-task-picker > label,
+.workspace-task-picker select {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.workspace-task-picker select {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.company-create {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1fr) auto;
+  gap: 0.75rem;
+  align-items: end;
+  margin-bottom: 2rem;
+  max-width: 42rem;
+}
+
+.company-create label {
+  grid-column: 1 / -1;
+}
+
+.company-workspace-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.company-workspace-options strong {
+  width: 100%;
+}
+
+/* 长工作区路径在移出按钮内换行，不能把小窗口横向撑开。 */
+.company-workspace-options button {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.legacy-history {
+  margin-top: 2rem;
+  border-top: 1px solid var(--line);
+  padding-top: 1rem;
+}
+
+.legacy-history > summary {
+  cursor: pointer;
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+
+.pi-task-workspace {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.task-attachment-dropzone {
+  display: grid;
+  justify-items: start;
+  gap: 0.65rem;
+  padding: 1rem;
+  border: 1px dashed #55739b;
+  border-radius: 0.8rem;
+  background: #0a1320;
+}
+
+.task-attachment-dropzone p,
+.task-attachment-dropzone small {
+  margin: 0;
+}
+
+.task-attachment-list,
+.pi-task-attachments ul {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.task-attachment-list li {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+}
+
+.task-attachment-list span {
+  display: grid;
+  min-width: 0;
+  gap: 0.2rem;
+}
+
+.task-attachment-list strong,
+.pi-task-attachments li {
+  overflow-wrap: anywhere;
+}
+
+.pi-task-attachments {
+  margin: 0.8rem 0;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+}
+
+@media (max-width: 700px) {
+  .workspace-task-picker {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.pi-task {
+  margin-top: 20px;
+  border-top: 1px solid var(--line);
+  padding-top: 20px;
+}
+
+.skill-content pre,
+.pi-task-output pre,
+.pi-task-details pre {
+  max-width: 100%;
+  margin-inline: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  font-family: inherit;
+}
+
+.skill-content {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.field-label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 700;
+}
+
+.skill-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.skill-picker-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.65rem;
+  align-items: start;
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid #27364b;
+  border-radius: 0.7rem;
+  background: #0c1421;
+}
+
+.skill-picker-option input {
+  margin-top: 0.2rem;
+}
+
+.skill-picker-option span,
+.skill-picker-option small {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pi-task-details,
+.pi-task-details ol,
+.pi-task-details li {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.pi-task-details {
+  overflow: hidden;
+}
+
+.pi-task-details li {
+  margin-block: 12px;
+}
+
+.acceptance-panel {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.pi-delivery {
+  display: grid;
+  gap: 18px;
+  margin-top: 20px;
+  padding: 20px;
+  border: 1px solid #27364b;
+  border-radius: 18px;
+  background: rgb(15 23 37 / 88%);
+}
+
+.pi-delivery h4,
+.pi-delivery h5,
+.pi-delivery p {
+  margin-block: 0;
+}
+
+.pi-delivery-summary,
+.pi-delivery-files,
+.pi-delivery-checks,
+.pi-delivery-preview {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+}
+
+.pi-delivery-summary pre,
+.pi-delivery-file pre,
+.pi-delivery-preview pre {
+  max-width: 100%;
+  margin: 0;
+  padding: 14px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border-radius: 12px;
+  background: #101a29;
+  font-family: inherit;
+}
+
+.pi-delivery-gif-preview {
+  display: block;
+  width: auto;
+  max-width: min(100%, 640px);
+  max-height: 480px;
+  object-fit: contain;
+  border: 1px solid #27364b;
+  border-radius: 12px;
+  background: #101a29;
+}
+
+.pi-delivery-file,
+.pi-delivery-check {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #27364b;
+  border-radius: 14px;
+}
+
+.pi-delivery-file strong,
+.pi-delivery-file p,
+.pi-delivery-check code {
+  overflow-wrap: anywhere;
+}
+
+.pi-delivery-check {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.pi-delivery-check span {
+  grid-column: 1 / -1;
+  color: #9cabbd;
+}
+
+@media (max-width: 700px) {
+  .pi-delivery {
+    padding: 14px;
+  }
+
+  .pi-delivery-check {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.employee-message {
+  min-height: 1.5rem;
+  margin-top: 1rem;
+}
+
+.skill-import-message {
+  margin: -0.5rem 0 1rem;
+}
+
 .field {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   min-width: 0;
   gap: 0.5rem;
   color: #d8e2f1;
@@ -496,6 +841,19 @@ h3 {
   margin-top: 0;
 }
 
+.provider-disclosure pre {
+  max-height: 12rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+.provider-disclosure li,
+.provider-disclosure p {
+  overflow-wrap: anywhere;
+}
+
 .clarification-list,
 .analysis-actions {
   display: grid;
@@ -539,6 +897,15 @@ h3 {
   border-radius: 0.85rem;
   color: #f2d899;
   background: #211b10;
+}
+
+.success-card {
+  margin: 1rem 0;
+  padding: 1rem 1.15rem;
+  border: 1px solid #2f7a5a;
+  border-radius: 0.85rem;
+  color: #b8f2d4;
+  background: #10241c;
 }
 
 .review-block,
@@ -817,6 +1184,108 @@ h3 {
   border: 0;
 }
 
+.plan-review-layout {
+  display: grid;
+  grid-template-columns: minmax(10rem, 14rem) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.plan-version-panel,
+.plan-summary,
+.plan-task-editor {
+  padding: 1rem;
+  border: 1px solid #263850;
+  border-radius: 0.9rem;
+  background: #111b2a;
+}
+
+.plan-version-panel {
+  position: sticky;
+  top: 1rem;
+}
+
+.plan-version-panel h2,
+.plan-task-editor legend {
+  margin: 0 0 0.75rem;
+  font-weight: 700;
+}
+
+.plan-version-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.plan-version-button {
+  display: grid;
+  gap: 0.2rem;
+  width: 100%;
+  min-height: 3.25rem;
+  padding: 0.65rem 0.75rem;
+  color: #cbd6e7;
+  text-align: left;
+  border: 1px solid #32435b;
+  border-radius: 0.65rem;
+  background: #162235;
+}
+
+.plan-version-button[aria-current="true"] {
+  color: #fff;
+  border-color: #4b8ce8;
+  background: #19345a;
+}
+
+.plan-review-content,
+.plan-edit-form,
+.acceptance-editor {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.plan-task-editor {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+
+.acceptance-editor-row,
+.dependency-editor-row {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 2fr) minmax(8rem, 0.8fr) minmax(0, 1.4fr)
+    auto;
+  gap: 0.75rem;
+  align-items: end;
+  padding: 0.75rem;
+  border: 1px solid #263850;
+  border-radius: 0.7rem;
+  background: #0d1623;
+}
+
+.dependency-editor-row {
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+  margin-bottom: 0.75rem;
+}
+
+.plan-review-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.plan-boundary-note {
+  padding: 0.85rem 1rem;
+  color: #d9e7f8;
+  border-left: 0.25rem solid #5b9bf3;
+  background: #14243a;
+}
+
+.field-error {
+  color: #ffc5c1;
+}
+
 @keyframes skeleton {
   to {
     background-position: -200% 0;
@@ -825,19 +1294,19 @@ h3 {
 
 @media (max-width: 1100px) {
   .app-shell {
-    grid-template-columns: 4.75rem minmax(0, 1fr);
+    grid-template-columns: 7rem minmax(0, 1fr);
   }
 
-  .brand-name,
-  .nav-button {
+  .brand-name {
     overflow: hidden;
     color: transparent;
     font-size: 0;
   }
 
-  .nav-button::first-letter {
+  .nav-button {
     color: #c8d2e1;
     font-size: 0.9rem;
+    white-space: nowrap;
   }
 
   .runtime-summary {
@@ -858,12 +1327,12 @@ h3 {
 @media (max-width: 850px) {
   .page-header,
   .selection-panel {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     flex-direction: column;
   }
 
   .selected-workspace dl {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .goal-form,
@@ -871,12 +1340,21 @@ h3 {
   .plan-task-list,
   .history-grid,
   .provider-settings-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .field--wide,
   .review-block--wide {
     grid-column: auto;
+  }
+
+  .company-create {
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .company-create .primary-button {
+    width: 100%;
   }
 
   .review-actions {
@@ -886,6 +1364,73 @@ h3 {
 
   .page-header .primary-button {
     width: min(100%, 18rem);
+  }
+
+  .plan-review-layout,
+  .acceptance-editor-row,
+  .dependency-editor-row {
+    grid-template-columns: 1fr;
+  }
+
+  .plan-version-panel {
+    position: static;
+  }
+
+  .plan-review-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 600px) {
+  .app-shell {
+    grid-template-columns: 4rem minmax(0, 1fr);
+  }
+
+  .sidebar {
+    padding: 1rem 0.35rem;
+  }
+
+  .brand-mark {
+    margin-inline: auto;
+  }
+
+  .brand-name,
+  .runtime-summary span:not(.status-dot),
+  .runtime-summary small {
+    display: none;
+  }
+
+  .nav-button {
+    overflow-wrap: anywhere;
+    padding-inline: 0.2rem;
+    white-space: normal;
+  }
+
+  .runtime-summary {
+    display: flex;
+    justify-content: center;
+    padding: 0.65rem;
+  }
+
+  .page {
+    padding: 1rem;
+  }
+
+  h1 {
+    overflow-wrap: anywhere;
+    font-size: 2rem;
+    line-height: 1.05;
+  }
+
+  select,
+  input,
+  textarea,
+  .plan-summary,
+  .review-block,
+  .success-card {
+    min-width: 0;
+    max-width: 100%;
   }
 }
 

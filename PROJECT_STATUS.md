@@ -1,83 +1,268 @@
 # AI Corporation Desktop 项目进度
 
 | 属性 | 当前值 |
-|---|---|
-| 当前产品版本 | v0.1 MVP |
-| 当前阶段 | M2-TU-06 自动验收已通过，等待用户人工 UI 验收 |
-| 当前 Milestone | Milestone 2：Provider 与 Goal/Plan |
-| 当前任务单元 | M2-TU-06（进行中） |
-| 总体状态 | 进行中 |
-| 最近更新 | 2026-08-09 |
-| 下一检查点 | 用户安装当前提交的 Windows 包并完成人工 UI 验收 |
+| --- | --- |
+| 当前产品版本 | Pi 重启版真实工作阶段 |
+| 当前阶段 | Milestone 14 本地与最终 Windows 打包程序候选已通过，准备双平台 CI |
+| 当前 Milestone | Milestone 14：任务附件与文档处理（进行中） |
+| 当前任务单元 | M14-TU-01（进行中，尚未完成） |
+| 总体状态 | Milestone 7–13 全部完成；M14-TU-01 已实现附件副本、独立标准文档 Skill、通用文档工具和 Word/PDF 真实闭环；内置 Noto Sans SC 后，本地完整检查、Windows 最终包及同一候选的 Windows/macOS CI 已通过；只剩用户使用当前 Windows 安装包人工验收，任务仍未完成 |
+| 最近更新 | 2026-09-03 |
+| 下一检查点 | 提交并推送当前候选，等待 Windows x64 与 macOS Apple Silicon CI；通过后交给用户安装包人工验收 |
 
 ## 1. 当前结论
 
-Milestone 0、Milestone 1 和 M2-TU-02 至 M2-TU-05 已完成。M2-TU-06 已实现 Planner 结构化生成与首个 Plan 草稿持久化：用户从当前 APPROVED Goal 进入 Planner，明确选择已验证 Provider/精确模型，只发送批准 Goal 与内置 catalogs；模型输出只提供语义内容和局部引用，Main 分配 Plan/Task 可信身份；首次 JSON/Schema 非法时最多修复一次，结果只能保存为 `DRAFT/PENDING`，不创建团队、不允许执行。
+AI Corporation 已切换到 Pi 路线。新产品以“好用是第一原则”：用户直接交代任务，员工自动完成能完成的步骤；简单任务使用一名员工，复杂任务再按需组队；模型输入、原始输出和工具过程必须实时可见；只有防止真实损失、泄密、付费和对外发布等必要限制保留。
 
-本地工程检查、Windows 开发态真实窗口、Windows 最终包完整 loopback 矩阵、正式 Renderer 真实 Provider smoke，以及最终候选的 Windows/macOS 同提交 CI 均已通过。任务仍为“进行中”，因为用户人工 UI 验收尚未取得；不得提前标记完成。
+新路线使用 `@earendil-works/pi-ai` 和 `@earendil-works/pi-agent-core` 作为员工运行基座。每名员工拥有自己的模型、技能、工具、工作上下文和任务历史。用户已实际确认 Pi 可以使用现有 DeepSeek 模型。
 
-## 2. 已完成基线
+M12-TU-01 已完成：一名员工可选择多项 Skill，旧员工会保留原 Skill；任务开始时模型只看到名称和用途，再按任务启用完整说明、读取参考资料或复制资源成真实成果。Windows/macOS 自动检查和用户 Windows 安装包人工验收均已通过。
 
-- Milestone 0：跨平台工程、Native Core health、SQLite migration runner、CI 和最终包 E2E；
-- Milestone 1：Workspace、Corporation CRUD、Goal Contract、最小时间线、暂停/继续和应用重启恢复；
-- M2-TU-02：AI Corporation Desktop 应用自管 Provider Key Vault；
-- M2-TU-03：Provider 连接测试、错误归一化和精确模型列表；
-- M2-TU-04：dialect-neutral 非流式生成、Chat Completions Adapter、usage、超时/取消与 Responses 前向兼容门禁；
-- M2-TU-05：Goal Engine 真实生成、每周期 5 轮有界澄清、一次 JSON 修复和 APPROVED Goal 前置能力。
+M12-TU-02 已完成：JavaScript 使用软件自身运行能力；Python 缺失时安装到应用自管目录；Windows 使用 PowerShell，macOS 使用 Shell；自动识别 PEP 723、`requirements.txt`、`package.json` 和结构化包名/版本；默认使用可复用的 Skill 独立环境；系统安装仅允许受限 winget/Homebrew 计划并再次确认。用户已使用当前 Windows 安装包确认技能导入、Python 独立环境计划、自动安装、脚本执行、真实成果、完整过程可见和环境复用全部通过。验收候选 `66c924f` 的本地完整检查和 Windows/macOS CI 也全部通过，M12-TU-02 与 Milestone 12 关闭。
 
-## 3. Milestone 2 范围状态
+M13-TU-01 已完成：原版 `slack-gif-creator` 已正确导入和启用，员工在真实中文工作区中完成目录读取、环境准备、公开 Skill 工具调用、GIF 核对和动画成果展示。首轮人工验收暴露目录大小 `null` 与桌面协议不一致，提交 `a6b0bc2` 修复并补充中文路径、已有子目录和真实 `workspace_list` 回归；用户于 2026-09-02 使用修复后的 Windows 安装包复验通过。
 
-- [x] AI Corporation Desktop 应用自管 Key Vault；
-- [x] OpenAI 风格 Provider + 测试专用 Mock Provider；
-- [x] 连接测试、错误归一化和用量；
-- [x] Goal Engine；
-- [ ] Planner 结构化输出与最多一次 JSON 修复；
-- [ ] DAG、输入输出和验收验证；
-- [ ] Plan Review 编辑与批准 UI；
-- [ ] Windows/macOS Milestone 级真实窗口与最终包验收。
+M14-TU-01 正在验收：任务已可选择或拖入 Word、PDF、文本和 Markdown，软件保存按任务隔离的附件副本；内置独立标准文档 Skill 和其他已启用标准 Skill 可复用通用工具，分段读取附件并生成新的 Word/PDF。macOS 首轮失败 PDF 只有表格线、没有文字，已经确认是系统字体未嵌入；按用户选择的 A 方案内置 Noto Sans SC 后，本地 `pnpm check`、开发态文档窗口、Windows 最终打包目录 8 条旅程及 GitHub Actions `33852156936` 双平台开发态 11 条和最终包 8 条全部通过。扫描 PDF OCR、复杂排版、PPT、表格、图片、视频和多员工不在本任务范围；当前只剩用户安装包人工验收，任务不能提前标记完成。
 
-Planner 项保持未完成，直到 M2-TU-06 的跨平台、最终包复合矩阵和人工 UI 验收全部关闭。Task Graph 语义验证、正式 Task materialization、Plan Review、Organization 和执行不属于 M2-TU-06。
+M7-TU-01 和 Milestone 7 已完成：用户可以创建一名拥有独立模型和技能的员工，直接交代真实任务，实时查看模型与安全演示工具过程，并在员工自查后决定退回修改或验收完成。用户于 2026-08-15 使用包含布局修复的新 Windows 安装包完成人工验收并确认通过。
+
+旧路线保存在 Git 标签 `pre-pi-reboot-2026-08-14`。M3-TU-04 没有取得最终人工验收，而且真实使用出现过超时、`INVALID_MODEL_OUTPUT` 和过程不可见，所以保持“部分完成”，不标记为完成。它不再继续推进，也不影响新路线单独验收。
+
+## 2. 继续复用的基线
+
+- [x] Electron + React 桌面壳；
+- [x] Windows/macOS 构建和安装包流水线；
+- [x] SQLite、迁移和本地数据基础；
+- [x] 工作区选择与边界；
+- [x] AI Corporation 自己保存和管理 API Key；
+- [x] Provider 配置、连接验证和模型列表；
+- [x] 自动检查、真实窗口和最终安装包验收经验。
+
+这些内容只是复用基线，不代表 Pi 员工闭环已经实现或通过。
+
+## 3. Milestone 7 实施状态
+
+- [x] 接入 Pi 的模型和 Agent 运行基座；
+- [x] 创建并保存一名拥有独立模型和技能的员工；
+- [x] 用户直接输入真实任务；
+- [x] 实时显示模型输入、原始输出和工具过程；
+- [x] 支持取消、失败说明和应用重启后的真实状态；
+- [x] 员工自查后等待用户验收，用户确认后才完成；
+- [x] Windows 最终安装包人工验收通过。
+
+## 3A. Milestone 8 实施状态
+
+- [x] 每次任务选择一个已授权且可写的工作区；
+- [x] 员工可列目录并读取普通 UTF-8 文本；
+- [x] 员工可自动创建和修改普通文本文件；
+- [x] 写入差异、哈希、工具过程和错误可见；
+- [x] 越界、敏感文件、二进制和并发冲突固定拒绝；
+- [x] 取消和重启不重复写入；
+- [x] Windows 最终安装包人工验收通过。
+
+## 3B. Milestone 9 实施状态
+
+- [x] 内置“编码任务”Skill，并使用现有 Pi Agent Core 完成读取、修改、命令测试和交付循环；
+- [x] 每个任务首次命令确认一次，普通命令复用授权，高风险命令单独确认；
+- [x] 完整命令、实时输出、退出码、耗时、状态和截断说明可见；
+- [x] API Key 不进入命令环境；取消和超时终止完整进程树；异常中断不重放命令；
+- [x] Windows 开发版、最终打包版和本机真实 DeepSeek 编码任务通过；
+- [x] 当前实现提交 Windows/macOS CI 与安装包 artifact 通过；
+- [x] 用户使用当前 Windows 安装包完成人工验收。
+
+## 3C. Milestone 10 实施状态
+
+- [x] 新增与旧 Goal/Plan 数据隔离的轻量公司、成员员工和常用工作区；
+- [x] 已有 Pi 数据升级时自动归入“我的公司”，全新数据只显示轻量创建入口；
+- [x] 员工和工作区可被多家公司复用，每项任务固定归属一家公司；
+- [x] 主控制台和设置均不提供旧公司入口；旧数据原表不删除；
+- [x] 本地工程检查、开发态窗口和 Windows 打包程序自动验收通过；
+- [x] 当前修复提交的 Windows/macOS CI 通过；
+- [x] 用户使用当前 Windows 安装包完成人工验收。
+
+## 3D. Milestone 11 实施状态
+
+- [x] 受控写入成功后自动登记真实成果，本地单元测试和真实窗口已通过；
+- [x] 命令产物通过员工登记工具核实真实文件后进入成果区，本地真实命令旅程已通过；
+- [x] 成果区展示员工总结、真实文件、差异、检查结果和验收操作，开发态与打包程序窗口已通过；
+- [x] 失败、取消和中断任务准确展示“未完成成果”，失败部分成果窗口旅程已通过；
+- [x] 文本/代码预览、文件外部变化、系统打开和所在位置通过自动与用户人工验证；
+- [x] Windows 开发版、最终打包版、Windows/macOS CI 和用户人工验收通过。
+
+## 3E. Milestone 12 实施状态
+
+- [x] 用户已确认多 Skill、自动选择、专门 Skill 工具、正式标准解析和环境管理方向；
+- [x] M12-TU-01 合同、实现、双平台检查和用户人工验收全部完成；
+- [x] M12-TU-02 的产品决策、权威设计和任务合同已就绪；
+- [x] 多 Skill 数据迁移和员工设置；
+- [x] Skill 简短目录、自动启用、参考资料读取和资源复制；
+- [x] 脚本运行、环境检查和应用自管独立环境自动安装已经实现并通过本地专项测试（M12-TU-02）；
+- [x] M12-TU-02 的 22 项验收断言、本地检查、Windows/macOS CI 和用户 Windows 安装包人工验收全部通过；
+- [x] M12-TU-01 的 Windows/macOS 自动验收和最终安装包检查；
+- [x] M12-TU-01 的用户 Windows 安装包人工验收。
+
+## 3F. Milestone 13 实施状态
+
+- [x] 用户已选择首个真实公开 Skill 和完整验收范围；
+- [x] M13-TU-01 任务合同与相关产品、运行和 UI 设计已建立；
+- [x] 导入并逐文件核对固定提交中的原版 `slack-gif-creator`；
+- [x] 工作区 Python 脚本使用已启用 Skill 的独立环境和 `core/`；
+- [x] 自动准备四项公开依赖，复用环境且不随机升级；
+- [x] 真实 GIF 生成、validator 核对、成果登记和动画预览；
+- [x] 本地完整检查、开发态与最终打包程序验收；
+- [x] Windows/macOS CI；
+- [x] 用户 Windows 安装包人工验收。
+
+## 3G. Milestone 14 实施状态
+
+- [x] 用户已确认附件保存、文件范围、输出、Skill 和排版方案；
+- [x] M14-TU-01 权威设计与任务合同达到“就绪”；
+- [x] 任务附件选择、拖放、应用副本、数据迁移和恢复已经实现；
+- [x] `document-processing` 标准 Skill 与可由其他标准 Skill 复用的通用读取/生成工具已经实现；
+- [x] Word/普通 PDF 真实读取、新 Word/PDF 生成和成果展示已通过开发态连续旅程；
+- [x] 本地完整检查和开发态真实窗口回归；
+- [x] 最终 Windows 打包程序验收；
+- [ ] Windows/macOS CI；
+- [ ] 用户 Windows 安装包人工验收。
 
 ## 4. 当前任务边界
 
-M2-TU-06 只交付：
+M14-TU-01 只交付任务附件与首个文档处理闭环：
 
-- Planner v1 strict protocol、typed IPC、操作状态与安全错误；
-- 当前 APPROVED Goal、Corporation/Goal/Provider 版本和精确模型门禁；
-- dialect-neutral `JSON_OBJECT` 非流式生成，以及带脱敏 Schema 路径/合法枚举提示的唯一一次修复；
-- `0010_planner_generation.sql`、operation/model_call 审计、usage、取消/迟到/中断与原子 Plan DRAFT；
-- Planner 入口、发送字段披露、生成/取消、尚未验证草案、能力与 suggested role 展示，并明确“尚未组队”和“不可执行”。
+- 选择或拖入 `.docx`、`.pdf`、`.txt`、`.md`，软件保存应用自管任务副本，原件不修改；
+- 内置独立编写的 `document-processing` 标准 Skill，通用 `document_read` / `document_create` 不写死具体写作任务；
+- 普通 PDF 可读取和生成，Word 保留标题、段落、列表和表格等常用结构；
+- 输出只在当前 Workspace 创建新的 Word/PDF，已有文件不覆盖，真实核对后进入成果区；
+- 现有文本、编码、多 Skill、脚本、环境、GIF 和成果流程必须继续可用。
 
-不包含 DAG/引用/输入输出闭合验证、Plan 编辑/批准/重规划、正式 Task、Organization、Agent 实例、Responses Adapter 或 streaming。
+本任务不增加扫描 PDF OCR、复杂 Office 排版保真、PPT、表格、图片编辑、视频、音频、在线市场、更多脚本运行程序、环境员工或多员工协作。
 
-## 5. 活跃阻塞与外部条件
+## 5. 活跃阻塞与已确认决策
 
-当前没有代码阻塞，P0/P1 为 0。剩余验收条件只有用户对当前提交 Windows 安装包的人工 UI 验收。
+当前没有活跃阻塞。用户已为 M14-TU-01 确认 `1A + 2B + 3A + 4A + 5A`，并同意按说明实现，采用 `6A + 7B`；macOS CI 暴露系统字体无法进入生成 PDF 后，用户进一步选择 A 方案，批准随软件提供 Noto Sans SC。附件保存应用副本；首版支持 Word、文本、Markdown 和普通 PDF；输出永远是新文件；使用标准 Skill 与通用工具；保留常用结构；扫描 PDF OCR 后续增加；由 AI Corporation 独立编写标准文档 Skill，不复制 Anthropic 禁止再分发的 `docx`/`pdf` 内容。
 
-已知条件：系统 PATH 未提供 Node.js，工程验证使用 Codex bundled Node.js；正式 Key 仍只由应用自管 Key Vault 使用，未进入命令、脚本、环境变量、Git、日志或截图；费用无法从当前 Provider 响应可靠取得时保持 `UNKNOWN`。
+M11-TU-01 采用“受控写入自动登记，命令产物经 `workspace.register_deliverable` 核实后登记”的方案，不扫描整个工作区，也不把模型文字当成文件证据。
+
+用户已确认 M10-TU-01 采用 `1A + 2A + 3A`：新建独立轻量公司；升级时自动创建“我的公司”接住已有 Pi 数据；员工和工作区可跨公司复用，每项任务只属于一家公司。安装包验收进一步确认旧 Goal/Plan 数据原表保留，但设置不提供历史入口。授权结果被旧轮询覆盖、员工从早期工具失败恢复后仍被整项判失败、设置仍有旧版入口三项问题已经修复，用户已使用新安装包复验通过。
+
+用户已确认 M9-TU-01 采用 1A + 2A + 3A + 4A：不引入 `pi-coding-agent`，但可以借鉴其固定版本的通用编码实现；每个任务首次运行命令确认一次，普通编码过程不重复确认，明显高风险命令单独确认；使用支持管道、串联和重定向的系统原生完整命令；接受当前以用户 OS 账户运行且没有 OS 级强隔离的残余风险。总体原则是好用第一，不为形式上的安全感阻碍正常编码，但风险必须如实展示。
+
+用户已确认首版采用 A+C：软件内置一个“文本整理与检查”技能，同时允许导入本地技能文件夹。导入时复制整个文件夹，包括 `SKILL.md` 及其脚本、说明和资源；AI Corporation 保存独立副本，原目录移动或删除后仍可使用。再次导入同一技能时先展示变化，用户确认后才更新。导入技能首版只读，软件内不提供新建和编辑；导入本身不批准危险工具，实际高风险操作仍单独确认。
 
 ## 6. 当前验证摘要
 
-- `pnpm check` 完整通过：Protocol 41、Provider 28、Storage 83、Desktop 105、Native Core 7、workspace Rust 7；status/task-unit、format、lint、typecheck、Rust fmt/clippy 和 secret scan 均成功；
-- Windows 开发态 Electron E2E 7/7 通过。Planner 直接覆盖成功、一次修复、修复再次失败且无 Plan、2 秒内取消、Corporation 版本冲突、Renderer 重载稳定 Plan ID、进程重启转 `INTERRUPTED` 且不重发；既有 Workspace、Provider、Key Vault 和 Goal 回归同时通过；
-- Windows 最终包真实窗口通过 Native Core、Workspace、Goal、Goal Engine、Provider/Key Vault 与外部请求隔离；Planner 覆盖成功生成与 `DRAFT/PENDING`、重载稳定 Plan ID、唯一一次修复成功、再次非法安全失败且无 Plan、2 秒内取消、Corporation 版本冲突拒绝落库、进程重启转 `INTERRUPTED` 且不重发；
-- 正式 Windows 最终包从 Renderer 使用应用 Key Vault 中已保存的 `deepseek-v4-flash` 完成非敏感 Planner smoke：`PLAN_SAVED`、Plan v1、`PENDING`、1 个 Task，usage 为 input 816、output 2,640、cached input 768、reasoning 2,102、cost `UNKNOWN`，完成时间 `2026-08-09T10:53:13.012Z`；重载恢复同一 Plan ID，SQLite/WAL/SHM 与进程诊断未发现符合真实 Key 长度的明文模式；
-- 真实 Provider 首次暴露的私有枚举输出没有被放宽接受；唯一修复请求改为提供安全 Schema 路径和权威合法值，回归测试证明仍只接受 `GOAL_CONTRACT | TASK_OUTPUT` 与 `ON_SUCCESS`；
-- Windows NSIS 安装包为 `release/AI Corporation Desktop Setup 0.1.0.exe`，SHA-256 `354016A14A84633D7254D27E23C2F185401EEF12D97CDE7E7178670541C74958`；`git diff --check` 通过。
-- 最终候选提交 `0c0f1ee18581be2a2fca234540917091f2c5e7f9` 的 GitHub Actions run `31310400204` 通过：Windows job `93237236122`（5m0s）、macOS job `93237236153`（3m46s）均完成工程检查、开发态 Electron、最终包构建、最终包复合矩阵和上传；Windows artifact `9037261510`，digest `sha256:65f8d6ea4d62500b5dcc249a8a9d17455972739f61a3905f6dd941f16b632b4d`；macOS artifact `9037247450`，digest `sha256:00eec8f2f5186bf2f014a0d9b17b4f83c576903daf79c467a48dccf74e32885e`；
-- 当前提交 Windows artifact 已下载到 `release/ci-0c0f1ee-windows/AI Corporation Desktop Setup 0.1.0.exe`，大小 99,776,910 bytes，SHA-256 `A760C753A684D277A70EFA3874308A5047EDBA923555AC629588863B182A4CDA`。
+- 重启前工作区干净，基线提交为 `e76675a`；
+- 已创建 Git 标签 `pre-pi-reboot-2026-08-14`；
+- 已创建重启分支 `codex/pi-reboot`；
+- 产品重启说明和 Milestone 7 范围已经写入权威文档；
+- Pi `0.84.1` 核心包已安装并可正常导入；非 DeepSeek 路线所需的 `@google/genai`、`protobufjs` 安装脚本保持明确禁用；
+- A+C 技能库底座已实现完整目录复制、来源独立、变化预览、确认更新和不安全入口拒绝，5 项专项测试与桌面类型检查通过；
+- 员工、技能和任务数据已由 SQLite 迁移 `0017`、`0018` 保存；应用重启时运行中任务标记为“中断”，不会自动重复模型或工具调用；
+- Pi Agent 已使用自定义 OpenAI 兼容 Provider、流式输出和只做文本统计的安全演示工具完成真实运行；实际模型输入、原始输出、工具输入、结果、耗时和错误按发生顺序保存并可展开查看；
+- 本机已保存的 `deepseek-v4-flash` 真实 Provider 专项窗口测试通过，认证信息没有进入任务过程；
+- `pnpm check` 通过：协议 55、Provider 28、存储 100、桌面 141、Rust 14，并通过格式、类型、Clippy 和 Secret scan；
+- `pnpm test:e2e` 的 8 条开发态真实窗口旅程全部通过；Pi 专项旅程覆盖正常、修改、验收、取消、模型失败、工具失败、刷新、应用重启和运行中重启不重放；
+- Windows 安装包与 `win-unpacked` 已生成；旧功能打包窗口检查和 Pi 打包窗口完整旅程均通过；安装包 SHA-256 为 `F27C236F5AEC2AABA10BFBC78E92C7A83EC2C77AB55851D938D1C526B29D232D`；
+- 提交 `3470b26b2721ac63656817883ba056dbb6ed0f03` 的 GitHub Actions run `31820023245` 已通过 Windows/macOS 检查；随后用户发现员工任务区被通用两栏样式压成窄条，当前本地修复已把员工页三个面板和页头恢复为正常单列，并新增真实宽度回归检查；
+- 当前布局修复的 `pnpm check` 已通过；开发态与 Windows 打包程序的完整员工窗口旅程均通过，打包程序任务区域截图已人工检查无竖排、重叠或溢出；新安装包 SHA-256 为 `A9C6E01C031AD5A7D0FC375EDD3455FC0A72BF3C749E704B8BF88594DD92379E`；
+- 员工页布局修复提交 `95887998ae3a6e3fda5c159e5ac2a3ea55d96335` 的 GitHub Actions run `31828722640` 已通过：Windows x64（6m22s）和 macOS Apple Silicon（4m2s）均完成工程检查、真实窗口、安装包构建、打包程序窗口检查和安装包上传；只有 GitHub Action 的 Node.js 20 弃用提示，没有产品失败；
+- 直接父提交 `1fdc7a405d35ec628a070c1d22f31516416d58f9` 的 GitHub Actions run `31829354733` 已通过：Windows x64（6m52s）和 macOS Apple Silicon（3m58s）均通过完整流水线；
+- 用户于 2026-08-15 对新 Windows 安装包确认人工验收通过；M7-TU-01 的 17 项验收断言和 Milestone 7 的全部退出条件均已关闭，P0/P1 为 0。
+- M8-TU-01 已实现任务工作区选择，以及目录查看、UTF-8 文本读取、自动创建和按基线哈希修改；模型只看到 Workspace ID、展示路径和相对路径；
+- Native Core 已固定拒绝越界路径、链接逃逸、敏感文件、二进制、超限文件和并发覆盖；写入使用同目录原子替换并保存调用意图、哈希、差异和恢复结果；
+- `pnpm check` 通过：协议 56、Provider 28、存储 100、桌面 141、Native Core 7、Workspace FS 9，并通过格式、类型、Clippy 和 Secret scan；
+- Windows 开发态和最终打包程序的受控真实窗口旅程通过，覆盖创建、修改、外部并发冲突、取消、失败和重启不重放；1024×700、1440×900、200% 布局已检查；
+- 最终打包程序使用本机已保存的真实 DeepSeek Provider 完成隔离文本文件任务，真实 Key 未写入仓库或输出；
+- 当前 Windows 安装包位于 `release/AI Corporation Desktop Setup 0.1.0.exe`，大小 106158727 字节，SHA-256 为 `7D81B82ACDCCC22718A01BCBB3488448DA20D3230ACF737C97148153CB3903A5`；
+- 提交 `11f2effdc3632a03dbb54bc0e18a93266c98c68b` 的 GitHub Actions run `31837204610` 已通过：Windows x64（6m34s）和 macOS Apple Silicon（4m8s）均完成工程检查、真实窗口、安装包构建、打包程序窗口检查和安装包上传；仅有 Actions 使用 Node.js 20 的弃用提示，没有产品失败；
+- 直接父提交 `9c24cac950d80fffd239a5dd05d679a4b40e1fe1` 的 GitHub Actions run `31862799489` 已通过：Windows x64（8m4s）和 macOS Apple Silicon（4m55s）均完成工程检查、真实窗口、安装包构建、打包程序窗口检查和安装包上传；
+- 用户于 2026-08-15 使用当前 Windows 安装包核对真实工作区文件和完整过程并确认人工验收通过；M8-TU-01 的 20 项验收断言和 Milestone 8 的全部退出条件均已关闭，P0/P1 为 0。
+- M9-TU-01 已增加内置 `coding-task` Skill、任务级完整命令 Runner、授权与高风险再确认、实时输出、命令调用持久化和中断恢复；未安装或运行 `pi-coding-agent`；
+- `pnpm check` 通过：协议 59、Provider 28、存储 100、桌面 152、Native Core 7、Workspace FS 9，并通过格式、类型、Clippy 和 Secret scan；命令 Runner 的 8 项真实进程测试覆盖管道、串联、重定向、超时、取消、完整进程树、秘密环境和长输出；
+- `pnpm test:e2e` 的 9 条开发态真实窗口旅程通过，M9 专项覆盖受控代码修复、两条普通命令复用授权、任务级拒绝、高风险拒绝、取消和超时；最终打包版同一旅程与旧功能打包回归通过；
+- 最终打包版使用本机已保存的 `deepseek-v4-flash` 完成隔离代码修复并运行 `node m9-real-provider-fixture/check.js`，界面与真实文件均核对通过，Key 未进入仓库、命令或输出；
+- 当前 Windows 安装包位于 `release/AI Corporation Desktop Setup 0.1.0.exe`，大小 106164185 字节，SHA-256 为 `D6939485FA1FAAEE8FC46D36D71462036E85A878D3631ABC7CE1B51D4B707A91`；
+- 实现提交 `806d79ac2a3abb27818934e43e7767c56f065b7d` 的 GitHub Actions run `32450065744` 已通过：Windows x64（6 分 39 秒）和 macOS Apple Silicon（4 分 23 秒）均完成工程检查、真实窗口、安装包构建、打包程序窗口检查和安装包上传；
+- 直接父提交 `f62b16f9f2f6330471e907380fe6c53b2c0c008e` 的 GitHub Actions run `32450610477` 已通过：Windows x64（7 分 14 秒）和 macOS Apple Silicon（5 分 9 秒）再次完成完整流水线；
+- 用户于 2026-08-21 使用当前 Windows 安装包完成真实代码修改、完整命令过程和测试结果的人工验收并确认通过；M9-TU-01 的 19 项验收断言和 Milestone 9 的全部退出条件均已关闭，P0/P1 为 0。
+- M10-TU-01 已新增轻量公司协议、SQLite 迁移、数据读写、Main 服务、IPC 和公司控制台；现有 Pi 员工、任务和任务工作区升级时归入固定的“我的公司”，新任务由数据库固定公司归属；
+- 安装包人工验收确认了三个问题：授权成功后的旧轮询结果可能重新显示按钮；早期命令失败即使后续文件和测试完成仍把整项任务判失败；设置保留了用户不再需要的旧版公司入口；
+- 当前修复使用单调任务显示和相同授权决定幂等返回，旧轮询不能覆盖已生效授权；任务只按最后一次工具结果判定是否恢复，早期失败后成功可进入人工验收，最后仍失败或被拒绝则保持失败；设置已移除旧版入口但未删除旧数据表；
+- 本地 `pnpm check` 通过：协议 61、Provider 28、存储 106、桌面 158、Native Core 7、Workspace FS 9，并通过格式、类型、Clippy 和 Secret scan；新增测试直接覆盖重复授权、乱序轮询和“先失败后成功”；
+- 开发态完整窗口验收为当前主流程 5 条通过、5 条明确跳过；其中 4 条是已退出主入口的旧 Goal/Plan 写流程，1 条是需显式启用本地 Key 的真实 Provider 专项；轻量公司文本与编码旅程 2 条全部通过；
+- Windows 最终包已重新生成，打包程序的轻量公司文本与编码旅程 2 条全部通过；当前安装包大小 106167712 字节，SHA-256 为 `09BFF3F95000A9B6D85907CC3CFA2CE8F81C860235B0684230D292D60A13D645`；
+- 本机安装版正在运行，为避免两个进程同时写用户正式数据库，本轮没有重跑真实 DeepSeek 专项；已从用户正式任务记录确认快排文件、普通运行和 500 组随机检查实际成功，旧版本仅因早期 `pwd`/`ls` 失败错误判为整项失败；
+- 修复提交 `409740fbe22524ffa54edd0498952504b8bf2f2f` 的 GitHub Actions run `32500120278` 已通过：macOS Apple Silicon（4 分 4 秒）和 Windows x64（5 分 53 秒）均完成工程检查、真实窗口、安装包构建、打包程序窗口检查和安装包上传；只有 GitHub Action 的 Node.js 20 弃用提示，没有产品失败；
+- 边界证据提交 `571165327864bd01e30528a9c3293a764e30b133` 补齐公司改名刷新恢复、员工与工作区移出后复用、用户文件保留、跨公司查看与操作拒绝、Storage 按公司查询，以及空库、旧 Corporation、已完成/运行中 PiTask 和外键升级矩阵；本地 `pnpm check` 通过：协议 61、Provider 28、存储 107、桌面 160、Native Core 7、Workspace FS 9；开发态真实窗口专项通过；
+- 该提交的 GitHub Actions run `32503784536` 已通过：macOS Apple Silicon（3 分 40 秒）和 Windows x64（7 分 13 秒）均完成工程检查、真实窗口、最终应用构建、打包程序窗口检查和安装包上传；只有 GitHub Action 的 Node.js 20 弃用提示，没有产品失败；
+- 用户于 2026-08-22 使用包含三项修复的新 Windows 安装包完成授权、任务成功判定、真实编码任务和设置入口复验并确认通过；M10-TU-01 的 20 项验收断言和 Milestone 10 的全部退出条件均已关闭，P0/P1 为 0。
+- M12-TU-01 本地 `pnpm check` 通过：协议 67、Provider 28、存储 109、桌面 176、Native Core 9、Workspace FS 11，并通过状态、任务合同、格式、类型、Clippy 和 Secret scan；
+- 开发态真实窗口主流程 6 条通过、5 条按当前产品入口明确跳过；M12 专项连续验证多 Skill、按需启用、读取 reference、复制二进制 asset、跨公司复用、重启不重放和成果展示；
+- Windows 最终打包程序的原有文本员工、编码员工和 M12 资源旅程 3 条全部通过；1024×700、1440×900 和 200% 截图已检查，当前安装包大小 106181504 字节，SHA-256 为 `7F95E80B2AB1E95B206F0E24AC460CFAE3535BBE67F26D82FCBA454D3305B11F`；
+- 验收候选提交 `314d5efb1796eb7b6fd2ca786754a176e99cbcd6` 的 GitHub Actions run `32591896190` 已通过：Windows x64（6 分 23 秒）和 macOS Apple Silicon（4 分 8 秒）均完成工程检查、真实窗口、应用构建、打包程序检查和安装包上传；
+- 用户于 2026-08-24 使用当前 Windows 安装包完成人工验收并确认通过；M12-TU-01 的 18 项断言全部关闭，P0/P1 为 0。脚本和环境能力仍属于 M12-TU-02，Milestone 12 保持未完成。
+- M12-TU-02 当前候选已实现 JavaScript、Python、Windows PowerShell 和 macOS Shell 的结构化脚本运行，自动识别 PEP 723、`requirements.txt`、`package.json` 与结构化依赖，默认建立可复用的 Skill 独立环境；安装批准、系统安装二次批准、复检、脚本授权、过程记录和成果核对保持分离；
+- 首次人工验收的第一步失败：原验收文件夹为 `release/M12-TU-02-manual-skill`，但 `SKILL.md` 的 `name` 为 `m12-runtime-manual`，不符合标准 Skill 的同名规则；软件正确拒绝了无效 Skill，但错误只出现在长页面底部，用户无法在导入位置看到；
+- 当前修复候选使用同名的本地验收目录 `release/m12-runtime-manual`；导入预览会自动滚动并获得焦点，确认成功后技能卡片和新员工技能选项立即出现，失败时按钮下直接显示具体原因；成功与失败两条开发态及打包版真实窗口检查均通过，截图已人工核对无隐藏或遮挡；
+- 用户于 2026-08-25 使用当前 Windows 安装包重新验收技能导入，确认技能列表已经正确更新；该结论只通过导入首步，不代替环境与脚本的剩余人工验收；
+- 用户随后使用 `m12-runtime-manual` 和本地验收工作区确认 Python 独立环境计划、`colorama==0.4.6` 自动安装、脚本执行和 `py-result.txt` 内容通过；完整过程展开与第二次运行环境复用尚待验收；
+- 用户继续确认完整模型和工具过程可见、没有 API Key 明文，第二次运行同一 Python Skill 不重复安装环境并真实生成 `py-result-reused.txt`；M12-TU-02 的用户人工验收全部通过；
+- 直接父提交 `249780c275e5fe1062f8f19dac753fb8f0a7851a` 的 GitHub Actions run `32868410520`：macOS Apple Silicon 5 分钟完整通过；Windows x64 的工程检查通过，但开发态窗口在 JavaScript 首次安装依赖后等待运行授权时只等待 5 秒即失败，后续 Windows 安装包未执行，故不能作为完成证据；当前测试等待修复后需要重新运行完整双平台 CI；
+- 当前测试修复把 JavaScript 首次依赖安装后的运行授权等待从 5 秒调整为 60 秒；本地失败同例重新运行 1.1 分钟通过，`pnpm check` 全部通过，完整开发态窗口回归 9 条通过、5 条按当前入口或真实 Key 开关明确跳过；
+- 验收候选提交 `66c924fa269be5e6ead878455e4aa885e7fd084c` 的 GitHub Actions run `32869895594` 已通过：Windows x64 7 分 33 秒、macOS Apple Silicon 5 分 41 秒，两边均完成工程检查、真实窗口、应用构建、最终打包程序窗口检查和安装包上传；只有 GitHub Action 的 Node.js 20 弃用提示，没有产品失败；
+- 本地正常 Windows 权限下 `pnpm check` 通过：协议 69、Provider 28、存储 109、桌面 194、Native Core 9、Workspace FS 11，并通过状态、任务合同、格式、类型、Clippy 和 Secret scan；
+- 开发态真实窗口为当前主流程 9 条通过、5 条按现有入口或本地真实 Key 开关明确跳过；Windows 最终打包程序的普通员工、编码员工、技能导入成功与失败、多 Skill 资源和 M12 环境脚本旅程最终一轮 6 条全部通过。打包版完整回归首轮曾在旧编码员工的命令超时检查出现一次 10 秒等待超时，单独复跑和完整第二轮均通过，保留为测试偶发卡顿事实，不冒充首轮通过；
+- 最终包包含固定 uv `0.11.15` 和 npm `11.6.2` 运行资源；1024×700、1440×900 和 200% 截图已人工检查，没有竖排、重叠、横向溢出、遮挡或关键按钮不可见；
+- 当前 Windows 安装包位于 `release/AI Corporation Desktop Setup 0.1.0.exe`，大小 124957679 字节，SHA-256 为 `79F11DB88D04C84532E57F6B466765005488EEDE2A860AEBD7F6FB55FC52F054`；
+- 修复候选提交 `f09280ff2251319ebcd65ed46459bbe25a8602da` 的 GitHub Actions run `32863405640` 已通过：macOS Apple Silicon（4 分 58 秒）和 Windows x64（9 分 28 秒）均完成工程检查、真实窗口、应用构建、打包程序专项旅程和安装包上传；只有 GitHub Action 的 Node.js 20 弃用提示，没有产品失败。用户尚未重新人工验收，M12-TU-02 与 Milestone 12 均保持未完成。
+- M13-TU-01 的公开 Skill 快照已按提交 `3b3fad96af16a10759d930941b4520ba0c40edae` 逐文件哈希核对，Apache 2.0 许可证、`SKILL.md`、四项依赖和 `core/` 四个 Python 文件保持原样；测试辅助脚本位于公开 Skill 目录之外；
+- 本地正常 Windows 权限下 `pnpm check` 通过：协议 69、Provider 28、存储 109、桌面 197、Native Core 9、Workspace FS 11，并通过状态、任务合同、格式、类型、Clippy 和 Secret scan；检查期间发现忙碌机器上停止任务可能等待进程快照过久，候选提交 `30523ae95c0dbe5b1f981216f88a6dac6773c017` 已改为先立即结束进程树、再补杀快照进程，专项 10 项和完整检查均通过；
+- Windows 开发态与最终打包程序均完成原版公开 Skill 的连续真实旅程：真实导入、与编码 Skill 同时分配、自动启用、四项依赖安装、工作区脚本调用四个 `core/` 模块、12 帧 128×128 GIF validator 核对、成果登记、软件内动画预览和第二任务环境复用；最终打包程序完整员工与 Skill 回归 7 条通过；
+- GIF 页面在 1024×700、1440×900 和 200% 下完成无横向溢出、动画与操作可达检查；1024×700 和 1440×900 截图已人工核对。Windows Electron 在 200% 下的截图接口不保留滚动位置，因此该尺寸只记录真实控件位置与可操作性断言，不把错误截图冒充视觉证据；
+- 被用户拒绝的旧 Windows 安装包大小 124959619 字节，SHA-256 为 `7856AE0D5398270AA7743C854F9DE3D570C8F180DA54CC29C0F195B5ACC6A33C`；该包只能作为失败复现来源，不得继续交付；
+- 旧候选提交 `30523ae95c0dbe5b1f981216f88a6dac6773c017` 的 GitHub Actions run `33600482928` 虽然通过 Windows/macOS 自动流水线，但用户真实任务 `01a061ab-c024-7ef7-8b1b-7239a5ff30fb` 明确显示：Skill 已正确启用，随后两次 `workspace_list` 因目录条目的 `sizeBytes: null` 被桌面协议拒绝，员工才退回 `pwd && ls -la`。因此该候选的 16、17、18 条验收断言重新打开，旧 CI 不得代替修复后的新候选证据。
+- 修复提交 `a6b0bc23e3838e14cf766b23a0fc8c9987ec689b` 省略目录条目的空大小字段，并新增中文工作区、中文子目录和真实目录读取回归；本地 `pnpm check` 通过：协议 69、Provider 28、存储 109、桌面 197、Native Core 10、Workspace FS 11，并通过状态、任务合同、格式、类型、Clippy 和 Secret scan；
+- 修复后的开发态真实公开 Skill 专项 1 条通过；当前 Windows 最终安装包完整员工与 Skill 回归 7 条全部通过，M13 旅程先真实读取含已有子目录的中文工作区，再完成环境准备、公开 Skill 脚本、12 帧 GIF 核对和动画成果，不再使用空目录跳过真实模型路径；
+- 当前 Windows 安装包位于 `release/AI Corporation Desktop Setup 0.1.0.exe`，大小 124959708 字节，SHA-256 为 `66CAB34609996F6D9F46D14102A44E07D259390BB950044D5485A809697B4C09`；旧失败包不得继续用于复验；
+- 修复提交的 GitHub Actions run `33621315073` 已通过：Windows x64 8 分 15 秒、macOS Apple Silicon 6 分 2 秒，两边均完成工程检查、开发态真实窗口、应用构建、最终打包程序专项旅程和安装包上传；
+- 用户于 2026-09-02 使用当前 Windows 安装包在真实工作区重新验收并确认通过；M13-TU-01 的 18 项断言全部关闭，P0/P1 为 0，M13-TU-01、Milestone 13 和 `DE-019` 完成。
 
-尚未取得：用户人工 UI 验收。该未完成项保持为任务门禁，不计为通过。CI 仅有 GitHub Actions 使用 Node.js 20 action runtime 的弃用提醒，无失败或产品 P0/P1。
+## 7. 阶段复盘与下一步
 
-## 7. 下一步
+Milestone 7 的目标与实际交付一致，Pi 单员工闭环已经可用。主要返工是员工页复用通用两栏样式后出现严重错位；功能 E2E 仍能找到并点击控件，所以没有提前发现。人工安装包验收和任务关闭门禁最终拦住了错误完成结论。
 
-由用户安装当前提交的 Windows 包，验收从 APPROVED Goal 进入 Planner、显式 Provider/模型与披露、生成/取消、只读 Plan 内容、尚未验证/尚未组队提示，以及失败/取消/中断状态和键盘/缩放可用性。人工验收通过后，才把 M2-TU-06 和 Milestone 2 的 Planner 项标记完成；随后才建立 DAG/Plan Review 的下一个任务合同。
+测试方案已经补充硬要求：新增页面或明显改布局时，必须同时检查主要区域的列数、有效宽度、溢出和遮挡，并人工检查开发态与最终打包程序截图；控件可点击不能代替布局正确。
+
+Milestone 8 的目标与实际交付一致：一名员工现在可以在用户选定的工作区中自动查看目录、读取普通文本，并创建或安全修改普通文本文件；用户能看到模型过程、工具过程、哈希和差异。本阶段出现的 Windows CI 失败来自旧 SQLite 测试默认 5 秒上限过短，统一调整为 15 秒后，本机和连续两轮 Windows/macOS 完整流水线均通过。
+
+M9-TU-01 的目标与实际交付一致：一名 Pi 员工现在可以查看和修改真实代码，运行支持管道、串联和重定向的系统命令，并把完整过程和测试结果交给用户核对。首条普通命令只确认一次，高风险命令仍单独确认，正常编码没有被反复审批打断。
+
+本阶段证明“好用第一”和必要风险提示可以同时做到。命令和代码检查已认领 `DE-014` 的一部分；没有 OS 级强隔离的阶段性让步仍登记在 `DE-015`。图片、视频、文档、PPT、附件和多员工仍未交付，不能因 M9 通过而标记完成。
+
+Milestone 10 在实施前完成了旧公司与 Pi 路线关系核对：旧 `corporation` 是一次 Goal/Plan 执行实例，而 `pi_employee` 和 `pi_task` 原本没有公司归属。直接复用旧表会重新引入旧状态机并混淆历史，因此新旧数据必须分离；迁移、成员复用、任务唯一归属和旧数据不提供界面的边界已写入 M10-TU-01。
+
+M10-TU-01 的目标与实际交付一致：控制台现在只进入轻量公司，同一员工和工作区可跨公司复用，每项任务固定归属一家公司，旧 Goal/Plan 数据保留但不再干扰主流程。安装包人工验收发现的授权按钮回退、成功任务误判失败和设置旧入口三项问题均已修复并复验通过。
+
+本阶段再次证明，验收不能只覆盖“主按钮能点”。会影响用户判断的状态刷新、先失败后恢复、改名重启恢复、移出后历史保留和跨公司操作都必须有独立证据；以后仍按边界清楚的任务合同逐项验收，但约束只服务于真实可用，不增加与用户价值无关的手续。
+
+Milestone 11 的目标与实际交付一致：员工完成任务后，用户可以直接看到由真实文件操作登记的总结、文件、差异和检查结果，并预览、打开或查看所在位置。首次人工验收发现的老员工 Provider 版本误判和“查看所在位置”不打开文件夹均已修复；完整工程检查、最终打包程序窗口、Windows/macOS CI 和用户新安装包复验全部通过。Milestone 11 的完成只代表可信成果展示完成，不代表标准 Skill、附件、文档、图片或多员工已经完成。
+
+M12-TU-01 的目标与实际交付一致：员工现在可以拥有多项标准 Skill，按任务只启用需要的完整说明，并读取参考资料或复制资源成为真实成果。取消、越界、链接、并发变化、权限声明和重启恢复都有独立证据；脚本和环境没有为了凑完成度塞进本任务，继续由 M12-TU-02 交付。
+
+M12-TU-02 开始前已把四项用户选择写入产品、运行、安全、数据和 UI 权威文档，并用 22 项验收断言固定“环境检查、安装批准、系统二次批准、复检、脚本、成果”的完整链路。实施继续遵守好用优先：已就绪环境不打断用户，只有真实安装和脚本执行才请求决定。
+
+Milestone 12 的目标与实际交付一致：员工现在可以拥有多项标准 Skill，按任务启用匹配说明、参考资料、资源和脚本；缺少环境时显示清楚计划，经用户同意后安装到独立环境，复检后继续任务，并把过程与真实成果交给用户验收。M12-TU-01 和 M12-TU-02 均取得本地、双平台 CI、最终安装包和用户人工验收证据。
+
+本阶段发生两次直接返工。第一次是交给用户的验收 Skill 文件夹名与 `SKILL.md` 的 `name` 不一致，而且错误提示离操作位置太远；根因是验收材料没有先走一遍用户实际导入流程。现在开发态和打包版测试都会通过真实导入按钮核对预览、焦点、成功列表、新员工选项和具体失败原因。第二次是网络安装使用默认 5 秒窗口等待，在 Windows CI 下载较慢时误报；现在网络安装步骤使用明确的 60 秒上限，超过上限仍失败，不用短等待代替产品结果。
+
+有效控制是：人工验收失败立即回退状态；新源码、协议或测试变更不复用旧 CI；最终关闭只允许状态、当前合同和证据文件的纯收尾提交。`DE-018` 和 `DE-020` 继续保留，分别对应环境员工和更多脚本生态；`DE-019` 已由 M13-TU-01 的真实公开 Skill 完整验收补齐。
+
+Milestone 13 的目标与实际交付一致：一个未经 AI Corporation 修改的公开 GIF Skill 已在真实中文工作区完成导入、启用、环境、脚本、真实成果和动画预览。首轮自动旅程使用空工作区，漏掉了真实模型通常会先查看已有目录的路径，导致安装包人工验收才发现目录大小 `null` 的协议错误。修复后的自动旅程必须先读取含已有子目录的中文工作区，再继续环境和成果流程；用户复验通过后才关闭任务。这个阶段只证明底座接住了一个真实公开 Skill，不扩大为任意 Skill 兼容结论。
 
 ## 8. 更新规则
 
 - 只记录当前事实，不追加历史时间线；历史变化由 Git 和 CI 保存；
-- 功能、任务或 Milestone 只有通过全部适用验收后才能标记“完成”；
-- 设计文档存在、代码生成、构建成功或进程存活均不能代替对应层级验收；
-- 当前任务状态必须与任务合同一致，任务通过只关闭自身；
-- 复合断言只有全部平台、状态和产物子项均有直接证据时才能勾选；
-- 发现文档、设计、协议、Schema、安全、UI 或验收歧义时，先提交用户决策，不推测实施。
+- 未完成、未验收、未通过的功能不得标记完成；
+- 模型自评、代码生成、构建成功或进程存活不能代替真实窗口和用户验收；
+- 出现会改变实现或验收结果的歧义时，先用大白话说明影响和方案，由用户决定后再实现；
+- 为快速交付而采用且未来仍需补齐的简化，必须登记到统一清单。

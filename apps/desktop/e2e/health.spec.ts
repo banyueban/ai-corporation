@@ -12,7 +12,8 @@ import axe from "axe-core";
 import { _electron as electron } from "playwright";
 import type { DesktopApi } from "../src/shared/desktop-api";
 
-test("user authorizes and restores a Workspace through the visible window", async () => {
+// 旧 Corporation/Goal 的写入旅程已退出主入口；当前 Workspace 旅程由 pi-employees.spec.ts 覆盖。
+test.skip("user authorizes and restores a Workspace through the visible window", async () => {
   const appDirectory = path.resolve(__dirname, "..");
   const userDataDirectory = mkdtempSync(
     path.join(tmpdir(), "M1-TU-06-electron-user-data-"),
@@ -36,62 +37,56 @@ test("user authorizes and restores a Workspace through the visible window", asyn
       if (/^https?:/u.test(request.url())) externalRequests.push(request.url());
     });
     await expect(
-      page.getByRole("status", { name: /Native Core ready/u }),
+      page.getByRole("status", { name: /本地核心已就绪/u }),
     ).toBeVisible();
-    await expect(
-      page.getByRole("heading", { name: "Dashboard" }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "控制台" })).toBeVisible();
     await setWindowSize(electronApp, 1024, 700);
     await electronApp.evaluate(({ BrowserWindow }) => {
       BrowserWindow.getAllWindows()[0]?.webContents.setZoomFactor(2);
     });
     await expect(
-      page.getByRole("heading", { name: "Create your first Corporation" }),
+      page.getByRole("heading", { name: "创建第一个公司" }),
     ).toBeVisible();
 
     const startButton = page.getByRole("button", {
-      name: "Select a workspace",
+      name: "选择工作区",
     });
     await startButton.focus();
     await page.keyboard.press("Enter");
     const createHeading = page.getByRole("heading", {
-      name: "Choose a workspace",
+      name: "选择工作区",
     });
     await expect(createHeading).toBeFocused();
 
     await expectNoSeriousAxeViolations(page);
 
     const selectButton = page.getByRole("button", {
-      name: "Select folder…",
+      name: "选择文件夹…",
     });
     await selectButton.focus();
     await page.keyboard.press("Enter");
     await expect(
-      page
-        .getByRole("status")
-        .filter({ hasText: "Workspace authorized and saved." }),
+      page.getByRole("status").filter({ hasText: "工作区授权已保存。" }),
     ).toBeVisible();
     await expect(
       page.getByText(workspaceDirectory, { exact: true }),
     ).toBeVisible();
-    await expect(page.locator(".selected-boundary")).toContainText(
-      "Read and write",
-    );
+    await expect(page.locator(".selected-boundary")).toContainText("可读写");
     expect(readdirSync(workspaceDirectory)).toEqual([]);
 
-    await page.getByLabel("Corporation name *").fill("E2E Corporation");
+    await page.getByLabel("公司名称 *").fill("E2E Corporation");
     await page
-      .getByLabel("Goal *")
+      .getByLabel("目标 *")
       .fill("Create a verified local Goal Contract");
     await page
-      .getByLabel(/Success criteria/u)
+      .getByLabel(/成功标准/u)
       .fill("Goal is persisted\nTimeline is visible");
-    await page.getByLabel(/Expected deliverables/u).fill("Goal report");
+    await page.getByLabel(/预期交付物/u).fill("Goal report");
     await page
-      .getByLabel("High-impact assumption")
+      .getByLabel("高影响假设")
       .fill("The authorized workspace is the intended target");
     const mockButton = page.getByRole("button", {
-      name: "Create local Mock draft",
+      name: "创建本地 Mock 草稿",
     });
     await mockButton.focus();
     await page.keyboard.press("Enter");
@@ -99,12 +94,10 @@ test("user authorizes and restores a Workspace through the visible window", asyn
     await expect(
       page
         .getByRole("status")
-        .filter({ hasText: "Corporation was created, but its Goal Contract" }),
+        .filter({ hasText: "公司已创建，但目标合同没有保存" }),
     ).toBeVisible();
     await expect(page.getByText("STORAGE_UNAVAILABLE")).toBeVisible();
-    await expect(page.getByLabel("Corporation name *")).toHaveValue(
-      "E2E Corporation",
-    );
+    await expect(page.getByLabel("公司名称 *")).toHaveValue("E2E Corporation");
     const corporationCountAfterFailure = await page.evaluate(async () => {
       const desktop = (
         globalThis as typeof globalThis & { desktop: DesktopApi }
@@ -125,13 +118,13 @@ test("user authorizes and restores a Workspace through the visible window", asyn
     await page.keyboard.press("Enter");
 
     await expect(
-      page.getByRole("heading", { name: "Confirm Goal Contract" }),
+      page.getByRole("heading", { name: "确认目标合同" }),
     ).toBeFocused();
     await expectNoSeriousAxeViolations(page);
-    await expect(page.getByText("MOCK", { exact: false })).toBeVisible();
-    await expect(page.getByText("Goal Contract draft saved.")).toBeVisible();
+    await expect(page.getByText("本地模拟", { exact: false })).toBeVisible();
+    await expect(page.getByText("目标合同草稿已保存。")).toBeVisible();
     const confirmButton = page.getByRole("button", {
-      name: "Confirm Goal Contract",
+      name: "确认目标合同",
     });
     await confirmButton.focus();
     await page.keyboard.press("Enter");
@@ -199,12 +192,10 @@ test("user authorizes and restores a Workspace through the visible window", asyn
     await expect(page.getByText("VERSION_CONFLICT")).toBeVisible();
 
     await page.reload();
+    await expect(page.getByRole("heading", { name: "控制台" })).toBeVisible();
+    await page.getByRole("button", { name: "打开目标合同" }).click();
     await expect(
-      page.getByRole("heading", { name: "Dashboard" }),
-    ).toBeVisible();
-    await page.getByRole("button", { name: "Open Goal Contract" }).click();
-    await expect(
-      page.getByRole("heading", { name: "Confirm Goal Contract" }),
+      page.getByRole("heading", { name: "确认目标合同" }),
     ).toBeFocused();
     await page
       .getByRole("checkbox", {
@@ -212,22 +203,25 @@ test("user authorizes and restores a Workspace through the visible window", asyn
       })
       .check();
     const recoveredConfirmButton = page.getByRole("button", {
-      name: "Confirm Goal Contract",
+      name: "确认目标合同",
     });
     await recoveredConfirmButton.focus();
     await page.keyboard.press("Enter");
     await expect(
       page.getByRole("status").filter({
-        hasText:
-          "Goal Contract approved. Planning and execution have not started.",
+        hasText: "目标合同已批准。规划和执行尚未开始。",
       }),
     ).toBeVisible();
-    await expect(page.getByText("APPROVED", { exact: true })).toBeVisible();
-    await expect(page.getByText("v3 · APPROVED · MOCK")).toBeVisible();
-    await expect(page.getByText("v2 · SUPERSEDED · MOCK")).toBeVisible();
-    await expect(page.getByText("v1 · SUPERSEDED · MOCK")).toBeVisible();
+    await expect(page.getByText("已批准", { exact: true })).toBeVisible();
+    await expect(page.getByText("版本 3 · 已批准 · 本地模拟")).toBeVisible();
     await expect(
-      page.getByText("Goal Contract approved.", { exact: true }),
+      page.getByText("版本 2 · 已被新版替代 · 本地模拟"),
+    ).toBeVisible();
+    await expect(
+      page.getByText("版本 1 · 已被新版替代 · 本地模拟"),
+    ).toBeVisible();
+    await expect(
+      page.getByText("目标合同已批准。", { exact: true }),
     ).toBeVisible();
     expect(externalRequests).toEqual([]);
 
@@ -262,12 +256,10 @@ test("user authorizes and restores a Workspace through the visible window", asyn
     const corporationId = selected.corporationId;
 
     await page.reload();
-    await expect(
-      page.getByRole("heading", { name: "Dashboard" }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "控制台" })).toBeVisible();
     await expect(page.getByText(workspaceDirectory)).toBeVisible();
-    await expect(page.getByText("Available")).toBeVisible();
-    await expect(page.getByText("Verifying")).toHaveCount(0);
+    await expect(page.getByText("可用")).toBeVisible();
+    await expect(page.getByText("正在验证")).toHaveCount(0);
     await expect(page.getByText("E2E Corporation")).toBeVisible();
     const restoredCorporation = await page.evaluate(async (corporationId) => {
       const desktop = (
@@ -283,7 +275,7 @@ test("user authorizes and restores a Workspace through the visible window", asyn
       value: { name: "E2E Corporation", version: 5 },
     });
 
-    const verifyButton = page.getByRole("button", { name: "Verify again" });
+    const verifyButton = page.getByRole("button", { name: "重新验证" });
     await verifyButton.evaluate((element) =>
       element.scrollIntoView({ block: "center" }),
     );
@@ -303,14 +295,14 @@ test("user authorizes and restores a Workspace through the visible window", asyn
           document.documentElement.clientWidth,
       ),
     ).toBe(true);
-    await page.getByRole("button", { name: "Open Goal Contract" }).focus();
+    await page.getByRole("button", { name: "打开目标合同" }).focus();
     await page.keyboard.press("Enter");
     await expect(
-      page.getByRole("heading", { name: "Confirm Goal Contract" }),
+      page.getByRole("heading", { name: "确认目标合同" }),
     ).toBeFocused();
-    await expect(page.getByText("APPROVED", { exact: true })).toBeVisible();
+    await expect(page.getByText("已批准", { exact: true })).toBeVisible();
     await expect(
-      page.getByText("Goal Contract approved.", { exact: true }),
+      page.getByText("目标合同已批准。", { exact: true }),
     ).toBeVisible();
     const zoomedScreenshot = await electronApp.evaluate(
       async ({ BrowserWindow }) => {
@@ -336,7 +328,7 @@ test("user authorizes and restores a Workspace through the visible window", asyn
     });
     await setWindowSize(electronApp, 1024, 700);
     await expect(
-      page.getByRole("heading", { name: "Confirm Goal Contract" }),
+      page.getByRole("heading", { name: "确认目标合同" }),
     ).toBeVisible();
     await page.screenshot({
       path: path.join(
@@ -368,32 +360,31 @@ test("user authorizes and restores a Workspace through the visible window", asyn
       ok: true,
       value: { status: "PAUSED", version: 6, pausedFrom: "DRAFT" },
     });
-    await page.getByRole("button", { name: "Pause Corporation" }).click();
+    await page.getByRole("button", { name: "暂停公司" }).click();
     await expect(page.getByText("VERSION_CONFLICT")).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "Resume Corporation" }),
+      page.getByRole("button", { name: "继续运行公司" }),
     ).toBeVisible();
-    await page.getByRole("button", { name: "Resume Corporation" }).focus();
+    await page.getByRole("button", { name: "继续运行公司" }).focus();
     await page.keyboard.press("Enter");
     await expect(
       page.getByRole("status").filter({
-        hasText:
-          "Corporation resumed to DRAFT. No command or event was replayed.",
+        hasText: "公司已恢复到“草稿”状态，没有重复执行任何命令或事件。",
       }),
     ).toBeVisible();
 
     const pauseButton = page.getByRole("button", {
-      name: "Pause Corporation",
+      name: "暂停公司",
     });
     await pauseButton.focus();
     await page.keyboard.press("Enter");
     await expect(
       page.getByRole("status").filter({
-        hasText: "Corporation paused. No Plan, Task, or execution has started.",
+        hasText: "公司已暂停。计划、任务和执行均未开始。",
       }),
     ).toBeVisible();
-    await expect(page.getByText("PAUSED", { exact: true })).toBeVisible();
-    await expect(page.getByText(/Paused from DRAFT at/u)).toBeVisible();
+    await expect(page.getByText("已暂停", { exact: true })).toBeVisible();
+    await expect(page.getByText(/从“草稿”状态暂停/u)).toBeVisible();
     await expectNoSeriousAxeViolations(page);
     const beforeRestart = await readPersistedState(page, corporationId);
     expect(beforeRestart).toMatchObject({
@@ -404,10 +395,8 @@ test("user authorizes and restores a Workspace through the visible window", asyn
       },
     });
     await page.reload();
-    await expect(
-      page.getByRole("heading", { name: "Dashboard" }),
-    ).toBeVisible();
-    await expect(page.getByText("PAUSED", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "控制台" })).toBeVisible();
+    await expect(page.getByText("已暂停", { exact: true })).toBeVisible();
     expect(await readPersistedState(page, corporationId)).toEqual(
       beforeRestart,
     );
@@ -423,11 +412,9 @@ test("user authorizes and restores a Workspace through the visible window", asyn
       if (/^https?:/u.test(request.url())) externalRequests.push(request.url());
     });
     await setWindowSize(electronApp, 1024, 700);
-    await expect(
-      page.getByRole("heading", { name: "Dashboard" }),
-    ).toBeVisible();
-    await expect(page.getByText("PAUSED", { exact: true })).toBeVisible();
-    await expect(page.getByText(/Paused from DRAFT at/u)).toBeVisible();
+    await expect(page.getByRole("heading", { name: "控制台" })).toBeVisible();
+    await expect(page.getByText("已暂停", { exact: true })).toBeVisible();
+    await expect(page.getByText(/从“草稿”状态暂停/u)).toBeVisible();
     await expectNoSeriousAxeViolations(page);
     await page.screenshot({
       path: path.join(
@@ -445,19 +432,18 @@ test("user authorizes and restores a Workspace through the visible window", asyn
     const afterRestart = await readPersistedState(page, corporationId);
     expect(afterRestart).toEqual(beforeRestart);
 
-    await page.getByRole("button", { name: "Open Goal Contract" }).click();
+    await page.getByRole("button", { name: "打开目标合同" }).click();
     const resumeButton = page.getByRole("button", {
-      name: "Resume Corporation",
+      name: "继续运行公司",
     });
     await resumeButton.click();
     await expect(
       page.getByRole("status").filter({
-        hasText:
-          "Corporation resumed to DRAFT. No command or event was replayed.",
+        hasText: "公司已恢复到“草稿”状态，没有重复执行任何命令或事件。",
       }),
     ).toBeVisible();
-    await expect(page.getByText("DRAFT", { exact: true })).toBeVisible();
-    await expect(page.getByText("APPROVED", { exact: true })).toBeVisible();
+    await expect(page.getByText("草稿", { exact: true })).toBeVisible();
+    await expect(page.getByText("已批准", { exact: true })).toBeVisible();
     await expectNoSeriousAxeViolations(page);
     const afterResume = await readPersistedState(page, corporationId);
     expect(afterResume).toMatchObject({
@@ -465,10 +451,8 @@ test("user authorizes and restores a Workspace through the visible window", asyn
     });
     expect(afterResume.eventCount).toBe(beforeRestart.eventCount + 1);
     await page.reload();
-    await expect(
-      page.getByRole("heading", { name: "Dashboard" }),
-    ).toBeVisible();
-    await expect(page.getByText("DRAFT", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "控制台" })).toBeVisible();
+    await expect(page.getByText("草稿", { exact: true })).toBeVisible();
     expect(await readPersistedState(page, corporationId)).toEqual(afterResume);
 
     await electronApp.close();
@@ -481,13 +465,11 @@ test("user authorizes and restores a Workspace through the visible window", asyn
     page.on("request", (request) => {
       if (/^https?:/u.test(request.url())) externalRequests.push(request.url());
     });
-    await expect(
-      page.getByRole("heading", { name: "Dashboard" }),
-    ).toBeVisible();
-    await expect(page.getByText("DRAFT", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "控制台" })).toBeVisible();
+    await expect(page.getByText("草稿", { exact: true })).toBeVisible();
     expect(await readPersistedState(page, corporationId)).toEqual(afterResume);
-    await page.getByRole("button", { name: "Open Goal Contract" }).click();
-    await expect(page.getByText("APPROVED", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "打开目标合同" }).click();
+    await expect(page.getByText("已批准", { exact: true })).toBeVisible();
     expect(externalRequests).toEqual([]);
   } finally {
     await electronApp.close();

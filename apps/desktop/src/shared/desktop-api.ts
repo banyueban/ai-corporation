@@ -1,4 +1,8 @@
 import type {
+  AgentRunCommandRequest,
+  AgentRunGetCurrentRequest,
+  AgentRunNullableResult,
+  AgentRunResult,
   CorporationArchiveRequest,
   CorporationCreateRequest,
   CorporationGetRequest,
@@ -22,12 +26,61 @@ import type {
   GoalEngineNullableItemResult,
   GoalEngineResolveExtensionRequest,
   GoalEngineStartRequest,
+  ExecutionStartGetCurrentRequest,
+  ExecutionStartItemResult,
+  ExecutionStartNullableItemResult,
+  ExecutionStartRequest,
   HealthResult,
+  OrganizationActivationGetCurrentRequest,
+  OrganizationActivationItemResult,
+  OrganizationActivationNullableItemResult,
+  OrganizationActivationRequest,
+  OrganizationProposalCreateRequest,
+  OrganizationProposalGetCurrentRequest,
+  OrganizationProposalItemResult,
+  OrganizationProposalNullableItemResult,
   PlannerCancelRequest,
   PlannerGetCurrentRequest,
   PlannerItemResult,
   PlannerNullableItemResult,
   PlannerStartRequest,
+  PlanReviewApproveRequest,
+  PlanReviewGetCurrentRequest,
+  PlanReviewItemResult,
+  PlanReviewListResult,
+  PlanReviewListVersionsRequest,
+  PlanReviewNullableItemResult,
+  PlanReviewSaveVersionRequest,
+  PiEmployeeItemResult,
+  PiEmployeeListRequest,
+  PiEmployeeListResult,
+  PiEmployeeSaveRequest,
+  PiCompanyCreateRequest,
+  PiCompanyEmployeeRequest,
+  PiCompanyItemResult,
+  PiCompanyListRequest,
+  PiCompanyListResult,
+  PiCompanyUpdateNameRequest,
+  PiCompanyWorkspaceRequest,
+  PiSkillConfirmImportRequest,
+  PiSkillItemResult,
+  PiSkillListRequest,
+  PiSkillListResult,
+  PiSkillPreviewImportResult,
+  PiTaskCommandRequest,
+  PiTaskDeliverableActionResult,
+  PiTaskDeliverablePreviewResult,
+  PiTaskDeliverableRequest,
+  PiTaskGetRequest,
+  PiTaskListRequest,
+  PiTaskListResult,
+  PiTaskRequestChangesRequest,
+  PiTaskResolveCommandApprovalRequest,
+  PiTaskResult,
+  PiTaskStartRequest,
+  PiTaskAttachment,
+  PiTaskAttachmentDiscardResult,
+  PiTaskAttachmentStageResult,
   ProviderDeleteKeyRequest,
   ProviderCancelConnectionTestRequest,
   ProviderCancelConnectionTestResult,
@@ -51,6 +104,20 @@ import type {
 } from "@ai-corporation/protocols";
 
 export interface DesktopApi {
+  readonly agentRun: Readonly<{
+    getCurrent(
+      request: AgentRunGetCurrentRequest,
+    ): Promise<AgentRunNullableResult>;
+    continue(request: AgentRunCommandRequest): Promise<AgentRunResult>;
+    retry(request: AgentRunCommandRequest): Promise<AgentRunResult>;
+    cancel(request: AgentRunCommandRequest): Promise<AgentRunResult>;
+  }>;
+  readonly executionStart: Readonly<{
+    getCurrent(
+      request: ExecutionStartGetCurrentRequest,
+    ): Promise<ExecutionStartNullableItemResult>;
+    start(request: ExecutionStartRequest): Promise<ExecutionStartItemResult>;
+  }>;
   readonly corporation: Readonly<{
     archive(request: CorporationArchiveRequest): Promise<CorporationItemResult>;
     create(request: CorporationCreateRequest): Promise<CorporationItemResult>;
@@ -88,12 +155,99 @@ export interface DesktopApi {
     start(request: GoalEngineStartRequest): Promise<GoalEngineItemResult>;
   }>;
   health(): Promise<HealthResult>;
+  readonly organizationActivation: Readonly<{
+    activate(
+      request: OrganizationActivationRequest,
+    ): Promise<OrganizationActivationItemResult>;
+    getCurrent(
+      request: OrganizationActivationGetCurrentRequest,
+    ): Promise<OrganizationActivationNullableItemResult>;
+  }>;
+  readonly organizationProposal: Readonly<{
+    create(
+      request: OrganizationProposalCreateRequest,
+    ): Promise<OrganizationProposalItemResult>;
+    getCurrent(
+      request: OrganizationProposalGetCurrentRequest,
+    ): Promise<OrganizationProposalNullableItemResult>;
+  }>;
   readonly planner: Readonly<{
     cancel(request: PlannerCancelRequest): Promise<PlannerItemResult>;
     getCurrent(
       request: PlannerGetCurrentRequest,
     ): Promise<PlannerNullableItemResult>;
     start(request: PlannerStartRequest): Promise<PlannerItemResult>;
+  }>;
+  readonly planReview: Readonly<{
+    approve(request: PlanReviewApproveRequest): Promise<PlanReviewItemResult>;
+    getCurrent(
+      request: PlanReviewGetCurrentRequest,
+    ): Promise<PlanReviewNullableItemResult>;
+    listVersions(
+      request: PlanReviewListVersionsRequest,
+    ): Promise<PlanReviewListResult>;
+    saveVersion(
+      request: PlanReviewSaveVersionRequest,
+    ): Promise<PlanReviewItemResult>;
+  }>;
+  readonly piEmployee: Readonly<{
+    list(request: PiEmployeeListRequest): Promise<PiEmployeeListResult>;
+    save(request: PiEmployeeSaveRequest): Promise<PiEmployeeItemResult>;
+  }>;
+  readonly piCompany: Readonly<{
+    list(request: PiCompanyListRequest): Promise<PiCompanyListResult>;
+    create(request: PiCompanyCreateRequest): Promise<PiCompanyItemResult>;
+    updateName(
+      request: PiCompanyUpdateNameRequest,
+    ): Promise<PiCompanyItemResult>;
+    addEmployee(
+      request: PiCompanyEmployeeRequest,
+    ): Promise<PiCompanyItemResult>;
+    removeEmployee(
+      request: PiCompanyEmployeeRequest,
+    ): Promise<PiCompanyItemResult>;
+    addWorkspace(
+      request: PiCompanyWorkspaceRequest,
+    ): Promise<PiCompanyItemResult>;
+    removeWorkspace(
+      request: PiCompanyWorkspaceRequest,
+    ): Promise<PiCompanyItemResult>;
+  }>;
+  readonly piSkill: Readonly<{
+    list(request: PiSkillListRequest): Promise<PiSkillListResult>;
+    previewImport(
+      request: PiSkillListRequest,
+    ): Promise<PiSkillPreviewImportResult>;
+    confirmImport(
+      request: PiSkillConfirmImportRequest,
+    ): Promise<PiSkillItemResult>;
+  }>;
+  readonly piTask: Readonly<{
+    start(request: PiTaskStartRequest): Promise<PiTaskResult>;
+    get(request: PiTaskGetRequest): Promise<PiTaskResult>;
+    list(request: PiTaskListRequest): Promise<PiTaskListResult>;
+    cancel(request: PiTaskCommandRequest): Promise<PiTaskResult>;
+    accept(request: PiTaskCommandRequest): Promise<PiTaskResult>;
+    requestChanges(request: PiTaskRequestChangesRequest): Promise<PiTaskResult>;
+    resolveCommandApproval(
+      request: PiTaskResolveCommandApprovalRequest,
+    ): Promise<PiTaskResult>;
+    previewDeliverable(
+      request: PiTaskDeliverableRequest,
+    ): Promise<PiTaskDeliverablePreviewResult>;
+    openDeliverable(
+      request: PiTaskDeliverableRequest,
+    ): Promise<PiTaskDeliverableActionResult>;
+    revealDeliverable(
+      request: PiTaskDeliverableRequest,
+    ): Promise<PiTaskDeliverableActionResult>;
+    selectAttachments(): Promise<PiTaskAttachmentStageResult>;
+    stageDroppedAttachments(
+      files: readonly File[],
+    ): Promise<PiTaskAttachmentStageResult>;
+    discardAttachments(
+      attachments: readonly PiTaskAttachment[],
+    ): Promise<PiTaskAttachmentDiscardResult>;
   }>;
   readonly provider: Readonly<{
     cancelConnectionTest(

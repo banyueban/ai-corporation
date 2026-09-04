@@ -8,14 +8,51 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  classify:
+    name: CI scope
+    runs-on: ubuntu-latest
+    outputs:
+      full_ci: ${{ steps.scope.outputs.full_ci }}
+      closure_only: ${{ steps.scope.outputs.closure_only }}
+    steps:
+      - name: Check out repository head
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Install Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Classify completion commit
+        id: scope
+        env:
+          AI_CORPORATION_ALLOW_CLOSURE_REUSE: ${{ github.event_name == 'pull_request' }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/check-closure-scope.mjs
+
+      - name: Check closure evidence documents
+        if: steps.scope.outputs.closure_only == 'true'
+        run: |
+          node scripts/check-project-status.mjs
+          node scripts/check-task-units.mjs
+          node scripts/secret-scan.mjs
+          git diff --check HEAD^ HEAD
+
   build:
     name: ${{ matrix.name }}
+    needs: classify
+    if: needs.classify.outputs.full_ci == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -56,11 +93,46 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run engineering checks
-        run: pnpm check
+      - name: Prepare Electron binary
+        timeout-minutes: 10
+        run: pnpm --filter @ai-corporation/desktop exec install-electron --no
+
+      # 与根目录 pnpm check 保持同一顺序，但拆开显示，失败时能直接看出
+      # 是项目记录、前端测试、Rust 测试还是安全扫描出了问题。
+      - name: Check project records and code style
+        run: |
+          pnpm check:status
+          pnpm check:task-units
+          pnpm format:check
+          pnpm lint
+          pnpm typecheck
+
+      - name: Run JavaScript and TypeScript tests
+        run: pnpm test
+
+      - name: Run Rust tests
+        run: pnpm test:rust
+
+      - name: Check Rust code style
+        run: pnpm rust:fmt
+
+      - name: Run Rust lints
+        run: pnpm rust:clippy
+
+      - name: Scan for committed secrets
+        run: pnpm secret:scan
 
       - name: Run Electron health E2E
         run: pnpm test:e2e
+
+      - name: Upload Electron E2E failure details
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: electron-e2e-failure-${{ matrix.artifact }}
+          path: apps/desktop/test-results/
+          if-no-files-found: ignore
+          retention-days: 3
 
       - name: Build unsigned installer
         run: pnpm --filter @ai-corporation/desktop package
@@ -72,6 +144,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ai-corporation-${{ matrix.artifact }}
-          path: release/*
+          path: |
+            release/*.exe
+            release/*.dmg
+            release/*.blockmap
+            release/*.png
           if-no-files-found: error
           retention-days: 14

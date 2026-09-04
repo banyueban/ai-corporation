@@ -26,18 +26,21 @@ const corporationId = "019fa9bb-6001-7d90-a4e3-a5b0eea2a9ef";
 const now = "2026-07-30T05:00:00.000Z";
 let database: DatabaseSync;
 let directory: string;
+// Windows 云构建机并行跑多个 SQLite 测试时，首次迁移偶尔会超过默认 10 秒。
+// 只放宽准备和清理时间，不改变任何业务断言或数据库等待规则。
+const storageHookTimeoutMs = 30_000;
 
 beforeEach(() => {
   directory = mkdtempSync(path.join(tmpdir(), "M1-TU-06-state-"));
   database = new DatabaseSync(path.join(directory, "state.sqlite"));
   applyMigrations(database, loadMigrations(migrationDirectory));
   seed();
-});
+}, storageHookTimeoutMs);
 
 afterEach(() => {
   database.close();
   rmSync(directory, { force: true, recursive: true });
-});
+}, storageHookTimeoutMs);
 
 describe("CorporationStateRepository", () => {
   it.each([

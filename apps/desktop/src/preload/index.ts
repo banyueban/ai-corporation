@@ -1,4 +1,14 @@
 import {
+  AGENT_RUN_CANCEL_IPC_CHANNEL,
+  AGENT_RUN_CONTINUE_IPC_CHANNEL,
+  AGENT_RUN_GET_CURRENT_IPC_CHANNEL,
+  AGENT_RUN_RETRY_IPC_CHANNEL,
+  agentRunCommandRequestSchema,
+  agentRunGetCurrentRequestSchema,
+  agentRunNullableResultSchema,
+  agentRunResultSchema,
+  type AgentRunCommandRequest,
+  type AgentRunGetCurrentRequest,
   CORPORATION_ARCHIVE_IPC_CHANNEL,
   CORPORATION_CREATE_IPC_CHANNEL,
   CORPORATION_GET_IPC_CHANNEL,
@@ -47,6 +57,14 @@ import {
   type GoalEngineGetCurrentRequest,
   type GoalEngineResolveExtensionRequest,
   type GoalEngineStartRequest,
+  EXECUTION_START_GET_CURRENT_IPC_CHANNEL,
+  EXECUTION_START_START_IPC_CHANNEL,
+  executionStartGetCurrentRequestSchema,
+  executionStartItemResultSchema,
+  executionStartNullableItemResultSchema,
+  executionStartRequestSchema,
+  type ExecutionStartGetCurrentRequest,
+  type ExecutionStartRequest,
   type CorporationArchiveRequest,
   type CorporationCreateRequest,
   type CorporationGetRequest,
@@ -56,6 +74,22 @@ import {
   type CorporationUpdateNameRequest,
   healthResultSchema,
   NATIVE_HEALTH_IPC_CHANNEL,
+  ORGANIZATION_ACTIVATION_ACTIVATE_IPC_CHANNEL,
+  ORGANIZATION_ACTIVATION_GET_CURRENT_IPC_CHANNEL,
+  organizationActivationGetCurrentRequestSchema,
+  organizationActivationItemResultSchema,
+  organizationActivationNullableItemResultSchema,
+  organizationActivationRequestSchema,
+  type OrganizationActivationGetCurrentRequest,
+  type OrganizationActivationRequest,
+  ORGANIZATION_PROPOSAL_CREATE_IPC_CHANNEL,
+  ORGANIZATION_PROPOSAL_GET_CURRENT_IPC_CHANNEL,
+  organizationProposalCreateRequestSchema,
+  organizationProposalGetCurrentRequestSchema,
+  organizationProposalItemResultSchema,
+  organizationProposalNullableItemResultSchema,
+  type OrganizationProposalCreateRequest,
+  type OrganizationProposalGetCurrentRequest,
   PLANNER_CANCEL_IPC_CHANNEL,
   PLANNER_GET_CURRENT_IPC_CHANNEL,
   PLANNER_START_IPC_CHANNEL,
@@ -67,6 +101,95 @@ import {
   type PlannerCancelRequest,
   type PlannerGetCurrentRequest,
   type PlannerStartRequest,
+  PLAN_REVIEW_APPROVE_IPC_CHANNEL,
+  PLAN_REVIEW_GET_CURRENT_IPC_CHANNEL,
+  PLAN_REVIEW_LIST_VERSIONS_IPC_CHANNEL,
+  PLAN_REVIEW_SAVE_VERSION_IPC_CHANNEL,
+  planReviewApproveRequestSchema,
+  planReviewGetCurrentRequestSchema,
+  planReviewItemResultSchema,
+  planReviewListResultSchema,
+  planReviewListVersionsRequestSchema,
+  planReviewNullableItemResultSchema,
+  planReviewSaveVersionRequestSchema,
+  type PlanReviewApproveRequest,
+  type PlanReviewGetCurrentRequest,
+  type PlanReviewListVersionsRequest,
+  type PlanReviewSaveVersionRequest,
+  PI_EMPLOYEE_LIST_IPC_CHANNEL,
+  PI_EMPLOYEE_SAVE_IPC_CHANNEL,
+  piEmployeeItemResultSchema,
+  piEmployeeListRequestSchema,
+  piEmployeeListResultSchema,
+  piEmployeeSaveRequestSchema,
+  type PiEmployeeListRequest,
+  type PiEmployeeSaveRequest,
+  PI_COMPANY_ADD_EMPLOYEE_IPC_CHANNEL,
+  PI_COMPANY_ADD_WORKSPACE_IPC_CHANNEL,
+  PI_COMPANY_CREATE_IPC_CHANNEL,
+  PI_COMPANY_LIST_IPC_CHANNEL,
+  PI_COMPANY_REMOVE_EMPLOYEE_IPC_CHANNEL,
+  PI_COMPANY_REMOVE_WORKSPACE_IPC_CHANNEL,
+  PI_COMPANY_UPDATE_NAME_IPC_CHANNEL,
+  piCompanyCreateRequestSchema,
+  piCompanyEmployeeRequestSchema,
+  piCompanyItemResultSchema,
+  piCompanyListRequestSchema,
+  piCompanyListResultSchema,
+  piCompanyUpdateNameRequestSchema,
+  piCompanyWorkspaceRequestSchema,
+  type PiCompanyCreateRequest,
+  type PiCompanyEmployeeRequest,
+  type PiCompanyListRequest,
+  type PiCompanyUpdateNameRequest,
+  type PiCompanyWorkspaceRequest,
+  PI_SKILL_CONFIRM_IMPORT_IPC_CHANNEL,
+  PI_SKILL_LIST_IPC_CHANNEL,
+  PI_SKILL_PREVIEW_IMPORT_IPC_CHANNEL,
+  piSkillConfirmImportRequestSchema,
+  piSkillItemResultSchema,
+  piSkillListRequestSchema,
+  piSkillListResultSchema,
+  piSkillPreviewImportResultSchema,
+  type PiSkillConfirmImportRequest,
+  type PiSkillListRequest,
+  PI_TASK_ACCEPT_IPC_CHANNEL,
+  PI_TASK_CANCEL_IPC_CHANNEL,
+  PI_TASK_GET_IPC_CHANNEL,
+  PI_TASK_LIST_IPC_CHANNEL,
+  PI_TASK_OPEN_DELIVERABLE_IPC_CHANNEL,
+  PI_TASK_PREVIEW_DELIVERABLE_IPC_CHANNEL,
+  PI_TASK_REQUEST_CHANGES_IPC_CHANNEL,
+  PI_TASK_REVEAL_DELIVERABLE_IPC_CHANNEL,
+  PI_TASK_RESOLVE_COMMAND_APPROVAL_IPC_CHANNEL,
+  PI_TASK_START_IPC_CHANNEL,
+  PI_TASK_ATTACHMENT_SELECT_IPC_CHANNEL,
+  PI_TASK_ATTACHMENT_STAGE_DROPPED_IPC_CHANNEL,
+  PI_TASK_ATTACHMENT_DISCARD_IPC_CHANNEL,
+  piTaskCommandRequestSchema,
+  piTaskGetRequestSchema,
+  piTaskListRequestSchema,
+  piTaskListResultSchema,
+  piTaskDeliverableActionResultSchema,
+  piTaskDeliverablePreviewResultSchema,
+  piTaskDeliverableRequestSchema,
+  piTaskRequestChangesRequestSchema,
+  piTaskResolveCommandApprovalRequestSchema,
+  piTaskResultSchema,
+  piTaskStartRequestSchema,
+  piTaskAttachmentStageResultSchema,
+  piTaskAttachmentDiscardResultSchema,
+  piTaskAttachmentSelectRequestSchema,
+  piTaskAttachmentStageRequestSchema,
+  piTaskAttachmentDiscardRequestSchema,
+  type PiTaskCommandRequest,
+  type PiTaskGetRequest,
+  type PiTaskListRequest,
+  type PiTaskDeliverableRequest,
+  type PiTaskRequestChangesRequest,
+  type PiTaskResolveCommandApprovalRequest,
+  type PiTaskStartRequest,
+  type PiTaskAttachment,
   PROVIDER_CANCEL_CONNECTION_TEST_IPC_CHANNEL,
   PROVIDER_CANCEL_GENERATION_TEST_IPC_CHANNEL,
   PROVIDER_DELETE_KEY_IPC_CHANNEL,
@@ -110,10 +233,66 @@ import {
   workspaceRevalidateRequestSchema,
   workspaceSelectIpcResultSchema,
 } from "@ai-corporation/protocols";
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { DesktopApi } from "../shared/desktop-api";
 
+async function invokePiTask(channel: string, request: unknown) {
+  return piTaskResultSchema.parse(await ipcRenderer.invoke(channel, request));
+}
+
+async function invokePiCompany(channel: string, request: unknown) {
+  return piCompanyItemResultSchema.parse(
+    await ipcRenderer.invoke(channel, request),
+  );
+}
+
 const desktopApi: DesktopApi = Object.freeze({
+  agentRun: Object.freeze({
+    getCurrent: async (request: AgentRunGetCurrentRequest) =>
+      agentRunNullableResultSchema.parse(
+        await ipcRenderer.invoke(
+          AGENT_RUN_GET_CURRENT_IPC_CHANNEL,
+          agentRunGetCurrentRequestSchema.parse(request),
+        ),
+      ),
+    continue: async (request: AgentRunCommandRequest) =>
+      agentRunResultSchema.parse(
+        await ipcRenderer.invoke(
+          AGENT_RUN_CONTINUE_IPC_CHANNEL,
+          agentRunCommandRequestSchema.parse(request),
+        ),
+      ),
+    retry: async (request: AgentRunCommandRequest) =>
+      agentRunResultSchema.parse(
+        await ipcRenderer.invoke(
+          AGENT_RUN_RETRY_IPC_CHANNEL,
+          agentRunCommandRequestSchema.parse(request),
+        ),
+      ),
+    cancel: async (request: AgentRunCommandRequest) =>
+      agentRunResultSchema.parse(
+        await ipcRenderer.invoke(
+          AGENT_RUN_CANCEL_IPC_CHANNEL,
+          agentRunCommandRequestSchema.parse(request),
+        ),
+      ),
+  }),
+  executionStart: Object.freeze({
+    getCurrent: async (request: ExecutionStartGetCurrentRequest) =>
+      executionStartNullableItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          EXECUTION_START_GET_CURRENT_IPC_CHANNEL,
+          executionStartGetCurrentRequestSchema.parse(request),
+        ),
+      ),
+    start: async (request: ExecutionStartRequest) =>
+      executionStartItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          EXECUTION_START_START_IPC_CHANNEL,
+          executionStartRequestSchema.parse(request),
+        ),
+      ),
+  }),
   corporation: Object.freeze({
     archive: async (request: CorporationArchiveRequest) =>
       corporationItemResultSchema.parse(
@@ -236,6 +415,38 @@ const desktopApi: DesktopApi = Object.freeze({
     healthResultSchema.parse(
       await ipcRenderer.invoke(NATIVE_HEALTH_IPC_CHANNEL),
     ),
+  organizationActivation: Object.freeze({
+    activate: async (request: OrganizationActivationRequest) =>
+      organizationActivationItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          ORGANIZATION_ACTIVATION_ACTIVATE_IPC_CHANNEL,
+          organizationActivationRequestSchema.parse(request),
+        ),
+      ),
+    getCurrent: async (request: OrganizationActivationGetCurrentRequest) =>
+      organizationActivationNullableItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          ORGANIZATION_ACTIVATION_GET_CURRENT_IPC_CHANNEL,
+          organizationActivationGetCurrentRequestSchema.parse(request),
+        ),
+      ),
+  }),
+  organizationProposal: Object.freeze({
+    create: async (request: OrganizationProposalCreateRequest) =>
+      organizationProposalItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          ORGANIZATION_PROPOSAL_CREATE_IPC_CHANNEL,
+          organizationProposalCreateRequestSchema.parse(request),
+        ),
+      ),
+    getCurrent: async (request: OrganizationProposalGetCurrentRequest) =>
+      organizationProposalNullableItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          ORGANIZATION_PROPOSAL_GET_CURRENT_IPC_CHANNEL,
+          organizationProposalGetCurrentRequestSchema.parse(request),
+        ),
+      ),
+  }),
   planner: Object.freeze({
     cancel: async (request: PlannerCancelRequest) =>
       plannerItemResultSchema.parse(
@@ -258,6 +469,215 @@ const desktopApi: DesktopApi = Object.freeze({
           plannerStartRequestSchema.parse(request),
         ),
       ),
+  }),
+  planReview: Object.freeze({
+    approve: async (request: PlanReviewApproveRequest) =>
+      planReviewItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          PLAN_REVIEW_APPROVE_IPC_CHANNEL,
+          planReviewApproveRequestSchema.parse(request),
+        ),
+      ),
+    getCurrent: async (request: PlanReviewGetCurrentRequest) =>
+      planReviewNullableItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          PLAN_REVIEW_GET_CURRENT_IPC_CHANNEL,
+          planReviewGetCurrentRequestSchema.parse(request),
+        ),
+      ),
+    listVersions: async (request: PlanReviewListVersionsRequest) =>
+      planReviewListResultSchema.parse(
+        await ipcRenderer.invoke(
+          PLAN_REVIEW_LIST_VERSIONS_IPC_CHANNEL,
+          planReviewListVersionsRequestSchema.parse(request),
+        ),
+      ),
+    saveVersion: async (request: PlanReviewSaveVersionRequest) =>
+      planReviewItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          PLAN_REVIEW_SAVE_VERSION_IPC_CHANNEL,
+          planReviewSaveVersionRequestSchema.parse(request),
+        ),
+      ),
+  }),
+  piEmployee: Object.freeze({
+    list: async (request: PiEmployeeListRequest) =>
+      piEmployeeListResultSchema.parse(
+        await ipcRenderer.invoke(
+          PI_EMPLOYEE_LIST_IPC_CHANNEL,
+          piEmployeeListRequestSchema.parse(request),
+        ),
+      ),
+    save: async (request: PiEmployeeSaveRequest) =>
+      piEmployeeItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          PI_EMPLOYEE_SAVE_IPC_CHANNEL,
+          piEmployeeSaveRequestSchema.parse(request),
+        ),
+      ),
+  }),
+  piCompany: Object.freeze({
+    list: async (request: PiCompanyListRequest) =>
+      piCompanyListResultSchema.parse(
+        await ipcRenderer.invoke(
+          PI_COMPANY_LIST_IPC_CHANNEL,
+          piCompanyListRequestSchema.parse(request),
+        ),
+      ),
+    create: async (request: PiCompanyCreateRequest) =>
+      piCompanyItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          PI_COMPANY_CREATE_IPC_CHANNEL,
+          piCompanyCreateRequestSchema.parse(request),
+        ),
+      ),
+    updateName: async (request: PiCompanyUpdateNameRequest) =>
+      piCompanyItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          PI_COMPANY_UPDATE_NAME_IPC_CHANNEL,
+          piCompanyUpdateNameRequestSchema.parse(request),
+        ),
+      ),
+    addEmployee: (request: PiCompanyEmployeeRequest) =>
+      invokePiCompany(
+        PI_COMPANY_ADD_EMPLOYEE_IPC_CHANNEL,
+        piCompanyEmployeeRequestSchema.parse(request),
+      ),
+    removeEmployee: (request: PiCompanyEmployeeRequest) =>
+      invokePiCompany(
+        PI_COMPANY_REMOVE_EMPLOYEE_IPC_CHANNEL,
+        piCompanyEmployeeRequestSchema.parse(request),
+      ),
+    addWorkspace: (request: PiCompanyWorkspaceRequest) =>
+      invokePiCompany(
+        PI_COMPANY_ADD_WORKSPACE_IPC_CHANNEL,
+        piCompanyWorkspaceRequestSchema.parse(request),
+      ),
+    removeWorkspace: (request: PiCompanyWorkspaceRequest) =>
+      invokePiCompany(
+        PI_COMPANY_REMOVE_WORKSPACE_IPC_CHANNEL,
+        piCompanyWorkspaceRequestSchema.parse(request),
+      ),
+  }),
+  piSkill: Object.freeze({
+    list: async (request: PiSkillListRequest) =>
+      piSkillListResultSchema.parse(
+        await ipcRenderer.invoke(
+          PI_SKILL_LIST_IPC_CHANNEL,
+          piSkillListRequestSchema.parse(request),
+        ),
+      ),
+    previewImport: async (request: PiSkillListRequest) =>
+      piSkillPreviewImportResultSchema.parse(
+        await ipcRenderer.invoke(
+          PI_SKILL_PREVIEW_IMPORT_IPC_CHANNEL,
+          piSkillListRequestSchema.parse(request),
+        ),
+      ),
+    confirmImport: async (request: PiSkillConfirmImportRequest) =>
+      piSkillItemResultSchema.parse(
+        await ipcRenderer.invoke(
+          PI_SKILL_CONFIRM_IMPORT_IPC_CHANNEL,
+          piSkillConfirmImportRequestSchema.parse(request),
+        ),
+      ),
+  }),
+  piTask: Object.freeze({
+    start: (request: PiTaskStartRequest) =>
+      invokePiTask(
+        PI_TASK_START_IPC_CHANNEL,
+        piTaskStartRequestSchema.parse(request),
+      ),
+    get: (request: PiTaskGetRequest) =>
+      invokePiTask(
+        PI_TASK_GET_IPC_CHANNEL,
+        piTaskGetRequestSchema.parse(request),
+      ),
+    list: async (request: PiTaskListRequest) =>
+      piTaskListResultSchema.parse(
+        await ipcRenderer.invoke(
+          PI_TASK_LIST_IPC_CHANNEL,
+          piTaskListRequestSchema.parse(request),
+        ),
+      ),
+    cancel: (request: PiTaskCommandRequest) =>
+      invokePiTask(
+        PI_TASK_CANCEL_IPC_CHANNEL,
+        piTaskCommandRequestSchema.parse(request),
+      ),
+    accept: (request: PiTaskCommandRequest) =>
+      invokePiTask(
+        PI_TASK_ACCEPT_IPC_CHANNEL,
+        piTaskCommandRequestSchema.parse(request),
+      ),
+    requestChanges: (request: PiTaskRequestChangesRequest) =>
+      invokePiTask(
+        PI_TASK_REQUEST_CHANGES_IPC_CHANNEL,
+        piTaskRequestChangesRequestSchema.parse(request),
+      ),
+    resolveCommandApproval: (request: PiTaskResolveCommandApprovalRequest) =>
+      invokePiTask(
+        PI_TASK_RESOLVE_COMMAND_APPROVAL_IPC_CHANNEL,
+        piTaskResolveCommandApprovalRequestSchema.parse(request),
+      ),
+    previewDeliverable: async (request: PiTaskDeliverableRequest) =>
+      piTaskDeliverablePreviewResultSchema.parse(
+        await ipcRenderer.invoke(
+          PI_TASK_PREVIEW_DELIVERABLE_IPC_CHANNEL,
+          piTaskDeliverableRequestSchema.parse(request),
+        ),
+      ),
+    openDeliverable: async (request: PiTaskDeliverableRequest) =>
+      piTaskDeliverableActionResultSchema.parse(
+        await ipcRenderer.invoke(
+          PI_TASK_OPEN_DELIVERABLE_IPC_CHANNEL,
+          piTaskDeliverableRequestSchema.parse(request),
+        ),
+      ),
+    revealDeliverable: async (request: PiTaskDeliverableRequest) =>
+      piTaskDeliverableActionResultSchema.parse(
+        await ipcRenderer.invoke(
+          PI_TASK_REVEAL_DELIVERABLE_IPC_CHANNEL,
+          piTaskDeliverableRequestSchema.parse(request),
+        ),
+      ),
+    selectAttachments: async () => {
+      const request = piTaskAttachmentSelectRequestSchema.parse({
+        schemaVersion: 1,
+        commandId: crypto.randomUUID(),
+      });
+      return piTaskAttachmentStageResultSchema.parse(
+        await ipcRenderer.invoke(
+          PI_TASK_ATTACHMENT_SELECT_IPC_CHANNEL,
+          request,
+        ),
+      );
+    },
+    stageDroppedAttachments: async (files: readonly File[]) => {
+      const request = piTaskAttachmentStageRequestSchema.parse({
+        schemaVersion: 1,
+        commandId: crypto.randomUUID(),
+        paths: Array.from(files, (file) => webUtils.getPathForFile(file)),
+      });
+      return piTaskAttachmentStageResultSchema.parse(
+        await ipcRenderer.invoke(
+          PI_TASK_ATTACHMENT_STAGE_DROPPED_IPC_CHANNEL,
+          request,
+        ),
+      );
+    },
+    discardAttachments: async (attachments: readonly PiTaskAttachment[]) => {
+      const request = piTaskAttachmentDiscardRequestSchema.parse({
+        schemaVersion: 1,
+        attachmentIds: attachments.map((attachment) => attachment.id),
+      });
+      return piTaskAttachmentDiscardResultSchema.parse(
+        await ipcRenderer.invoke(
+          PI_TASK_ATTACHMENT_DISCARD_IPC_CHANNEL,
+          request,
+        ),
+      );
+    },
   }),
   provider: Object.freeze({
     cancelConnectionTest: async (

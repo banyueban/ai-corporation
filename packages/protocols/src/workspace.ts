@@ -3,6 +3,14 @@ import { z } from "zod";
 export const WORKSPACE_SCHEMA_VERSION = 1 as const;
 export const WORKSPACE_CANONICALIZE_RPC_METHOD =
   "workspace.canonicalize" as const;
+export const WORKSPACE_LIST_RPC_METHOD = "workspace.list" as const;
+export const WORKSPACE_READ_TEXT_RPC_METHOD = "workspace.read_text" as const;
+export const WORKSPACE_INSPECT_FILE_RPC_METHOD =
+  "workspace.inspect_file" as const;
+export const WORKSPACE_WRITE_TEXT_RPC_METHOD = "workspace.write_text" as const;
+export const WORKSPACE_COPY_ASSET_RPC_METHOD = "workspace.copy_asset" as const;
+export const WORKSPACE_CREATE_BINARY_RPC_METHOD =
+  "workspace.create_binary" as const;
 export const WORKSPACE_LIST_IPC_CHANNEL = "workspace:list" as const;
 export const WORKSPACE_REVALIDATE_IPC_CHANNEL = "workspace:revalidate" as const;
 export const WORKSPACE_SELECT_IPC_CHANNEL = "workspace:select" as const;
@@ -66,6 +74,14 @@ export const workspacePathErrorReasonSchema = z.enum([
   "PATH_IDENTITY_UNAVAILABLE",
   "PERMISSION_PROBE_FAILED",
   "PERMISSION_PROBE_CLEANUP_FAILED",
+  "NOT_FOUND",
+  "NOT_FILE",
+  "NOT_DIRECTORY",
+  "SENSITIVE_PATH",
+  "BINARY_FILE",
+  "FILE_TOO_LARGE",
+  "CONFLICT",
+  "WRITE_FAILED",
 ]);
 
 const rpcIdSchema = z.union([z.string(), z.number(), z.null()]);
@@ -126,6 +142,173 @@ export const workspaceCanonicalizeRpcResponseSchema = z
       });
     }
   });
+
+const workspaceRelativePathSchema = z.string().max(32_767);
+const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/u);
+
+function workspacePathRpcRequestSchema(method: string) {
+  return z
+    .object({
+      jsonrpc: z.literal("2.0"),
+      id: rpcIdSchema,
+      method: z.literal(method),
+      params: z
+        .object({
+          schemaVersion: z.literal(WORKSPACE_SCHEMA_VERSION),
+          sessionToken: z.string().min(32).max(256),
+          rootPath: z.string().min(1).max(32_767),
+          relativePath: workspaceRelativePathSchema,
+        })
+        .strict(),
+    })
+    .strict();
+}
+
+export const workspaceListRpcRequestSchema = workspacePathRpcRequestSchema(
+  WORKSPACE_LIST_RPC_METHOD,
+);
+export const workspaceReadTextRpcRequestSchema = workspacePathRpcRequestSchema(
+  WORKSPACE_READ_TEXT_RPC_METHOD,
+);
+export const workspaceInspectFileRpcRequestSchema =
+  workspacePathRpcRequestSchema(WORKSPACE_INSPECT_FILE_RPC_METHOD);
+export const workspaceWriteTextRpcRequestSchema = z
+  .object({
+    jsonrpc: z.literal("2.0"),
+    id: rpcIdSchema,
+    method: z.literal(WORKSPACE_WRITE_TEXT_RPC_METHOD),
+    params: z
+      .object({
+        schemaVersion: z.literal(WORKSPACE_SCHEMA_VERSION),
+        sessionToken: z.string().min(32).max(256),
+        rootPath: z.string().min(1).max(32_767),
+        relativePath: workspaceRelativePathSchema,
+        content: z.string().max(1_048_576),
+        baseSha256: sha256Schema.optional(),
+      })
+      .strict(),
+  })
+  .strict();
+export const workspaceCopyAssetRpcRequestSchema = z
+  .object({
+    jsonrpc: z.literal("2.0"),
+    id: rpcIdSchema,
+    method: z.literal(WORKSPACE_COPY_ASSET_RPC_METHOD),
+    params: z
+      .object({
+        schemaVersion: z.literal(WORKSPACE_SCHEMA_VERSION),
+        sessionToken: z.string().min(32).max(256),
+        sourceRootPath: z.string().min(1).max(32_767),
+        sourceRelativePath: workspaceRelativePathSchema,
+        expectedSha256: sha256Schema,
+        expectedSizeBytes: z.number().int().nonnegative().max(104_857_600),
+        rootPath: z.string().min(1).max(32_767),
+        relativePath: workspaceRelativePathSchema,
+      })
+      .strict(),
+  })
+  .strict();
+export const workspaceCreateBinaryRpcRequestSchema = z
+  .object({
+    jsonrpc: z.literal("2.0"),
+    id: rpcIdSchema,
+    method: z.literal(WORKSPACE_CREATE_BINARY_RPC_METHOD),
+    params: z
+      .object({
+        schemaVersion: z.literal(WORKSPACE_SCHEMA_VERSION),
+        sessionToken: z.string().min(32).max(256),
+        rootPath: z.string().min(1).max(32_767),
+        relativePath: workspaceRelativePathSchema,
+        contentBase64: z.string().min(1).max(13_981_016),
+      })
+      .strict(),
+  })
+  .strict();
+
+export const workspaceListEntrySchema = z
+  .object({
+    relativePath: workspaceRelativePathSchema,
+    kind: z.enum(["FILE", "DIRECTORY"]),
+    sizeBytes: z.number().int().nonnegative().optional(),
+  })
+  .strict();
+export const workspaceListResultSchema = z
+  .object({
+    schemaVersion: z.literal(WORKSPACE_SCHEMA_VERSION),
+    relativePath: workspaceRelativePathSchema,
+    entries: z.array(workspaceListEntrySchema).max(200),
+  })
+  .strict();
+export const workspaceReadTextResultSchema = z
+  .object({
+    schemaVersion: z.literal(WORKSPACE_SCHEMA_VERSION),
+    relativePath: workspaceRelativePathSchema,
+    content: z.string().max(1_048_576),
+    sizeBytes: z.number().int().nonnegative().max(1_048_576),
+    sha256: sha256Schema,
+  })
+  .strict();
+export const workspaceInspectFileResultSchema = z
+  .object({
+    schemaVersion: z.literal(WORKSPACE_SCHEMA_VERSION),
+    canonicalPath: z.string().min(1).max(32_767),
+    relativePath: workspaceRelativePathSchema,
+    sizeBytes: z.number().int().nonnegative().max(104_857_600),
+    sha256: sha256Schema,
+  })
+  .strict();
+export const workspaceWriteTextResultSchema = z
+  .object({
+    schemaVersion: z.literal(WORKSPACE_SCHEMA_VERSION),
+    relativePath: workspaceRelativePathSchema,
+    created: z.boolean(),
+    previousSha256: sha256Schema.nullable(),
+    sha256: sha256Schema,
+    sizeBytes: z.number().int().nonnegative().max(1_048_576),
+  })
+  .strict();
+export const workspaceCopyAssetResultSchema = z
+  .object({
+    schemaVersion: z.literal(WORKSPACE_SCHEMA_VERSION),
+    relativePath: workspaceRelativePathSchema,
+    created: z.literal(true),
+    sha256: sha256Schema,
+    sizeBytes: z.number().int().nonnegative().max(104_857_600),
+  })
+  .strict();
+export const workspaceCreateBinaryResultSchema = workspaceCopyAssetResultSchema;
+
+function workspaceOperationRpcResponseSchema<T extends z.ZodType>(result: T) {
+  return z
+    .object({
+      jsonrpc: z.literal("2.0"),
+      id: rpcIdSchema,
+      result: result.optional(),
+      error: workspaceRpcErrorSchema.optional(),
+    })
+    .strict()
+    .superRefine((response, context) => {
+      if ((response.result === undefined) === (response.error === undefined)) {
+        context.addIssue({
+          code: "custom",
+          message: "RPC response must contain exactly one of result or error",
+        });
+      }
+    });
+}
+
+export const workspaceListRpcResponseSchema =
+  workspaceOperationRpcResponseSchema(workspaceListResultSchema);
+export const workspaceReadTextRpcResponseSchema =
+  workspaceOperationRpcResponseSchema(workspaceReadTextResultSchema);
+export const workspaceInspectFileRpcResponseSchema =
+  workspaceOperationRpcResponseSchema(workspaceInspectFileResultSchema);
+export const workspaceWriteTextRpcResponseSchema =
+  workspaceOperationRpcResponseSchema(workspaceWriteTextResultSchema);
+export const workspaceCopyAssetRpcResponseSchema =
+  workspaceOperationRpcResponseSchema(workspaceCopyAssetResultSchema);
+export const workspaceCreateBinaryRpcResponseSchema =
+  workspaceOperationRpcResponseSchema(workspaceCreateBinaryResultSchema);
 
 export const workspaceIpcErrorCodeSchema = z.enum([
   "WORKSPACE_NOT_FOUND",
@@ -213,9 +396,19 @@ export type WorkspaceAccessStatus = z.infer<typeof workspaceAccessStatusSchema>;
 export type WorkspaceCanonicalizeResult = z.infer<
   typeof workspaceCanonicalizeResultSchema
 >;
+export type WorkspaceCopyAssetResult = z.infer<
+  typeof workspaceCopyAssetResultSchema
+>;
+export type WorkspaceCreateBinaryResult = z.infer<
+  typeof workspaceCreateBinaryResultSchema
+>;
 export type WorkspaceIpcErrorCode = z.infer<typeof workspaceIpcErrorCodeSchema>;
 export type WorkspaceListIpcResult = z.infer<
   typeof workspaceListIpcResultSchema
+>;
+export type WorkspaceListResult = z.infer<typeof workspaceListResultSchema>;
+export type WorkspaceInspectFileResult = z.infer<
+  typeof workspaceInspectFileResultSchema
 >;
 export type WorkspacePathErrorReason = z.infer<
   typeof workspacePathErrorReasonSchema
@@ -230,6 +423,12 @@ export type WorkspaceRevalidateIpcResult = z.infer<
 >;
 export type WorkspaceRevalidateRequest = z.infer<
   typeof workspaceRevalidateRequestSchema
+>;
+export type WorkspaceReadTextResult = z.infer<
+  typeof workspaceReadTextResultSchema
+>;
+export type WorkspaceWriteTextResult = z.infer<
+  typeof workspaceWriteTextResultSchema
 >;
 export type WorkspaceSelection = z.infer<typeof workspaceSelectionSchema>;
 export type WorkspaceSelectIpcResult = z.infer<

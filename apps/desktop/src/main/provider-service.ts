@@ -418,33 +418,22 @@ export class ProviderService {
     request: {
       readonly providerId: string;
       readonly expectedVersion: number;
+      readonly modelId?: string;
       readonly generation: Omit<NormalizedGenerationRequest, "modelId">;
     },
     signal: AbortSignal,
   ): Promise<NormalizedGenerationResponse> {
+    this.assertReady(
+      request.providerId,
+      request.expectedVersion,
+      request.modelId,
+    );
     const provider = this.#repository.get(request.providerId);
     if (provider === undefined)
       throw new ProviderRuntimeUnavailableError("NOT_FOUND");
-    if (provider.version !== request.expectedVersion) {
-      throw new ProviderRuntimeUnavailableError("VERSION_CONFLICT");
-    }
-    if (provider.configStatus !== "ENABLED") {
-      throw new ProviderRuntimeUnavailableError("DISABLED");
-    }
-    if (!provider.hasKey)
-      throw new ProviderRuntimeUnavailableError("MISSING_KEY");
-    if (provider.connectionTest?.status !== "VERIFIED") {
-      throw new ProviderRuntimeUnavailableError("UNVERIFIED");
-    }
-    if (provider.selectedModelId === undefined) {
+    const modelId = request.modelId ?? provider.selectedModelId;
+    if (modelId === undefined) {
       throw new ProviderRuntimeUnavailableError("MODEL_NOT_SELECTED");
-    }
-    if (
-      !provider.connectionTest.models.some(
-        ({ id }) => id === provider.selectedModelId,
-      )
-    ) {
-      throw new ProviderRuntimeUnavailableError("MODEL_STALE");
     }
     const stored = this.#repository.getEncryptedKey(request.providerId);
     const key = this.#vault.decrypt(stored.encrypted, stored.entryId);
@@ -456,9 +445,83 @@ export class ProviderService {
         key,
         generationTimeoutMs: provider.generationTimeoutMs ?? 60_000,
       },
-      { modelId: provider.selectedModelId, ...request.generation },
+      { modelId, ...request.generation },
       signal,
     );
+  }
+
+  assertReady(
+    providerId: string,
+    expectedVersion: number,
+    requestedModelId?: string,
+  ): void {
+    const provider = this.#repository.get(providerId);
+    if (provider === undefined)
+      throw new ProviderRuntimeUnavailableError("NOT_FOUND");
+    if (provider.version !== expectedVersion)
+      throw new ProviderRuntimeUnavailableError("VERSION_CONFLICT");
+    if (provider.configStatus !== "ENABLED")
+      throw new ProviderRuntimeUnavailableError("DISABLED");
+    if (!provider.hasKey)
+      throw new ProviderRuntimeUnavailableError("MISSING_KEY");
+    const connectionTest = provider.connectionTest;
+    if (connectionTest?.status !== "VERIFIED")
+      throw new ProviderRuntimeUnavailableError("UNVERIFIED");
+    const modelId = requestedModelId ?? provider.selectedModelId;
+    if (modelId === undefined)
+      throw new ProviderRuntimeUnavailableError("MODEL_NOT_SELECTED");
+    if (!connectionTest.models.some(({ id }) => id === modelId))
+      throw new ProviderRuntimeUnavailableError("MODEL_STALE");
+    const stored = this.#repository.getEncryptedKey(providerId);
+    this.#vault.decrypt(stored.encrypted, stored.entryId);
+  }
+
+  /** Returns a secret-bearing runtime value only to Electron Main services. */
+  resolvePiRuntime(
+    providerId: string,
+    expectedVersion: number,
+    modelId: string,
+  ): {
+    readonly endpoint: string;
+    readonly key: string;
+    readonly timeoutMs: number;
+  } {
+    this.assertReady(providerId, expectedVersion, modelId);
+    const provider = this.#repository.get(providerId);
+    if (provider === undefined) {
+      throw new ProviderRuntimeUnavailableError("NOT_FOUND");
+    }
+    const stored = this.#repository.getEncryptedKey(providerId);
+    return {
+      endpoint: provider.endpoint,
+      key: this.#vault.decrypt(stored.encrypted, stored.entryId),
+      timeoutMs: provider.generationTimeoutMs ?? 60_000,
+    };
+  }
+
+  /**
+   * 员工长期绑定 Provider 和模型，不绑定某次编辑产生的历史版本号。
+   * 每次开始任务都重新检查当前 Provider、Key 和模型，避免正常更新配置后老员工失效。
+   */
+  resolveCurrentPiRuntime(
+    providerId: string,
+    modelId: string,
+  ): {
+    readonly endpoint: string;
+    readonly key: string;
+    readonly timeoutMs: number;
+  } {
+    const provider = this.#repository.get(providerId);
+    if (provider === undefined) {
+      throw new ProviderRuntimeUnavailableError("NOT_FOUND");
+    }
+    this.assertReady(providerId, provider.version, modelId);
+    const stored = this.#repository.getEncryptedKey(providerId);
+    return {
+      endpoint: provider.endpoint,
+      key: this.#vault.decrypt(stored.encrypted, stored.entryId),
+      timeoutMs: provider.generationTimeoutMs ?? 60_000,
+    };
   }
 
   #rememberFinishedConnectionTest(requestId: string): void {

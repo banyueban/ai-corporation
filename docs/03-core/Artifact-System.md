@@ -10,6 +10,7 @@ Artifact System 管理 AI Corporation 中所有可交付、可引用、可验证
 - `JSON`：结构化结果；
 - `DOCUMENT`：Markdown 等文档；
 - `SOURCE_CODE`：源代码；
+- `FILE`：普通文件或无法进一步细分的二进制成果；
 - `PATCH`：对工作区的变更集；
 - `TEST_REPORT`：测试/构建结果；
 - `DECISION_RECORD`：决策与理由；
@@ -34,6 +35,10 @@ Artifact Manifest、版本、生命周期、完整性、引用和 Change Set 字
 - 存储前计算 SHA-256；
 - 临时文件必须与正式存储位于可原子重命名的同一卷。
 
+Pi 重启路线在 M11 先交付轻量的 `pi_task_deliverable`：它只记录当前任务工作区内已经真实写入或核实的文件路径、哈希、大小、来源和差异，用于成果展示与人工验收。它不接入旧 Goal/Plan 的 Artifact 生命周期，也不冒充完整版本树；完整跨任务版本、来源图和 Managed Artifact Store 以后单独接入。
+
+M14 增加轻量 `pi_task_attachment` 作为任务输入边界。用户选择文件后，Main 先复制到应用自管暂存目录并计算哈希；任务成功建立时移动到按 Task 隔离的私有目录并写入数据库。记录只保存任务内 ID、原文件名、媒体类型、大小、哈希和私有存储文件名，不保存用户原始绝对路径。附件副本不可被模型或 Renderer 原地修改，任务输出仍必须写到当前 Workspace 并作为 `pi_task_deliverable` 登记。
+
 ## 5. 工作区变更
 
 工作区写入采用 Change Set：
@@ -54,7 +59,7 @@ type ChangeSet = {
 1. 解析并规范化路径；
 2. 验证在工作区内；
 3. 比较基线哈希，检测外部修改；
-4. 展示 diff 并执行策略审批；
+4. 展示 diff 并执行策略；当前任务已明确选择可写工作区且操作属于普通文本创建或基线未变化的修改时可以自动批准，其他操作仍按策略审批或拒绝；
 5. 写临时文件；
 6. 原子替换；
 7. 记录新哈希与 commit record；

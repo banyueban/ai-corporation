@@ -140,7 +140,10 @@ ON goal_generation_operation(corporation_id)
 WHERE status IN ('GENERATING','CLARIFICATION_REQUIRED','EXTENSION_REQUIRED');
 
 CREATE TABLE organization_version (
+  id TEXT NOT NULL UNIQUE,
   corporation_id TEXT NOT NULL REFERENCES corporation(id) ON DELETE CASCADE,
+  plan_id TEXT NOT NULL REFERENCES task_plan(id) ON DELETE RESTRICT,
+  plan_version INTEGER NOT NULL,
   version INTEGER NOT NULL,
   status TEXT NOT NULL CHECK (status IN ('DRAFT','APPROVED','SUPERSEDED')),
   snapshot_json TEXT NOT NULL,
@@ -148,7 +151,23 @@ CREATE TABLE organization_version (
   created_at TEXT NOT NULL,
   PRIMARY KEY (corporation_id, version)
 );
+
+CREATE UNIQUE INDEX idx_organization_current
+ON organization_version(corporation_id)
+WHERE status <> 'SUPERSEDED';
+
+CREATE TABLE organization_proposal_command (
+  command_id TEXT PRIMARY KEY NOT NULL,
+  corporation_id TEXT NOT NULL REFERENCES corporation(id) ON DELETE CASCADE,
+  request_hash TEXT NOT NULL,
+  result_organization_id TEXT NOT NULL REFERENCES organization_version(id),
+  created_at TEXT NOT NULL
+);
 ```
+
+`0013_organization_proposal.sql` 物理实现上述团队草案表。M3-TU-01 只保存 `DRAFT` 快照和幂等命令回执；每个 Corporation 只有一个未被取代的草案。快照引用创建时的已批准 Plan，并保存固定模板、模型策略、Task 责任人、职责分离和能力缺口。该迁移不创建 `agent_instance` 或 `agent_run`，不保存精确 Provider/model，也不改变 Corporation 状态。
+
+`0014_organization_activation.sql` 增加 `corporation.active_organization_version`、内置 `agent_definition`、`organization_activation`、激活命令回执和 `agent_instance`。激活事务只允许当前 `DRAFT` organization version 转为 `APPROVED`，保存 Planner/Executor/Judge 三组 Provider ID、Provider 版本、精确模型 ID、API dialect 与策略快照，并按草案成员逐一创建 `READY` Agent Instance；不复制 Key、不创建 `agent_run`、不调用 Provider、不改变 Corporation 的 `DRAFT` 状态。当前草案、Provider 版本、连接验证或模型列表发生竞争变化时整体回滚。激活后 Provider 变化不更新历史快照和 Agent Instance；后续执行前另行校验并阻断失效配置。
 
 `0004_goal_contract.sql` 用 trigger 强制 Goal 只能以 DRAFT 插入、内容列不可更新、只允许协议规定的状态迁移、禁止删除，并验证 `corporation.active_goal_version` 只能逐版指向本 Corporation 的当前 DRAFT。复合 pointer 约束使用 trigger，是因为 SQLite 不能通过 `ALTER TABLE ... ADD COLUMN` 给已有 Corporation 表增加复合外键；Repository 仍必须在同一短事务中写 Goal、pointer、事件与回执。
 
@@ -168,11 +187,46 @@ CREATE TABLE task_plan (
   provider_version INTEGER NOT NULL,
   model_id TEXT NOT NULL,
   created_by_operation_id TEXT NOT NULL,
+  validation_report_json TEXT CHECK (
+    validation_report_json IS NULL OR (
+      json_valid(validation_report_json)
+      AND json_type(validation_report_json) = 'object'
+    )
+  ),
+  validator_version TEXT,
+  validated_draft_hash TEXT CHECK (
+    validated_draft_hash IS NULL OR (
+      length(validated_draft_hash) = 64
+      AND validated_draft_hash NOT GLOB '*[^0-9a-f]*'
+    )
+  ),
+  validated_at TEXT,
+  supersedes_plan_id TEXT REFERENCES task_plan(id),
+  approved_at TEXT,
   created_at TEXT NOT NULL,
   UNIQUE(corporation_id, version),
   FOREIGN KEY (corporation_id, goal_version)
-    REFERENCES goal_contract_version(corporation_id, version)
+    REFERENCES goal_contract_version(corporation_id, version),
+  CHECK (
+    (validation_status = 'PENDING'
+      AND validation_report_json IS NULL
+      AND validator_version IS NULL
+      AND validated_draft_hash IS NULL
+      AND validated_at IS NULL)
+    OR (validation_status IN ('VALID','INVALID')
+      AND validation_report_json IS NOT NULL
+      AND validator_version IS NOT NULL
+      AND validated_draft_hash IS NOT NULL
+      AND validated_at IS NOT NULL)
+  )
 );
+
+CREATE UNIQUE INDEX idx_task_plan_identity
+ON task_plan(id, corporation_id);
+
+CREATE UNIQUE INDEX idx_task_plan_current
+ON task_plan(corporation_id)
+WHERE status <> 'SUPERSEDED';
 
 CREATE TABLE task (
   id TEXT PRIMARY KEY,
@@ -197,7 +251,10 @@ CREATE TABLE task (
   weight INTEGER NOT NULL DEFAULT 1 CHECK (weight BETWEEN 1 AND 5),
   version INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
+  updated_at TEXT NOT NULL,
+  UNIQUE(plan_id, id),
+  FOREIGN KEY (plan_id, corporation_id)
+    REFERENCES task_plan(id, corporation_id)
 );
 
 CREATE INDEX idx_task_ready
@@ -209,16 +266,21 @@ ON task(status, lease_expires_at)
 WHERE status = 'RUNNING';
 
 CREATE TABLE task_dependency (
-  upstream_task_id TEXT NOT NULL REFERENCES task(id) ON DELETE CASCADE,
-  downstream_task_id TEXT NOT NULL REFERENCES task(id) ON DELETE CASCADE,
-  condition TEXT NOT NULL CHECK (condition IN ('ON_SUCCESS','ON_COMPLETION')),
+  plan_id TEXT NOT NULL REFERENCES task_plan(id) ON DELETE CASCADE,
+  upstream_task_id TEXT NOT NULL,
+  downstream_task_id TEXT NOT NULL,
+  condition TEXT NOT NULL CHECK (condition = 'ON_SUCCESS'),
   artifact_requirements_json TEXT NOT NULL DEFAULT '[]',
-  PRIMARY KEY (upstream_task_id, downstream_task_id),
-  CHECK (upstream_task_id <> downstream_task_id)
+  PRIMARY KEY (plan_id, upstream_task_id, downstream_task_id),
+  CHECK (upstream_task_id <> downstream_task_id),
+  FOREIGN KEY (plan_id, upstream_task_id)
+    REFERENCES task(plan_id, id) ON DELETE CASCADE,
+  FOREIGN KEY (plan_id, downstream_task_id)
+    REFERENCES task(plan_id, id) ON DELETE CASCADE
 );
 ```
 
-环检测由应用层事务内完成；SQLite CHECK 无法验证整图无环。
+环检测由应用层事务内完成；SQLite CHECK 无法验证整图无环。`validation_report_json`、`validator_version`、`validated_draft_hash` 和 `validated_at` 由 `0011_plan_validation.sql` 增加；同一迁移创建正式 `task`/`task_dependency`。`supersedes_plan_id`、`approved_at`、每个 Corporation 唯一当前 Plan、连续版本链、旧版本只读状态和 Plan Review 命令幂等记录由 `0012_plan_review.sql` 增加。语义 hash 只覆盖不含动态状态、report 和时间的规范化草稿内容。Repository 必须保证 `INVALID` 没有 Task，`VALID` 的 Task/依赖/report/状态原子一致；保存新版本与旧版本 `SUPERSEDED` 原子一致，只有 `VALIDATED/VALID` 可转为 `APPROVED/VALID`。
 
 ## 5. Agent 与 Run
 
@@ -268,6 +330,12 @@ CREATE TABLE agent_run (
 
 CREATE INDEX idx_agent_run_task ON agent_run(task_id, attempt DESC);
 ```
+
+`0016_agent_runtime_model_run.sql` 增加 `agent_run_candidate` 和
+`agent_run_command`。候选表保存与 Task `expectedOutputs` 一一对应的正文、类型、
+media type 和 SHA-256；`candidate://<UUID>` 引用只由软件在读取时生成。命令表保存
+继续、重试、取消的请求哈希和结果 Run，用于防止重复模型调用。该迁移不创建
+`artifact` 或 `artifact_version`；正式交付物仍由后续任务实现。
 
 ## 6. 模型、工具与审批
 
@@ -630,6 +698,18 @@ Provider 表只保存应用自管 Key Vault 的记录 ID。`key_vault_entry` 保
 `0008_provider_generation.sql` 为 Provider 增加显式 `CHAT_COMPLETIONS` dialect、精确模型选择和生成超时，并建立最近生成测试投影。模型只能从当前 `VERIFIED` 连接模型列表中选择；Endpoint 或 Key 改变时在同一事务清除连接测试、模型选择和生成测试；名称/启停变化迁移连接与生成投影；超时变化保留连接和模型但清除生成投影；模型变化保留连接但清除生成投影。生成投影只保存固定低风险输入的受限预览、标准 usage/错误与时间；不保存输入、原始远端 DTO、Authorization、Key 或远端 request ID。取消与配置冲突不覆盖已有投影。
 
 `0003_corporation_events.sql` 只建立 M1-TU-04 已冻结的 Corporation CRUD、事件与命令回执字段。`0004_goal_contract.sql` 增加 active Goal pointer、不可变 Goal 版本、Goal 命令回执和两种 Goal 事实事件。`0005_corporation_pause_resume.sql` 增加成对暂停元数据、pause/resume 独立命令回执、两种状态事实事件和物理一致性 trigger；active Plan/Organization、Policy 与事件分发游标仍由后续迁移增加。分发状态不得通过更新 append-only `domain_event` 实现。
+
+`0021_pi_company.sql` 建立 Pi 路线独立的 `pi_company`、`pi_company_employee` 和 `pi_company_workspace`。`pi_task.company_id` 必填并引用 `pi_company`；员工与工作区关系使用联合主键，重复加入保持幂等。升级库只有在已存在 Pi 员工或任务时才创建“我的公司”，随后把现有员工、任务和任务使用过的工作区接入；旧 `corporation` 及其 Goal/Plan 数据保持原样。
+
+`0022_pi_task_deliverable.sql` 为 Pi 路线建立轻量任务成果记录。每项记录固定属于 `pi_task` 和该任务的 Workspace，以任务和相对路径唯一；保存来源、创建/修改分类、交付时 SHA-256、大小、可选差异和登记时间。迁移不扫描工作区、不回填旧任务，也不调用模型、工具、命令或外部服务。
+
+`0023_pi_employee_skill.sql` 建立 `pi_employee_skill(employee_id, skill_name, position)`。`employee_id + skill_name` 和 `employee_id + position` 分别唯一，删除员工级联删除分配关系；迁移把每名员工原 `skill_name` 复制为位置 `0`，不要求重建员工。新版本以关系表为权威列表，并在保存事务内让旧 `pi_employee.skill_name` 镜像第一项；员工不得保存空列表。
+
+同一迁移给 `pi_workspace_write` 增加 `operation_kind`，只允许 `TEXT_WRITE` 或 `SKILL_ASSET`，使应用重启后能按真实操作类型恢复而不重复复制。`pi_task_deliverable.source` 同步增加 `SKILL_ASSET`；迁移通过重建轻量成果表保留已有记录、主键和索引，不扫描或改写 Workspace 文件。
+
+M12-TU-02 不增加 `0024`：脚本与环境安装启动前继续写现有 `pi_command_call.STARTING`，完成后记录真实终态，启动恢复把遗留运行记录改为 `UNKNOWN`；可见计划和结果继续进入 `pi_task_event`。Skill 独立环境使用应用自管文件系统中的原子 `READY` 清单，不把机器绝对路径写入 SQLite；项目环境只写当前 Workspace 的明确子目录且不进入 `pi_task_deliverable`。只有复检成功的清单可被复用，临时或未知环境不能投影为成功。
+
+`0024_pi_task_attachment.sql` 建立 `pi_task_attachment`。每条记录必须属于一个 `pi_task`，保存附件 UUID、任务内显示名称、受限媒体类型、大小、SHA-256、随机私有存储文件名和创建时间；任务删除时级联删除数据库记录，文件系统副本由同一任务清理流程处理。表中不保存用户原始绝对路径、提取正文或模型生成内容。迁移不扫描用户目录、不回填旧任务，也不调用模型或文档工具。
 
 FTS 同步由事务内 repository 维护并用一致性测试覆盖。
 

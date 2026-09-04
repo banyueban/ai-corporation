@@ -74,14 +74,14 @@ RUNNING → PRODUCED
 PRODUCED → SUCCEEDED
 ```
 
-`PRODUCED` 表示候选 Artifact 已生成；只有持久化成功后才转 `SUCCEEDED`。
+`PRODUCED` 表示模型候选内容已经由应用验证并持久化，但不等于正式 Artifact 已生成。正式 Artifact 任务把候选内容转换为 Artifact Version 后，Run 才转 `SUCCEEDED`。模型不得生成或指定可信 `contentRef`；引用只能由应用在持久化边界生成。
 
 ## 5. Run Limits
 
 ```ts
 type RunLimits = {
-  maxModelTurns: number;       // 默认 8
-  maxToolCalls: number;        // 默认 12
+  maxModelTurns: number; // 默认 8
+  maxToolCalls: number; // 默认 12
   maxInputTokens: number;
   maxOutputTokens: number;
   maxCostMicros: string;
@@ -129,6 +129,16 @@ type AgentContext = {
 - 工具结果优先保存为 Artifact，只在上下文中放摘要和引用；
 - 达到 70% 上下文预算时进行确定性裁剪；
 - 摘要必须保留来源 ID，不能变成无来源事实。
+
+### 6.3 Pi 员工的 Skill 上下文
+
+Pi 员工按 [Skill Runtime](Skill-Runtime.md) 使用标准 Agent Skills：
+
+- 任务开始只注入当前员工已分配 Skill 的名称和用途；
+- 员工根据当前任务自行调用 `skill.activate`，未启用 Skill 不加载完整说明；
+- 参考资料和资源继续按需读取或复制，不向模型提供应用自管副本的绝对路径；
+- Skill 的任何文字和 `allowed-tools` 都不能提升 Tool 权限；
+- 现有 `coding-task` 只要出现在员工的技能列表中，就继续获得原有编码工具集合；本任务不借多 Skill 改写既有命令授权。
 
 ## 7. Prompt 组装
 
@@ -193,9 +203,11 @@ Agent 的最终输出必须符合 [Agent Protocol 的 `AgentOutputEnvelope`](../
 2. JSON Schema 验证；
 3. 若仅格式错误，执行一次 constrained repair；
 4. 验证 Artifact 引用和路径；
-5. 存入临时区；
-6. 创建 Artifact Version；
-7. 返回给 Task Engine 进入 `VERIFYING`。
+5. 由应用生成可信候选内容引用并持久化，Run 进入 `PRODUCED`；
+6. 后续 Artifact 任务创建 Artifact Version；
+7. Artifact 持久化成功后，Run 进入 `SUCCEEDED`，Task Engine 再进入 `VERIFYING`。
+
+M3-TU-04 只交付上述第 1–5 步。它只运行没有上游 `TASK_OUTPUT`、不需要 Workspace 文件读取/写入或进程权限的首任务；Task 可声明 `requiredTools`，但本切片只把它视为后续工作说明。上下文包含安全规则、Goal 摘要、Task 合同、Agent 职责、输出要求，以及“工具不可用、不得声称已执行工具或读写文件”的硬限制。上游 Artifact、Workspace 文件、Memory、工具调用和工具结果由后续任务接入，UI 必须说明工具尚未执行。
 
 ## 10. Tool Calling
 

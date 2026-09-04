@@ -184,14 +184,17 @@ describe("migration runner", () => {
     database.close();
   });
 
-  it("creates the existing domain schema and Planner projection through migration 0010", () => {
+  it("creates the domain schema through the Pi employee migration", () => {
     const database = new DatabaseSync(":memory:");
     const migrations = loadMigrations(migrationDirectory);
     applyMigrations(database, migrations);
 
     expect(
       readAppliedMigrations(database).map(({ version }) => version),
-    ).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    ).toEqual([
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+      22, 23, 24,
+    ]);
     expect(
       database
         .prepare(
@@ -205,7 +208,23 @@ describe("migration runner", () => {
               'goal_contract_command',
               'goal_generation_operation',
               'planner_generation_operation',
+              'pi_employee',
+              'pi_employee_skill',
+              'idx_pi_employee_updated',
+              'pi_task',
+              'pi_task_event',
+              'pi_workspace_write',
+              'idx_pi_workspace_write_task',
+              'idx_pi_task_employee_updated',
+              'pi_task_deliverable',
+              'idx_pi_task_deliverable_registered',
               'task_plan',
+              'task',
+              'task_dependency',
+              'plan_review_command',
+              'organization_version',
+              'organization_proposal_command',
+              'idx_organization_current',
               'model_call',
               'corporation_state_command',
               'idx_corporation_workspace_updated',
@@ -213,6 +232,9 @@ describe("migration runner", () => {
               'idx_goal_generation_active',
               'idx_planner_generation_active',
               'idx_task_plan_corporation_version',
+              'idx_task_plan_identity',
+              'idx_task_plan_current',
+              'idx_task_plan_supersedes',
               'idx_model_call_operation',
               'idx_event_corporation_timeline',
               'domain_event_reject_update',
@@ -221,7 +243,11 @@ describe("migration runner", () => {
               'goal_contract_reject_delete',
               'corporation_validate_active_goal',
               'corporation_validate_pause_metadata_insert',
-              'corporation_validate_pause_metadata_update'
+              'corporation_validate_pause_metadata_update',
+              'task_plan_approval_insert_guard',
+              'task_plan_approval_update_guard',
+              'task_plan_version_insert_guard',
+              'task_plan_supersede_update_guard'
             )
           ORDER BY name`,
         )
@@ -247,13 +273,264 @@ describe("migration runner", () => {
       "idx_goal_contract_corporation_version",
       "idx_goal_generation_active",
       "idx_model_call_operation",
+      "idx_organization_current",
+      "idx_pi_employee_updated",
+      "idx_pi_task_deliverable_registered",
+      "idx_pi_task_employee_updated",
+      "idx_pi_workspace_write_task",
       "idx_planner_generation_active",
       "idx_task_plan_corporation_version",
+      "idx_task_plan_current",
+      "idx_task_plan_identity",
+      "idx_task_plan_supersedes",
       "model_call",
+      "organization_proposal_command",
+      "organization_version",
+      "pi_employee",
+      "pi_employee_skill",
+      "pi_task",
+      "pi_task_deliverable",
+      "pi_task_event",
+      "pi_workspace_write",
+      "plan_review_command",
       "planner_generation_operation",
+      "task",
+      "task_dependency",
       "task_plan",
+      "task_plan_approval_insert_guard",
+      "task_plan_approval_update_guard",
+      "task_plan_supersede_update_guard",
+      "task_plan_version_insert_guard",
     ]);
     expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+    database.close();
+  });
+
+  it("puts existing Pi work into one default company without changing task identity", () => {
+    const database = new DatabaseSync(":memory:");
+    const migrations = loadMigrations(migrationDirectory);
+    applyMigrations(
+      database,
+      migrations.filter(({ version }) => version <= 20),
+    );
+    const employeeId = "019b0000-0000-7000-8000-000000000021";
+    const workspaceId = "019b0000-0000-7000-8000-000000000022";
+    const taskId = "019b0000-0000-7000-8000-000000000023";
+    const runningTaskId = "019b0000-0000-7000-8000-000000000025";
+    const corporationId = "019b0000-0000-7000-8000-000000000026";
+    const now = "2026-08-21T00:00:00.000Z";
+    database.exec("PRAGMA foreign_keys = OFF");
+    database
+      .prepare(
+        `INSERT INTO provider
+        (id, type, name, endpoint, config_json, config_status, version, created_at, updated_at)
+       VALUES (?, 'OPENAI_COMPATIBLE', '旧 Provider', 'https://example.test/v1',
+         '{}', 'ENABLED', 1, ?, ?)`,
+      )
+      .run(employeeId, now, now);
+    database
+      .prepare(
+        `INSERT INTO pi_employee
+        (id, name, provider_id, provider_version, model_id, skill_name, created_at, updated_at)
+       VALUES (?, '旧员工', ?, 1, 'model', 'text-organize', ?, ?)`,
+      )
+      .run(employeeId, employeeId, now, now);
+    database
+      .prepare(
+        `INSERT INTO workspace
+        (id, name, display_path, canonical_root_path, platform, permission_mode,
+         access_status, path_identity_json, last_verified_at, created_at, updated_at)
+       VALUES (?, '旧工作区', 'C:\\old', 'C:\\old', 'windows', 'READ_WRITE',
+         'AVAILABLE', ?, ?, ?, ?)`,
+      )
+      .run(
+        workspaceId,
+        JSON.stringify({
+          platform: "windows",
+          volumeRoot: "C:",
+          rootCreationTime: "1",
+        }),
+        now,
+        now,
+        now,
+      );
+    database
+      .prepare(
+        `INSERT INTO corporation
+        (id, workspace_id, name, status, version, created_at, updated_at)
+       VALUES (?, ?, '旧版公司', 'DRAFT', 1, ?, ?)`,
+      )
+      .run(corporationId, workspaceId, now, now);
+    database
+      .prepare(
+        `INSERT INTO pi_task
+        (id, employee_id, workspace_id, user_input, status, created_at, updated_at)
+       VALUES (?, ?, ?, '旧任务', 'COMPLETED', ?, ?)`,
+      )
+      .run(taskId, employeeId, workspaceId, now, now);
+    database
+      .prepare(
+        `INSERT INTO pi_task
+        (id, employee_id, workspace_id, user_input, status, created_at, updated_at)
+       VALUES (?, ?, ?, '运行中的旧任务', 'RUNNING', ?, ?)`,
+      )
+      .run(runningTaskId, employeeId, workspaceId, now, now);
+    database
+      .prepare(
+        `INSERT INTO pi_task_event (task_id, sequence, kind, content, created_at)
+         VALUES (?, 1, 'MODEL_OUTPUT', '旧输出', ?)`,
+      )
+      .run(taskId, now);
+    const taskBefore = database
+      .prepare("SELECT * FROM pi_task WHERE id = ?")
+      .get(taskId);
+    const eventBefore = database
+      .prepare("SELECT * FROM pi_task_event WHERE task_id = ?")
+      .get(taskId);
+    const corporationBefore = database
+      .prepare("SELECT * FROM corporation WHERE id = ?")
+      .get(corporationId);
+    const runningTaskBefore = database
+      .prepare("SELECT * FROM pi_task WHERE id = ?")
+      .get(runningTaskId);
+
+    applyMigrations(database, migrations);
+
+    const companyId = "019b0000-0000-7000-8000-000000000001";
+    expect(database.prepare("SELECT id, name FROM pi_company").get()).toEqual({
+      id: companyId,
+      name: "我的公司",
+    });
+    expect(
+      database
+        .prepare("SELECT company_id FROM pi_task WHERE id = ?")
+        .get(taskId),
+    ).toEqual({
+      company_id: companyId,
+    });
+    const { company_id: migratedCompanyId, ...taskAfter } = database
+      .prepare("SELECT * FROM pi_task WHERE id = ?")
+      .get(taskId) as Record<string, unknown>;
+    expect(migratedCompanyId).toBe(companyId);
+    expect(taskAfter).toEqual(taskBefore);
+    expect(
+      database
+        .prepare("SELECT * FROM pi_task_event WHERE task_id = ?")
+        .get(taskId),
+    ).toEqual(eventBefore);
+    expect(
+      database
+        .prepare("SELECT * FROM corporation WHERE id = ?")
+        .get(corporationId),
+    ).toEqual(corporationBefore);
+    const { company_id: runningCompanyId, ...runningTaskAfter } = database
+      .prepare("SELECT * FROM pi_task WHERE id = ?")
+      .get(runningTaskId) as Record<string, unknown>;
+    expect(runningCompanyId).toBe(companyId);
+    expect(runningTaskAfter).toEqual(runningTaskBefore);
+    expect(
+      database.prepare("SELECT employee_id FROM pi_company_employee").get(),
+    ).toEqual({
+      employee_id: employeeId,
+    });
+    expect(
+      database.prepare("SELECT workspace_id FROM pi_company_workspace").get(),
+    ).toEqual({
+      workspace_id: workspaceId,
+    });
+    database
+      .prepare(
+        "INSERT INTO pi_company (id, name, created_at, updated_at) VALUES (?, '另一公司', ?, ?)",
+      )
+      .run("019b0000-0000-7000-8000-000000000099", now, now);
+    expect(() =>
+      database
+        .prepare("UPDATE pi_task SET company_id = ? WHERE id = ?")
+        .run("019b0000-0000-7000-8000-000000000099", taskId),
+    ).toThrow("pi_task company_id is immutable");
+    expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+    database.close();
+  });
+
+  it("does not create a default company for an empty Pi installation", () => {
+    const database = new DatabaseSync(":memory:");
+    const migrations = loadMigrations(migrationDirectory);
+    applyMigrations(database, migrations);
+    applyMigrations(database, migrations);
+    expect(
+      database.prepare("SELECT COUNT(*) AS total FROM pi_company").get(),
+    ).toEqual({ total: 0 });
+    database.close();
+  });
+
+  it("attaches an existing employee even when there are no tasks", () => {
+    const database = new DatabaseSync(":memory:");
+    const migrations = loadMigrations(migrationDirectory);
+    applyMigrations(
+      database,
+      migrations.filter(({ version }) => version <= 20),
+    );
+    const employeeId = "019b0000-0000-7000-8000-000000000024";
+    const now = "2026-08-21T00:00:00.000Z";
+    database.exec("PRAGMA foreign_keys = OFF");
+    database
+      .prepare(
+        `INSERT INTO pi_employee
+          (id, name, provider_id, provider_version, model_id, skill_name, created_at, updated_at)
+         VALUES (?, '旧员工', ?, 1, 'model', 'text-organize', ?, ?)`,
+      )
+      .run(employeeId, employeeId, now, now);
+    applyMigrations(database, migrations);
+    expect(
+      database.prepare("SELECT employee_id FROM pi_company_employee").get(),
+    ).toEqual({ employee_id: employeeId });
+    expect(
+      database
+        .prepare("SELECT COUNT(*) AS total FROM pi_company_workspace")
+        .get(),
+    ).toEqual({ total: 0 });
+    database.close();
+  });
+
+  it("migrates every legacy employee skill into the ordered multi-skill relation", () => {
+    const database = new DatabaseSync(":memory:");
+    const migrations = loadMigrations(migrationDirectory);
+    applyMigrations(
+      database,
+      migrations.filter(({ version }) => version <= 22),
+    );
+    const employeeId = "019b0000-0000-7000-8000-000000000044";
+    const now = "2026-08-23T00:00:00.000Z";
+    database.exec("PRAGMA foreign_keys = OFF");
+    database
+      .prepare(
+        `INSERT INTO pi_employee
+          (id, name, provider_id, provider_version, model_id, skill_name,
+           created_at, updated_at)
+         VALUES (?, '旧员工', ?, 1, 'model', 'coding-task', ?, ?)`,
+      )
+      .run(employeeId, employeeId, now, now);
+    database.exec("PRAGMA foreign_keys = ON");
+
+    applyMigrations(database, migrations);
+
+    expect(
+      database
+        .prepare(
+          `SELECT employee_id, skill_name, position
+           FROM pi_employee_skill WHERE employee_id = ?`,
+        )
+        .get(employeeId),
+    ).toEqual({
+      employee_id: employeeId,
+      skill_name: "coding-task",
+      position: 0,
+    });
+    expect(
+      database
+        .prepare("SELECT skill_name FROM pi_employee WHERE id = ?")
+        .get(employeeId),
+    ).toEqual({ skill_name: "coding-task" });
     database.close();
   });
 

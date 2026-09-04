@@ -1,0 +1,1672 @@
+import type {
+  PiEmployee,
+  PiCompany,
+  PiSkill,
+  PiSkillPreviewImportResult,
+  PiTask,
+  PiTaskAttachment,
+  PiTaskDeliverablePreviewResult,
+  ProviderPublic,
+  WorkspacePublic,
+} from "@ai-corporation/protocols";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type FormEvent,
+  type SetStateAction,
+} from "react";
+import { preferFresherPiTask } from "./pi-task-view-model";
+import { createUuidV7 } from "./uuid-v7";
+
+type Preview = Extract<PiSkillPreviewImportResult, { ok: true }>["value"];
+type DeliverablePreview = Extract<
+  PiTaskDeliverablePreviewResult,
+  { ok: true }
+>["value"];
+type CommandApproval = {
+  readonly approvalId: string;
+  readonly command: string;
+  readonly details?: {
+    readonly items: readonly string[];
+    readonly location: string;
+    readonly network: boolean;
+    readonly risk: string;
+    readonly source: string;
+    readonly systemImpact: string;
+    readonly title: string;
+  };
+  readonly kind: "TASK" | "HIGH_RISK" | "ENVIRONMENT" | "SYSTEM_INSTALL";
+  readonly reason: string;
+};
+
+export function EmployeesPage(props: {
+  readonly company: PiCompany;
+  readonly onCompanyChange: (company: PiCompany) => void;
+}) {
+  const [employees, setEmployees] = useState<readonly PiEmployee[]>([]);
+  const [skills, setSkills] = useState<readonly PiSkill[]>([]);
+  const [providers, setProviders] = useState<readonly ProviderPublic[]>([]);
+  const [workspaces, setWorkspaces] = useState<readonly WorkspacePublic[]>([]);
+  const [name, setName] = useState("");
+  const [providerId, setProviderId] = useState("");
+  const [modelId, setModelId] = useState("");
+  const [skillNames, setSkillNames] = useState<readonly string[]>([]);
+  const [editingEmployeeId, setEditingEmployeeId] = useState("");
+  const [preview, setPreview] = useState<Preview>();
+  const [skillImportMessage, setSkillImportMessage] = useState("");
+  const [message, setMessage] = useState("");
+  const [pending, setPending] = useState(false);
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState("");
+  const [taskInput, setTaskInput] = useState("");
+  const [taskAttachments, setTaskAttachments] = useState<
+    readonly PiTaskAttachment[]
+  >([]);
+  const [attachmentMessage, setAttachmentMessage] = useState("");
+  const [changeInput, setChangeInput] = useState("");
+  const [currentTask, setCurrentTask] = useState<PiTask>();
+  const [tasks, setTasks] = useState<readonly PiTask[]>([]);
+  const [deliverablePreview, setDeliverablePreview] =
+    useState<DeliverablePreview>();
+  const skillImportMessageRef = useRef<HTMLParagraphElement>(null);
+  const skillImportPreviewRef = useRef<HTMLDivElement>(null);
+  const taskAttachmentsRef = useRef<readonly PiTaskAttachment[]>([]);
+
+  const readyProviders = useMemo(
+    () => providers.filter(isReadyProvider),
+    [providers],
+  );
+  const selectedProvider = readyProviders.find(
+    (provider) => provider.id === providerId,
+  );
+  const commandApproval = useMemo(
+    () => pendingCommandApproval(currentTask),
+    [currentTask],
+  );
+  const companyEmployees = employees.filter((employee) =>
+    props.company.employeeIds.includes(employee.id),
+  );
+  const companyWorkspaces = workspaces.filter((workspace) =>
+    props.company.workspaceIds.includes(workspace.workspaceId),
+  );
+
+  const reload = async (company = props.company) => {
+    const [
+      employeeResult,
+      skillResult,
+      providerResult,
+      workspaceResult,
+      taskResult,
+    ] = await Promise.all([
+      window.desktop.piEmployee.list({ schemaVersion: 2 }),
+      window.desktop.piSkill.list({ schemaVersion: 1 }),
+      window.desktop.provider.list({ schemaVersion: 1 }),
+      window.desktop.workspace.list(),
+      window.desktop.piTask.list({
+        schemaVersion: 2,
+        companyId: company.id,
+      }),
+    ]);
+    if (employeeResult.ok) {
+      setEmployees(employeeResult.value);
+      setSelectedEmployeeId(
+        (current) =>
+          (current && company.employeeIds.includes(current) ? current : "") ||
+          employeeResult.value.find((item) =>
+            company.employeeIds.includes(item.id),
+          )?.id ||
+          "",
+      );
+      const latestEmployee = employeeResult.value.find((item) =>
+        company.employeeIds.includes(item.id),
+      );
+      if (
+        latestEmployee !== undefined &&
+        window.localStorage.getItem(`pi-current-task-id:${company.id}`) === null
+      ) {
+        const latestTask = await window.desktop.piTask.get({
+          schemaVersion: 2,
+          companyId: company.id,
+          employeeId: latestEmployee.id,
+        });
+        if (latestTask.ok) rememberTask(latestTask.value, setCurrentTask);
+      }
+    }
+    if (taskResult.ok) setTasks(taskResult.value);
+    if (skillResult.ok) {
+      setSkills(skillResult.value);
+      setSkillNames((current) => {
+        if (current.length > 0) return current;
+        const preferred =
+          skillResult.value.find((skill) => skill.name === "text-organize") ??
+          skillResult.value[0];
+        return preferred === undefined ? [] : [preferred.name];
+      });
+    }
+    if (providerResult.ok) setProviders(providerResult.value);
+    if (workspaceResult.ok) {
+      setWorkspaces(workspaceResult.value);
+      setSelectedWorkspaceId(
+        (current) =>
+          (current && company.workspaceIds.includes(current) ? current : "") ||
+          workspaceResult.value.find(
+            (workspace) =>
+              company.workspaceIds.includes(workspace.workspaceId) &&
+              workspace.accessStatus === "AVAILABLE" &&
+              workspace.permissionMode === "READ_WRITE",
+          )?.workspaceId ||
+          "",
+      );
+    }
+    if (
+      !employeeResult.ok ||
+      !skillResult.ok ||
+      !providerResult.ok ||
+      !workspaceResult.ok ||
+      !taskResult.ok
+    ) {
+      setMessage("员工资料加载失败，请重试。");
+    }
+  };
+
+  useEffect(() => {
+    void reload();
+    const taskId = window.localStorage.getItem(
+      `pi-current-task-id:${props.company.id}`,
+    );
+    if (taskId !== null) {
+      void window.desktop.piTask
+        .get({ schemaVersion: 2, companyId: props.company.id, taskId })
+        .then((result) => {
+          if (result.ok) showFresherTask(result.value, setCurrentTask);
+        });
+    }
+  }, [props.company.id]);
+
+  useEffect(() => {
+    taskAttachmentsRef.current = taskAttachments;
+  }, [taskAttachments]);
+
+  useEffect(
+    () => () => {
+      const pendingAttachments = taskAttachmentsRef.current;
+      if (pendingAttachments.length > 0) {
+        void window.desktop.piTask.discardAttachments(pendingAttachments);
+      }
+    },
+    [props.company.id],
+  );
+
+  useEffect(() => {
+    if (currentTask?.status !== "RUNNING") return;
+    // 轮询只负责显示已落库的真实事件，界面刷新不会重新调用模型。
+    const timer = window.setInterval(async () => {
+      const result = await window.desktop.piTask.get({
+        schemaVersion: 2,
+        companyId: props.company.id,
+        taskId: currentTask.id,
+      });
+      if (result.ok) showFresherTask(result.value, setCurrentTask);
+    }, 250);
+    return () => window.clearInterval(timer);
+  }, [currentTask?.id, currentTask?.status, props.company.id]);
+
+  useEffect(() => {
+    setDeliverablePreview(undefined);
+  }, [currentTask?.id]);
+
+  useEffect(() => {
+    if (preview === undefined) return;
+    const animationFrame = window.requestAnimationFrame(() => {
+      // 文件夹选择窗口关闭后，必须把第二次确认明确交到用户眼前。
+      skillImportPreviewRef.current?.focus();
+      skillImportPreviewRef.current?.scrollIntoView({ block: "center" });
+    });
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [preview]);
+
+  const focusSkillImportMessage = () => {
+    window.requestAnimationFrame(() => {
+      skillImportMessageRef.current?.focus();
+      skillImportMessageRef.current?.scrollIntoView({ block: "center" });
+    });
+  };
+
+  const previewImport = async () => {
+    setPending(true);
+    setSkillImportMessage("正在读取技能文件夹。");
+    const result = await window.desktop.piSkill.previewImport({
+      schemaVersion: 1,
+    });
+    setPending(false);
+    if (!result.ok) {
+      const details =
+        result.error.message === "技能操作失败"
+          ? skillErrorMessage(result.error.code)
+          : result.error.message;
+      setSkillImportMessage(
+        result.error.code === "CANCELLED"
+          ? "已取消导入。"
+          : `技能无法导入：${details}`,
+      );
+      focusSkillImportMessage();
+      return;
+    }
+    setPreview(result.value);
+    setSkillImportMessage("已读取技能文件夹，请确认下面的变化。");
+  };
+
+  const confirmImport = async () => {
+    if (preview === undefined) return;
+    setPending(true);
+    setSkillImportMessage(`正在导入技能“${preview.name}”。`);
+    const result = await window.desktop.piSkill.confirmImport({
+      schemaVersion: 1,
+      previewId: preview.previewId,
+    });
+    setPending(false);
+    if (!result.ok) {
+      setPreview(undefined);
+      const details =
+        result.error.message === "技能操作失败"
+          ? skillErrorMessage(result.error.code)
+          : result.error.message;
+      setSkillImportMessage(`技能导入失败：${details} 请重新选择文件夹。`);
+      focusSkillImportMessage();
+      return;
+    }
+    setPreview(undefined);
+    // 先使用确认接口返回的真实 Skill 更新界面，不让后续整页刷新掩盖成功结果。
+    setSkills((current) =>
+      [
+        ...current.filter((skill) => skill.name !== result.value.name),
+        result.value,
+      ].sort((left, right) => left.name.localeCompare(right.name)),
+    );
+    setSkillNames((current) =>
+      current.includes(result.value.name)
+        ? current
+        : [...current, result.value.name],
+    );
+    setSkillImportMessage(
+      `技能“${result.value.name}”已导入，并已加入新员工的技能选择。`,
+    );
+    focusSkillImportMessage();
+    await reload();
+  };
+
+  const saveEmployee = async (event: FormEvent) => {
+    event.preventDefault();
+    if (
+      selectedProvider === undefined ||
+      modelId === "" ||
+      skillNames.length === 0
+    ) {
+      setMessage("请选择可用的 Provider、模型和至少一项技能。");
+      return;
+    }
+    setPending(true);
+    const result = await window.desktop.piEmployee.save({
+      schemaVersion: 2,
+      commandId: createUuidV7(),
+      ...(editingEmployeeId === "" ? {} : { employeeId: editingEmployeeId }),
+      name,
+      providerId: selectedProvider.id,
+      expectedProviderVersion: selectedProvider.version,
+      modelId,
+      skillNames: [...skillNames],
+    });
+    setPending(false);
+    if (!result.ok) {
+      setMessage(`员工保存失败：${employeeErrorMessage(result.error.code)}`);
+      return;
+    }
+    if (editingEmployeeId !== "") {
+      setMessage(`员工“${result.value.name}”已更新。`);
+      resetEmployeeForm();
+      await reload();
+      return;
+    }
+    const membership = await window.desktop.piCompany.addEmployee({
+      schemaVersion: 1,
+      commandId: createUuidV7(),
+      companyId: props.company.id,
+      employeeId: result.value.id,
+    });
+    if (!membership.ok) {
+      setMessage("员工已经创建，但加入当前公司失败，请在员工列表中重试。");
+      await reload();
+      return;
+    }
+    props.onCompanyChange(membership.value);
+    resetEmployeeForm();
+    setSelectedEmployeeId(result.value.id);
+    setMessage(`员工“${result.value.name}”已创建，可以接收任务。`);
+    await reload(membership.value);
+  };
+
+  const resetEmployeeForm = () => {
+    setEditingEmployeeId("");
+    setName("");
+    setProviderId("");
+    setModelId("");
+    const preferred =
+      skills.find((skill) => skill.name === "text-organize") ?? skills[0];
+    setSkillNames(preferred === undefined ? [] : [preferred.name]);
+  };
+
+  const editEmployee = (employee: PiEmployee) => {
+    setEditingEmployeeId(employee.id);
+    setName(employee.name);
+    setProviderId(employee.providerId);
+    setModelId(employee.modelId);
+    setSkillNames(employee.skillNames);
+    setMessage(`正在编辑员工“${employee.name}”。`);
+  };
+
+  const toggleSkill = (skillName: string) => {
+    setSkillNames((current) =>
+      current.includes(skillName)
+        ? current.filter((name) => name !== skillName)
+        : [...current, skillName],
+    );
+  };
+
+  const startTask = async (event: FormEvent) => {
+    event.preventDefault();
+    setPending(true);
+    const result = await window.desktop.piTask.start({
+      schemaVersion: 2,
+      commandId: createUuidV7(),
+      companyId: props.company.id,
+      employeeId: selectedEmployeeId,
+      workspaceId: selectedWorkspaceId,
+      input: taskInput,
+      ...(taskAttachments.length === 0
+        ? {}
+        : {
+            attachmentIds: taskAttachments.map((attachment) => attachment.id),
+          }),
+    });
+    setPending(false);
+    if (!result.ok) {
+      setMessage(`任务无法开始：${taskErrorMessage(result.error.code)}`);
+      return;
+    }
+    rememberTask(result.value, setCurrentTask);
+    taskAttachmentsRef.current = [];
+    setTaskAttachments([]);
+    setAttachmentMessage("");
+    setMessage("任务已开始，模型输入和输出会在下面持续更新。 ");
+  };
+
+  const addAttachments = async (files?: readonly File[]) => {
+    setPending(true);
+    try {
+      const result =
+        files === undefined
+          ? await window.desktop.piTask.selectAttachments()
+          : await window.desktop.piTask.stageDroppedAttachments(files);
+      if (!result.ok) {
+        setAttachmentMessage("附件没有添加成功，请重试。 ");
+        return;
+      }
+      setTaskAttachments((current) => [
+        ...current,
+        ...result.value.attachments,
+      ]);
+      const accepted = result.value.attachments.length;
+      const rejected = result.value.rejected;
+      setAttachmentMessage(
+        rejected.length === 0
+          ? accepted === 0
+            ? "没有选择附件。"
+            : `已添加 ${accepted} 个附件。`
+          : `${accepted > 0 ? `已添加 ${accepted} 个；` : ""}${rejected
+              .map((item) => `${item.displayName}：${item.reason}`)
+              .join("；")}`,
+      );
+    } catch {
+      setAttachmentMessage("附件没有添加成功，请重试。 ");
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const removeAttachment = async (attachment: PiTaskAttachment) => {
+    setPending(true);
+    try {
+      const result = await window.desktop.piTask.discardAttachments([
+        attachment,
+      ]);
+      if (!result.ok) {
+        setAttachmentMessage("附件暂时无法移除，请重试。 ");
+        return;
+      }
+      setTaskAttachments((current) =>
+        current.filter((item) => item.id !== attachment.id),
+      );
+      setAttachmentMessage(`已移除“${attachment.displayName}”。`);
+    } catch {
+      setAttachmentMessage("附件暂时无法移除，请重试。 ");
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const taskCommand = async (
+    action: "cancel" | "accept" | "requestChanges",
+  ) => {
+    if (currentTask === undefined) return;
+    const command = {
+      schemaVersion: 2 as const,
+      commandId: createUuidV7(),
+      companyId: props.company.id,
+      taskId: currentTask.id,
+    };
+    const result =
+      action === "cancel"
+        ? await window.desktop.piTask.cancel(command)
+        : action === "accept"
+          ? await window.desktop.piTask.accept(command)
+          : await window.desktop.piTask.requestChanges({
+              ...command,
+              input: changeInput,
+            });
+    if (!result.ok) {
+      setMessage(`操作失败：${taskErrorMessage(result.error.code)}`);
+      return;
+    }
+    rememberTask(result.value, setCurrentTask);
+    if (action === "requestChanges") setChangeInput("");
+  };
+
+  const resolveCommandApproval = async (decision: "APPROVE" | "REJECT") => {
+    if (currentTask === undefined || commandApproval === undefined) return;
+    setPending(true);
+    const result = await window.desktop.piTask.resolveCommandApproval({
+      schemaVersion: 2,
+      commandId: createUuidV7(),
+      companyId: props.company.id,
+      taskId: currentTask.id,
+      approvalId: commandApproval.approvalId,
+      decision,
+    });
+    setPending(false);
+    if (!result.ok) {
+      const latest = await window.desktop.piTask.get({
+        schemaVersion: 2,
+        companyId: props.company.id,
+        taskId: currentTask.id,
+      });
+      if (latest.ok) {
+        rememberTask(latest.value, setCurrentTask);
+        const stillPending =
+          pendingCommandApproval(latest.value)?.approvalId ===
+          commandApproval.approvalId;
+        setMessage(
+          stillPending
+            ? "这次授权没有生效，请再点一次。"
+            : "任务已经继续或结束，界面已按真实状态刷新。",
+        );
+      } else {
+        setMessage("无法确认授权结果，请重新打开这项任务查看真实状态。");
+      }
+      return;
+    }
+    rememberTask(result.value, setCurrentTask);
+    setMessage(
+      decision === "APPROVE"
+        ? "已批准，员工会继续执行。"
+        : commandApproval.kind === "ENVIRONMENT"
+          ? "已选择暂不安装，脚本不会运行。"
+          : commandApproval.kind === "SYSTEM_INSTALL"
+            ? "已拒绝系统安装，脚本不会运行。"
+            : "已拒绝这次命令。",
+    );
+  };
+
+  const previewDeliverable = async (relativePath: string) => {
+    if (currentTask === undefined) return;
+    const result = await window.desktop.piTask.previewDeliverable({
+      schemaVersion: 2,
+      companyId: props.company.id,
+      taskId: currentTask.id,
+      relativePath,
+    });
+    if (!result.ok) {
+      setDeliverablePreview(undefined);
+      setMessage(deliverableErrorMessage(result.error.code));
+      return;
+    }
+    setDeliverablePreview(result.value);
+    setMessage(
+      result.value.integrity === "CURRENT"
+        ? "已读取登记时对应的文件内容。"
+        : "文件在登记后发生了变化，下面显示的是当前内容。",
+    );
+  };
+
+  const actOnDeliverable = async (
+    action: "open" | "reveal",
+    relativePath: string,
+  ) => {
+    if (currentTask === undefined) return;
+    const request = {
+      schemaVersion: 2 as const,
+      companyId: props.company.id,
+      taskId: currentTask.id,
+      relativePath,
+    };
+    const result =
+      action === "open"
+        ? await window.desktop.piTask.openDeliverable(request)
+        : await window.desktop.piTask.revealDeliverable(request);
+    setMessage(
+      result.ok
+        ? action === "open"
+          ? "已用系统默认软件打开文件。"
+          : "已请求系统在文件夹中定位交付文件。"
+        : deliverableErrorMessage(result.error.code),
+    );
+  };
+
+  const retryTask = async () => {
+    if (currentTask === undefined) return;
+    const workspaceId = currentTask.workspaceId ?? selectedWorkspaceId;
+    if (workspaceId === "") {
+      setMessage("重新执行前，请先选择本次任务的工作区。");
+      return;
+    }
+    const result = await window.desktop.piTask.start({
+      schemaVersion: 2,
+      commandId: createUuidV7(),
+      companyId: props.company.id,
+      employeeId: currentTask.employeeId,
+      workspaceId,
+      input: currentTask.userInput,
+    });
+    if (!result.ok) {
+      setMessage(`重新执行失败：${taskErrorMessage(result.error.code)}`);
+      return;
+    }
+    rememberTask(result.value, setCurrentTask);
+  };
+
+  const selectWorkspace = async () => {
+    setPending(true);
+    const result = await window.desktop.workspace.select();
+    setPending(false);
+    if (!result.ok) {
+      setMessage("工作区无法添加，请重新选择。");
+      return;
+    }
+    if (result.value.status === "CANCELLED") {
+      setMessage("已取消选择工作区。");
+      return;
+    }
+    setSelectedWorkspaceId(result.value.workspace.workspaceId);
+    const membership = await window.desktop.piCompany.addWorkspace({
+      schemaVersion: 1,
+      commandId: createUuidV7(),
+      companyId: props.company.id,
+      workspaceId: result.value.workspace.workspaceId,
+    });
+    if (!membership.ok) {
+      setMessage("工作区已授权，但没有加入当前公司，请重试。");
+      return;
+    }
+    props.onCompanyChange(membership.value);
+    setMessage("工作区已加入当前公司，可以用于这次任务。");
+    await reload(membership.value);
+  };
+
+  const changeEmployeeMembership = async (employeeId: string, add: boolean) => {
+    const result = await window.desktop.piCompany[
+      add ? "addEmployee" : "removeEmployee"
+    ]({
+      schemaVersion: 1,
+      commandId: createUuidV7(),
+      companyId: props.company.id,
+      employeeId,
+    });
+    if (!result.ok) {
+      setMessage("员工归属调整失败，请重试。");
+      return;
+    }
+    props.onCompanyChange(result.value);
+    setMessage(
+      add ? "员工已加入当前公司。" : "员工已从当前公司移除。已有任务不会改变。",
+    );
+  };
+
+  const addExistingWorkspace = async (workspaceId: string) => {
+    const result = await window.desktop.piCompany.addWorkspace({
+      schemaVersion: 1,
+      commandId: createUuidV7(),
+      companyId: props.company.id,
+      workspaceId,
+    });
+    if (!result.ok) {
+      setMessage("工作区加入公司失败，请确认它仍然可写。");
+      return;
+    }
+    props.onCompanyChange(result.value);
+    setSelectedWorkspaceId(workspaceId);
+    setMessage("工作区已加入当前公司。");
+  };
+
+  const removeWorkspace = async (workspaceId: string) => {
+    const result = await window.desktop.piCompany.removeWorkspace({
+      schemaVersion: 1,
+      commandId: createUuidV7(),
+      companyId: props.company.id,
+      workspaceId,
+    });
+    if (!result.ok) {
+      setMessage("工作区移出公司失败，请重试。");
+      return;
+    }
+    props.onCompanyChange(result.value);
+    if (selectedWorkspaceId === workspaceId) setSelectedWorkspaceId("");
+    setMessage("工作区已从当前公司移除。全局授权和已有任务没有改变。");
+  };
+
+  return (
+    <section aria-labelledby="employees-heading">
+      <header className="page-header page-header--create">
+        <div>
+          <p className="eyebrow">{props.company.name}</p>
+          <h1 id="employees-heading" tabIndex={-1}>
+            员工与技能
+          </h1>
+          <p>
+            每名员工保存自己的模型和多项技能。任务开始后，员工会自行启用匹配的技能。
+          </p>
+        </div>
+      </header>
+
+      <div className="employee-layout">
+        <section className="selection-panel">
+          <div className="section-heading">
+            <div>
+              <p className="empty-kicker">技能库</p>
+              <h2>可用技能</h2>
+            </div>
+            <button
+              className="secondary-button"
+              disabled={pending}
+              onClick={() => void previewImport()}
+              type="button"
+            >
+              导入技能文件夹
+            </button>
+          </div>
+          <p
+            aria-live="polite"
+            className="employee-message skill-import-message"
+            ref={skillImportMessageRef}
+            tabIndex={-1}
+          >
+            {skillImportMessage}
+          </p>
+          <div className="employee-card-grid">
+            {skills.map((skill) => (
+              <article className="employee-card" key={skill.name}>
+                <span className="status-badge status-badge--neutral">
+                  {skill.source === "BUILTIN" ? "软件内置" : "本地导入"}
+                </span>
+                <h3>{skill.name}</h3>
+                <p>{skill.description}</p>
+                {skill.compatibility !== undefined && (
+                  <small>环境说明：{skill.compatibility}</small>
+                )}
+                {skill.allowedTools !== undefined && (
+                  <small>
+                    来源声明工具：{skill.allowedTools}（不会自动获得权限）
+                  </small>
+                )}
+                <small>说明按需加载；受支持脚本可在明确授权后运行</small>
+                <details className="skill-content">
+                  <summary>查看技能实际内容</summary>
+                  <pre>{skill.content}</pre>
+                </details>
+              </article>
+            ))}
+          </div>
+          {preview !== undefined && (
+            <div
+              className="provider-disclosure"
+              ref={skillImportPreviewRef}
+              role="alert"
+              tabIndex={-1}
+            >
+              <h3>确认导入：{preview.name}</h3>
+              <p>{preview.description}</p>
+              {preview.changes.length === 0 ? (
+                <p>技能内容没有变化。</p>
+              ) : (
+                <ul>
+                  {preview.changes.map((change) => (
+                    <li key={`${change.type}-${change.path}`}>
+                      {changeLabel(change.type)}：{change.path}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="form-actions">
+                <button
+                  className="secondary-button"
+                  onClick={() => setPreview(undefined)}
+                  type="button"
+                >
+                  取消
+                </button>
+                <button
+                  className="primary-button"
+                  disabled={pending}
+                  onClick={() => void confirmImport()}
+                  type="button"
+                >
+                  确认导入
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
+
+        <form
+          className="goal-form"
+          onSubmit={(event) => void saveEmployee(event)}
+        >
+          <div className="field field--wide">
+            <label htmlFor="employee-name">员工姓名</label>
+            <input
+              id="employee-name"
+              maxLength={80}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="例如：小文"
+              required
+              value={name}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="employee-provider">Provider</label>
+            <select
+              id="employee-provider"
+              onChange={(event) => {
+                setProviderId(event.target.value);
+                setModelId("");
+              }}
+              required
+              value={providerId}
+            >
+              <option value="">选择已验证 Provider</option>
+              {readyProviders.map((provider) => (
+                <option key={provider.id} value={provider.id}>
+                  {provider.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor="employee-model">模型</label>
+            <select
+              disabled={selectedProvider === undefined}
+              id="employee-model"
+              onChange={(event) => setModelId(event.target.value)}
+              required
+              value={modelId}
+            >
+              <option value="">选择模型</option>
+              {selectedProvider?.connectionTest?.status === "VERIFIED" &&
+                selectedProvider.connectionTest.models.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.displayName}
+                  </option>
+                ))}
+            </select>
+          </div>
+          <div className="field field--wide">
+            <span className="field-label" id="employee-skills-label">
+              技能（至少选择一项）
+            </span>
+            <div
+              aria-labelledby="employee-skills-label"
+              className="skill-picker"
+              role="group"
+            >
+              {skills.map((skill) => (
+                <label className="skill-picker-option" key={skill.name}>
+                  <input
+                    checked={skillNames.includes(skill.name)}
+                    onChange={() => toggleSkill(skill.name)}
+                    type="checkbox"
+                  />
+                  <span>
+                    <strong>{skill.name}</strong>
+                    <small>
+                      {skill.description} ·{" "}
+                      {skill.source === "BUILTIN" ? "内置" : "导入"}
+                    </small>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="form-actions field--wide">
+            <button className="primary-button" disabled={pending} type="submit">
+              {editingEmployeeId === "" ? "创建员工" : "保存员工"}
+            </button>
+            {editingEmployeeId !== "" && (
+              <button
+                className="secondary-button"
+                disabled={pending}
+                onClick={resetEmployeeForm}
+                type="button"
+              >
+                取消编辑
+              </button>
+            )}
+          </div>
+        </form>
+
+        <section className="selection-panel">
+          <p className="empty-kicker">当前员工</p>
+          <h2>已创建员工</h2>
+          {employees.length === 0 ? (
+            <p>还没有员工。上面创建的员工会显示在这里。</p>
+          ) : (
+            <div className="employee-card-grid">
+              {employees.map((employee) => (
+                <article className="employee-card" key={employee.id}>
+                  <span
+                    className={`status-badge status-badge--${
+                      props.company.employeeIds.includes(employee.id)
+                        ? "positive"
+                        : "neutral"
+                    }`}
+                  >
+                    {props.company.employeeIds.includes(employee.id)
+                      ? "当前公司"
+                      : "其他公司可复用"}
+                  </span>
+                  <h3>{employee.name}</h3>
+                  <p>模型：{employee.modelId}</p>
+                  <p>技能：{employee.skillNames.join("、")}</p>
+                  <button
+                    className="secondary-button"
+                    onClick={() => editEmployee(employee)}
+                    type="button"
+                  >
+                    编辑员工
+                  </button>
+                  <button
+                    className="secondary-button"
+                    onClick={() =>
+                      void changeEmployeeMembership(
+                        employee.id,
+                        !props.company.employeeIds.includes(employee.id),
+                      )
+                    }
+                    type="button"
+                  >
+                    {props.company.employeeIds.includes(employee.id)
+                      ? "移出当前公司"
+                      : "加入当前公司"}
+                  </button>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="selection-panel employee-task-panel">
+          <p className="empty-kicker">直接交代任务</p>
+          <h2>让员工开始工作</h2>
+          <form
+            className="goal-form"
+            onSubmit={(event) => void startTask(event)}
+          >
+            <div className="field field--wide">
+              <label htmlFor="task-employee">员工</label>
+              <select
+                id="task-employee"
+                onChange={(event) => setSelectedEmployeeId(event.target.value)}
+                required
+                value={selectedEmployeeId}
+              >
+                <option value="">选择员工</option>
+                {companyEmployees.map((employee) => (
+                  <option key={employee.id} value={employee.id}>
+                    {employee.name} · {employee.modelId}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="field field--wide">
+              <label htmlFor="task-workspace">本次任务的工作区</label>
+              <div className="workspace-task-picker">
+                <select
+                  id="task-workspace"
+                  onChange={(event) =>
+                    setSelectedWorkspaceId(event.target.value)
+                  }
+                  required
+                  value={selectedWorkspaceId}
+                >
+                  <option value="">选择可写工作区</option>
+                  {companyWorkspaces
+                    .filter(
+                      (workspace) =>
+                        workspace.accessStatus === "AVAILABLE" &&
+                        workspace.permissionMode === "READ_WRITE",
+                    )
+                    .map((workspace) => (
+                      <option
+                        key={workspace.workspaceId}
+                        value={workspace.workspaceId}
+                      >
+                        {workspace.displayPath}
+                      </option>
+                    ))}
+                </select>
+                <button
+                  className="secondary-button"
+                  disabled={pending}
+                  onClick={() => void selectWorkspace()}
+                  type="button"
+                >
+                  添加工作区
+                </button>
+              </div>
+              <small>
+                员工可在这里读取和修改文件。首次运行程序时会说明真实风险并请你确认。
+              </small>
+              {companyWorkspaces.length > 0 && (
+                <div className="company-workspace-options">
+                  <strong>当前公司的工作区</strong>
+                  {companyWorkspaces.map((workspace) => (
+                    <button
+                      className="secondary-button"
+                      key={workspace.workspaceId}
+                      onClick={() =>
+                        void removeWorkspace(workspace.workspaceId)
+                      }
+                      type="button"
+                    >
+                      移出：{workspace.displayPath}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {workspaces.some(
+                (workspace) =>
+                  workspace.accessStatus === "AVAILABLE" &&
+                  workspace.permissionMode === "READ_WRITE" &&
+                  !props.company.workspaceIds.includes(workspace.workspaceId),
+              ) && (
+                <div className="company-workspace-options">
+                  <strong>加入已有工作区</strong>
+                  {workspaces
+                    .filter(
+                      (workspace) =>
+                        workspace.accessStatus === "AVAILABLE" &&
+                        workspace.permissionMode === "READ_WRITE" &&
+                        !props.company.workspaceIds.includes(
+                          workspace.workspaceId,
+                        ),
+                    )
+                    .map((workspace) => (
+                      <button
+                        className="secondary-button"
+                        key={workspace.workspaceId}
+                        onClick={() =>
+                          void addExistingWorkspace(workspace.workspaceId)
+                        }
+                        type="button"
+                      >
+                        加入：{workspace.displayPath}
+                      </button>
+                    ))}
+                </div>
+              )}
+            </div>
+            <div className="field field--wide">
+              <label htmlFor="task-input">任务内容</label>
+              <textarea
+                id="task-input"
+                onChange={(event) => setTaskInput(event.target.value)}
+                placeholder="例如：把下面这段内容整理成清楚的三点摘要……"
+                required
+                rows={5}
+                value={taskInput}
+              />
+            </div>
+            <div className="field field--wide">
+              <span className="field-label">任务附件（可选）</span>
+              <div
+                className="task-attachment-dropzone"
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect =
+                    pending || taskAttachments.length >= 10 ? "none" : "copy";
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  if (pending || taskAttachments.length >= 10) {
+                    setAttachmentMessage(
+                      pending
+                        ? "请等当前附件操作结束后再添加。"
+                        : "一次任务最多添加 10 个附件。",
+                    );
+                    return;
+                  }
+                  if (event.dataTransfer.files.length > 0) {
+                    void addAttachments(Array.from(event.dataTransfer.files));
+                  }
+                }}
+              >
+                <p>把 Word、PDF、TXT 或 Markdown 拖到这里</p>
+                <button
+                  className="secondary-button"
+                  disabled={pending || taskAttachments.length >= 10}
+                  onClick={() => void addAttachments()}
+                  type="button"
+                >
+                  选择附件
+                </button>
+                <small>
+                  最多 10 个，单个不超过 50 MiB，总计不超过 100 MiB。
+                </small>
+              </div>
+              {taskAttachments.length > 0 && (
+                <ul className="task-attachment-list" aria-label="待提交附件">
+                  {taskAttachments.map((attachment) => (
+                    <li key={attachment.id}>
+                      <span>
+                        <strong>{attachment.displayName}</strong>
+                        <small>
+                          {attachmentTypeLabel(attachment.mediaType)} ·{" "}
+                          {formatBytes(attachment.sizeBytes)}
+                        </small>
+                      </span>
+                      <button
+                        className="secondary-button"
+                        disabled={pending}
+                        onClick={() => void removeAttachment(attachment)}
+                        type="button"
+                      >
+                        移除
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {attachmentMessage.length > 0 && (
+                <p className="employee-message" role="status">
+                  {attachmentMessage}
+                </p>
+              )}
+            </div>
+            <div className="form-actions field--wide">
+              <button
+                className="primary-button"
+                disabled={pending}
+                type="submit"
+              >
+                开始任务
+              </button>
+            </div>
+          </form>
+
+          {currentTask !== undefined && (
+            <article className="pi-task" aria-live="polite">
+              <div className="section-heading">
+                <div>
+                  <p className="empty-kicker">当前状态</p>
+                  <h3>{taskStatusLabel(currentTask.status)}</h3>
+                </div>
+                {currentTask.status === "RUNNING" && (
+                  <button
+                    className="secondary-button"
+                    onClick={() => void taskCommand("cancel")}
+                    type="button"
+                  >
+                    停止任务
+                  </button>
+                )}
+              </div>
+              {currentTask.workspaceId !== undefined && (
+                <p className="pi-task-workspace">
+                  工作区：
+                  {workspaces.find(
+                    (workspace) =>
+                      workspace.workspaceId === currentTask.workspaceId,
+                  )?.displayPath ?? "已授权工作区"}
+                </p>
+              )}
+              {(currentTask.attachments?.length ?? 0) > 0 && (
+                <section
+                  className="pi-task-attachments"
+                  aria-label="本次任务附件"
+                >
+                  <strong>任务附件</strong>
+                  <ul>
+                    {currentTask.attachments?.map((attachment) => (
+                      <li key={attachment.id}>
+                        {attachment.displayName} ·{" "}
+                        {attachmentTypeLabel(attachment.mediaType)} ·{" "}
+                        {formatBytes(attachment.sizeBytes)}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+              <section className="pi-delivery" aria-labelledby="delivery-title">
+                <div className="section-heading">
+                  <div>
+                    <p className="empty-kicker">本次任务</p>
+                    <h4 id="delivery-title">交付成果</h4>
+                  </div>
+                  <span className="status-pill">
+                    {deliveryStatusLabel(currentTask.status)}
+                  </span>
+                </div>
+                {currentTask.finalOutput !== undefined && (
+                  <div className="pi-delivery-summary">
+                    <h5>员工总结</h5>
+                    <pre>{currentTask.finalOutput}</pre>
+                  </div>
+                )}
+                <div className="pi-delivery-files">
+                  <h5>交付文件</h5>
+                  {(currentTask.deliverables ?? []).length === 0 ? (
+                    <p className="empty-copy">
+                      没有已登记文件。程序或命令生成的文件只有经过核对并登记后才会出现在这里。
+                    </p>
+                  ) : (
+                    (currentTask.deliverables ?? []).map((item) => (
+                      <article
+                        className="pi-delivery-file"
+                        key={item.relativePath}
+                      >
+                        <div>
+                          <strong>{item.relativePath}</strong>
+                          <p>
+                            {deliverableChangeLabel(item.changeKind)} ·{" "}
+                            {formatBytes(item.sizeBytes)} · 校验值{" "}
+                            {item.sha256.slice(0, 10)}…
+                          </p>
+                        </div>
+                        <div className="form-actions">
+                          <button
+                            className="secondary-button"
+                            onClick={() =>
+                              void previewDeliverable(item.relativePath)
+                            }
+                            type="button"
+                          >
+                            查看内容
+                          </button>
+                          {isSafeDeliverableToOpen(item.relativePath) && (
+                            <button
+                              className="secondary-button"
+                              onClick={() =>
+                                void actOnDeliverable("open", item.relativePath)
+                              }
+                              type="button"
+                            >
+                              打开文件
+                            </button>
+                          )}
+                          <button
+                            className="secondary-button"
+                            onClick={() =>
+                              void actOnDeliverable("reveal", item.relativePath)
+                            }
+                            type="button"
+                          >
+                            查看所在位置
+                          </button>
+                        </div>
+                        {item.diff !== undefined && (
+                          <details>
+                            <summary>查看修改差异</summary>
+                            <pre>{item.diff}</pre>
+                          </details>
+                        )}
+                      </article>
+                    ))
+                  )}
+                </div>
+                {deliverablePreview !== undefined && (
+                  <section className="pi-delivery-preview">
+                    <div className="section-heading">
+                      <h5>{deliverablePreview.relativePath}</h5>
+                      <span className="status-pill">
+                        {deliverablePreview.integrity === "CURRENT"
+                          ? "内容未变化"
+                          : "登记后已变化"}
+                      </span>
+                    </div>
+                    {deliverablePreview.integrity === "CHANGED" && (
+                      <p className="error-copy">
+                        这不是登记时的原内容，文件后来被修改过。
+                      </p>
+                    )}
+                    {deliverablePreview.content.startsWith(
+                      "data:image/gif;base64,",
+                    ) ? (
+                      <img
+                        alt={`${deliverablePreview.relativePath} 动画预览`}
+                        className="pi-delivery-gif-preview"
+                        src={deliverablePreview.content}
+                      />
+                    ) : (
+                      <pre>{deliverablePreview.content}</pre>
+                    )}
+                  </section>
+                )}
+                <div className="pi-delivery-checks">
+                  <h5>真实检查</h5>
+                  {(currentTask.checks ?? []).length === 0 ? (
+                    <p className="empty-copy">本任务没有运行程序检查。</p>
+                  ) : (
+                    (currentTask.checks ?? []).map((check, index) => (
+                      <article
+                        className="pi-delivery-check"
+                        key={`${check.createdAt}-${index}`}
+                      >
+                        <code>{check.command}</code>
+                        <strong>{checkStatusLabel(check.status)}</strong>
+                        <span>
+                          {check.exitCode === undefined
+                            ? ""
+                            : `退出码 ${check.exitCode ?? "未知"}`}
+                          {check.durationMs === undefined
+                            ? ""
+                            : ` · ${check.durationMs} 毫秒`}
+                          {check.truncated === true ? " · 输出已截断" : ""}
+                        </span>
+                      </article>
+                    ))
+                  )}
+                </div>
+              </section>
+              {currentTask.failureMessage !== undefined && (
+                <p className="error-copy">原因：{currentTask.failureMessage}</p>
+              )}
+              {commandApproval !== undefined && (
+                <section className="provider-disclosure" role="alert">
+                  <p className="empty-kicker">
+                    {approvalKicker(commandApproval.kind)}
+                  </p>
+                  <h4>{approvalTitle(commandApproval)}</h4>
+                  <p>{commandApproval.reason}</p>
+                  {commandApproval.kind === "TASK" && (
+                    <p>
+                      批准后，本任务中的普通查看、检查、测试和构建不会反复询问；新任务会重新询问。依赖安装、删除、Git
+                      写操作和发布仍会单独确认。
+                    </p>
+                  )}
+                  {commandApproval.details !== undefined && (
+                    <>
+                      <ul>
+                        {commandApproval.details.items.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                      <p>
+                        来源：{commandApproval.details.source}
+                        <br />
+                        位置：{commandApproval.details.location}
+                        <br />
+                        联网：
+                        {commandApproval.details.network ? "需要" : "不需要"}
+                        <br />
+                        影响：{commandApproval.details.systemImpact}
+                      </p>
+                      <p className="error-copy">
+                        风险：{commandApproval.details.risk}
+                      </p>
+                    </>
+                  )}
+                  <pre>{commandApproval.command}</pre>
+                  <div className="form-actions">
+                    <button
+                      className="secondary-button"
+                      disabled={pending}
+                      onClick={() => void resolveCommandApproval("REJECT")}
+                      type="button"
+                    >
+                      {approvalRejectLabel(commandApproval.kind)}
+                    </button>
+                    <button
+                      className="primary-button"
+                      disabled={pending}
+                      onClick={() => void resolveCommandApproval("APPROVE")}
+                      type="button"
+                    >
+                      {approvalApproveLabel(commandApproval.kind)}
+                    </button>
+                  </div>
+                </section>
+              )}
+              {["FAILED", "CANCELLED", "INTERRUPTED"].includes(
+                currentTask.status,
+              ) && (
+                <button
+                  className="secondary-button"
+                  onClick={() => void retryTask()}
+                  type="button"
+                >
+                  重新执行
+                </button>
+              )}
+              {currentTask.status === "WAITING_ACCEPTANCE" && (
+                <div className="acceptance-panel">
+                  <button
+                    className="primary-button"
+                    onClick={() => void taskCommand("accept")}
+                    type="button"
+                  >
+                    验收通过
+                  </button>
+                  <label htmlFor="change-input">需要修改的内容</label>
+                  <textarea
+                    id="change-input"
+                    onChange={(event) => setChangeInput(event.target.value)}
+                    rows={3}
+                    value={changeInput}
+                  />
+                  <button
+                    className="secondary-button"
+                    disabled={changeInput.trim() === ""}
+                    onClick={() => void taskCommand("requestChanges")}
+                    type="button"
+                  >
+                    不通过，继续修改
+                  </button>
+                </div>
+              )}
+              <details
+                className="pi-task-details"
+                key={`${currentTask.id}-${currentTask.status}`}
+              >
+                <summary>查看完整模型和工具过程</summary>
+                <ol>
+                  {currentTask.events.map((item) => (
+                    <li key={item.sequence}>
+                      <strong>{eventLabel(item.kind)}</strong>
+                      <pre>{item.content}</pre>
+                    </li>
+                  ))}
+                </ol>
+              </details>
+            </article>
+          )}
+          {tasks.length > 0 && (
+            <section
+              className="task-history"
+              aria-labelledby="task-history-title"
+            >
+              <h3 id="task-history-title">本公司的任务记录</h3>
+              <div className="employee-card-grid">
+                {tasks.map((task) => (
+                  <article className="employee-card" key={task.id}>
+                    <span className="status-badge status-badge--neutral">
+                      {taskStatusLabel(task.status)}
+                    </span>
+                    <p>{task.userInput}</p>
+                    <button
+                      className="secondary-button"
+                      onClick={() => rememberTask(task, setCurrentTask)}
+                      type="button"
+                    >
+                      查看任务
+                    </button>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
+        </section>
+      </div>
+      <p aria-live="polite" className="employee-message">
+        {message}
+      </p>
+    </section>
+  );
+}
+
+function isReadyProvider(provider: ProviderPublic): boolean {
+  return (
+    provider.configStatus === "ENABLED" &&
+    provider.hasKey &&
+    provider.connectionTest?.status === "VERIFIED" &&
+    provider.connectionTest.providerVersion === provider.version
+  );
+}
+
+function changeLabel(type: "ADDED" | "CHANGED" | "REMOVED"): string {
+  if (type === "ADDED") return "新增";
+  if (type === "CHANGED") return "修改";
+  return "删除";
+}
+
+function skillErrorMessage(code: string): string {
+  const messages: Record<string, string> = {
+    INVALID_SKILL: "SKILL.md 缺失或格式不正确",
+    UNSAFE_ENTRY: "技能包含不安全的链接或文件",
+    SKILL_TOO_LARGE: "技能文件过多或过大",
+    SOURCE_CHANGED: "确认前文件发生变化，请重新预览",
+    BUILTIN_CONFLICT: "不能覆盖软件内置技能",
+    PREVIEW_EXPIRED: "预览已失效，请重新选择文件夹",
+  };
+  return messages[code] ?? "请检查技能文件夹后重试";
+}
+
+function employeeErrorMessage(code: string): string {
+  if (code === "PROVIDER_NOT_READY") return "Provider、连接或模型已失效";
+  if (code === "SKILL_NOT_FOUND") return "技能已不存在，请重新选择";
+  return "请检查填写内容后重试";
+}
+
+function taskStatusLabel(status: PiTask["status"]): string {
+  const labels: Record<PiTask["status"], string> = {
+    RUNNING: "员工正在工作",
+    WAITING_ACCEPTANCE: "等待你验收",
+    CHANGES_REQUESTED: "等待继续修改",
+    COMPLETED: "已完成",
+    CANCELLED: "已停止",
+    FAILED: "运行失败",
+    INTERRUPTED: "上次运行被中断",
+  };
+  return labels[status];
+}
+
+function deliveryStatusLabel(status: PiTask["status"]): string {
+  if (status === "WAITING_ACCEPTANCE") return "等待你验收";
+  if (status === "COMPLETED") return "已验收";
+  if (["FAILED", "CANCELLED", "INTERRUPTED"].includes(status)) {
+    return "未完成成果";
+  }
+  return status === "RUNNING" ? "正在产生" : "等待继续修改";
+}
+
+function deliverableChangeLabel(
+  kind: NonNullable<PiTask["deliverables"]>[number]["changeKind"],
+): string {
+  return { CREATED: "新建", MODIFIED: "修改", REGISTERED: "程序生成" }[kind];
+}
+
+function checkStatusLabel(
+  status: NonNullable<PiTask["checks"]>[number]["status"],
+): string {
+  return {
+    STARTING: "检查中",
+    SUCCEEDED: "通过",
+    FAILED: "失败",
+    CANCELLED: "已停止",
+    TIMED_OUT: "超时",
+    UNKNOWN: "结果不明",
+  }[status];
+}
+
+function formatBytes(size: number): string {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function isSafeDeliverableToOpen(relativePath: string): boolean {
+  return /\.(csv|docx?|gif|jpe?g|md|pdf|png|pptx?|svg|txt|webp|xlsx?)$/iu.test(
+    relativePath,
+  );
+}
+
+function deliverableErrorMessage(code: string): string {
+  const messages: Record<string, string> = {
+    FILE_MISSING: "交付文件已经不存在。",
+    PREVIEW_UNAVAILABLE: "这个文件不能在软件内预览，可以查看它所在的位置。",
+    UNSAFE_OPEN: "为避免误运行代码或脚本，软件不会直接打开这个文件。",
+    DELIVERABLE_NOT_FOUND: "这不是本任务登记过的交付文件。",
+    WORKSPACE_NOT_READY: "任务工作区当前不可用。",
+  };
+  return messages[code] ?? "交付文件操作失败，请查看文件和工作区状态。";
+}
+
+function approvalKicker(kind: CommandApproval["kind"]): string {
+  if (kind === "TASK") return "本任务首次运行程序";
+  if (kind === "HIGH_RISK") return "高风险命令";
+  if (kind === "ENVIRONMENT") return "技能独立环境";
+  return "系统级安装";
+}
+
+function approvalTitle(approval: CommandApproval): string {
+  if (approval.details?.title !== undefined) return approval.details.title;
+  return approval.kind === "TASK"
+    ? "是否允许本任务运行程序？"
+    : "是否批准这条高风险命令？";
+}
+
+function approvalRejectLabel(kind: CommandApproval["kind"]): string {
+  if (kind === "ENVIRONMENT") return "暂不安装";
+  if (kind === "SYSTEM_INSTALL") return "不安装";
+  return "拒绝";
+}
+
+function approvalApproveLabel(kind: CommandApproval["kind"]): string {
+  if (kind === "TASK") return "允许本任务运行程序";
+  if (kind === "ENVIRONMENT") return "自动安装";
+  if (kind === "SYSTEM_INSTALL") return "允许系统安装";
+  return "批准这条命令";
+}
+
+function eventLabel(kind: PiTask["events"][number]["kind"]): string {
+  const labels: Record<PiTask["events"][number]["kind"], string> = {
+    PROGRESS: "进度",
+    MODEL_INPUT: "发送给模型",
+    MODEL_OUTPUT: "模型原始输出",
+    TOOL_START: "工具开始",
+    TOOL_RESULT: "工具结果",
+    TOOL_ERROR: "工具失败",
+    TOOL_UPDATE: "程序实时输出",
+    APPROVAL_REQUIRED: "等待你的确认",
+    APPROVAL_RESOLVED: "确认结果",
+  };
+  return labels[kind];
+}
+
+function pendingCommandApproval(
+  task: PiTask | undefined,
+): CommandApproval | undefined {
+  if (task?.status !== "RUNNING") return undefined;
+  const resolved = new Set<string>();
+  for (const event of task.events) {
+    if (event.kind !== "APPROVAL_RESOLVED") continue;
+    const parsed = parseApproval(event.content);
+    if (parsed !== undefined) resolved.add(parsed.approvalId);
+  }
+  for (const event of [...task.events].reverse()) {
+    if (event.kind !== "APPROVAL_REQUIRED") continue;
+    const parsed = parseApproval(event.content);
+    if (parsed !== undefined && !resolved.has(parsed.approvalId)) return parsed;
+  }
+  return undefined;
+}
+
+function parseApproval(content: string): CommandApproval | undefined {
+  try {
+    const value = JSON.parse(content) as Partial<CommandApproval>;
+    if (
+      typeof value.approvalId === "string" &&
+      typeof value.command === "string" &&
+      (value.kind === "TASK" ||
+        value.kind === "HIGH_RISK" ||
+        value.kind === "ENVIRONMENT" ||
+        value.kind === "SYSTEM_INSTALL") &&
+      typeof value.reason === "string" &&
+      (value.details === undefined || validApprovalDetails(value.details))
+    ) {
+      return value as CommandApproval;
+    }
+  } catch {
+    // 旧事件或损坏事件不应让整个员工页面崩溃。
+  }
+  return undefined;
+}
+
+function validApprovalDetails(
+  value: unknown,
+): value is NonNullable<CommandApproval["details"]> {
+  if (typeof value !== "object" || value === null) return false;
+  const details = value as Partial<NonNullable<CommandApproval["details"]>>;
+  return (
+    Array.isArray(details.items) &&
+    details.items.every((item) => typeof item === "string") &&
+    typeof details.location === "string" &&
+    typeof details.network === "boolean" &&
+    typeof details.risk === "string" &&
+    typeof details.source === "string" &&
+    typeof details.systemImpact === "string" &&
+    typeof details.title === "string"
+  );
+}
+
+function taskErrorMessage(code: string): string {
+  if (code === "EMPLOYEE_NOT_READY")
+    return "员工的 Provider、模型或 Key 已失效";
+  if (code === "ATTACHMENT_NOT_READY")
+    return "附件已变化或过期，请移除后重新选择";
+  if (code === "WORKSPACE_NOT_READY") return "请选择一个当前可用、可写的工作区";
+  if (code === "ALREADY_RUNNING") return "已有任务正在运行";
+  if (code === "INVALID_STATE") return "任务状态已经变化，请刷新后再试";
+  return "请检查员工和任务内容后重试";
+}
+
+function attachmentTypeLabel(mediaType: PiTaskAttachment["mediaType"]): string {
+  if (mediaType === "application/pdf") return "PDF";
+  if (mediaType === "text/plain") return "TXT";
+  if (mediaType === "text/markdown") return "Markdown";
+  return "Word";
+}
+
+function rememberTask(
+  task: PiTask,
+  update: Dispatch<SetStateAction<PiTask | undefined>>,
+): void {
+  window.localStorage.setItem(`pi-current-task-id:${task.companyId}`, task.id);
+  showFresherTask(task, update);
+}
+
+function showFresherTask(
+  task: PiTask,
+  update: Dispatch<SetStateAction<PiTask | undefined>>,
+): void {
+  update((current) => preferFresherPiTask(current, task));
+}
