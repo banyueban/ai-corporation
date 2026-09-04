@@ -245,14 +245,19 @@ async function killProcessTree(child: ChildProcess): Promise<void> {
     await runWindowsTaskkill(pid);
     const descendants = await descendantsPromise;
     for (const descendantPid of descendants.reverse()) {
+      // taskkill 在受限环境里可能返回了但没有真正结束目标；直接调用
+      // TerminateProcess 作为后备，避免任务已经显示停止、程序却仍在运行。
+      forceKillWindowsProcess(descendantPid);
       await runWindowsTaskkill(descendantPid);
     }
+    forceKillWindowsProcess(pid);
     await runWindowsTaskkill(pid);
     try {
       child.kill("SIGKILL");
     } catch {
       // taskkill 已经结束根进程时会到这里，属于正常结果。
     }
+    await waitForWindowsProcessesToExit([pid, ...descendants]);
     return;
   }
   try {
@@ -265,6 +270,39 @@ async function killProcessTree(child: ChildProcess): Promise<void> {
     process.kill(-pid, "SIGKILL");
   } catch {
     // 进程树已经退出就是成功，不把 ESRCH 当作失败。
+  }
+}
+
+/** Windows 上的 SIGKILL 会直接调用 TerminateProcess，不经过 shell。 */
+function forceKillWindowsProcess(pid: number): void {
+  try {
+    process.kill(pid, "SIGKILL");
+  } catch {
+    // 目标已经退出，或者由后续 taskkill 再处理。
+  }
+}
+
+/** 只有确认进程都消失后，才允许上层显示“已停止”。 */
+async function waitForWindowsProcessesToExit(
+  pids: readonly number[],
+): Promise<void> {
+  const deadline = Date.now() + 5_000;
+  const uniquePids = [...new Set(pids)];
+  while (Date.now() < deadline) {
+    if (uniquePids.every((pid) => !isProcessAlive(pid))) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  if (uniquePids.some(isProcessAlive)) {
+    throw new Error("命令进程没有完全退出，任务不能假装已经停止。 ");
+  }
+}
+
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
   }
 }
 
