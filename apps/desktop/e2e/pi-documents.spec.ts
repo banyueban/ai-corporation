@@ -90,7 +90,10 @@ test("employee reads a fixed attachment and creates real Word and PDF results", 
       .toMatch(/等待你验收|运行失败/u);
     if (await page.getByRole("heading", { name: "运行失败" }).isVisible()) {
       await page.getByText("查看完整模型和工具过程").click();
-      throw new Error(await page.locator(".pi-task-details").innerText());
+      const details = await page.locator(".pi-task-details").innerText();
+      // CI 注解有长度限制，只保留末尾的工具结果和真正失败原因，
+      // 避免前面的长模型请求把有用信息挤掉。
+      throw new Error(details.slice(-3_000));
     }
     await expect(
       page.getByText("整理结果.docx", { exact: true }),
