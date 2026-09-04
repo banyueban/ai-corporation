@@ -173,10 +173,13 @@ fn decode_base64(input: &str) -> Option<Vec<u8>> {
         }
     }
 
-    let chunks = input.as_bytes().chunks_exact(4);
+    let (chunks, remainder) = input.as_bytes().as_chunks::<4>();
+    if !remainder.is_empty() {
+        return None;
+    }
     let chunk_count = chunks.len();
     let mut output = Vec::with_capacity((input.len() / 4) * 3);
-    for (index, chunk) in chunks.enumerate() {
+    for (index, chunk) in chunks.iter().enumerate() {
         let last = index + 1 == chunk_count;
         let first = value(chunk[0])?;
         let second = value(chunk[1])?;
