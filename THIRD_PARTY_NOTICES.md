@@ -26,3 +26,12 @@ AI Corporation Desktop 随安装包提供固定版本 `npm 11.6.2`，仅用于�
 - Source: https://registry.npmjs.org/npm/-/npm-11.6.2.tgz
 - License: Artistic-2.0
 - Copyright: npm, Inc. and npm CLI contributors
+
+## Noto Sans SC
+
+AI Corporation Desktop 随安装包提供 `@fontsource-variable/noto-sans-sc 5.3.0`，生成 PDF 时只嵌入当前文档实际用到的字体片段，避免依赖操作系统字体。
+
+- Source: https://fontsource.org/fonts/noto-sans-sc
+- Package: https://www.npmjs.com/package/@fontsource-variable/noto-sans-sc/v/5.3.0
+- License: SIL Open Font License 1.1
+- Copyright: Google Inc.

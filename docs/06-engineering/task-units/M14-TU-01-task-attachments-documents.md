@@ -19,7 +19,8 @@
 
 - Milestone 7–13 已完成，单员工、Workspace、标准 Skill、环境、脚本、成果和最终安装包验收可复用；
 - 当前分支为 `codex/pi-reboot`，开始基线 `d3efb5d`，任务开始时工作区无未提交改动；
-- 新增依赖固定为 `docx 9.7.1`（MIT）、`mammoth 1.12.2`（BSD-2-Clause）、`pdfjs-dist 6.3.289`（Apache-2.0），随应用打包，不要求用户预装 LibreOffice、Pandoc、Poppler 或 Tesseract；
+- 新增依赖固定为 `docx 9.7.1`（MIT）、`mammoth 1.12.2`（BSD-2-Clause）、`pdfjs-dist 6.3.289`（Apache-2.0）和 `@fontsource-variable/noto-sans-sc 5.3.0`（OFL-1.1），随应用打包，不要求用户预装字体、LibreOffice、Pandoc、Poppler 或 Tesseract；
+- 首轮 macOS CI 证明系统中文字体没有被 Chromium 写入 PDF，成品只剩表格线且文字数为 0；用户选择 A 方案，允许软件内置 Noto Sans SC 并按文档字符只加载需要的字体片段；
 - 用户正式 Provider 和附件继续只保存在本机，不进入仓库、fixture、截图或 CI artifact。
 
 ## 3. 包含范围
@@ -30,7 +31,7 @@
 - 新增 `document-processing` 内置标准 Skill，作为可分配、可自动启用、可查看来源的只读 Skill；处理步骤只写在 Skill 中；
 - 新增通用 `document_read`：按附件 ID 和字符范围读取 UTF-8、Word 或普通 PDF，返回规范化 Markdown 片段；
 - 新增通用 `document_create`：把不超过 200,000 字符的规范化 Markdown 生成新的 `.docx` 或 `.pdf`；支持标题、段落、项目符号、编号列表和表格；
-- DOCX 使用 `mammoth` 读取、`docx` 生成；PDF 使用 `pdfjs-dist` 读取，生成时由无网络、无 Node、禁用脚本的隐藏 Electron 页面排版并 `printToPDF`；
+- DOCX 使用 `mammoth` 读取、`docx` 生成；PDF 使用 `pdfjs-dist` 读取，生成时由无网络、无 Node、禁用脚本的隐藏 Electron 页面排版并 `printToPDF`；页面固定使用允许嵌入的 Noto Sans SC，不依赖操作系统字体；
 - 文档二进制通过 Native Core 在当前 Workspace 原子创建并哈希，目标存在或边界变化固定拒绝；成功后登记真实成果；
 - 成果区对 Word/PDF 提供规范化内容查看，并保留系统打开、查看所在位置和外部变化提示；
 - 同步更新协议、迁移、Main、Preload、Renderer、Native Core、测试、权威文档和项目状态。
@@ -105,7 +106,7 @@
 - 依赖版本、许可证、打包内容和无 Anthropic 受限文件检查；
 - SQLite 空库/旧库迁移、附件事务、暂存清理、重启恢复和外键检查；
 - 路径、链接、伪扩展名、大小、并发变化、Prompt injection、跨公司/任务和二进制写入攻击集；
-- 合成 Word/PDF 的提取、分段、生成、重新打开、结构、中文、哈希和原文件不变检查；
+- 合成 Word/PDF 的提取、分段、生成、重新打开、结构、中文、哈希和原文件不变检查；验证 PDF 只嵌入实际需要的 Noto Sans SC 字体片段，Windows/macOS 均能重新提取中文；
 - Windows 开发态、最终安装包、1024×700/1440×900/200% 截图和完整连续旅程；
 - 同一候选提交的 Windows/macOS GitHub Actions run、安装包 artifact、大小和 SHA-256；
 - 用户对当前 Windows 安装包的人工验收结论。

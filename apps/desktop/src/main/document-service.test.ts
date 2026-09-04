@@ -58,6 +58,9 @@ describe("document service", () => {
     expect(html).toContain("&lt;script&gt;");
     expect(html).not.toContain("<script>window.bad");
     expect(html).toContain("default-src 'none'");
+    expect(html).toContain("font-src data:");
+    expect(html).toContain("AI Corporation Noto Sans SC");
+    expect(html).toContain("/* AI_CORPORATION_PDF_FONT */");
   });
 
   it("returns exact offsets when a long text attachment is read in parts", async () => {

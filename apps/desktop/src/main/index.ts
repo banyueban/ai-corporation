@@ -186,6 +186,7 @@ import {
 import { PiTaskService } from "./pi-task-service";
 import { TaskAttachmentService } from "./task-attachment-service";
 import { DocumentService } from "./document-service";
+import { createPdfFontCss } from "./pdf-font-service";
 import {
   handleAttachmentDiscard,
   handleAttachmentStage,
@@ -314,11 +315,22 @@ async function renderPdf(html: string): Promise<Uint8Array> {
     },
   });
   try {
+    const fontDirectory = path.join(
+      app.getAppPath(),
+      app.isPackaged
+        ? "fonts/noto-sans-sc"
+        : "node_modules/@fontsource-variable/noto-sans-sc",
+    );
+    const fontCss = await createPdfFontCss(html, fontDirectory);
+    const printableHtml = html.replace(
+      "/* AI_CORPORATION_PDF_FONT */",
+      fontCss,
+    );
     const firstPaint = new Promise<void>((resolve) => {
       window.once("ready-to-show", resolve);
     });
     await window.loadURL(
-      `data:text/html;charset=utf-8,${encodeURIComponent(html)}`,
+      `data:text/html;charset=utf-8,${encodeURIComponent(printableHtml)}`,
     );
     await firstPaint;
     return new Uint8Array(

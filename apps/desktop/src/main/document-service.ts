@@ -15,6 +15,7 @@ import {
   WidthType,
 } from "docx";
 import type { PiTaskAttachment } from "@ai-corporation/protocols";
+import { PDF_FONT_FAMILY } from "./pdf-font-service";
 
 export interface DocumentReadResult {
   readonly attachmentId: string;
@@ -104,7 +105,7 @@ export class DocumentService {
   }
 
   createPdfHtml(markdown: string): string {
-    return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"><style>${pdfStyles()}</style></head><body>${markdownToSafeHtml(normalizeMarkdown(markdown))}</body></html>`;
+    return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; font-src data:"><style>/* AI_CORPORATION_PDF_FONT */${pdfStyles()}</style></head><body>${markdownToSafeHtml(normalizeMarkdown(markdown))}</body></html>`;
   }
 }
 
@@ -378,5 +379,5 @@ function escapeHtml(value: string): string {
 }
 
 function pdfStyles(): string {
-  return "@page{size:A4;margin:20mm}body{font-family:'Microsoft YaHei','PingFang SC',sans-serif;color:#111;font-size:11pt;line-height:1.65}h1,h2,h3,h4,h5,h6{page-break-after:avoid}table{border-collapse:collapse;width:100%;margin:10px 0}td{border:1px solid #999;padding:6px;vertical-align:top}p{white-space:pre-wrap}li{margin:3px 0}";
+  return `@page{size:A4;margin:20mm}body{font-family:'${PDF_FONT_FAMILY}',sans-serif;color:#111;font-size:11pt;line-height:1.65}h1,h2,h3,h4,h5,h6{page-break-after:avoid}table{border-collapse:collapse;width:100%;margin:10px 0}td{border:1px solid #999;padding:6px;vertical-align:top}p{white-space:pre-wrap}li{margin:3px 0}`;
 }
