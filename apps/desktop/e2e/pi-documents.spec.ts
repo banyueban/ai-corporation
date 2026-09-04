@@ -1,5 +1,12 @@
 import { createServer } from "node:http";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
@@ -89,6 +96,14 @@ test("employee reads a fixed attachment and creates real Word and PDF results", 
       .poll(async () => page.locator(".pi-task h3").first().textContent())
       .toMatch(/等待你验收|运行失败/u);
     if (await page.getByRole("heading", { name: "运行失败" }).isVisible()) {
+      const failedPdf = path.join(taskWorkspace, "整理结果.pdf");
+      if (existsSync(failedPdf)) {
+        // 跨平台失败时保留真实成品，避免只凭界面错误猜测 PDF 内部问题。
+        copyFileSync(
+          failedPdf,
+          test.info().outputPath("failed-generated-document.pdf"),
+        );
+      }
       const reason = await page
         .locator(".pi-task .error-copy")
         .last()
