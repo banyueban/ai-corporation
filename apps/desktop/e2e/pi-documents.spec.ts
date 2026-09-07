@@ -93,7 +93,10 @@ test("employee reads a fixed attachment and creates real Word and PDF results", 
     await page.getByRole("button", { name: "开始任务" }).click();
 
     await expect
-      .poll(async () => page.locator(".pi-task h3").first().textContent())
+      .poll(async () => page.locator(".pi-task h3").first().textContent(), {
+        // macOS CI 首次装载全部内置字体片段明显慢于普通短文档。
+        timeout: 30_000,
+      })
       .toMatch(/等待你验收|运行失败/u);
     if (await page.getByRole("heading", { name: "运行失败" }).isVisible()) {
       const failedPdf = path.join(taskWorkspace, "整理结果.pdf");
