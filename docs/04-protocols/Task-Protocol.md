@@ -280,3 +280,31 @@ Pi 路线的附件选择使用独立 IPC。Main 打开文件选择器或接收 P
 每次选择最多 10 个文件，单个文件不超过 50 MiB，总大小不超过 100 MiB。首版只接受 `.docx`、`.pdf`、`.txt`、`.md`，并同时检查扩展名、文件头或 UTF-8；目录、链接、设备文件、宏文档、伪扩展名和选择后变化固定拒绝。用户移除附件、关闭应用或待选择过期时只清理应用暂存副本，不修改原文件。
 
 `document_read` 输入为 `attachmentId`、`offset` 和 `maxChars`，其中单次最多返回 40,000 字符；结果包含规范化 Markdown、总字符数、当前范围、下一偏移和 `hasMore`。`document_create` 输入为 `format`、`relativePath` 和不超过 200,000 字符的规范化 Markdown；只允许新的 `.docx` 或 `.pdf`，成功结果包含真实相对路径、SHA-256 和大小。两项工具都固定属于当前公司、任务、员工和 Workspace，不接受绝对路径、应用私有路径、任意命令或环境变量。
+
+## 13. Pi 轻量多员工文档协作协议
+
+`PiTask` 增加：
+
+- `mode: SINGLE | COLLABORATION`；旧任务读取时投影为 `SINGLE`；
+- `collaborationStatus?: RUNNING | WAITING_USER | WAITING_ACCEPTANCE | COMPLETED | CANCELLED | FAILED | INTERRUPTED`；
+- `assignments?: PiTaskAssignment[]`，按创建顺序返回；
+- 协作任务的 `employeeId` 始终是用户选择的最终负责人。
+
+`PiTaskAssignment` 只用于可见分工和交接：
+
+- `id`、`employeeId`、`employeeName` 和 `instruction`；
+- `role: FINAL | HELPER`；
+- `status: PENDING | RUNNING | WAITING_USER | SUCCEEDED | FAILED | CANCELLED | INTERRUPTED`；
+- 成功时保存 `output`，失败时保存受限 `failureMessage`；
+- `createdAt`、`updatedAt`。
+
+`PiTaskEvent` 可以带 `assignmentId`、`employeeId` 和 `employeeName`，让 Renderer 清楚标出哪名员工产生了模型或工具过程。认证信息、应用私有路径和员工无关上下文仍不得进入事件。
+
+`pi-task:start-collaboration` 只允许当前公司成员作为最终负责人，并要求当前公司至少还有一名可选协助员工。开始后最终负责人获得现有完整任务工具和两个协作工具：
+
+- `company_delegate(employeeId, instruction)`：员工必须是当前公司其他成员；每次调用建立一条可见分工，协助员工只获得 Skill 启用、参考资料、附件读取以及 Workspace 列表/文本读取能力，不获得任何文件写入、脚本、环境安装或命令能力；成功输出或准确失败都回到最终负责人；
+- `company_request_user(reason)`：最终负责人确认无法利用当前结果继续时，把整项任务转为 `WAITING_USER`，不伪造交付成功。
+
+协助员工失败时 `company_delegate` 返回正常的失败结果，使最终负责人能够按 2A 使用已有结果继续；失败不会触发隐藏重试。`pi-task:continue-collaboration` 的 `USE_EXISTING_RESULTS` 让最终负责人在不重试失败分工的前提下继续，`REASSIGN_FAILED_WORK` 允许负责人重新选择员工并形成新的分工记录。两个动作都必须产生新过程，不能覆盖旧失败。
+
+`pi-task:cancel` 对 `RUNNING` 和 `WAITING_USER` 协作任务有效：终止所有活动模型与工具、撤销授权，把尚未结束的分工标为 `CANCELLED`，保留已完成交接和已登记成果。启动恢复把仍为 `RUNNING` 的协作任务与分工标为 `INTERRUPTED`，不自动重放。

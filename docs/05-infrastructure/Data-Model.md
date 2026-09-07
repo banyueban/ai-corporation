@@ -15,11 +15,15 @@
 | Pi Company | 常用工作区关系 | `pi_company_workspace` 表；不复制或改变 Workspace 授权 |
 | Pi Employee | `pi_employee` | `pi_employee` 表保存全局唯一模型配置；`pi_employee_skill` 保存有顺序的多 Skill 分配 |
 | Pi Task | `pi_task` | `pi_task.company_id` 固定归属一家公司，同时保留员工和实际工作区引用 |
+| Pi Task | 协作模式 | `pi_task.task_mode` 区分普通单员工任务和公司协作；协作任务的 `employee_id` 是用户选择的最终负责人 |
+| Pi Task | `pi_task_assignment` | 保存最终负责人和协助员工的唯一分工、顺序、状态、交接输出或受限失败；不保存 Provider Key 或应用私有路径 |
 | Legacy | 旧 `corporation` 及 Goal/Plan/Organization/Run | 原表保留但当前界面不提供入口，不迁移为 `pi_company` |
 
 升级已有 Pi 数据时，迁移只在存在 Pi 员工或任务时创建“我的公司”，把全部现有 Pi 员工、任务和任务引用过的工作区接入。迁移不改变原 Task ID、Employee ID、Workspace ID、事件、工具调用、命令调用、状态或时间，也不产生模型和工具副作用。
 
 `0023_pi_employee_skill.sql` 把每名现有员工的 `pi_employee.skill_name` 原样写成位置 `0` 的关系记录。新版本以 `pi_employee_skill` 为多 Skill 的权威关系；旧列只同步保存列表第一项，避免在本阶段重建被任务和公司成员关系引用的员工表。保存员工时，员工字段、第一项兼容值和完整 Skill 关系必须在同一事务中成功或回滚。
+
+`0025_pi_task_collaboration.sql` 为 `pi_task` 增加默认 `SINGLE` 的 `task_mode`，并建立 `pi_task_assignment`。旧任务保持单员工语义，不回填虚假分工。协作任务的最终负责人使用 `pi_task.employee_id`；每次最终负责人或协助员工运行都保存一条分工，输出和失败追加保存，旧失败不会被重新安排覆盖。取消与启动恢复只改变未结束分工，已成功交接保持不变。
 
 M12-TU-02 不新增 SQLite 业务实体。脚本和环境安装都是当前 Pi Task 的 Tool 过程，进程启动与恢复复用 `pi_command_call`，模型/工具可见过程复用 `pi_task_event`。可跨任务复用的 Skill 独立环境不属于公司或任务数据，以应用自管目录中的原子 `READY` 清单为权威；清单键包含 Skill 内容、依赖、平台、架构和运行程序摘要。项目环境只属于当前 Workspace，不进入成果表，也不允许被其他 Workspace 复用。
 
