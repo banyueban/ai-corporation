@@ -166,9 +166,17 @@ test("employee reads a fixed attachment and creates real Word and PDF results", 
         window?.setSize(target.width, target.height);
         window?.webContents.setZoomFactor(target.zoom);
       }, view);
+      // Electron 修改缩放后要等浏览器完成新布局，再按新位置滚动。
+      await page.evaluate(
+        () =>
+          new Promise<void>((resolve) => {
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+          }),
+      );
       const deliveryFile = page.locator(".pi-delivery-file").first();
-      await deliveryFile.scrollIntoViewIfNeeded();
-      await page.waitForTimeout(150);
+      await deliveryFile.evaluate((element) =>
+        element.scrollIntoView({ block: "center", inline: "nearest" }),
+      );
       expect(
         await page.evaluate(
           () =>
