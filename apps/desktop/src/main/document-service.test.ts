@@ -63,6 +63,68 @@ describe("document service", () => {
     expect(html).toContain("/* AI_CORPORATION_PDF_FONT */");
   });
 
+  it("renders common Markdown formatting instead of showing its markers", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "M14-TU-01-format-"));
+    roots.push(root);
+    const service = new DocumentService();
+    const markdown = [
+      "# **带粗体的标题**",
+      "",
+      "正文有 **粗体**、*斜体*、***粗斜体***、~~删除线~~、`inline_code()` 和 [官网](https://example.com)，普通 text_summary_check 不应丢下划线。",
+      "",
+      "> 这是包含 **重点** 的引用。",
+      "",
+      "---",
+      "",
+      "- 一级项目",
+      "  - 二级项目",
+      "1. 一级编号",
+      "  1. 二级编号",
+      "",
+      "| 项目 | 说明 |",
+      "| --- | --- |",
+      "| **重点** | *表格斜体* |",
+      "",
+      "<script>window.bad = true</script> [危险链接](javascript:alert(1))",
+    ].join("\n");
+
+    const bytes = await service.createDocx(markdown);
+    const filePath = path.join(root, "常用格式.docx");
+    await writeFile(filePath, bytes);
+    const wordHtml = (await mammoth.convertToHtml({ path: filePath })).value;
+    expect(wordHtml).toContain("<strong>带粗体的标题</strong>");
+    expect(wordHtml).toContain("<strong>粗体</strong>");
+    expect(wordHtml).toContain("<em>斜体</em>");
+    expect(wordHtml).toContain("<strong><em>粗斜体</em></strong>");
+    expect(wordHtml).toContain("<s>删除线</s>");
+    expect(wordHtml).toContain("text_summary_check");
+    expect(wordHtml).toContain('href="https://example.com"');
+    expect(wordHtml).toContain("二级项目");
+    expect(wordHtml).toContain("二级编号");
+    expect(wordHtml).toContain("<table>");
+    expect(wordHtml).not.toContain("**粗体**");
+    expect(wordHtml).not.toContain("~~删除线~~");
+    expect(wordHtml).not.toContain("javascript:alert");
+
+    const pdfHtml = service.createPdfHtml(markdown);
+    expect(pdfHtml).toContain("<strong>带粗体的标题</strong>");
+    expect(pdfHtml).toContain("<em>斜体</em>");
+    expect(pdfHtml).toContain("<strong><em>粗斜体</em></strong>");
+    expect(pdfHtml).toContain("<del>删除线</del>");
+    expect(pdfHtml).toContain("<code>inline_code()</code>");
+    expect(pdfHtml).toContain('<a href="https://example.com">官网</a>');
+    expect(pdfHtml).toContain("<blockquote>");
+    expect(pdfHtml).toContain("<hr>");
+    expect(pdfHtml).toContain('class="level-1"');
+    expect(pdfHtml).toContain("<td><strong>重点</strong></td>");
+    expect(pdfHtml).toContain("&lt;script&gt;");
+    expect(pdfHtml).not.toContain("<script>window.bad");
+    expect(pdfHtml).not.toContain('href="javascript:');
+    expect(pdfHtml).not.toContain("**粗体**");
+    expect(pdfHtml).not.toContain("~~删除线~~");
+    expect(pdfHtml).toContain("text_summary_check");
+  });
+
   it("returns exact offsets when a long text attachment is read in parts", async () => {
     const root = await mkdtemp(
       path.join(os.tmpdir(), "M14-TU-01-document-parts-"),

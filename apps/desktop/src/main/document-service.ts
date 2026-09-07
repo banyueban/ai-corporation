@@ -2,12 +2,16 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import mammoth from "mammoth";
 import {
+  BorderStyle,
   Document,
   AlignmentType,
+  ExternalHyperlink,
   HeadingLevel,
   LevelFormat,
   Packer,
   Paragraph,
+  type ParagraphChild,
+  ShadingType,
   Table,
   TableCell,
   TableRow,
@@ -94,6 +98,18 @@ export class DocumentService {
                 format: LevelFormat.DECIMAL,
                 text: "%1.",
                 alignment: AlignmentType.START,
+                style: {
+                  paragraph: { indent: { left: 720, hanging: 360 } },
+                },
+              },
+              {
+                level: 1,
+                format: LevelFormat.DECIMAL,
+                text: "%1.%2.",
+                alignment: AlignmentType.START,
+                style: {
+                  paragraph: { indent: { left: 1_440, hanging: 360 } },
+                },
               },
             ],
           },
@@ -244,32 +260,69 @@ function markdownToDocxBlocks(markdown: string): Array<Paragraph | Table> {
       blocks.push(
         new Paragraph({
           heading: headingLevel,
-          children: [new TextRun(heading[2] ?? "")],
+          children: inlineToDocx(heading[2] ?? ""),
         }),
       );
       continue;
     }
-    const bullet = /^\s*[-*]\s+(.+)$/u.exec(line);
+    if (isHorizontalRule(line)) {
+      blocks.push(
+        new Paragraph({
+          border: {
+            bottom: {
+              style: BorderStyle.SINGLE,
+              color: "94A3B8",
+              size: 8,
+              space: 8,
+            },
+          },
+        }),
+      );
+      continue;
+    }
+    const quote = /^\s*>\s?(.*)$/u.exec(line);
+    if (quote !== null) {
+      blocks.push(
+        new Paragraph({
+          children: inlineToDocx(quote[1] ?? ""),
+          indent: { left: 360 },
+          border: {
+            left: {
+              style: BorderStyle.SINGLE,
+              color: "64748B",
+              size: 12,
+              space: 8,
+            },
+          },
+          shading: { type: ShadingType.CLEAR, fill: "F1F5F9" },
+        }),
+      );
+      continue;
+    }
+    const bullet = /^(\s*)[-+*]\s+(.+)$/u.exec(line);
     if (bullet !== null) {
       blocks.push(
         new Paragraph({
-          bullet: { level: 0 },
-          children: [new TextRun(bullet[1] ?? "")],
+          bullet: { level: listLevel(bullet[1] ?? "") },
+          children: inlineToDocx(bullet[2] ?? ""),
         }),
       );
       continue;
     }
-    const numbered = /^\s*\d+[.)]\s+(.+)$/u.exec(line);
+    const numbered = /^(\s*)\d+[.)]\s+(.+)$/u.exec(line);
     if (numbered !== null) {
       blocks.push(
         new Paragraph({
-          numbering: { reference: "document-numbering", level: 0 },
-          children: [new TextRun(numbered[1] ?? "")],
+          numbering: {
+            reference: "document-numbering",
+            level: listLevel(numbered[1] ?? ""),
+          },
+          children: inlineToDocx(numbered[2] ?? ""),
         }),
       );
       continue;
     }
-    blocks.push(new Paragraph({ children: [new TextRun(line)] }));
+    blocks.push(new Paragraph({ children: inlineToDocx(line) }));
   }
   return blocks.length > 0 ? blocks : [new Paragraph("")];
 }
@@ -288,7 +341,10 @@ function markdownTable(lines: readonly string[]): Table {
       (cells) =>
         new TableRow({
           children: cells.map(
-            (cell) => new TableCell({ children: [new Paragraph(cell)] }),
+            (cell) =>
+              new TableCell({
+                children: [new Paragraph({ children: inlineToDocx(cell) })],
+              }),
           ),
         }),
     );
@@ -320,12 +376,25 @@ function markdownToSafeHtml(markdown: string): string {
       closeList();
       const headingMarks = heading[1] ?? "#";
       output.push(
-        `<h${headingMarks.length}>${escapeHtml(heading[2] ?? "")}</h${headingMarks.length}>`,
+        `<h${headingMarks.length}>${inlineToSafeHtml(heading[2] ?? "")}</h${headingMarks.length}>`,
       );
       continue;
     }
-    const bullet = /^\s*[-*]\s+(.+)$/u.exec(line);
-    const numbered = /^\s*\d+[.)]\s+(.+)$/u.exec(line);
+    if (isHorizontalRule(line)) {
+      closeList();
+      output.push("<hr>");
+      continue;
+    }
+    const quote = /^\s*>\s?(.*)$/u.exec(line);
+    if (quote !== null) {
+      closeList();
+      output.push(
+        `<blockquote>${inlineToSafeHtml(quote[1] ?? "")}</blockquote>`,
+      );
+      continue;
+    }
+    const bullet = /^(\s*)[-+*]\s+(.+)$/u.exec(line);
+    const numbered = /^(\s*)\d+[.)]\s+(.+)$/u.exec(line);
     if (bullet !== null || numbered !== null) {
       const target = bullet !== null ? "ul" : "ol";
       if (list !== target) {
@@ -333,7 +402,10 @@ function markdownToSafeHtml(markdown: string): string {
         list = target;
         output.push(`<${target}>`);
       }
-      output.push(`<li>${escapeHtml((bullet ?? numbered)?.[1] ?? "")}</li>`);
+      const match = bullet ?? numbered;
+      output.push(
+        `<li class="level-${listLevel(match?.[1] ?? "")}">${inlineToSafeHtml(match?.[2] ?? "")}</li>`,
+      );
       continue;
     }
     if (/^\s*\|.*\|\s*$/u.test(line)) {
@@ -356,7 +428,7 @@ function markdownToSafeHtml(markdown: string): string {
                 .trim()
                 .replace(/^\||\|$/gu, "")
                 .split("|")
-                .map((cell) => `<td>${escapeHtml(cell.trim())}</td>`)
+                .map((cell) => `<td>${inlineToSafeHtml(cell.trim())}</td>`)
                 .join("")}</tr>`,
           )
           .join("")}</table>`,
@@ -364,10 +436,169 @@ function markdownToSafeHtml(markdown: string): string {
       continue;
     }
     closeList();
-    if (line.trim().length > 0) output.push(`<p>${escapeHtml(line)}</p>`);
+    if (line.trim().length > 0) output.push(`<p>${inlineToSafeHtml(line)}</p>`);
   }
   closeList();
   return output.join("");
+}
+
+interface InlineSpan {
+  readonly text: string;
+  readonly bold?: boolean;
+  readonly italic?: boolean;
+  readonly strike?: boolean;
+  readonly code?: boolean;
+  readonly link?: string;
+}
+
+/**
+ * 只解析首版明确支持的常用行内格式。其他内容（尤其 HTML）保持普通文字，
+ * 这样既不会把 Markdown 标记带进成品，也不会给附件内容执行代码的机会。
+ */
+function parseInline(
+  value: string,
+  inherited: Omit<InlineSpan, "text"> = {},
+): InlineSpan[] {
+  const spans: InlineSpan[] = [];
+  let plain = "";
+  const flush = () => {
+    if (plain.length > 0) spans.push({ ...inherited, text: plain });
+    plain = "";
+  };
+  for (let index = 0; index < value.length;) {
+    const character = value[index] ?? "";
+    if (character === "\\" && index + 1 < value.length) {
+      plain += value[index + 1] ?? "";
+      index += 2;
+      continue;
+    }
+    if (character === "`") {
+      const end = value.indexOf("`", index + 1);
+      if (end > index + 1) {
+        flush();
+        spans.push({
+          ...inherited,
+          text: value.slice(index + 1, end),
+          code: true,
+        });
+        index = end + 1;
+        continue;
+      }
+    }
+    if (character === "[") {
+      const labelEnd = value.indexOf("](", index + 1);
+      const linkEnd = labelEnd < 0 ? -1 : value.indexOf(")", labelEnd + 2);
+      if (labelEnd > index + 1 && linkEnd > labelEnd + 2) {
+        flush();
+        const link = value.slice(labelEnd + 2, linkEnd).trim();
+        const safeLink = isSafeLink(link) ? link : undefined;
+        spans.push(
+          ...parseInline(value.slice(index + 1, labelEnd), {
+            ...inherited,
+            ...(safeLink === undefined ? {} : { link: safeLink }),
+          }),
+        );
+        index = linkEnd + 1;
+        continue;
+      }
+    }
+    const markers = [
+      ["***", { bold: true, italic: true }],
+      ["___", { bold: true, italic: true }],
+      ["**", { bold: true }],
+      ["__", { bold: true }],
+      ["~~", { strike: true }],
+      ["*", { italic: true }],
+      ["_", { italic: true }],
+    ] as const;
+    const marker = markers.find(
+      ([candidate]) =>
+        value.startsWith(candidate, index) &&
+        (!candidate.includes("_") ||
+          (!isWordCharacter(value[index - 1]) &&
+            !isWordCharacter(value[index + candidate.length]))),
+    );
+    if (marker !== undefined) {
+      const [token, style] = marker;
+      let end = value.indexOf(token, index + token.length);
+      while (
+        end >= 0 &&
+        token.includes("_") &&
+        isWordCharacter(value[end + token.length])
+      ) {
+        end = value.indexOf(token, end + token.length);
+      }
+      if (end > index + token.length) {
+        flush();
+        spans.push(
+          ...parseInline(value.slice(index + token.length, end), {
+            ...inherited,
+            ...style,
+          }),
+        );
+        index = end + token.length;
+        continue;
+      }
+    }
+    plain += character;
+    index += 1;
+  }
+  flush();
+  return spans;
+}
+
+function isWordCharacter(value: string | undefined): boolean {
+  return value !== undefined && /[\p{L}\p{N}]/u.test(value);
+}
+
+function inlineToDocx(value: string): ParagraphChild[] {
+  return parseInline(value).map((span) => {
+    const run = new TextRun({
+      text: span.text,
+      ...(span.bold === true ? { bold: true } : {}),
+      ...(span.italic === true ? { italics: true } : {}),
+      ...(span.strike === true ? { strike: true } : {}),
+      ...(span.code === true
+        ? {
+            font: "Consolas",
+            shading: { type: ShadingType.CLEAR, fill: "E2E8F0" },
+          }
+        : {}),
+      ...(span.link === undefined ? {} : { style: "Hyperlink" }),
+    });
+    return span.link === undefined
+      ? run
+      : new ExternalHyperlink({ children: [run], link: span.link });
+  });
+}
+
+function inlineToSafeHtml(value: string): string {
+  return parseInline(value)
+    .map((span) => {
+      let html = escapeHtml(span.text);
+      if (span.code) html = `<code>${html}</code>`;
+      if (span.strike) html = `<del>${html}</del>`;
+      if (span.italic) html = `<em>${html}</em>`;
+      if (span.bold) html = `<strong>${html}</strong>`;
+      if (span.link !== undefined) {
+        html = `<a href="${escapeHtml(span.link)}">${html}</a>`;
+      }
+      return html;
+    })
+    .join("");
+}
+
+function isSafeLink(value: string): boolean {
+  return /^(?:https?:\/\/|mailto:)/iu.test(value);
+}
+
+function isHorizontalRule(value: string): boolean {
+  return /^\s{0,3}(?:(?:-\s*){3,}|(?:\*\s*){3,}|(?:_\s*){3,})$/u.test(value);
+}
+
+function listLevel(indentation: string): number {
+  const width = indentation.replace(/\t/gu, "    ").length;
+  return width >= 2 ? 1 : 0;
 }
 
 function escapeHtml(value: string): string {
@@ -379,5 +610,5 @@ function escapeHtml(value: string): string {
 }
 
 function pdfStyles(): string {
-  return `@page{size:A4;margin:20mm}body{font-family:'${PDF_FONT_FAMILY}',sans-serif;color:#111;font-size:11pt;line-height:1.65}h1,h2,h3,h4,h5,h6{page-break-after:avoid}table{border-collapse:collapse;width:100%;margin:10px 0}td{border:1px solid #999;padding:6px;vertical-align:top}p{white-space:pre-wrap}li{margin:3px 0}`;
+  return `@page{size:A4;margin:20mm}body{font-family:'${PDF_FONT_FAMILY}',sans-serif;color:#111;font-size:11pt;line-height:1.65}h1,h2,h3,h4,h5,h6{page-break-after:avoid}table{border-collapse:collapse;width:100%;margin:10px 0;table-layout:fixed}td{border:1px solid #999;padding:6px;vertical-align:top;overflow-wrap:anywhere}p{white-space:pre-wrap}li{margin:3px 0}.level-1{margin-left:1.5em}blockquote{margin:10px 0;padding:8px 12px;border-left:4px solid #64748b;background:#f1f5f9}hr{border:0;border-top:1px solid #94a3b8;margin:16px 0}code{font-family:Consolas,'Courier New',monospace;background:#e2e8f0;padding:1px 3px;border-radius:3px}a{color:#0563c1;text-decoration:underline}`;
 }

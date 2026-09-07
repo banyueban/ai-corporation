@@ -556,7 +556,7 @@ Milestone 13 通过只关闭 `DE-019` 的首个真实公开 Skill 兼容验收�
 - 内置 `document-processing` 标准 Skill，其他标准 Skill 以后可以复用相同文档工具；
 - `document_read` 分段读取 Word、文本、Markdown 和带文字层 PDF，扫描件、损坏和加密文件准确失败；
 - `document_create` 从规范化 Markdown 在当前 Workspace 原子创建新的 Word 或 PDF，不覆盖已有文件；
-- Word 保留标题、段落、项目符号、编号列表和表格，PDF 使用同一规范化内容生成；
+- Word/PDF 共同保留标题、段落、粗体、斜体、删除线、行内代码、引用、分隔线、安全链接、两级列表和带行内格式的表格，不显示相应 Markdown 标记；图片、复杂公式、脚注和任意 HTML 后续增加；
 - 输出经 Native Core 核对并进入成果区，可查看内容、系统打开和查看所在位置；
 - Windows 开发态、最终安装包、Windows/macOS CI 和用户 Windows 安装包人工验收。
 

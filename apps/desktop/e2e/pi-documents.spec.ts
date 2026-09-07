@@ -141,6 +141,14 @@ test("employee reads a fixed attachment and creates real Word and PDF results", 
     expect((await mammoth.extractRawText({ path: docxPath })).value).toContain(
       "整理结果",
     );
+    const generatedWordHtml = (await mammoth.convertToHtml({ path: docxPath }))
+      .value;
+    expect(generatedWordHtml).toContain("<strong>重点内容</strong>");
+    expect(generatedWordHtml).toContain("<em>补充说明</em>");
+    expect(generatedWordHtml).toContain("<s>旧内容</s>");
+    expect(generatedWordHtml).toContain('href="https://example.com"');
+    expect(generatedWordHtml).not.toContain("**重点内容**");
+    expect(generatedWordHtml).not.toContain("~~旧内容~~");
 
     const docxCard = page
       .locator(".pi-delivery-file")
@@ -155,6 +163,9 @@ test("employee reads a fixed attachment and creates real Word and PDF results", 
     await pdfCard.getByRole("button", { name: "查看内容" }).click();
     await expect(page.locator(".pi-delivery-preview pre")).toContainText(
       "这是一份由附件整理出的文档",
+    );
+    await expect(page.locator(".pi-delivery-preview pre")).not.toContainText(
+      "**重点内容**",
     );
     for (const view of [
       { label: "1024x700", width: 1024, height: 700, zoom: 1 },
@@ -310,7 +321,7 @@ async function startDocumentProviderFixture() {
             skillName: "text-organize",
             relativePath: "整理结果.docx",
             markdown:
-              "# 整理结果\n\n这是一份由附件整理出的文档。\n\n- 原件保持不变\n- 生成新的文件",
+              "# 整理结果\n\n这是一份由附件整理出的文档。\n\n正文有 **重点内容**、*补充说明*、~~旧内容~~、`result.docx` 和 [参考链接](https://example.com)。\n\n> 原件保持不变。\n\n---\n\n- 一级项目\n  - 二级项目\n1. 一级编号\n  1. 二级编号\n\n| 项目 | 说明 |\n| --- | --- |\n| **Word** | *已生成* |",
           }),
         },
         {
@@ -319,7 +330,7 @@ async function startDocumentProviderFixture() {
             skillName: "document-processing",
             relativePath: "整理结果.pdf",
             markdown:
-              "# 整理结果\n\n这是一份由附件整理出的文档。\n\n| 项目 | 状态 |\n| --- | --- |\n| Word | 已生成 |\n| PDF | 已生成 |\n\n## 跨字体片段回归\n\n" +
+              "# 整理结果\n\n这是一份由附件整理出的文档。\n\n正文有 **重点内容**、*补充说明*、~~旧内容~~、`result.pdf` 和 [参考链接](https://example.com)。\n\n> 输出文件已经核对。\n\n---\n\n- 一级项目\n  - 二级项目\n1. 一级编号\n  1. 二级编号\n\n| 项目 | 状态 |\n| --- | --- |\n| **Word** | *已生成* |\n| PDF | 已生成 |\n\n## 跨字体片段回归\n\n" +
               allBundledFontSubsetsText(),
           }),
         },
