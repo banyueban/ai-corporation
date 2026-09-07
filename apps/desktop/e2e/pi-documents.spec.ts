@@ -158,8 +158,9 @@ test("employee reads a fixed attachment and creates real Word and PDF results", 
     );
     for (const view of [
       { label: "1024x700", width: 1024, height: 700, zoom: 1 },
-      { label: "1024x700-200-percent", width: 1024, height: 700, zoom: 2 },
       { label: "1440x900", width: 1440, height: 900, zoom: 1 },
+      // 200% 放在最后，避免测试自己制造“刚放大又立刻缩回”的非用户路径。
+      { label: "1024x700-200-percent", width: 1024, height: 700, zoom: 2 },
     ]) {
       await app.evaluate(({ BrowserWindow }, target) => {
         const window = BrowserWindow.getAllWindows()[0];
