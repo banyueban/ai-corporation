@@ -174,7 +174,10 @@ test("employee reads a fixed attachment and creates real Word and PDF results", 
           }),
       );
       const deliveryFile = page.locator(".pi-delivery-file").first();
-      await deliveryFile.evaluate((element) =>
+      const revealButton = deliveryFile.getByRole("button", {
+        name: "查看所在位置",
+      });
+      await revealButton.evaluate((element) =>
         element.scrollIntoView({ block: "center", inline: "nearest" }),
       );
       expect(
@@ -185,9 +188,7 @@ test("employee reads a fixed attachment and creates real Word and PDF results", 
         ),
       ).toBe(true);
       await expect(deliveryFile).toBeInViewport();
-      await expect(
-        deliveryFile.getByRole("button", { name: "查看所在位置" }),
-      ).toBeInViewport();
+      await expect(revealButton).toBeInViewport();
       const screenshotPath = test
         .info()
         .outputPath(`m14-document-task-${view.label}.png`);
