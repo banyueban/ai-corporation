@@ -101,6 +101,7 @@ import {
   shell,
   type IpcMainInvokeEvent,
 } from "electron";
+import { mkdtemp, rmdir, unlink, writeFile } from "node:fs/promises";
 import type { DatabaseSync } from "node:sqlite";
 import { NativeCoreClient } from "./native-core-client";
 import {
@@ -303,6 +304,8 @@ function createMainWindow(): BrowserWindow {
 }
 
 async function renderPdf(html: string): Promise<Uint8Array> {
+  let temporaryDirectory: string | undefined;
+  let temporaryHtmlPath: string | undefined;
   const window = new BrowserWindow({
     show: false,
     webPreferences: {
@@ -326,12 +329,21 @@ async function renderPdf(html: string): Promise<Uint8Array> {
       "/* AI_CORPORATION_PDF_FONT */",
       fontCss,
     );
+    // 字体片段可能让完整 HTML 达到数 MiB，不能塞进有长度上限的 data URL。
+    // 使用应用私有的随机临时文件加载，打印完成后立即删除。
+    temporaryDirectory = await mkdtemp(
+      path.join(app.getPath("temp"), "ai-corporation-pdf-"),
+    );
+    temporaryHtmlPath = path.join(temporaryDirectory, "document.html");
+    await writeFile(temporaryHtmlPath, printableHtml, {
+      encoding: "utf8",
+      flag: "wx",
+      mode: 0o600,
+    });
     const firstPaint = new Promise<void>((resolve) => {
       window.once("ready-to-show", resolve);
     });
-    await window.loadURL(
-      `data:text/html;charset=utf-8,${encodeURIComponent(printableHtml)}`,
-    );
+    await window.loadFile(temporaryHtmlPath);
     await firstPaint;
     return new Uint8Array(
       await window.webContents.printToPDF({
@@ -343,6 +355,12 @@ async function renderPdf(html: string): Promise<Uint8Array> {
     );
   } finally {
     window.destroy();
+    if (temporaryHtmlPath !== undefined) {
+      await unlink(temporaryHtmlPath).catch(() => undefined);
+    }
+    if (temporaryDirectory !== undefined) {
+      await rmdir(temporaryDirectory).catch(() => undefined);
+    }
   }
 }
 

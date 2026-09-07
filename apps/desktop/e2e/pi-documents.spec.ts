@@ -15,7 +15,7 @@ import mammoth from "mammoth";
 import { Document, Packer, Paragraph } from "docx";
 
 test("employee reads a fixed attachment and creates real Word and PDF results", async () => {
-  test.setTimeout(60_000);
+  test.setTimeout(90_000);
   const fixture = await startDocumentProviderFixture();
   const userDataDirectory = mkdtempSync(
     path.join(tmpdir(), "M14-TU-01-user-data-"),
@@ -191,6 +191,9 @@ test("employee reads a fixed attachment and creates real Word and PDF results", 
     const processDetails = page.locator(".pi-task-details");
     await expect(processDetails).toContainText("document_read");
     await expect(processDetails).toContainText("document_create");
+    await expect(processDetails).toContainText(
+      "软件已重新打开并核对生成文件，无需再调用 document_read",
+    );
     await expect(processDetails).toContainText("原始说明");
     await expect(processDetails).toContainText("请整理成 Word 和 PDF");
     await expect(processDetails).toContainText("WORD SOURCE CONTENT M14");
@@ -199,6 +202,10 @@ test("employee reads a fixed attachment and creates real Word and PDF results", 
     const processText = await processDetails.innerText();
     expect(processText).not.toContain(sourceDirectory);
     expect(processText).not.toContain("M14-TU-01-fake-key");
+    expect(fixture.requests[0]).toContain(
+      "document_read 只能读取上面列出的原始附件",
+    );
+    expect(fixture.requests[0]).toContain("不要擅自编写环境探测脚本");
   } finally {
     await app.close().catch(() => undefined);
     await fixture.close();
@@ -214,6 +221,7 @@ test("employee reads a fixed attachment and creates real Word and PDF results", 
 
 async function startDocumentProviderFixture() {
   let call = 0;
+  const requests: string[] = [];
   const server = createServer((request, response) => {
     if (request.url === "/models") {
       response.writeHead(200, { "content-type": "application/json" });
@@ -231,6 +239,7 @@ async function startDocumentProviderFixture() {
     request.on("end", () => {
       call += 1;
       const body = Buffer.concat(chunks).toString("utf8");
+      requests.push(body);
       const attachmentIds = Object.fromEntries(
         [...body.matchAll(/ID ([0-9a-f-]{36})：([^（\n]+)/gu)].map((match) => [
           match[2]?.trim(),
@@ -297,7 +306,8 @@ async function startDocumentProviderFixture() {
             skillName: "document-processing",
             relativePath: "整理结果.pdf",
             markdown:
-              "# 整理结果\n\n这是一份由附件整理出的文档。\n\n| 项目 | 状态 |\n| --- | --- |\n| Word | 已生成 |\n| PDF | 已生成 |",
+              "# 整理结果\n\n这是一份由附件整理出的文档。\n\n| 项目 | 状态 |\n| --- | --- |\n| Word | 已生成 |\n| PDF | 已生成 |\n\n## 跨字体片段回归\n\n" +
+              allBundledFontSubsetsText(),
           }),
         },
       ];
@@ -355,6 +365,7 @@ async function startDocumentProviderFixture() {
     throw new Error("fixture unavailable");
   return {
     endpoint: `http://127.0.0.1:${address.port}`,
+    requests,
     close: () =>
       new Promise<void>((resolve, reject) => {
         server.closeAllConnections();
@@ -363,6 +374,31 @@ async function startDocumentProviderFixture() {
         );
       }),
   };
+}
+
+/**
+ * 每个内置字体片段取一个真实字符。旧实现会把这些字体全部塞进 data URL，
+ * 在 Chromium 中触发地址过长；这个真实窗口用例固定防止问题复发。
+ */
+function allBundledFontSubsetsText(): string {
+  const metadata = JSON.parse(
+    readFileSync(
+      path.resolve(
+        __dirname,
+        "../node_modules/@fontsource-variable/noto-sans-sc/unicode.json",
+      ),
+      "utf8",
+    ),
+  ) as Record<string, string>;
+  return Object.values(metadata)
+    .map((ranges) => {
+      const first = /U\+([0-9a-f?]{1,6})/iu.exec(ranges)?.[1];
+      if (first === undefined) throw new Error("invalid bundled font metadata");
+      return String.fromCodePoint(
+        Number.parseInt(first.replace(/\?/gu, "0"), 16),
+      );
+    })
+    .join("");
 }
 
 function sendChunk(

@@ -1,12 +1,12 @@
 # M14-TU-01 任务附件与文档处理闭环
 
-| 字段 | 内容 |
-| --- | --- |
-| 任务单元 ID | M14-TU-01 |
-| 状态 | 进行中 |
-| 所属 Milestone | Milestone 14：任务附件与文档处理 |
-| 主要结果 | 用户把真实 Word、PDF、文本或 Markdown 添加到员工任务后，员工通过标准文档 Skill 读取内容并在当前 Workspace 生成新的 Word/PDF 成果。 |
-| 基线提交 | `d3efb5d` |
+| 字段           | 内容                                                                                                                               |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| 任务单元 ID    | M14-TU-01                                                                                                                          |
+| 状态           | 进行中                                                                                                                             |
+| 所属 Milestone | Milestone 14：任务附件与文档处理                                                                                                   |
+| 主要结果       | 用户把真实 Word、PDF、文本或 Markdown 添加到员工任务后，员工通过标准文档 Skill 读取内容并在当前 Workspace 生成新的 Word/PDF 成果。 |
+| 基线提交       | `d3efb5d`                                                                                                                          |
 
 ## 1. 需求与设计引用
 
@@ -31,7 +31,7 @@
 - 新增 `document-processing` 内置标准 Skill，作为可分配、可自动启用、可查看来源的只读 Skill；处理步骤只写在 Skill 中；
 - 新增通用 `document_read`：按附件 ID 和字符范围读取 UTF-8、Word 或普通 PDF，返回规范化 Markdown 片段；
 - 新增通用 `document_create`：把不超过 200,000 字符的规范化 Markdown 生成新的 `.docx` 或 `.pdf`；支持标题、段落、项目符号、编号列表和表格；
-- DOCX 使用 `mammoth` 读取、`docx` 生成；PDF 使用 `pdfjs-dist` 读取，生成时由无网络、无 Node、禁用脚本的隐藏 Electron 页面排版并 `printToPDF`；页面固定使用允许嵌入的 Noto Sans SC，不依赖操作系统字体；
+- DOCX 使用 `mammoth` 读取、`docx` 生成；PDF 使用 `pdfjs-dist` 读取，生成时由无网络、无 Node、禁用脚本的隐藏 Electron 页面排版并 `printToPDF`；页面固定使用允许嵌入的 Noto Sans SC，不依赖操作系统字体；包含字体的 HTML 通过应用随机私有临时文件加载，打印后立即删除，避免真实长文档超过 `data:` 地址长度限制；
 - 文档二进制通过 Native Core 在当前 Workspace 原子创建并哈希，目标存在或边界变化固定拒绝；成功后登记真实成果；
 - 成果区对 Word/PDF 提供规范化内容查看，并保留系统打开、查看所在位置和外部变化提示；
 - 同步更新协议、迁移、Main、Preload、Renderer、Native Core、测试、权威文档和项目状态。
@@ -59,6 +59,7 @@
 - `pi_task_attachment` 以 `task_id + id` 唯一，保存显示名、媒体类型、大小、SHA-256、随机存储文件名和时间；不保存原始绝对路径或提取正文；
 - `document_read` 只读取当前公司、当前任务固定附件；单次最多 40,000 字符，可按 `nextOffset` 连续读取；
 - `document_create` 只创建当前任务 Workspace 中不存在的 `.docx`/`.pdf`，不接受 HTML、命令、环境变量、绝对路径或应用私有路径；
+- `document_create` 会由软件重新打开成品核对并返回核对结果；模型不得把成果文件名冒充附件 ID 再调用 `document_read`，也不得因内置生成失败擅自在工作区创建环境探测脚本；
 - 新增 Native Workspace 二进制创建 RPC：仅允许新文件、受限大小、Base64 请求、同目录临时文件和原子落盘，返回真实哈希与大小；
 - 文档内容按不可信附件处理，不能覆盖系统提示、Skill 权限和审批；生成 HTML 必须由内部 Markdown 子集转义生成，禁止脚本、远程资源和任意 HTML 注入。
 
