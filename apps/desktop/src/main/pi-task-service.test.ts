@@ -201,12 +201,18 @@ describe("PiTaskService", () => {
           event.employeeName === "资料员工" && event.kind === "MODEL_OUTPUT",
       ),
     ).toBe(true);
-    const helperRequest = fixture.requests.find((request) =>
-      JSON.stringify(request.body).includes("只完成最终负责人交给你的只读工作"),
-    );
-    expect(JSON.stringify(helperRequest?.body)).not.toContain(
-      "workspace_write_text",
-    );
+    const helperRequest = fixture.requests[1]?.body as
+      | {
+          readonly model?: string;
+          readonly tools?: readonly {
+            readonly function?: { readonly name?: string };
+          }[];
+        }
+      | undefined;
+    expect(helperRequest?.model).toBe("helper-model");
+    expect(
+      helperRequest?.tools?.map((tool) => tool.function?.name),
+    ).not.toContain("workspace_write_text");
     database.close();
   });
 
