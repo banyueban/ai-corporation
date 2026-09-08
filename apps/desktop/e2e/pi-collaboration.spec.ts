@@ -13,10 +13,10 @@ test("company employees hand off research and one owner creates the final Word f
     path.join(tmpdir(), "M15-TU-01-user-data-"),
   );
   const workspace = mkdtempSync(path.join(tmpdir(), "M15-TU-01-workspace-"));
-  const app = await launchApplication(userDataDirectory, workspace);
+  let app = await launchApplication(userDataDirectory, workspace);
 
   try {
-    const page = await app.firstWindow();
+    let page = await app.firstWindow();
     await page.getByRole("button", { name: "设置" }).click();
     await page.getByLabel("名称").fill("协作验收 Provider");
     await page.getByLabel("API 基础 URL").fill(fixture.endpoint);
@@ -150,6 +150,14 @@ test("company employees hand off research and one owner creates the final Word f
     ).toBeVisible();
     await page.getByRole("button", { name: "停止任务" }).first().click();
     await expect(page.getByRole("heading", { name: "已停止" })).toBeVisible();
+
+    // 关闭再打开软件后，已停止任务必须保持停止，不能偷偷重新请求模型。
+    const callsBeforeRestart = fixture.modelRequests();
+    await app.close();
+    app = await launchApplication(userDataDirectory, workspace);
+    page = await app.firstWindow();
+    await expect(page.getByRole("heading", { name: "已停止" })).toBeVisible();
+    expect(fixture.modelRequests()).toBe(callsBeforeRestart);
   } finally {
     await app.close();
     await fixture.close();
@@ -257,6 +265,7 @@ async function startCollaborationProviderFixture() {
     throw new Error("No port");
   return {
     endpoint: `http://127.0.0.1:${address.port}`,
+    modelRequests: () => chatCall,
     close: () =>
       new Promise<void>((resolve, reject) => {
         server.closeAllConnections();
