@@ -121,6 +121,35 @@ test("company employees hand off research and one owner creates the final Word f
     }
     await page.getByRole("button", { name: "验收通过" }).click();
     await expect(page.getByRole("heading", { name: "已完成" })).toBeVisible();
+
+    await page.getByLabel("任务内容").fill("测试无法继续：请先等待我的决定");
+    await page.getByRole("button", { name: "开始公司协作" }).last().click();
+    await expect(
+      page.getByRole("heading", { name: "需要你的决定", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "使用现有结果继续" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "重新安排失败工作" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "使用现有结果继续" }).click();
+    await expect(
+      page.getByRole("heading", { name: "等待你验收" }),
+    ).toBeVisible();
+    await page.getByLabel("需要修改的内容").fill("补充一句核对说明");
+    await page.getByRole("button", { name: "不通过，继续修改" }).click();
+    await expect(page.locator(".pi-delivery-summary")).toContainText(
+      "已补充核对说明",
+    );
+
+    await page.getByLabel("任务内容").fill("测试停止任务");
+    await page.getByRole("button", { name: "开始公司协作" }).last().click();
+    await expect(
+      page.getByRole("heading", { name: "员工正在工作" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "停止任务" }).first().click();
+    await expect(page.getByRole("heading", { name: "已停止" })).toBeVisible();
   } finally {
     await app.close();
     await fixture.close();
@@ -149,6 +178,32 @@ async function startCollaborationProviderFixture() {
       chatCall += 1;
       const body = Buffer.concat(chunks).toString("utf8");
       response.writeHead(200, { "content-type": "text/event-stream" });
+      if (body.includes("测试停止任务")) {
+        setTimeout(() => {
+          if (response.destroyed) return;
+          sendTextChunk(response, "这个结果不应在停止后落库。");
+          response.end("data: [DONE]\n\n");
+        }, 5_000);
+        return;
+      }
+      if (body.includes("测试无法继续")) {
+        if (body.includes("请继续修改")) {
+          sendTextChunk(response, "已补充核对说明，再次等待验收。");
+        } else if (body.includes("用户决定使用已有结果继续")) {
+          sendTextChunk(response, "已按用户决定继续并完成核对。");
+        } else if (body.includes('"status": "WAITING_USER"')) {
+          sendTextChunk(response, "已经说明原因，现在等待用户决定。");
+        } else {
+          sendToolChunk(response, chatCall, {
+            name: "company_request_user",
+            arguments: JSON.stringify({
+              reason: "缺少必要资料，现有结果不足以继续。",
+            }),
+          });
+        }
+        response.end("data: [DONE]\n\n");
+        return;
+      }
       if (chatCall === 1) {
         const helperId = /ID ([0-9a-f-]{36})：资料员工/u.exec(body)?.[1];
         if (helperId === undefined) {
