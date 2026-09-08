@@ -191,7 +191,7 @@ async function startCollaborationProviderFixture() {
           sendTextChunk(response, "已补充核对说明，再次等待验收。");
         } else if (body.includes("用户决定使用已有结果继续")) {
           sendTextChunk(response, "已按用户决定继续并完成核对。");
-        } else if (body.includes('"status": "WAITING_USER"')) {
+        } else if (body.includes("WAITING_USER")) {
           sendTextChunk(response, "已经说明原因，现在等待用户决定。");
         } else {
           sendToolChunk(response, chatCall, {
