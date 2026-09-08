@@ -1201,8 +1201,7 @@ export function EmployeesPage(props: {
                 className="primary-button"
                 disabled={
                   pending ||
-                  (taskMode === "COLLABORATION" &&
-                    companyEmployees.length < 2)
+                  (taskMode === "COLLABORATION" && companyEmployees.length < 2)
                 }
                 type="submit"
               >
@@ -1260,18 +1259,25 @@ export function EmployeesPage(props: {
                 </section>
               )}
               {currentTask.mode === "COLLABORATION" && (
-                <section className="pi-task-assignments" aria-label="分工与交接">
+                <section
+                  className="pi-task-assignments"
+                  aria-label="分工与交接"
+                >
                   <h4>分工与交接</h4>
                   {(currentTask.assignments ?? []).map((assignment) => (
                     <article className="pi-delivery-check" key={assignment.id}>
                       <div>
                         <strong>{assignment.employeeName}</strong>
                         <span className="status-pill">
-                          {assignment.role === "FINAL" ? "最终负责人" : "协助员工"}
+                          {assignment.role === "FINAL"
+                            ? "最终负责人"
+                            : "协助员工"}
                         </span>
                       </div>
                       <p>{assignment.instruction}</p>
-                      <strong>{assignmentStatusLabel(assignment.status)}</strong>
+                      <strong>
+                        {assignmentStatusLabel(assignment.status)}
+                      </strong>
                       {assignment.output !== undefined && (
                         <details>
                           <summary>查看交接结果</summary>

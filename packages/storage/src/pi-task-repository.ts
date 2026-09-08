@@ -281,7 +281,10 @@ export class PiTaskRepository {
     id: string,
     status: PiTaskAssignment["status"],
     now: string,
-    details: { readonly output?: string; readonly failureMessage?: string } = {},
+    details: {
+      readonly output?: string;
+      readonly failureMessage?: string;
+    } = {},
   ): PiTaskAssignment {
     this.database
       .prepare(

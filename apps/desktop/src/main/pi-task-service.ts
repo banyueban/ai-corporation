@@ -934,12 +934,7 @@ export class PiTaskService {
       agent.subscribe((event) => {
         finalOutput = this.#recordAgentEvent(taskId, event, finalOutput, actor);
       });
-      this.#event(
-        taskId,
-        "PROGRESS",
-        `${employee.name} 正在理解任务。`,
-        actor,
-      );
+      this.#event(taskId, "PROGRESS", `${employee.name} 正在理解任务。`, actor);
       if (taskAbortController.signal.aborted) {
         throw new CommandCancelledError();
       }
@@ -962,10 +957,15 @@ export class PiTaskService {
           this.#now(),
           finalOutput.length === 0 ? {} : { output: finalOutput },
         );
-        this.options.taskRepository.setStatus(taskId, "WAITING_USER", this.#now(), {
-          ...(finalOutput.length === 0 ? {} : { finalOutput }),
-          failureMessage: waitingReason,
-        });
+        this.options.taskRepository.setStatus(
+          taskId,
+          "WAITING_USER",
+          this.#now(),
+          {
+            ...(finalOutput.length === 0 ? {} : { finalOutput }),
+            failureMessage: waitingReason,
+          },
+        );
         this.#event(
           taskId,
           "PROGRESS",
@@ -1023,7 +1023,10 @@ export class PiTaskService {
     }
   }
 
-  #buildCollaborationPrompt(companyId: string, finalEmployeeId: string): string {
+  #buildCollaborationPrompt(
+    companyId: string,
+    finalEmployeeId: string,
+  ): string {
     const company = this.options.companyRepository.get(companyId);
     if (company === undefined) throw new Error("公司不存在。");
     const helpers = company.employeeIds
@@ -1247,13 +1250,7 @@ export class PiTaskService {
         if (event.type === "tool_execution_end") {
           lastToolFailed = event.isError;
         }
-        output = this.#recordAgentEvent(
-          taskId,
-          event,
-          output,
-          actor,
-          false,
-        );
+        output = this.#recordAgentEvent(taskId, event, output, actor, false);
       });
       this.#event(
         taskId,
@@ -1288,7 +1285,9 @@ export class PiTaskService {
       }
       const reason = hideSecret(readableError(error), runtimeKey);
       const task = this.options.taskRepository.get(taskId);
-      const assignment = task?.assignments?.find((item) => item.id === assignmentId);
+      const assignment = task?.assignments?.find(
+        (item) => item.id === assignmentId,
+      );
       if (assignment?.status === "RUNNING") {
         this.options.taskRepository.setAssignmentStatus(
           assignmentId,

@@ -196,9 +196,14 @@ describe("PiTaskRepository company boundary", () => {
       role: "HELPER",
       now: "2026-09-08T00:01:00.000Z",
     });
-    repository.setAssignmentStatus(helperId, "FAILED", "2026-09-08T00:02:00.000Z", {
-      failureMessage: "资料不足",
-    });
+    repository.setAssignmentStatus(
+      helperId,
+      "FAILED",
+      "2026-09-08T00:02:00.000Z",
+      {
+        failureMessage: "资料不足",
+      },
+    );
     repository.appendEvent(
       taskId,
       "PROGRESS",

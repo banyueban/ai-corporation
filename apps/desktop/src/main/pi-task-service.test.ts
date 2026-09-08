@@ -47,6 +47,169 @@ describe("PiTaskService", () => {
     );
   });
 
+  it("lets the final employee delegate read-only work and preserves the handoff", async () => {
+    const finalEmployeeId = "019f1000-0000-7000-8000-000000000001";
+    const helperEmployeeId = "019f1000-0000-7000-8000-000000000002";
+    const fixture = await startCollaborationFixture(helperEmployeeId);
+    cleanups.push(fixture.close);
+    const root = path.join(tmpdir(), `M15-TU-01-${crypto.randomUUID()}`);
+    const source = path.join(root, "text-organize");
+    const managed = path.join(root, "managed");
+    await mkdir(source, { recursive: true });
+    await writeFile(
+      path.join(source, "SKILL.md"),
+      "---\nname: text-organize\ndescription: 整理文字\n---\n把结果写清楚。\n",
+      "utf8",
+    );
+    cleanups.push(() => rm(root, { recursive: true, force: true }));
+    const library = new SkillLibrary(managed);
+    const preview = await library.previewImport(source);
+    await library.confirmImport(source, preview.digest);
+
+    const database = new DatabaseSync(":memory:");
+    applyMigrations(
+      database,
+      loadMigrations(
+        path.resolve(__dirname, "../../../../packages/storage/migrations"),
+      ),
+    );
+    database.exec("PRAGMA foreign_keys = OFF");
+    const employees = [
+      {
+        schemaVersion: 2 as const,
+        id: finalEmployeeId,
+        name: "报告负责人",
+        providerId: "019f1000-0000-7000-8000-000000000003",
+        providerVersion: 1,
+        modelId: "leader-model",
+        skillNames: ["text-organize"],
+        createdAt: "2026-09-08T00:00:00.000Z",
+        updatedAt: "2026-09-08T00:00:00.000Z",
+      },
+      {
+        schemaVersion: 2 as const,
+        id: helperEmployeeId,
+        name: "资料员工",
+        providerId: "019f1000-0000-7000-8000-000000000004",
+        providerVersion: 1,
+        modelId: "helper-model",
+        skillNames: ["text-organize"],
+        createdAt: "2026-09-08T00:00:00.000Z",
+        updatedAt: "2026-09-08T00:00:00.000Z",
+      },
+    ];
+    const repository = new PiTaskRepository(database);
+    const workspaceId = "019f1000-0000-7000-8000-000000000005";
+    const ids = [
+      "019f1000-0000-7000-8000-000000000006",
+      "019f1000-0000-7000-8000-000000000007",
+      "019f1000-0000-7000-8000-000000000008",
+    ];
+    const service = new PiTaskService({
+      companyRepository: {
+        get: () => ({
+          schemaVersion: 1,
+          id: companyId,
+          name: "测试公司",
+          employeeIds: [finalEmployeeId, helperEmployeeId],
+          workspaceIds: [workspaceId],
+          createdAt: "2026-09-08T00:00:00.000Z",
+          updatedAt: "2026-09-08T00:00:00.000Z",
+        }),
+        hasEmployee: (_company, employeeId) =>
+          [finalEmployeeId, helperEmployeeId].includes(employeeId),
+        hasWorkspace: (_company, candidate) => candidate === workspaceId,
+      },
+      employeeRepository: {
+        get: (id) => employees.find((employee) => employee.id === id),
+      },
+      taskRepository: repository,
+      skillLibrary: library,
+      workspaceRepository: {
+        getTrusted: () => ({
+          workspaceId,
+          displayPath: "测试工作区",
+          canonicalRootPath: root,
+          permissionMode: "READ_WRITE",
+          accessStatus: "AVAILABLE",
+          pathIdentity: {
+            platform: "windows",
+            volumeRoot: "C:",
+            rootCreationTime: "1",
+          },
+          lastVerifiedAt: "2026-09-08T00:00:00.000Z",
+        }),
+      },
+      nativeClient: () => ({
+        copyWorkspaceAsset: async () => {
+          throw new Error("helper must not copy assets");
+        },
+        inspectWorkspaceFile: async (_rootPath, relativePath) => ({
+          schemaVersion: 1 as const,
+          canonicalPath: path.join(root, relativePath),
+          relativePath,
+          sizeBytes: 0,
+          sha256: createHash("sha256").update("").digest("hex"),
+        }),
+        listWorkspace: async (_rootPath, relativePath) => ({
+          schemaVersion: 1 as const,
+          relativePath: relativePath ?? "",
+          entries: [],
+        }),
+        readWorkspaceText: async (_rootPath, relativePath) => ({
+          schemaVersion: 1 as const,
+          relativePath,
+          content: "参考事实",
+          sizeBytes: 12,
+          sha256: createHash("sha256").update("参考事实").digest("hex"),
+        }),
+        writeWorkspaceText: async () => {
+          throw new Error("fixture does not write");
+        },
+      }),
+      resolveRuntime: () => ({
+        endpoint: fixture.endpoint,
+        key: "fixture-key",
+        timeoutMs: 5_000,
+      }),
+      createId: () => ids.shift() ?? crypto.randomUUID(),
+    });
+
+    const started = service.startCollaboration({
+      schemaVersion: 2,
+      commandId: "019f1000-0000-7000-8000-000000000009",
+      companyId,
+      finalEmployeeId,
+      workspaceId,
+      input: "请协作整理报告",
+    });
+    if (!started.ok) throw new Error("collaboration did not start");
+    const result = await waitForTask(repository, started.value.id);
+    expect(result.status).toBe("WAITING_ACCEPTANCE");
+    expect(result.assignments).toMatchObject([
+      { role: "FINAL", employeeName: "报告负责人", status: "SUCCEEDED" },
+      {
+        role: "HELPER",
+        employeeName: "资料员工",
+        status: "SUCCEEDED",
+        output: "帮手交接：关键事实。",
+      },
+    ]);
+    expect(
+      result.events.some(
+        (event) =>
+          event.employeeName === "资料员工" && event.kind === "MODEL_OUTPUT",
+      ),
+    ).toBe(true);
+    const helperRequest = fixture.requests.find((request) =>
+      JSON.stringify(request.body).includes("只完成最终负责人交给你的只读工作"),
+    );
+    expect(JSON.stringify(helperRequest?.body)).not.toContain(
+      "workspace_write_text",
+    );
+    database.close();
+  });
+
   it("streams model output, writes a real workspace text result, and waits for acceptance", async () => {
     const fixture = await startOpenAiFixture();
     cleanups.push(fixture.close);
@@ -1547,6 +1710,88 @@ async function startCommandFixture() {
     throw new Error("No port");
   return {
     endpoint: `http://127.0.0.1:${address.port}`,
+    close: () =>
+      new Promise<void>((resolve, reject) => {
+        server.closeAllConnections();
+        server.close((error) =>
+          error === undefined ? resolve() : reject(error),
+        );
+      }),
+  };
+}
+
+async function startCollaborationFixture(helperEmployeeId: string) {
+  const requests: Array<{ readonly body: unknown }> = [];
+  const server = createServer((request, response) => {
+    const chunks: Buffer[] = [];
+    request.on("data", (chunk: Buffer) => chunks.push(chunk));
+    request.on("end", () => {
+      const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+      requests.push({ body });
+      response.writeHead(200, {
+        "content-type": "text/event-stream",
+        connection: "keep-alive",
+      });
+      const call = requests.length;
+      if (call === 1) {
+        sendChunk(response, {
+          choices: [
+            {
+              index: 0,
+              delta: {
+                role: "assistant",
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: "call-delegate",
+                    type: "function",
+                    function: {
+                      name: "company_delegate",
+                      arguments: JSON.stringify({
+                        employeeId: helperEmployeeId,
+                        instruction: "整理附件中的关键事实",
+                      }),
+                    },
+                  },
+                ],
+              },
+              finish_reason: null,
+            },
+          ],
+        });
+        sendChunk(response, {
+          choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }],
+        });
+      } else {
+        const content =
+          call === 2 ? "帮手交接：关键事实。" : "负责人已汇总并完成自查。";
+        sendChunk(response, {
+          choices: [
+            {
+              index: 0,
+              delta: { role: "assistant", content },
+              finish_reason: null,
+            },
+          ],
+        });
+        sendChunk(response, {
+          choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+        });
+      }
+      response.end("data: [DONE]\n\n");
+    });
+  });
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = server.address();
+  if (address === null || typeof address === "string") {
+    throw new Error("No port");
+  }
+  return {
+    endpoint: `http://127.0.0.1:${address.port}`,
+    requests,
     close: () =>
       new Promise<void>((resolve, reject) => {
         server.closeAllConnections();
