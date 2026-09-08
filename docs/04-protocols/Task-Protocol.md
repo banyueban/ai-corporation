@@ -281,7 +281,7 @@ Pi 路线的附件选择使用独立 IPC。Main 打开文件选择器或接收 P
 
 `document_read` 输入为 `attachmentId`、`offset` 和 `maxChars`，其中单次最多返回 40,000 字符；结果包含规范化 Markdown、总字符数、当前范围、下一偏移和 `hasMore`。`document_create` 输入为 `format`、`relativePath` 和不超过 200,000 字符的规范化 Markdown；只允许新的 `.docx` 或 `.pdf`，成功结果包含真实相对路径、SHA-256 和大小。两项工具都固定属于当前公司、任务、员工和 Workspace，不接受绝对路径、应用私有路径、任意命令或环境变量。
 
-## 13. Pi 轻量多员工文档协作协议
+## 13. Pi 轻量多员工协作协议
 
 `PiTask` 增加：
 
@@ -308,3 +308,5 @@ Pi 路线的附件选择使用独立 IPC。Main 打开文件选择器或接收 P
 协助员工失败时 `company_delegate` 返回正常的失败结果，使最终负责人能够按 2A 使用已有结果继续；失败不会触发隐藏重试。`pi-task:continue-collaboration` 的 `USE_EXISTING_RESULTS` 让最终负责人在不重试失败分工的前提下继续，`REASSIGN_FAILED_WORK` 允许负责人重新选择员工并形成新的分工记录。两个动作都必须产生新过程，不能覆盖旧失败。
 
 `pi-task:cancel` 对 `RUNNING` 和 `WAITING_USER` 协作任务有效：终止所有活动模型与工具、撤销授权，把尚未结束的分工标为 `CANCELLED`，保留已完成交接和已登记成果。启动恢复把仍为 `RUNNING` 的协作任务与分工标为 `INTERRUPTED`，不自动重放。
+
+M15-TU-02 编码协作继续使用 `pi-task:start-collaboration` 和 `mode: COLLABORATION`，不新增任务类型。请求中的 `finalEmployeeId` 必须是用户选择且拥有 `coding-task` Skill 的员工；`PiTask.employeeId` 与 `role: FINAL` 分工都指向这名唯一编码员工。只有最终负责人的现有 Skill 工具集合可以包含代码写入、成果登记和 `workspace_run_command`；`role: HELPER` 分工始终使用只读工具集合，不能通过参数、模型输出或 Renderer 获得写入和命令能力。检查意见作为新的交接记录返回，后续修改和命令仍归同一个最终负责人。
