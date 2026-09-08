@@ -286,7 +286,7 @@ Pi 路线的附件选择使用独立 IPC。Main 打开文件选择器或接收 P
 `PiTask` 增加：
 
 - `mode: SINGLE | COLLABORATION`；旧任务读取时投影为 `SINGLE`；
-- `collaborationStatus?: RUNNING | WAITING_USER | WAITING_ACCEPTANCE | COMPLETED | CANCELLED | FAILED | INTERRUPTED`；
+- `collaborationStatus?: RUNNING | WAITING_USER | WAITING_ACCEPTANCE | CHANGES_REQUESTED | COMPLETED | CANCELLED | FAILED | INTERRUPTED`；
 - `assignments?: PiTaskAssignment[]`，按创建顺序返回；
 - 协作任务的 `employeeId` 始终是用户选择的最终负责人。
 
