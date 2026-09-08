@@ -7,6 +7,7 @@ const baseTask: PiTask = {
   id: "019b7f4d-a200-7000-8000-000000000001",
   companyId: "019b7f4d-a200-7000-8000-000000000002",
   employeeId: "019b7f4d-a200-7000-8000-000000000003",
+  mode: "SINGLE",
   userInput: "运行测试",
   status: "RUNNING",
   events: [],
