@@ -193,7 +193,7 @@ describe("migration runner", () => {
       readAppliedMigrations(database).map(({ version }) => version),
     ).toEqual([
       1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
-      22, 23, 24,
+      22, 23, 24, 25,
     ]);
     expect(
       database
@@ -412,12 +412,21 @@ describe("migration runner", () => {
       .prepare("SELECT * FROM pi_task WHERE id = ?")
       .get(taskId) as Record<string, unknown>;
     expect(migratedCompanyId).toBe(companyId);
-    expect(taskAfter).toEqual(taskBefore);
+    expect(taskAfter).toEqual({
+      ...taskBefore,
+      task_mode: "SINGLE",
+      collaboration_status: null,
+    });
     expect(
       database
         .prepare("SELECT * FROM pi_task_event WHERE task_id = ?")
         .get(taskId),
-    ).toEqual(eventBefore);
+    ).toEqual({
+      ...eventBefore,
+      assignment_id: null,
+      employee_id: null,
+      employee_name: null,
+    });
     expect(
       database
         .prepare("SELECT * FROM corporation WHERE id = ?")
@@ -427,7 +436,11 @@ describe("migration runner", () => {
       .prepare("SELECT * FROM pi_task WHERE id = ?")
       .get(runningTaskId) as Record<string, unknown>;
     expect(runningCompanyId).toBe(companyId);
-    expect(runningTaskAfter).toEqual(runningTaskBefore);
+    expect(runningTaskAfter).toEqual({
+      ...runningTaskBefore,
+      task_mode: "SINGLE",
+      collaboration_status: null,
+    });
     expect(
       database.prepare("SELECT employee_id FROM pi_company_employee").get(),
     ).toEqual({

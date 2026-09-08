@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  piTaskContinueCollaborationRequestSchema,
   piTaskDeliverableRequestSchema,
   piTaskDeliverableSchema,
   piTaskResolveCommandApprovalRequestSchema,
   piTaskSchema,
+  piTaskStartCollaborationRequestSchema,
 } from "./pi-task";
 
 const taskId = "018f0f5f-79b2-7cc3-8c4d-1f54a8e2c901";
@@ -44,6 +46,7 @@ describe("Pi task command approval protocol", () => {
       id: taskId,
       companyId,
       employeeId: approvalId,
+      mode: "SINGLE",
       workspaceId: "018f0f5f-79b2-7cc3-8c4d-1f54a8e2c904",
       userInput: "运行测试",
       status: "RUNNING",
@@ -108,6 +111,30 @@ describe("Pi task deliverable protocol", () => {
         taskId,
         relativePath: "result.md",
         absolutePath: "C:\\secret\\result.md",
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("Pi task collaboration protocol", () => {
+  it("accepts a collaboration start and rejects hidden retry actions", () => {
+    expect(
+      piTaskStartCollaborationRequestSchema.safeParse({
+        schemaVersion: 2,
+        commandId: taskId,
+        companyId,
+        finalEmployeeId: approvalId,
+        workspaceId: "018f0f5f-79b2-7cc3-8c4d-1f54a8e2c904",
+        input: "协作完成报告",
+      }).success,
+    ).toBe(true);
+    expect(
+      piTaskContinueCollaborationRequestSchema.safeParse({
+        schemaVersion: 2,
+        commandId: taskId,
+        companyId,
+        taskId: approvalId,
+        action: "HIDDEN_RETRY",
       }).success,
     ).toBe(false);
   });

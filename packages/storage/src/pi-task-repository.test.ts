@@ -162,4 +162,73 @@ describe("PiTaskRepository company boundary", () => {
       "019d0000-0000-7000-8000-000000000015.md",
     );
   });
+
+  it("keeps collaboration assignments, actor events, and waiting decisions", () => {
+    const taskId = "019f0000-0000-7000-8000-000000000010";
+    const finalId = "019f0000-0000-7000-8000-000000000011";
+    const helperId = "019f0000-0000-7000-8000-000000000012";
+    const task = repository.create({
+      id: taskId,
+      companyId: "019f0000-0000-7000-8000-000000000013",
+      employeeId: "019f0000-0000-7000-8000-000000000014",
+      workspaceId: "019f0000-0000-7000-8000-000000000015",
+      userInput: "协作生成报告",
+      mode: "COLLABORATION",
+      finalAssignment: {
+        id: finalId,
+        employeeName: "报告负责人",
+        instruction: "协作生成报告",
+      },
+      now: "2026-09-08T00:00:00.000Z",
+    });
+    expect(task).toMatchObject({
+      mode: "COLLABORATION",
+      status: "RUNNING",
+      assignments: [{ id: finalId, role: "FINAL", status: "RUNNING" }],
+    });
+
+    repository.createAssignment({
+      id: helperId,
+      taskId,
+      employeeId: "019f0000-0000-7000-8000-000000000016",
+      employeeName: "资料员工",
+      instruction: "整理事实",
+      role: "HELPER",
+      now: "2026-09-08T00:01:00.000Z",
+    });
+    repository.setAssignmentStatus(helperId, "FAILED", "2026-09-08T00:02:00.000Z", {
+      failureMessage: "资料不足",
+    });
+    repository.appendEvent(
+      taskId,
+      "PROGRESS",
+      "资料员工的分工失败：资料不足",
+      "2026-09-08T00:02:00.000Z",
+      {
+        assignmentId: helperId,
+        employeeId: "019f0000-0000-7000-8000-000000000016",
+        employeeName: "资料员工",
+      },
+    );
+    repository.setStatus(taskId, "WAITING_USER", "2026-09-08T00:03:00.000Z", {
+      failureMessage: "请决定是否继续",
+    });
+
+    expect(repository.get(taskId)).toMatchObject({
+      mode: "COLLABORATION",
+      status: "WAITING_USER",
+      failureMessage: "请决定是否继续",
+      assignments: [
+        { id: finalId, status: "RUNNING" },
+        { id: helperId, status: "FAILED", failureMessage: "资料不足" },
+      ],
+      events: [
+        {
+          assignmentId: helperId,
+          employeeName: "资料员工",
+          content: "资料员工的分工失败：资料不足",
+        },
+      ],
+    });
+  });
 });
