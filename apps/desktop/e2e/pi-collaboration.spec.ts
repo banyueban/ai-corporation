@@ -266,15 +266,23 @@ function sendChunk(
 }
 
 function launchApplication(userDataDirectory: string, workspace: string) {
+  const executablePath = process.env.AI_CORPORATION_PACKAGED_EXE;
+  const sharedArgs = [
+    "--disable-gpu",
+    "--disable-software-rasterizer",
+    "--in-process-gpu",
+    "--no-sandbox",
+  ];
   return electron.launch({
-    args: [
-      "--disable-gpu",
-      "--disable-software-rasterizer",
-      "--in-process-gpu",
-      "--no-sandbox",
-      path.resolve(__dirname, ".."),
-      `--user-data-dir=${userDataDirectory}`,
-    ],
+    ...(executablePath === undefined ? {} : { executablePath }),
+    args:
+      executablePath === undefined
+        ? [
+            ...sharedArgs,
+            path.resolve(__dirname, ".."),
+            `--user-data-dir=${userDataDirectory}`,
+          ]
+        : [...sharedArgs, `--user-data-dir=${userDataDirectory}`],
     env: {
       ...process.env,
       AI_CORPORATION_E2E: "1",
