@@ -68,6 +68,7 @@ import type {
   PiSkillListResult,
   PiSkillPreviewImportResult,
   PiTaskCommandRequest,
+  PiTaskContinueCollaborationRequest,
   PiTaskDeliverableActionResult,
   PiTaskDeliverablePreviewResult,
   PiTaskDeliverableRequest,
@@ -78,6 +79,7 @@ import type {
   PiTaskResolveCommandApprovalRequest,
   PiTaskResult,
   PiTaskStartRequest,
+  PiTaskStartCollaborationRequest,
   PiTaskAttachment,
   PiTaskAttachmentDiscardResult,
   PiTaskAttachmentStageResult,
@@ -224,6 +226,12 @@ export interface DesktopApi {
   }>;
   readonly piTask: Readonly<{
     start(request: PiTaskStartRequest): Promise<PiTaskResult>;
+    startCollaboration(
+      request: PiTaskStartCollaborationRequest,
+    ): Promise<PiTaskResult>;
+    continueCollaboration(
+      request: PiTaskContinueCollaborationRequest,
+    ): Promise<PiTaskResult>;
     get(request: PiTaskGetRequest): Promise<PiTaskResult>;
     list(request: PiTaskListRequest): Promise<PiTaskListResult>;
     cancel(request: PiTaskCommandRequest): Promise<PiTaskResult>;

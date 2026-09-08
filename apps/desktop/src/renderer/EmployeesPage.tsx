@@ -60,6 +60,9 @@ export function EmployeesPage(props: {
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState(false);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
+  const [taskMode, setTaskMode] = useState<"SINGLE" | "COLLABORATION">(
+    "SINGLE",
+  );
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState("");
   const [taskInput, setTaskInput] = useState("");
   const [taskAttachments, setTaskAttachments] = useState<
@@ -378,11 +381,10 @@ export function EmployeesPage(props: {
   const startTask = async (event: FormEvent) => {
     event.preventDefault();
     setPending(true);
-    const result = await window.desktop.piTask.start({
-      schemaVersion: 2,
+    const common = {
+      schemaVersion: 2 as const,
       commandId: createUuidV7(),
       companyId: props.company.id,
-      employeeId: selectedEmployeeId,
       workspaceId: selectedWorkspaceId,
       input: taskInput,
       ...(taskAttachments.length === 0
@@ -390,7 +392,17 @@ export function EmployeesPage(props: {
         : {
             attachmentIds: taskAttachments.map((attachment) => attachment.id),
           }),
-    });
+    };
+    const result =
+      taskMode === "COLLABORATION"
+        ? await window.desktop.piTask.startCollaboration({
+            ...common,
+            finalEmployeeId: selectedEmployeeId,
+          })
+        : await window.desktop.piTask.start({
+            ...common,
+            employeeId: selectedEmployeeId,
+          });
     setPending(false);
     if (!result.ok) {
       setMessage(`任务无法开始：${taskErrorMessage(result.error.code)}`);
@@ -400,7 +412,36 @@ export function EmployeesPage(props: {
     taskAttachmentsRef.current = [];
     setTaskAttachments([]);
     setAttachmentMessage("");
-    setMessage("任务已开始，模型输入和输出会在下面持续更新。 ");
+    setMessage(
+      taskMode === "COLLABORATION"
+        ? "公司协作已开始，负责人会按任务和 Skill 安排帮手。"
+        : "任务已开始，模型输入和输出会在下面持续更新。 ",
+    );
+  };
+
+  const continueCollaboration = async (
+    action: "USE_EXISTING_RESULTS" | "REASSIGN_FAILED_WORK",
+  ) => {
+    if (currentTask === undefined) return;
+    setPending(true);
+    const result = await window.desktop.piTask.continueCollaboration({
+      schemaVersion: 2,
+      commandId: createUuidV7(),
+      companyId: props.company.id,
+      taskId: currentTask.id,
+      action,
+    });
+    setPending(false);
+    if (!result.ok) {
+      setMessage(`操作失败：${taskErrorMessage(result.error.code)}`);
+      return;
+    }
+    rememberTask(result.value, setCurrentTask);
+    setMessage(
+      action === "USE_EXISTING_RESULTS"
+        ? "负责人正在使用已有结果继续。"
+        : "负责人正在重新安排失败的工作。",
+    );
   };
 
   const addAttachments = async (files?: readonly File[]) => {
@@ -581,14 +622,23 @@ export function EmployeesPage(props: {
       setMessage("重新执行前，请先选择本次任务的工作区。");
       return;
     }
-    const result = await window.desktop.piTask.start({
-      schemaVersion: 2,
+    const common = {
+      schemaVersion: 2 as const,
       commandId: createUuidV7(),
       companyId: props.company.id,
-      employeeId: currentTask.employeeId,
       workspaceId,
       input: currentTask.userInput,
-    });
+    };
+    const result =
+      currentTask.mode === "COLLABORATION"
+        ? await window.desktop.piTask.startCollaboration({
+            ...common,
+            finalEmployeeId: currentTask.employeeId,
+          })
+        : await window.desktop.piTask.start({
+            ...common,
+            employeeId: currentTask.employeeId,
+          });
     if (!result.ok) {
       setMessage(`重新执行失败：${taskErrorMessage(result.error.code)}`);
       return;
@@ -925,14 +975,48 @@ export function EmployeesPage(props: {
         </section>
 
         <section className="selection-panel employee-task-panel">
-          <p className="empty-kicker">直接交代任务</p>
-          <h2>让员工开始工作</h2>
+          <p className="empty-kicker">
+            {taskMode === "SINGLE" ? "直接交代任务" : "公司协作"}
+          </p>
+          <h2>
+            {taskMode === "SINGLE" ? "让员工开始工作" : "让员工一起完成文档"}
+          </h2>
+          <div className="form-actions" aria-label="任务方式">
+            <button
+              className={
+                taskMode === "SINGLE" ? "primary-button" : "secondary-button"
+              }
+              onClick={() => setTaskMode("SINGLE")}
+              type="button"
+            >
+              单员工任务
+            </button>
+            <button
+              className={
+                taskMode === "COLLABORATION"
+                  ? "primary-button"
+                  : "secondary-button"
+              }
+              onClick={() => setTaskMode("COLLABORATION")}
+              type="button"
+            >
+              开始公司协作
+            </button>
+          </div>
+          {taskMode === "COLLABORATION" && (
+            <p className="helper-copy">
+              你只需选最终负责人和工作区。负责人会按员工的 Skill
+              安排帮手；帮手只交回资料和意见，最终文件由负责人制作。
+            </p>
+          )}
           <form
             className="goal-form"
             onSubmit={(event) => void startTask(event)}
           >
             <div className="field field--wide">
-              <label htmlFor="task-employee">员工</label>
+              <label htmlFor="task-employee">
+                {taskMode === "COLLABORATION" ? "最终负责人" : "员工"}
+              </label>
               <select
                 id="task-employee"
                 onChange={(event) => setSelectedEmployeeId(event.target.value)}
@@ -1115,12 +1199,21 @@ export function EmployeesPage(props: {
             <div className="form-actions field--wide">
               <button
                 className="primary-button"
-                disabled={pending}
+                disabled={
+                  pending ||
+                  (taskMode === "COLLABORATION" &&
+                    companyEmployees.length < 2)
+                }
                 type="submit"
               >
-                开始任务
+                {taskMode === "COLLABORATION" ? "开始公司协作" : "开始任务"}
               </button>
             </div>
+            {taskMode === "COLLABORATION" && companyEmployees.length < 2 && (
+              <p className="error-copy field--wide">
+                当前公司至少需要两名员工才能协作，请先添加一名员工。
+              </p>
+            )}
           </form>
 
           {currentTask !== undefined && (
@@ -1130,7 +1223,7 @@ export function EmployeesPage(props: {
                   <p className="empty-kicker">当前状态</p>
                   <h3>{taskStatusLabel(currentTask.status)}</h3>
                 </div>
-                {currentTask.status === "RUNNING" && (
+                {["RUNNING", "WAITING_USER"].includes(currentTask.status) && (
                   <button
                     className="secondary-button"
                     onClick={() => void taskCommand("cancel")}
@@ -1164,6 +1257,34 @@ export function EmployeesPage(props: {
                       </li>
                     ))}
                   </ul>
+                </section>
+              )}
+              {currentTask.mode === "COLLABORATION" && (
+                <section className="pi-task-assignments" aria-label="分工与交接">
+                  <h4>分工与交接</h4>
+                  {(currentTask.assignments ?? []).map((assignment) => (
+                    <article className="pi-delivery-check" key={assignment.id}>
+                      <div>
+                        <strong>{assignment.employeeName}</strong>
+                        <span className="status-pill">
+                          {assignment.role === "FINAL" ? "最终负责人" : "协助员工"}
+                        </span>
+                      </div>
+                      <p>{assignment.instruction}</p>
+                      <strong>{assignmentStatusLabel(assignment.status)}</strong>
+                      {assignment.output !== undefined && (
+                        <details>
+                          <summary>查看交接结果</summary>
+                          <pre>{assignment.output}</pre>
+                        </details>
+                      )}
+                      {assignment.failureMessage !== undefined && (
+                        <p className="error-copy">
+                          原因：{assignment.failureMessage}
+                        </p>
+                      )}
+                    </article>
+                  ))}
                 </section>
               )}
               <section className="pi-delivery" aria-labelledby="delivery-title">
@@ -1300,6 +1421,43 @@ export function EmployeesPage(props: {
               {currentTask.failureMessage !== undefined && (
                 <p className="error-copy">原因：{currentTask.failureMessage}</p>
               )}
+              {currentTask.status === "WAITING_USER" && (
+                <section className="provider-disclosure" role="alert">
+                  <p className="empty-kicker">需要你的决定</p>
+                  <h4>负责人认为现有结果不足以继续</h4>
+                  <p>已有交接和文件不会丢失。请选择接下来怎么做。</p>
+                  <div className="form-actions">
+                    <button
+                      className="primary-button"
+                      disabled={pending}
+                      onClick={() =>
+                        void continueCollaboration("USE_EXISTING_RESULTS")
+                      }
+                      type="button"
+                    >
+                      使用现有结果继续
+                    </button>
+                    <button
+                      className="secondary-button"
+                      disabled={pending}
+                      onClick={() =>
+                        void continueCollaboration("REASSIGN_FAILED_WORK")
+                      }
+                      type="button"
+                    >
+                      重新安排失败工作
+                    </button>
+                    <button
+                      className="secondary-button"
+                      disabled={pending}
+                      onClick={() => void taskCommand("cancel")}
+                      type="button"
+                    >
+                      停止任务
+                    </button>
+                  </div>
+                </section>
+              )}
               {commandApproval !== undefined && (
                 <section className="provider-disclosure" role="alert">
                   <p className="empty-kicker">
@@ -1401,7 +1559,11 @@ export function EmployeesPage(props: {
                 <ol>
                   {currentTask.events.map((item) => (
                     <li key={item.sequence}>
-                      <strong>{eventLabel(item.kind)}</strong>
+                      <strong>
+                        {item.employeeName === undefined
+                          ? eventLabel(item.kind)
+                          : `${item.employeeName} · ${eventLabel(item.kind)}`}
+                      </strong>
                       <pre>{item.content}</pre>
                     </li>
                   ))}
@@ -1479,6 +1641,7 @@ function employeeErrorMessage(code: string): string {
 function taskStatusLabel(status: PiTask["status"]): string {
   const labels: Record<PiTask["status"], string> = {
     RUNNING: "员工正在工作",
+    WAITING_USER: "需要你的决定",
     WAITING_ACCEPTANCE: "等待你验收",
     CHANGES_REQUESTED: "等待继续修改",
     COMPLETED: "已完成",
@@ -1491,11 +1654,26 @@ function taskStatusLabel(status: PiTask["status"]): string {
 
 function deliveryStatusLabel(status: PiTask["status"]): string {
   if (status === "WAITING_ACCEPTANCE") return "等待你验收";
+  if (status === "WAITING_USER") return "等待你的决定";
   if (status === "COMPLETED") return "已验收";
   if (["FAILED", "CANCELLED", "INTERRUPTED"].includes(status)) {
     return "未完成成果";
   }
   return status === "RUNNING" ? "正在产生" : "等待继续修改";
+}
+
+function assignmentStatusLabel(
+  status: NonNullable<PiTask["assignments"]>[number]["status"],
+): string {
+  return {
+    PENDING: "等待开始",
+    RUNNING: "正在工作",
+    WAITING_USER: "等待你的决定",
+    SUCCEEDED: "已交接",
+    FAILED: "失败",
+    CANCELLED: "已停止",
+    INTERRUPTED: "已中断",
+  }[status];
 }
 
 function deliverableChangeLabel(
@@ -1645,6 +1823,8 @@ function taskErrorMessage(code: string): string {
     return "附件已变化或过期，请移除后重新选择";
   if (code === "WORKSPACE_NOT_READY") return "请选择一个当前可用、可写的工作区";
   if (code === "ALREADY_RUNNING") return "已有任务正在运行";
+  if (code === "COMPANY_NEEDS_MORE_EMPLOYEES")
+    return "当前公司至少需要两名员工才能协作";
   if (code === "INVALID_STATE") return "任务状态已经变化，请刷新后再试";
   return "请检查员工和任务内容后重试";
 }

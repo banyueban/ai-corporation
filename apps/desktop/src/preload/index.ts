@@ -163,6 +163,8 @@ import {
   PI_TASK_REVEAL_DELIVERABLE_IPC_CHANNEL,
   PI_TASK_RESOLVE_COMMAND_APPROVAL_IPC_CHANNEL,
   PI_TASK_START_IPC_CHANNEL,
+  PI_TASK_START_COLLABORATION_IPC_CHANNEL,
+  PI_TASK_CONTINUE_COLLABORATION_IPC_CHANNEL,
   PI_TASK_ATTACHMENT_SELECT_IPC_CHANNEL,
   PI_TASK_ATTACHMENT_STAGE_DROPPED_IPC_CHANNEL,
   PI_TASK_ATTACHMENT_DISCARD_IPC_CHANNEL,
@@ -177,18 +179,22 @@ import {
   piTaskResolveCommandApprovalRequestSchema,
   piTaskResultSchema,
   piTaskStartRequestSchema,
+  piTaskStartCollaborationRequestSchema,
+  piTaskContinueCollaborationRequestSchema,
   piTaskAttachmentStageResultSchema,
   piTaskAttachmentDiscardResultSchema,
   piTaskAttachmentSelectRequestSchema,
   piTaskAttachmentStageRequestSchema,
   piTaskAttachmentDiscardRequestSchema,
   type PiTaskCommandRequest,
+  type PiTaskContinueCollaborationRequest,
   type PiTaskGetRequest,
   type PiTaskListRequest,
   type PiTaskDeliverableRequest,
   type PiTaskRequestChangesRequest,
   type PiTaskResolveCommandApprovalRequest,
   type PiTaskStartRequest,
+  type PiTaskStartCollaborationRequest,
   type PiTaskAttachment,
   PROVIDER_CANCEL_CONNECTION_TEST_IPC_CHANNEL,
   PROVIDER_CANCEL_GENERATION_TEST_IPC_CHANNEL,
@@ -587,6 +593,16 @@ const desktopApi: DesktopApi = Object.freeze({
       invokePiTask(
         PI_TASK_START_IPC_CHANNEL,
         piTaskStartRequestSchema.parse(request),
+      ),
+    startCollaboration: (request: PiTaskStartCollaborationRequest) =>
+      invokePiTask(
+        PI_TASK_START_COLLABORATION_IPC_CHANNEL,
+        piTaskStartCollaborationRequestSchema.parse(request),
+      ),
+    continueCollaboration: (request: PiTaskContinueCollaborationRequest) =>
+      invokePiTask(
+        PI_TASK_CONTINUE_COLLABORATION_IPC_CHANNEL,
+        piTaskContinueCollaborationRequestSchema.parse(request),
       ),
     get: (request: PiTaskGetRequest) =>
       invokePiTask(

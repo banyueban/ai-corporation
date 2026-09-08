@@ -1,11 +1,13 @@
 import {
   piTaskCommandRequestSchema,
+  piTaskContinueCollaborationRequestSchema,
   piTaskDeliverableRequestSchema,
   piTaskGetRequestSchema,
   piTaskListRequestSchema,
   piTaskRequestChangesRequestSchema,
   piTaskResolveCommandApprovalRequestSchema,
   piTaskStartRequestSchema,
+  piTaskStartCollaborationRequestSchema,
   type PiTaskResult,
   type PiTaskListResult,
   type PiTaskDeliverableActionResult,
@@ -25,6 +27,8 @@ const unauthorized = (): PiTaskResult => ({
 export function handlePiTask(
   action:
     | "start"
+    | "startCollaboration"
+    | "continueCollaboration"
     | "get"
     | "cancel"
     | "accept"
@@ -39,6 +43,16 @@ export function handlePiTask(
   if (action === "start") {
     const parsed = piTaskStartRequestSchema.safeParse(request);
     return parsed.success ? service.start(parsed.data) : invalid();
+  }
+  if (action === "startCollaboration") {
+    const parsed = piTaskStartCollaborationRequestSchema.safeParse(request);
+    return parsed.success ? service.startCollaboration(parsed.data) : invalid();
+  }
+  if (action === "continueCollaboration") {
+    const parsed = piTaskContinueCollaborationRequestSchema.safeParse(request);
+    return parsed.success
+      ? service.continueCollaboration(parsed.data)
+      : invalid();
   }
   if (action === "get") {
     const parsed = piTaskGetRequestSchema.safeParse(request);

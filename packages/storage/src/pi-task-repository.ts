@@ -7,6 +7,7 @@ import {
 } from "@ai-corporation/protocols";
 
 type PiTaskDeliverable = NonNullable<PiTask["deliverables"]>[number];
+export type PiTaskAssignment = NonNullable<PiTask["assignments"]>[number];
 
 export type PiTaskStatus = PiTask["status"];
 
@@ -42,6 +43,12 @@ export class PiTaskRepository {
     readonly workspaceId: string;
     readonly userInput: string;
     readonly now: string;
+    readonly mode?: PiTask["mode"];
+    readonly finalAssignment?: {
+      readonly id: string;
+      readonly employeeName: string;
+      readonly instruction: string;
+    };
     readonly attachments?: readonly PiTaskAttachmentRecord[];
   }): PiTask {
     this.database.exec("BEGIN IMMEDIATE");
@@ -50,8 +57,8 @@ export class PiTaskRepository {
         .prepare(
           `INSERT INTO pi_task (
             id, company_id, employee_id, workspace_id, user_input, status,
-            created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, 'RUNNING', ?, ?)`,
+            task_mode, collaboration_status, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, 'RUNNING', ?, ?, ?, ?)`,
         )
         .run(
           input.id,
@@ -59,9 +66,23 @@ export class PiTaskRepository {
           input.employeeId,
           input.workspaceId,
           input.userInput,
+          input.mode ?? "SINGLE",
+          input.mode === "COLLABORATION" ? "RUNNING" : null,
           input.now,
           input.now,
         );
+      if (input.finalAssignment !== undefined) {
+        this.insertAssignment({
+          id: input.finalAssignment.id,
+          taskId: input.id,
+          employeeId: input.employeeId,
+          employeeName: input.finalAssignment.employeeName,
+          instruction: input.finalAssignment.instruction,
+          role: "FINAL",
+          status: "RUNNING",
+          now: input.now,
+        });
+      }
       const insertAttachment = this.database.prepare(
         `INSERT INTO pi_task_attachment (
           task_id, id, display_name, media_type, size_bytes, sha256,
@@ -140,6 +161,11 @@ export class PiTaskRepository {
     kind: PiTask["events"][number]["kind"],
     content: string,
     now: string,
+    actor?: {
+      readonly assignmentId: string;
+      readonly employeeId: string;
+      readonly employeeName: string;
+    },
   ): PiTask {
     this.database.exec("BEGIN IMMEDIATE");
     try {
@@ -153,10 +179,21 @@ export class PiTaskRepository {
         throw new Error("Invalid event sequence");
       this.database
         .prepare(
-          `INSERT INTO pi_task_event (task_id, sequence, kind, content, created_at)
-          VALUES (?, ?, ?, ?, ?)`,
+          `INSERT INTO pi_task_event (
+            task_id, sequence, kind, content, assignment_id, employee_id,
+            employee_name, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         )
-        .run(taskId, sequence, kind, content, now);
+        .run(
+          taskId,
+          sequence,
+          kind,
+          content,
+          actor?.assignmentId ?? null,
+          actor?.employeeId ?? null,
+          actor?.employeeName ?? null,
+          now,
+        );
       this.database
         .prepare("UPDATE pi_task SET updated_at = ? WHERE id = ?")
         .run(now, taskId);
@@ -177,13 +214,18 @@ export class PiTaskRepository {
       readonly failureMessage?: string;
     } = {},
   ): PiTask {
+    const task = this.get(taskId);
+    const storedStatus = status === "WAITING_USER" ? "RUNNING" : status;
     this.database
       .prepare(
-        `UPDATE pi_task SET status = ?, final_output = ?, failure_message = ?,
+        `UPDATE pi_task SET status = ?,
+          collaboration_status = CASE WHEN task_mode = 'COLLABORATION' THEN ? ELSE NULL END,
+          final_output = ?, failure_message = ?,
           updated_at = ? WHERE id = ?`,
       )
       .run(
-        status,
+        storedStatus,
+        task?.mode === "COLLABORATION" ? status : null,
         details.finalOutput ?? null,
         details.failureMessage ?? null,
         now,
@@ -207,6 +249,103 @@ export class PiTaskRepository {
           updated_at = ? WHERE status = 'RUNNING'`,
       )
       .run(now);
+    this.database
+      .prepare(
+        `UPDATE pi_task SET collaboration_status = 'INTERRUPTED'
+        WHERE task_mode = 'COLLABORATION' AND status = 'INTERRUPTED'`,
+      )
+      .run();
+    this.database
+      .prepare(
+        `UPDATE pi_task_assignment SET status = 'INTERRUPTED', updated_at = ?
+        WHERE status IN ('PENDING', 'RUNNING', 'WAITING_USER')`,
+      )
+      .run(now);
+  }
+
+  createAssignment(input: {
+    readonly id: string;
+    readonly taskId: string;
+    readonly employeeId: string;
+    readonly employeeName: string;
+    readonly instruction: string;
+    readonly role: PiTaskAssignment["role"];
+    readonly status?: PiTaskAssignment["status"];
+    readonly now: string;
+  }): PiTaskAssignment {
+    this.insertAssignment({ ...input, status: input.status ?? "PENDING" });
+    return this.requireAssignment(input.id);
+  }
+
+  setAssignmentStatus(
+    id: string,
+    status: PiTaskAssignment["status"],
+    now: string,
+    details: { readonly output?: string; readonly failureMessage?: string } = {},
+  ): PiTaskAssignment {
+    this.database
+      .prepare(
+        `UPDATE pi_task_assignment SET status = ?, output = ?,
+          failure_message = ?, updated_at = ? WHERE id = ?`,
+      )
+      .run(
+        status,
+        details.output ?? null,
+        details.failureMessage ?? null,
+        now,
+        id,
+      );
+    return this.requireAssignment(id);
+  }
+
+  cancelOpenAssignments(taskId: string, now: string): void {
+    this.database
+      .prepare(
+        `UPDATE pi_task_assignment SET status = 'CANCELLED', updated_at = ?
+        WHERE task_id = ? AND status IN ('PENDING', 'RUNNING', 'WAITING_USER')`,
+      )
+      .run(now, taskId);
+  }
+
+  private insertAssignment(input: {
+    readonly id: string;
+    readonly taskId: string;
+    readonly employeeId: string;
+    readonly employeeName: string;
+    readonly instruction: string;
+    readonly role: PiTaskAssignment["role"];
+    readonly status: PiTaskAssignment["status"];
+    readonly now: string;
+  }): void {
+    this.database
+      .prepare(
+        `INSERT INTO pi_task_assignment (
+          id, task_id, employee_id, employee_name, instruction, role, status,
+          position, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?,
+          (SELECT COALESCE(MAX(position), -1) + 1 FROM pi_task_assignment WHERE task_id = ?),
+          ?, ?)`,
+      )
+      .run(
+        input.id,
+        input.taskId,
+        input.employeeId,
+        input.employeeName,
+        input.instruction,
+        input.role,
+        input.status,
+        input.taskId,
+        input.now,
+        input.now,
+      );
+  }
+
+  private requireAssignment(id: string): PiTaskAssignment {
+    const row = this.database
+      .prepare("SELECT * FROM pi_task_assignment WHERE id = ?")
+      .get(id);
+    if (row === undefined) throw new Error("Pi task assignment not found");
+    return parseAssignment(row);
   }
 
   /** Records write intent before touching the filesystem. */
@@ -459,7 +598,8 @@ export class PiTaskRepository {
     if (typeof row.id !== "string") throw new Error("Invalid Pi task id");
     const events = this.database
       .prepare(
-        `SELECT sequence, kind, content, created_at FROM pi_task_event
+        `SELECT sequence, kind, content, assignment_id, employee_id,
+          employee_name, created_at FROM pi_task_event
         WHERE task_id = ? ORDER BY sequence`,
       )
       .all(row.id)
@@ -467,6 +607,15 @@ export class PiTaskRepository {
         sequence: event.sequence,
         kind: event.kind,
         content: event.content,
+        ...(typeof event.assignment_id === "string"
+          ? { assignmentId: event.assignment_id }
+          : {}),
+        ...(typeof event.employee_id === "string"
+          ? { employeeId: event.employee_id }
+          : {}),
+        ...(typeof event.employee_name === "string"
+          ? { employeeName: event.employee_name }
+          : {}),
         createdAt: event.created_at,
       }));
     const checks = this.database
@@ -499,15 +648,27 @@ export class PiTaskRepository {
       id: row.id,
       companyId: row.company_id,
       employeeId: row.employee_id,
+      mode: row.task_mode ?? "SINGLE",
       ...(row.workspace_id === null ? {} : { workspaceId: row.workspace_id }),
       userInput: row.user_input,
-      status: row.status,
+      status:
+        row.task_mode === "COLLABORATION" &&
+        typeof row.collaboration_status === "string"
+          ? row.collaboration_status
+          : row.status,
       ...(row.final_output === null ? {} : { finalOutput: row.final_output }),
       ...(row.failure_message === null
         ? {}
         : { failureMessage: row.failure_message }),
       deliverables: this.listDeliverables(row.id),
       attachments: this.listAttachmentRecords(row.id).map(publicAttachment),
+      assignments: this.database
+        .prepare(
+          `SELECT * FROM pi_task_assignment WHERE task_id = ?
+          ORDER BY position, id`,
+        )
+        .all(row.id)
+        .map(parseAssignment),
       checks,
       events,
       createdAt: row.created_at,
@@ -563,6 +724,25 @@ function parseDeliverable(
     sizeBytes: Number(row.size_bytes),
     ...(typeof row.diff_text === "string" ? { diff: row.diff_text } : {}),
     registeredAt: String(row.registered_at),
+  };
+}
+
+function parseAssignment(
+  row: Readonly<Record<string, unknown>>,
+): PiTaskAssignment {
+  return {
+    id: String(row.id),
+    employeeId: String(row.employee_id),
+    employeeName: String(row.employee_name),
+    instruction: String(row.instruction),
+    role: row.role as PiTaskAssignment["role"],
+    status: row.status as PiTaskAssignment["status"],
+    ...(typeof row.output === "string" ? { output: row.output } : {}),
+    ...(typeof row.failure_message === "string"
+      ? { failureMessage: row.failure_message }
+      : {}),
+    createdAt: String(row.created_at),
+    updatedAt: String(row.updated_at),
   };
 }
 

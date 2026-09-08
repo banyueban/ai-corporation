@@ -2,6 +2,10 @@ import { z } from "zod";
 import { piTaskAttachmentSchema } from "./pi-task-attachment";
 
 export const PI_TASK_START_IPC_CHANNEL = "pi-task:start" as const;
+export const PI_TASK_START_COLLABORATION_IPC_CHANNEL =
+  "pi-task:start-collaboration" as const;
+export const PI_TASK_CONTINUE_COLLABORATION_IPC_CHANNEL =
+  "pi-task:continue-collaboration" as const;
 export const PI_TASK_GET_IPC_CHANNEL = "pi-task:get" as const;
 export const PI_TASK_LIST_IPC_CHANNEL = "pi-task:list" as const;
 export const PI_TASK_CANCEL_IPC_CHANNEL = "pi-task:cancel" as const;
@@ -39,7 +43,33 @@ export const piTaskEventSchema = z
       "APPROVAL_RESOLVED",
     ]),
     content: z.string(),
+    assignmentId: uuid.optional(),
+    employeeId: uuid.optional(),
+    employeeName: z.string().min(1).max(120).optional(),
     createdAt: z.iso.datetime({ offset: true }),
+  })
+  .strict();
+
+export const piTaskAssignmentSchema = z
+  .object({
+    id: uuid,
+    employeeId: uuid,
+    employeeName: z.string().min(1).max(120),
+    instruction: z.string().min(1).max(20_000),
+    role: z.enum(["FINAL", "HELPER"]),
+    status: z.enum([
+      "PENDING",
+      "RUNNING",
+      "WAITING_USER",
+      "SUCCEEDED",
+      "FAILED",
+      "CANCELLED",
+      "INTERRUPTED",
+    ]),
+    output: z.string().optional(),
+    failureMessage: z.string().optional(),
+    createdAt: z.iso.datetime({ offset: true }),
+    updatedAt: z.iso.datetime({ offset: true }),
   })
   .strict();
 
@@ -87,10 +117,12 @@ export const piTaskSchema = z
     id: uuid,
     companyId: uuid,
     employeeId: uuid,
+    mode: z.enum(["SINGLE", "COLLABORATION"]),
     workspaceId: uuid.optional(),
     userInput: z.string().min(1).max(20_000),
     status: z.enum([
       "RUNNING",
+      "WAITING_USER",
       "WAITING_ACCEPTANCE",
       "CHANGES_REQUESTED",
       "COMPLETED",
@@ -102,6 +134,7 @@ export const piTaskSchema = z
     failureMessage: z.string().optional(),
     deliverables: z.array(piTaskDeliverableSchema).optional(),
     attachments: z.array(piTaskAttachmentSchema).max(10).optional(),
+    assignments: z.array(piTaskAssignmentSchema).optional(),
     checks: z.array(piTaskCheckSchema).optional(),
     events: z.array(piTaskEventSchema),
     createdAt: z.iso.datetime({ offset: true }),
@@ -116,6 +149,22 @@ export const piTaskStartRequestSchema = z
     workspaceId: uuid,
     input: z.string().trim().min(1).max(20_000),
     attachmentIds: z.array(uuid).max(10).optional(),
+  })
+  .strict();
+export const piTaskStartCollaborationRequestSchema = z
+  .object({
+    ...baseRequest,
+    finalEmployeeId: uuid,
+    workspaceId: uuid,
+    input: z.string().trim().min(1).max(20_000),
+    attachmentIds: z.array(uuid).max(10).optional(),
+  })
+  .strict();
+export const piTaskContinueCollaborationRequestSchema = z
+  .object({
+    ...baseRequest,
+    taskId: uuid,
+    action: z.enum(["USE_EXISTING_RESULTS", "REASSIGN_FAILED_WORK"]),
   })
   .strict();
 export const piTaskGetRequestSchema = z
@@ -171,6 +220,7 @@ const errorSchema = z
       "ATTACHMENT_NOT_READY",
       "WORKSPACE_NOT_READY",
       "NOT_A_MEMBER",
+      "COMPANY_NEEDS_MORE_EMPLOYEES",
       "ALREADY_RUNNING",
       "INVALID_STATE",
       "STORAGE_UNAVAILABLE",
@@ -235,6 +285,12 @@ export const piTaskDeliverableActionResultSchema = z.discriminatedUnion("ok", [
 
 export type PiTask = z.infer<typeof piTaskSchema>;
 export type PiTaskStartRequest = z.infer<typeof piTaskStartRequestSchema>;
+export type PiTaskStartCollaborationRequest = z.infer<
+  typeof piTaskStartCollaborationRequestSchema
+>;
+export type PiTaskContinueCollaborationRequest = z.infer<
+  typeof piTaskContinueCollaborationRequestSchema
+>;
 export type PiTaskGetRequest = z.infer<typeof piTaskGetRequestSchema>;
 export type PiTaskListRequest = z.infer<typeof piTaskListRequestSchema>;
 export type PiTaskCommandRequest = z.infer<typeof piTaskCommandRequestSchema>;
