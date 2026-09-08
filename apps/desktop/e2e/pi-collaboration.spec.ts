@@ -97,13 +97,28 @@ test("company employees hand off research and one owner creates the final Word f
     await expect(page.locator(".pi-task-details")).toContainText(
       "报告负责人 · 工具结果",
     );
-    const layout = await page
-      .locator(".employee-task-panel")
-      .evaluate((panel) => ({
-        clientWidth: panel.clientWidth,
-        scrollWidth: panel.scrollWidth,
-      }));
-    expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth + 2);
+    for (const view of [
+      { label: "1024x700", width: 1024, height: 700, zoom: 1 },
+      { label: "1440x900", width: 1440, height: 900, zoom: 1 },
+      { label: "1024x700-200-percent", width: 1024, height: 700, zoom: 2 },
+    ]) {
+      await app.evaluate(({ BrowserWindow }, target) => {
+        const window = BrowserWindow.getAllWindows()[0];
+        window?.setSize(target.width, target.height);
+        window?.webContents.setZoomFactor(target.zoom);
+      }, view);
+      await page.locator(".employee-task-panel").scrollIntoViewIfNeeded();
+      const layout = await page
+        .locator(".employee-task-panel")
+        .evaluate((panel) => ({
+          clientWidth: panel.clientWidth,
+          scrollWidth: panel.scrollWidth,
+        }));
+      expect(layout.scrollWidth).toBeLessThanOrEqual(layout.clientWidth + 2);
+      await page.locator(".employee-task-panel").screenshot({
+        path: test.info().outputPath(`m15-collaboration-${view.label}.png`),
+      });
+    }
     await page.getByRole("button", { name: "验收通过" }).click();
     await expect(page.getByRole("heading", { name: "已完成" })).toBeVisible();
   } finally {
