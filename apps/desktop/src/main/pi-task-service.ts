@@ -687,7 +687,12 @@ export class PiTaskService {
     const task = this.options.taskRepository.get(request.taskId);
     if (task === undefined) return failure("NOT_FOUND");
     if (task.companyId !== request.companyId) return failure("NOT_A_MEMBER");
-    if (task.status !== "RUNNING") return failure("INVALID_STATE");
+    if (
+      task.status !== "RUNNING" &&
+      !(task.mode === "COLLABORATION" && task.status === "WAITING_USER")
+    ) {
+      return failure("INVALID_STATE");
+    }
     this.#pendingCommandApprovals.get(task.id)?.resolve(false);
     this.#pendingCommandApprovals.delete(task.id);
     const active = this.#active.get(task.id);
@@ -790,12 +795,28 @@ export class PiTaskService {
         this.#now(),
         task.finalOutput === undefined ? {} : { finalOutput: task.finalOutput },
       );
+      const finalAssignment = task.assignments?.find(
+        (assignment) => assignment.role === "FINAL",
+      );
+      if (task.mode === "COLLABORATION" && finalAssignment !== undefined) {
+        this.options.taskRepository.setAssignmentStatus(
+          finalAssignment.id,
+          "RUNNING",
+          this.#now(),
+        );
+      }
       void this.#run(
         task.id,
         employee,
         workspace.canonicalRootPath,
         `上一次结果：\n${task.finalOutput ?? ""}\n\n请继续修改。用户要求：${request.input}`,
         runtime,
+        task.mode === "COLLABORATION" && finalAssignment !== undefined
+          ? {
+              companyId: task.companyId,
+              finalAssignmentId: finalAssignment.id,
+            }
+          : undefined,
       );
       return { ok: true, value: running };
     } catch (error) {

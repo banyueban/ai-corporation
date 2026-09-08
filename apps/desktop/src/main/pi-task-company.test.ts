@@ -123,6 +123,53 @@ describe("Pi task company boundary", () => {
     expect(revokeCommandGrant).not.toHaveBeenCalled();
     expect(resolveRuntime).not.toHaveBeenCalled();
   });
+
+  it("allows the user to stop a collaboration that is waiting for a decision", () => {
+    const waitingTask: PiTask = {
+      ...task("WAITING_USER"),
+      mode: "COLLABORATION",
+      failureMessage: "资料不足",
+      assignments: [
+        {
+          id: "019f2000-0000-7000-8000-000000000001",
+          employeeId,
+          employeeName: "负责人",
+          instruction: "完成报告",
+          role: "FINAL",
+          status: "WAITING_USER",
+          createdAt: "2026-09-08T00:00:00.000Z",
+          updatedAt: "2026-09-08T00:00:00.000Z",
+        },
+      ],
+    };
+    const cancelledTask = { ...waitingTask, status: "CANCELLED" as const };
+    const setStatus = vi.fn(() => cancelledTask);
+    const cancelOpenAssignments = vi.fn();
+    const revokeCommandGrant = vi.fn();
+    const service = createService({
+      task: waitingTask,
+      taskRepository: {
+        get: () => waitingTask,
+        setStatus,
+        cancelOpenAssignments,
+        revokeCommandGrant,
+      },
+    });
+
+    expect(
+      service.cancel({
+        schemaVersion: 2,
+        commandId: "019f2000-0000-7000-8000-000000000002",
+        companyId,
+        taskId,
+      }),
+    ).toMatchObject({ ok: true, value: { status: "CANCELLED" } });
+    expect(cancelOpenAssignments).toHaveBeenCalledWith(
+      taskId,
+      expect.any(String),
+    );
+    expect(revokeCommandGrant).toHaveBeenCalledWith(taskId);
+  });
 });
 
 function createService(options: {
