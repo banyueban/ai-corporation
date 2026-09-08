@@ -72,7 +72,12 @@ test("company employees hand off research and one owner creates the final Word f
     await expect(
       page.getByText("资料员工", { exact: true }).last(),
     ).toBeVisible();
-    await expect(page.getByText("已交接", { exact: true })).toBeVisible();
+    const helperAssignment = page
+      .locator(".pi-task-assignments .pi-delivery-check")
+      .filter({ hasText: "资料员工" });
+    await expect(
+      helperAssignment.getByText("已交接", { exact: true }),
+    ).toBeVisible();
     await expect(
       page.getByText("协作报告.docx", { exact: true }),
     ).toBeVisible();
