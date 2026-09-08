@@ -186,6 +186,11 @@ async function startCollaborationProviderFixture() {
         }, 5_000);
         return;
       }
+      if (body.includes("补充一句核对说明")) {
+        sendTextChunk(response, "已补充核对说明，再次等待验收。");
+        response.end("data: [DONE]\n\n");
+        return;
+      }
       if (body.includes("测试无法继续")) {
         if (body.includes("请继续修改")) {
           sendTextChunk(response, "已补充核对说明，再次等待验收。");
