@@ -74,7 +74,7 @@ test("company employees hand off research and one owner creates the final Word f
     ).toBeVisible();
     const helperAssignment = page
       .locator(".pi-task-assignments .pi-delivery-check")
-      .filter({ hasText: "资料员工" });
+      .filter({ has: page.getByText("协助员工", { exact: true }) });
     await expect(
       helperAssignment.getByText("已交接", { exact: true }),
     ).toBeVisible();
