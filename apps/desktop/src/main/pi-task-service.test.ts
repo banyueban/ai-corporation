@@ -12,7 +12,11 @@ import {
 import { afterEach, describe, expect, it } from "vitest";
 import { SkillLibrary } from "./skill-library";
 import { SkillEnvironmentManager } from "./skill-environment";
-import { desktopShellPath, PiTaskService } from "./pi-task-service";
+import {
+  commandEnvironmentInstruction,
+  desktopShellPath,
+  PiTaskService,
+} from "./pi-task-service";
 
 describe("PiTaskService", () => {
   const cleanups: Array<() => Promise<void>> = [];
@@ -30,6 +34,16 @@ describe("PiTaskService", () => {
     hasEmployee: () => true,
     hasWorkspace: () => true,
   };
+
+  it("tells each operating system to use its own command syntax", () => {
+    expect(commandEnvironmentInstruction("win32")).toContain(
+      "不要使用仅适用于 macOS/Linux 的 rm、ls、cat",
+    );
+    expect(commandEnvironmentInstruction("darwin")).toContain(
+      "不要使用仅适用于 Windows 的 dir、type、del",
+    );
+    expect(commandEnvironmentInstruction("linux")).toContain("Linux/Unix 环境");
+  });
 
   afterEach(async () => {
     await Promise.all(cleanups.splice(0).map((cleanup) => cleanup()));

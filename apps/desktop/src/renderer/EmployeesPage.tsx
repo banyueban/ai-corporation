@@ -58,7 +58,9 @@ export function EmployeesPage(props: {
   const [preview, setPreview] = useState<Preview>();
   const [skillImportMessage, setSkillImportMessage] = useState("");
   const [message, setMessage] = useState("");
-  const [pending, setPending] = useState(false);
+  // 记录当前到底是哪一个按钮正在处理，既防止重复点击，也让按钮本身
+  // 立即显示反馈；不能只在长页面底部留一条用户看不到的消息。
+  const [pendingAction, setPendingAction] = useState<string>();
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
   const [taskMode, setTaskMode] = useState<"SINGLE" | "COLLABORATION">(
     "SINGLE",
@@ -85,6 +87,8 @@ export function EmployeesPage(props: {
   const selectedProvider = readyProviders.find(
     (provider) => provider.id === providerId,
   );
+  const pending = pendingAction !== undefined;
+  const isPendingAction = (action: string) => pendingAction === action;
   const commandApproval = useMemo(
     () => pendingCommandApproval(currentTask),
     [currentTask],
@@ -248,12 +252,12 @@ export function EmployeesPage(props: {
   };
 
   const previewImport = async () => {
-    setPending(true);
+    setPendingAction("preview-import");
     setSkillImportMessage("正在读取技能文件夹。");
     const result = await window.desktop.piSkill.previewImport({
       schemaVersion: 1,
     });
-    setPending(false);
+    setPendingAction(undefined);
     if (!result.ok) {
       const details =
         result.error.message === "技能操作失败"
@@ -273,13 +277,13 @@ export function EmployeesPage(props: {
 
   const confirmImport = async () => {
     if (preview === undefined) return;
-    setPending(true);
+    setPendingAction("confirm-import");
     setSkillImportMessage(`正在导入技能“${preview.name}”。`);
     const result = await window.desktop.piSkill.confirmImport({
       schemaVersion: 1,
       previewId: preview.previewId,
     });
-    setPending(false);
+    setPendingAction(undefined);
     if (!result.ok) {
       setPreview(undefined);
       const details =
@@ -320,7 +324,7 @@ export function EmployeesPage(props: {
       setMessage("请选择可用的 Provider、模型和至少一项技能。");
       return;
     }
-    setPending(true);
+    setPendingAction("save-employee");
     const result = await window.desktop.piEmployee.save({
       schemaVersion: 2,
       commandId: createUuidV7(),
@@ -331,7 +335,7 @@ export function EmployeesPage(props: {
       modelId,
       skillNames: [...skillNames],
     });
-    setPending(false);
+    setPendingAction(undefined);
     if (!result.ok) {
       setMessage(`员工保存失败：${employeeErrorMessage(result.error.code)}`);
       return;
@@ -389,7 +393,7 @@ export function EmployeesPage(props: {
 
   const startTask = async (event: FormEvent) => {
     event.preventDefault();
-    setPending(true);
+    setPendingAction("start-task");
     const common = {
       schemaVersion: 2 as const,
       commandId: createUuidV7(),
@@ -412,7 +416,7 @@ export function EmployeesPage(props: {
             ...common,
             employeeId: selectedEmployeeId,
           });
-    setPending(false);
+    setPendingAction(undefined);
     if (!result.ok) {
       setMessage(`任务无法开始：${taskErrorMessage(result.error.code)}`);
       return;
@@ -432,7 +436,7 @@ export function EmployeesPage(props: {
     action: "USE_EXISTING_RESULTS" | "REASSIGN_FAILED_WORK",
   ) => {
     if (currentTask === undefined) return;
-    setPending(true);
+    setPendingAction(`continue-collaboration:${action}`);
     const result = await window.desktop.piTask.continueCollaboration({
       schemaVersion: 2,
       commandId: createUuidV7(),
@@ -440,7 +444,7 @@ export function EmployeesPage(props: {
       taskId: currentTask.id,
       action,
     });
-    setPending(false);
+    setPendingAction(undefined);
     if (!result.ok) {
       setMessage(`操作失败：${taskErrorMessage(result.error.code)}`);
       return;
@@ -454,7 +458,7 @@ export function EmployeesPage(props: {
   };
 
   const addAttachments = async (files?: readonly File[]) => {
-    setPending(true);
+    setPendingAction("add-attachments");
     try {
       const result =
         files === undefined
@@ -482,12 +486,12 @@ export function EmployeesPage(props: {
     } catch {
       setAttachmentMessage("附件没有添加成功，请重试。 ");
     } finally {
-      setPending(false);
+      setPendingAction(undefined);
     }
   };
 
   const removeAttachment = async (attachment: PiTaskAttachment) => {
-    setPending(true);
+    setPendingAction(`remove-attachment:${attachment.id}`);
     try {
       const result = await window.desktop.piTask.discardAttachments([
         attachment,
@@ -503,7 +507,7 @@ export function EmployeesPage(props: {
     } catch {
       setAttachmentMessage("附件暂时无法移除，请重试。 ");
     } finally {
-      setPending(false);
+      setPendingAction(undefined);
     }
   };
 
@@ -511,6 +515,7 @@ export function EmployeesPage(props: {
     action: "cancel" | "accept" | "requestChanges",
   ) => {
     if (currentTask === undefined) return;
+    setPendingAction(`task-command:${action}`);
     const command = {
       schemaVersion: 2 as const,
       commandId: createUuidV7(),
@@ -526,17 +531,25 @@ export function EmployeesPage(props: {
               ...command,
               input: changeInput,
             });
+    setPendingAction(undefined);
     if (!result.ok) {
       setMessage(`操作失败：${taskErrorMessage(result.error.code)}`);
       return;
     }
     rememberTask(result.value, setCurrentTask);
-    if (action === "requestChanges") setChangeInput("");
+    if (action === "requestChanges") {
+      setChangeInput("");
+      setMessage("修改要求已提交，原来的最终负责人正在继续处理。");
+    } else if (action === "accept") {
+      setMessage("验收结果已保存，这项任务现在已完成。");
+    } else {
+      setMessage("停止请求已生效，软件已按真实结果更新任务状态。");
+    }
   };
 
   const resolveCommandApproval = async (decision: "APPROVE" | "REJECT") => {
     if (currentTask === undefined || commandApproval === undefined) return;
-    setPending(true);
+    setPendingAction(`resolve-approval:${decision}`);
     const result = await window.desktop.piTask.resolveCommandApproval({
       schemaVersion: 2,
       commandId: createUuidV7(),
@@ -545,7 +558,7 @@ export function EmployeesPage(props: {
       approvalId: commandApproval.approvalId,
       decision,
     });
-    setPending(false);
+    setPendingAction(undefined);
     if (!result.ok) {
       const latest = await window.desktop.piTask.get({
         schemaVersion: 2,
@@ -581,12 +594,14 @@ export function EmployeesPage(props: {
 
   const previewDeliverable = async (relativePath: string) => {
     if (currentTask === undefined) return;
+    setPendingAction(`preview-deliverable:${relativePath}`);
     const result = await window.desktop.piTask.previewDeliverable({
       schemaVersion: 2,
       companyId: props.company.id,
       taskId: currentTask.id,
       relativePath,
     });
+    setPendingAction(undefined);
     if (!result.ok) {
       setDeliverablePreview(undefined);
       setMessage(deliverableErrorMessage(result.error.code));
@@ -605,6 +620,7 @@ export function EmployeesPage(props: {
     relativePath: string,
   ) => {
     if (currentTask === undefined) return;
+    setPendingAction(`${action}-deliverable:${relativePath}`);
     const request = {
       schemaVersion: 2 as const,
       companyId: props.company.id,
@@ -615,6 +631,7 @@ export function EmployeesPage(props: {
       action === "open"
         ? await window.desktop.piTask.openDeliverable(request)
         : await window.desktop.piTask.revealDeliverable(request);
+    setPendingAction(undefined);
     setMessage(
       result.ok
         ? action === "open"
@@ -631,6 +648,7 @@ export function EmployeesPage(props: {
       setMessage("重新执行前，请先选择本次任务的工作区。");
       return;
     }
+    setPendingAction("retry-task");
     const common = {
       schemaVersion: 2 as const,
       commandId: createUuidV7(),
@@ -648,17 +666,19 @@ export function EmployeesPage(props: {
             ...common,
             employeeId: currentTask.employeeId,
           });
+    setPendingAction(undefined);
     if (!result.ok) {
       setMessage(`重新执行失败：${taskErrorMessage(result.error.code)}`);
       return;
     }
     rememberTask(result.value, setCurrentTask);
+    setMessage("重新执行已经开始，新的过程会显示在当前任务中。");
   };
 
   const selectWorkspace = async () => {
-    setPending(true);
+    setPendingAction("select-workspace");
     const result = await window.desktop.workspace.select();
-    setPending(false);
+    setPendingAction(undefined);
     if (!result.ok) {
       setMessage("工作区无法添加，请重新选择。");
       return;
@@ -684,6 +704,7 @@ export function EmployeesPage(props: {
   };
 
   const changeEmployeeMembership = async (employeeId: string, add: boolean) => {
+    setPendingAction(`${add ? "add" : "remove"}-employee:${employeeId}`);
     const result = await window.desktop.piCompany[
       add ? "addEmployee" : "removeEmployee"
     ]({
@@ -692,6 +713,7 @@ export function EmployeesPage(props: {
       companyId: props.company.id,
       employeeId,
     });
+    setPendingAction(undefined);
     if (!result.ok) {
       setMessage("员工归属调整失败，请重试。");
       return;
@@ -703,12 +725,14 @@ export function EmployeesPage(props: {
   };
 
   const addExistingWorkspace = async (workspaceId: string) => {
+    setPendingAction(`add-workspace:${workspaceId}`);
     const result = await window.desktop.piCompany.addWorkspace({
       schemaVersion: 1,
       commandId: createUuidV7(),
       companyId: props.company.id,
       workspaceId,
     });
+    setPendingAction(undefined);
     if (!result.ok) {
       setMessage("工作区加入公司失败，请确认它仍然可写。");
       return;
@@ -719,12 +743,14 @@ export function EmployeesPage(props: {
   };
 
   const removeWorkspace = async (workspaceId: string) => {
+    setPendingAction(`remove-workspace:${workspaceId}`);
     const result = await window.desktop.piCompany.removeWorkspace({
       schemaVersion: 1,
       commandId: createUuidV7(),
       companyId: props.company.id,
       workspaceId,
     });
+    setPendingAction(undefined);
     if (!result.ok) {
       setMessage("工作区移出公司失败，请重试。");
       return;
@@ -761,7 +787,9 @@ export function EmployeesPage(props: {
               onClick={() => void previewImport()}
               type="button"
             >
-              导入技能文件夹
+              {isPendingAction("preview-import")
+                ? "正在读取技能文件夹…"
+                : "导入技能文件夹"}
             </button>
           </div>
           <p
@@ -819,6 +847,7 @@ export function EmployeesPage(props: {
               <div className="form-actions">
                 <button
                   className="secondary-button"
+                  disabled={pending}
                   onClick={() => setPreview(undefined)}
                   type="button"
                 >
@@ -830,7 +859,7 @@ export function EmployeesPage(props: {
                   onClick={() => void confirmImport()}
                   type="button"
                 >
-                  确认导入
+                  {isPendingAction("confirm-import") ? "正在导入…" : "确认导入"}
                 </button>
               </div>
             </div>
@@ -918,7 +947,13 @@ export function EmployeesPage(props: {
           </div>
           <div className="form-actions field--wide">
             <button className="primary-button" disabled={pending} type="submit">
-              {editingEmployeeId === "" ? "创建员工" : "保存员工"}
+              {isPendingAction("save-employee")
+                ? editingEmployeeId === ""
+                  ? "正在创建员工…"
+                  : "正在保存员工…"
+                : editingEmployeeId === ""
+                  ? "创建员工"
+                  : "保存员工"}
             </button>
             {editingEmployeeId !== "" && (
               <button
@@ -958,6 +993,7 @@ export function EmployeesPage(props: {
                   <p>技能：{employee.skillNames.join("、")}</p>
                   <button
                     className="secondary-button"
+                    disabled={pending}
                     onClick={() => editEmployee(employee)}
                     type="button"
                   >
@@ -965,6 +1001,7 @@ export function EmployeesPage(props: {
                   </button>
                   <button
                     className="secondary-button"
+                    disabled={pending}
                     onClick={() =>
                       void changeEmployeeMembership(
                         employee.id,
@@ -973,9 +1010,13 @@ export function EmployeesPage(props: {
                     }
                     type="button"
                   >
-                    {props.company.employeeIds.includes(employee.id)
-                      ? "移出当前公司"
-                      : "加入当前公司"}
+                    {isPendingAction(`add-employee:${employee.id}`)
+                      ? "正在加入公司…"
+                      : isPendingAction(`remove-employee:${employee.id}`)
+                        ? "正在移出公司…"
+                        : props.company.employeeIds.includes(employee.id)
+                          ? "移出当前公司"
+                          : "加入当前公司"}
                   </button>
                 </article>
               ))}
@@ -992,6 +1033,7 @@ export function EmployeesPage(props: {
           </h2>
           <div className="form-actions" aria-label="任务方式">
             <button
+              aria-pressed={taskMode === "SINGLE"}
               className={
                 taskMode === "SINGLE" ? "primary-button" : "secondary-button"
               }
@@ -1001,6 +1043,7 @@ export function EmployeesPage(props: {
               单员工任务
             </button>
             <button
+              aria-pressed={taskMode === "COLLABORATION"}
               className={
                 taskMode === "COLLABORATION"
                   ? "primary-button"
@@ -1081,7 +1124,9 @@ export function EmployeesPage(props: {
                   onClick={() => void selectWorkspace()}
                   type="button"
                 >
-                  添加工作区
+                  {isPendingAction("select-workspace")
+                    ? "正在打开选择窗口…"
+                    : "添加工作区"}
                 </button>
               </div>
               <small>
@@ -1093,13 +1138,18 @@ export function EmployeesPage(props: {
                   {companyWorkspaces.map((workspace) => (
                     <button
                       className="secondary-button"
+                      disabled={pending}
                       key={workspace.workspaceId}
                       onClick={() =>
                         void removeWorkspace(workspace.workspaceId)
                       }
                       type="button"
                     >
-                      移出：{workspace.displayPath}
+                      {isPendingAction(
+                        `remove-workspace:${workspace.workspaceId}`,
+                      )
+                        ? "正在移出…"
+                        : `移出：${workspace.displayPath}`}
                     </button>
                   ))}
                 </div>
@@ -1124,13 +1174,18 @@ export function EmployeesPage(props: {
                     .map((workspace) => (
                       <button
                         className="secondary-button"
+                        disabled={pending}
                         key={workspace.workspaceId}
                         onClick={() =>
                           void addExistingWorkspace(workspace.workspaceId)
                         }
                         type="button"
                       >
-                        加入：{workspace.displayPath}
+                        {isPendingAction(
+                          `add-workspace:${workspace.workspaceId}`,
+                        )
+                          ? "正在加入…"
+                          : `加入：${workspace.displayPath}`}
                       </button>
                     ))}
                 </div>
@@ -1178,7 +1233,9 @@ export function EmployeesPage(props: {
                   onClick={() => void addAttachments()}
                   type="button"
                 >
-                  选择附件
+                  {isPendingAction("add-attachments")
+                    ? "正在添加附件…"
+                    : "选择附件"}
                 </button>
                 <small>
                   最多 10 个，单个不超过 50 MiB，总计不超过 100 MiB。
@@ -1201,7 +1258,9 @@ export function EmployeesPage(props: {
                         onClick={() => void removeAttachment(attachment)}
                         type="button"
                       >
-                        移除
+                        {isPendingAction(`remove-attachment:${attachment.id}`)
+                          ? "正在移除…"
+                          : "移除"}
                       </button>
                     </li>
                   ))}
@@ -1222,7 +1281,13 @@ export function EmployeesPage(props: {
                 }
                 type="submit"
               >
-                {taskMode === "COLLABORATION" ? "开始公司协作" : "开始任务"}
+                {isPendingAction("start-task")
+                  ? taskMode === "COLLABORATION"
+                    ? "正在启动公司协作…"
+                    : "正在启动任务…"
+                  : taskMode === "COLLABORATION"
+                    ? "开始公司协作"
+                    : "开始任务"}
               </button>
             </div>
             {taskMode === "COLLABORATION" && companyEmployees.length < 2 && (
@@ -1242,10 +1307,13 @@ export function EmployeesPage(props: {
                 {["RUNNING", "WAITING_USER"].includes(currentTask.status) && (
                   <button
                     className="secondary-button"
+                    disabled={pending}
                     onClick={() => void taskCommand("cancel")}
                     type="button"
                   >
-                    停止任务
+                    {isPendingAction("task-command:cancel")
+                      ? "正在停止任务…"
+                      : "停止任务"}
                   </button>
                 )}
               </div>
@@ -1351,32 +1419,47 @@ export function EmployeesPage(props: {
                         <div className="form-actions">
                           <button
                             className="secondary-button"
+                            disabled={pending}
                             onClick={() =>
                               void previewDeliverable(item.relativePath)
                             }
                             type="button"
                           >
-                            查看内容
+                            {isPendingAction(
+                              `preview-deliverable:${item.relativePath}`,
+                            )
+                              ? "正在读取…"
+                              : "查看内容"}
                           </button>
                           {isSafeDeliverableToOpen(item.relativePath) && (
                             <button
                               className="secondary-button"
+                              disabled={pending}
                               onClick={() =>
                                 void actOnDeliverable("open", item.relativePath)
                               }
                               type="button"
                             >
-                              打开文件
+                              {isPendingAction(
+                                `open-deliverable:${item.relativePath}`,
+                              )
+                                ? "正在打开…"
+                                : "打开文件"}
                             </button>
                           )}
                           <button
                             className="secondary-button"
+                            disabled={pending}
                             onClick={() =>
                               void actOnDeliverable("reveal", item.relativePath)
                             }
                             type="button"
                           >
-                            查看所在位置
+                            {isPendingAction(
+                              `reveal-deliverable:${item.relativePath}`,
+                            )
+                              ? "正在定位…"
+                              : "查看所在位置"}
                           </button>
                         </div>
                         {item.diff !== undefined && (
@@ -1460,7 +1543,11 @@ export function EmployeesPage(props: {
                       }
                       type="button"
                     >
-                      使用现有结果继续
+                      {isPendingAction(
+                        "continue-collaboration:USE_EXISTING_RESULTS",
+                      )
+                        ? "正在继续任务…"
+                        : "使用现有结果继续"}
                     </button>
                     <button
                       className="secondary-button"
@@ -1470,7 +1557,11 @@ export function EmployeesPage(props: {
                       }
                       type="button"
                     >
-                      重新安排失败工作
+                      {isPendingAction(
+                        "continue-collaboration:REASSIGN_FAILED_WORK",
+                      )
+                        ? "正在重新安排…"
+                        : "重新安排失败工作"}
                     </button>
                     <button
                       className="secondary-button"
@@ -1478,7 +1569,9 @@ export function EmployeesPage(props: {
                       onClick={() => void taskCommand("cancel")}
                       type="button"
                     >
-                      停止任务
+                      {isPendingAction("task-command:cancel")
+                        ? "正在停止任务…"
+                        : "停止任务"}
                     </button>
                   </div>
                 </section>
@@ -1526,7 +1619,9 @@ export function EmployeesPage(props: {
                       onClick={() => void resolveCommandApproval("REJECT")}
                       type="button"
                     >
-                      {approvalRejectLabel(commandApproval.kind)}
+                      {isPendingAction("resolve-approval:REJECT")
+                        ? "正在提交拒绝…"
+                        : approvalRejectLabel(commandApproval.kind)}
                     </button>
                     <button
                       className="primary-button"
@@ -1534,7 +1629,9 @@ export function EmployeesPage(props: {
                       onClick={() => void resolveCommandApproval("APPROVE")}
                       type="button"
                     >
-                      {approvalApproveLabel(commandApproval.kind)}
+                      {isPendingAction("resolve-approval:APPROVE")
+                        ? "正在提交批准…"
+                        : approvalApproveLabel(commandApproval.kind)}
                     </button>
                   </div>
                 </section>
@@ -1544,20 +1641,24 @@ export function EmployeesPage(props: {
               ) && (
                 <button
                   className="secondary-button"
+                  disabled={pending}
                   onClick={() => void retryTask()}
                   type="button"
                 >
-                  重新执行
+                  {isPendingAction("retry-task") ? "正在重新执行…" : "重新执行"}
                 </button>
               )}
               {currentTask.status === "WAITING_ACCEPTANCE" && (
                 <div className="acceptance-panel">
                   <button
                     className="primary-button"
+                    disabled={pending}
                     onClick={() => void taskCommand("accept")}
                     type="button"
                   >
-                    验收通过
+                    {isPendingAction("task-command:accept")
+                      ? "正在确认验收…"
+                      : "验收通过"}
                   </button>
                   <label htmlFor="change-input">需要修改的内容</label>
                   <textarea
@@ -1568,11 +1669,13 @@ export function EmployeesPage(props: {
                   />
                   <button
                     className="secondary-button"
-                    disabled={changeInput.trim() === ""}
+                    disabled={pending || changeInput.trim() === ""}
                     onClick={() => void taskCommand("requestChanges")}
                     type="button"
                   >
-                    不通过，继续修改
+                    {isPendingAction("task-command:requestChanges")
+                      ? "正在提交修改要求…"
+                      : "不通过，继续修改"}
                   </button>
                 </div>
               )}
@@ -1623,9 +1726,15 @@ export function EmployeesPage(props: {
           )}
         </section>
       </div>
-      <p aria-live="polite" className="employee-message">
-        {message}
-      </p>
+      {message.length > 0 && (
+        <p
+          aria-live="polite"
+          className="employee-message employee-action-message"
+          role="status"
+        >
+          {message}
+        </p>
+      )}
     </section>
   );
 }

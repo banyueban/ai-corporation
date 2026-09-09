@@ -94,6 +94,9 @@ test("one coding owner uses helper handoffs and alone changes and tests code", a
       page.getByRole("heading", { name: "是否允许本任务运行程序？" }),
     ).toBeVisible({ timeout: 30_000 });
     await page.getByRole("button", { name: "允许本任务运行程序" }).click();
+    await expect(page.locator(".employee-action-message")).toContainText(
+      "已批准，员工会继续执行",
+    );
     await expect(page.getByRole("heading", { name: "等待你验收" })).toBeVisible(
       { timeout: 30_000 },
     );
@@ -156,9 +159,17 @@ test("one coding owner uses helper handoffs and alone changes and tests code", a
     expect(finalToolNames).toContain("workspace_write_text");
     expect(finalToolNames).toContain("workspace_run_command");
     expect(JSON.stringify(finalPayload)).toContain("唯一的编码员工");
+    expect(JSON.stringify(finalPayload)).toContain(
+      process.platform === "win32"
+        ? "当前任务运行在 Windows"
+        : "当前任务运行在 macOS",
+    );
 
     await page.getByLabel("需要修改的内容").fill("补充回归说明后再次运行检查");
     await page.getByRole("button", { name: "不通过，继续修改" }).click();
+    await expect(page.locator(".employee-action-message")).toContainText(
+      "修改要求已提交",
+    );
     await expect(page.getByRole("heading", { name: "等待你验收" })).toBeVisible(
       { timeout: 30_000 },
     );
@@ -192,6 +203,9 @@ test("one coding owner uses helper handoffs and alone changes and tests code", a
 
     await page.getByRole("button", { name: "验收通过" }).click();
     await expect(page.getByRole("heading", { name: "已完成" })).toBeVisible();
+    await expect(page.locator(".employee-action-message")).toContainText(
+      "验收结果已保存",
+    );
   } finally {
     await app.close();
     await fixture.close();

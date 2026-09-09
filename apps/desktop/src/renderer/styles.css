@@ -772,6 +772,22 @@ h3 {
   margin-top: 1rem;
 }
 
+/* 员工页很长，操作结果必须留在当前视野内，不能让用户去页尾找反馈。 */
+.employee-action-message {
+  position: fixed;
+  right: 1.5rem;
+  bottom: 1.5rem;
+  z-index: 20;
+  max-width: min(32rem, calc(100vw - 3rem));
+  margin: 0;
+  padding: 0.8rem 1rem;
+  border: 1px solid #3f5270;
+  border-radius: 0.75rem;
+  color: #e8f0fc;
+  background: #111c2c;
+  box-shadow: 0 0.8rem 2rem rgb(0 0 0 / 35%);
+}
+
 .skill-import-message {
   margin: -0.5rem 0 1rem;
 }
