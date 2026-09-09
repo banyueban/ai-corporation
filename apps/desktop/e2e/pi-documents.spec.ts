@@ -218,8 +218,7 @@ test("employee reads a fixed attachment and creates real Word and PDF results", 
       // Electron 在 200% 缩放后会让 IntersectionObserver 偶发返回 0，
       // 这里直接按当前窗口和元素的真实坐标验收，结果也与截图一致。
       for (const element of [deliveryFile, revealButton]) {
-        expect(
-          await element.evaluate((node) => {
+        const geometry = await element.evaluate((node) => {
             const rect = node.getBoundingClientRect();
             const viewportHeight =
               window.visualViewport?.height ??
@@ -227,13 +226,23 @@ test("employee reads a fixed attachment and creates real Word and PDF results", 
             const viewportWidth =
               window.visualViewport?.width ??
               document.documentElement.clientWidth;
-            return (
-              rect.bottom > 0 &&
-              rect.right > 0 &&
-              rect.top < viewportHeight &&
-              rect.left < viewportWidth
-            );
-          }),
+            return {
+              bottom: rect.bottom,
+              left: rect.left,
+              right: rect.right,
+              top: rect.top,
+              viewportHeight,
+              viewportWidth,
+              visible:
+                rect.bottom > 0 &&
+                rect.right > 0 &&
+                rect.top < viewportHeight &&
+                rect.left < viewportWidth,
+            };
+          });
+        expect(
+          geometry.visible,
+          `${view.label} 可视位置：${JSON.stringify(geometry)}`,
         ).toBe(true);
       }
     }
