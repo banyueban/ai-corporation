@@ -221,11 +221,17 @@ test("employee reads a fixed attachment and creates real Word and PDF results", 
         expect(
           await element.evaluate((node) => {
             const rect = node.getBoundingClientRect();
+            const viewportHeight =
+              window.visualViewport?.height ??
+              document.documentElement.clientHeight;
+            const viewportWidth =
+              window.visualViewport?.width ??
+              document.documentElement.clientWidth;
             return (
               rect.bottom > 0 &&
               rect.right > 0 &&
-              rect.top < window.innerHeight &&
-              rect.left < window.innerWidth
+              rect.top < viewportHeight &&
+              rect.left < viewportWidth
             );
           }),
         ).toBe(true);
