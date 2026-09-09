@@ -261,6 +261,7 @@ M11-TU-01 采用“受控写入自动登记，命令产物经 `workspace.registe
 - 当前修复为所有员工页等待型操作增加立即可见的“正在……”状态、重复点击保护和明确结果提示，并按实际运行平台告诉员工使用 Windows 或 macOS 对应命令；没有把命令写死为 Windows，其他平台继续使用各自原生命令；
 - 修复后的 `pnpm check` 通过：协议 72、Provider 28、存储 111、桌面 211、Native Core 11、Workspace FS 12，并通过状态、任务合同、格式、代码、类型、Clippy 和 Secret scan；完整开发态窗口回归 13 条通过、5 条按既定条件跳过；
 - 新 Windows `win-unpacked` 最终程序已通过 M15-TU-02 连续编码协作旅程。新安装包位于 `release/AI Corporation Desktop Setup 0.1.0.exe`，大小 152753180 字节，SHA-256 为 `D70534ADF19D73FC08F4EF3FDB86DAF5DB90D548ADEF1D99814537213C13A5CD`；新候选双平台 CI 和用户复验仍待完成，不能标记 M15-TU-02 或 Milestone 15 完成。
+- 首个修复候选的 GitHub Actions run `34325787371` 中，macOS 已通过真实窗口检查并进入打包阶段，Windows 在文档成果页 200% 缩放断言处失败；保留的真实窗口截图显示成果卡片和三个操作按钮均完整可见，失败来自 Electron 缩放后网页坐标与真实窗口画面不一致。验收测试已改为普通尺寸继续检查网页可视位置，200% 使用真实 BrowserWindow 截图并保留横向溢出检查；Windows 打包程序文档旅程随后连续两次通过，编码协作旅程也通过。该失败不会被隐藏，最终结论仍以新候选双平台 CI 为准。
 
 ## 7. 阶段复盘与下一步
 
