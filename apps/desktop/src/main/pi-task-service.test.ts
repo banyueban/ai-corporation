@@ -47,24 +47,33 @@ describe("PiTaskService", () => {
     );
   });
 
-  it("lets the final employee delegate read-only work and preserves the handoff", async () => {
+  it("gives only the final coding employee write and command tools", async () => {
     const finalEmployeeId = "019f1000-0000-7000-8000-000000000001";
     const helperEmployeeId = "019f1000-0000-7000-8000-000000000002";
     const fixture = await startCollaborationFixture(helperEmployeeId);
     cleanups.push(fixture.close);
-    const root = path.join(tmpdir(), `M15-TU-01-${crypto.randomUUID()}`);
+    const root = path.join(tmpdir(), `M15-TU-02-${crypto.randomUUID()}`);
     const source = path.join(root, "text-organize");
+    const codingSource = path.join(root, "coding-task");
     const managed = path.join(root, "managed");
     await mkdir(source, { recursive: true });
+    await mkdir(codingSource, { recursive: true });
     await writeFile(
       path.join(source, "SKILL.md"),
       "---\nname: text-organize\ndescription: 整理文字\n---\n把结果写清楚。\n",
       "utf8",
     );
+    await writeFile(
+      path.join(codingSource, "SKILL.md"),
+      "---\nname: coding-task\ndescription: 修改代码并运行检查\n---\n读取代码，完成修改并运行检查。\n",
+      "utf8",
+    );
     cleanups.push(() => rm(root, { recursive: true, force: true }));
     const library = new SkillLibrary(managed);
-    const preview = await library.previewImport(source);
-    await library.confirmImport(source, preview.digest);
+    for (const skillSource of [source, codingSource]) {
+      const preview = await library.previewImport(skillSource);
+      await library.confirmImport(skillSource, preview.digest);
+    }
 
     const database = new DatabaseSync(":memory:");
     applyMigrations(
@@ -78,11 +87,11 @@ describe("PiTaskService", () => {
       {
         schemaVersion: 2 as const,
         id: finalEmployeeId,
-        name: "报告负责人",
+        name: "编码负责人",
         providerId: "019f1000-0000-7000-8000-000000000003",
         providerVersion: 1,
         modelId: "leader-model",
-        skillNames: ["text-organize"],
+        skillNames: ["coding-task"],
         createdAt: "2026-09-08T00:00:00.000Z",
         updatedAt: "2026-09-08T00:00:00.000Z",
       },
@@ -181,13 +190,13 @@ describe("PiTaskService", () => {
       companyId,
       finalEmployeeId,
       workspaceId,
-      input: "请协作整理报告",
+      input: "请让资料员工整理要求，再由你修改代码并运行检查",
     });
     if (!started.ok) throw new Error("collaboration did not start");
     const result = await waitForTask(repository, started.value.id);
     expect(result.status).toBe("WAITING_ACCEPTANCE");
     expect(result.assignments).toMatchObject([
-      { role: "FINAL", employeeName: "报告负责人", status: "SUCCEEDED" },
+      { role: "FINAL", employeeName: "编码负责人", status: "SUCCEEDED" },
       {
         role: "HELPER",
         employeeName: "资料员工",
@@ -201,6 +210,21 @@ describe("PiTaskService", () => {
           event.employeeName === "资料员工" && event.kind === "MODEL_OUTPUT",
       ),
     ).toBe(true);
+    const finalRequest = fixture.requests[0]?.body as
+      | {
+          readonly tools?: readonly {
+            readonly function?: { readonly name?: string };
+          }[];
+        }
+      | undefined;
+    const finalToolNames = finalRequest?.tools?.map(
+      (tool) => tool.function?.name,
+    );
+    expect(finalToolNames).toContain("workspace_write_text");
+    expect(finalToolNames).toContain("workspace_run_command");
+    expect(finalToolNames).toContain("company_delegate");
+    expect(JSON.stringify(finalRequest)).toContain("唯一的编码员工");
+
     const helperRequest = fixture.requests[1]?.body as
       | {
           readonly model?: string;
@@ -210,9 +234,13 @@ describe("PiTaskService", () => {
         }
       | undefined;
     expect(helperRequest?.model).toBe("helper-model");
-    expect(
-      helperRequest?.tools?.map((tool) => tool.function?.name),
-    ).not.toContain("workspace_write_text");
+    const helperToolNames = helperRequest?.tools?.map(
+      (tool) => tool.function?.name,
+    );
+    expect(helperToolNames).not.toContain("workspace_write_text");
+    expect(helperToolNames).not.toContain("workspace_run_command");
+    expect(helperToolNames).not.toContain("workspace_register_deliverable");
+    expect(helperToolNames).not.toContain("skill_run_script");
     database.close();
   });
 

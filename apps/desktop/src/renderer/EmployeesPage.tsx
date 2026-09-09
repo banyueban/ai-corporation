@@ -92,6 +92,15 @@ export function EmployeesPage(props: {
   const companyEmployees = employees.filter((employee) =>
     props.company.employeeIds.includes(employee.id),
   );
+  const selectedTaskEmployee = companyEmployees.find(
+    (employee) => employee.id === selectedEmployeeId,
+  );
+  const currentTaskEmployee = employees.find(
+    (employee) => employee.id === currentTask?.employeeId,
+  );
+  const currentTaskHasCodingOwner =
+    currentTask?.mode === "COLLABORATION" &&
+    currentTaskEmployee?.skillNames.includes("coding-task") === true;
   const companyWorkspaces = workspaces.filter((workspace) =>
     props.company.workspaceIds.includes(workspace.workspaceId),
   );
@@ -979,7 +988,7 @@ export function EmployeesPage(props: {
             {taskMode === "SINGLE" ? "直接交代任务" : "公司协作"}
           </p>
           <h2>
-            {taskMode === "SINGLE" ? "让员工开始工作" : "让员工一起完成文档"}
+            {taskMode === "SINGLE" ? "让员工开始工作" : "让员工一起完成任务"}
           </h2>
           <div className="form-actions" aria-label="任务方式">
             <button
@@ -1006,7 +1015,8 @@ export function EmployeesPage(props: {
           {taskMode === "COLLABORATION" && (
             <p className="helper-copy">
               你只需选最终负责人和工作区。负责人会按员工的 Skill
-              安排帮手；帮手只交回资料和意见，最终文件由负责人制作。
+              安排帮手；帮手只交回资料和意见，最终成果由负责人制作。拥有
+              coding-task Skill 的负责人也是唯一能改代码和运行命令的员工。
             </p>
           )}
           <form
@@ -1030,6 +1040,13 @@ export function EmployeesPage(props: {
                   </option>
                 ))}
               </select>
+              {taskMode === "COLLABORATION" &&
+                selectedTaskEmployee?.skillNames.includes("coding-task") ===
+                  true && (
+                  <small>
+                    这名负责人将作为唯一编码员工；其他员工只能读取资料和交回意见。
+                  </small>
+                )}
             </div>
             <div className="field field--wide">
               <label htmlFor="task-workspace">本次任务的工作区</label>
@@ -1270,7 +1287,9 @@ export function EmployeesPage(props: {
                         <strong>{assignment.employeeName}</strong>
                         <span className="status-pill">
                           {assignment.role === "FINAL"
-                            ? "最终负责人"
+                            ? currentTaskHasCodingOwner
+                              ? "唯一编码员工"
+                              : "最终负责人"
                             : "协助员工"}
                         </span>
                       </div>

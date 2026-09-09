@@ -1050,6 +1050,8 @@ export class PiTaskService {
   ): string {
     const company = this.options.companyRepository.get(companyId);
     if (company === undefined) throw new Error("公司不存在。");
+    const finalEmployee = this.options.employeeRepository.get(finalEmployeeId);
+    if (finalEmployee === undefined) throw new Error("最终负责人不存在。");
     const helpers = company.employeeIds
       .filter((employeeId) => employeeId !== finalEmployeeId)
       .map((employeeId) => this.options.employeeRepository.get(employeeId))
@@ -1059,7 +1061,10 @@ export class PiTaskService {
           `- ID ${employee.id}：${employee.name}；Skill：${employee.skillNames.join("、")}`,
       )
       .join("\n");
-    return `\n\n这是公司协作任务。你是用户指定的最终负责人，不能把最终责任交给别人。你可以根据任务从以下当前公司员工中选择帮手：\n${helpers}\n\n需要帮手时调用 company_delegate，填写员工 ID 和一段边界清楚的工作说明；分工会立即执行，不需要再次询问用户。帮手只能读取资料并交回文字，不能写文件、运行命令或安装环境。帮手失败不会自动重试：如果现有结果足够，请继续完成并在交付中说明缺口；如果确实无法继续，调用 company_request_user 说明缺什么，然后停止继续制作最终成果。最终文件只能由你创建、修改和核对。`;
+    const ownershipRule = finalEmployee.skillNames.includes("coding-task")
+      ? "你同时是这项任务唯一的编码员工。代码修改、成果登记、脚本和项目命令只能由你执行；可以让帮手整理要求、查询资料或读取你指出的代码并提出检查意见，但不能要求帮手修改代码或运行命令。检查意见不等于已经修复，发现问题后仍由你修改并重新运行检查。"
+      : "最终文件只能由你创建、修改和核对。";
+    return `\n\n这是公司协作任务。你是用户指定的最终负责人，不能把最终责任交给别人。你可以根据任务从以下当前公司员工中选择帮手：\n${helpers}\n\n需要帮手时调用 company_delegate，填写员工 ID 和一段边界清楚的工作说明；分工会立即执行，不需要再次询问用户。帮手只能读取资料并交回文字，不能写文件、运行命令或安装环境。帮手失败不会自动重试：如果现有结果足够，请继续完成并在交付中说明缺口；如果确实无法继续，调用 company_request_user 说明缺什么，然后停止继续制作最终成果。${ownershipRule}`;
   }
 
   #createCollaborationTools(
@@ -2718,13 +2723,27 @@ export class PiTaskService {
     actor?: EventActor,
   ): void {
     const current = this.options.taskRepository.get(taskId);
+    // 协作任务里，环境准备、命令实时输出和批准事件也必须明确属于最终负责人，
+    // 不能只给模型与工具首尾事件标员工，导致用户看不出是谁在运行命令。
+    const finalAssignment = current?.assignments?.find(
+      (assignment) => assignment.role === "FINAL",
+    );
+    const resolvedActor =
+      actor ??
+      (current?.mode === "COLLABORATION" && finalAssignment !== undefined
+        ? {
+            assignmentId: finalAssignment.id,
+            employeeId: finalAssignment.employeeId,
+            employeeName: finalAssignment.employeeName,
+          }
+        : undefined);
     if (current?.status === "RUNNING" || kind === "PROGRESS") {
       this.options.taskRepository.appendEvent(
         taskId,
         kind,
         content,
         this.#now(),
-        actor,
+        resolvedActor,
       );
     }
   }
