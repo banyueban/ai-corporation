@@ -1,6 +1,9 @@
 import { cpSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+const require = createRequire(import.meta.url);
 
 const desktopDirectory = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -34,6 +37,23 @@ cpSync(
   ),
   path.join(appDirectory, "migrations"),
   { recursive: true },
+);
+// 内置技能必须随安装包一起复制，开发态和最终包使用同一内容。
+cpSync(
+  path.join(desktopDirectory, "resources", "skills"),
+  path.join(appDirectory, "skills"),
+  { recursive: true },
+);
+// PDF 必须使用允许嵌入的固定字体，不能依赖各系统自带字体。
+const pdfFontDirectory = path.dirname(
+  require.resolve("@fontsource-variable/noto-sans-sc/package.json"),
+);
+cpSync(pdfFontDirectory, path.join(appDirectory, "fonts", "noto-sans-sc"), {
+  recursive: true,
+});
+cpSync(
+  path.resolve(desktopDirectory, "..", "..", "THIRD_PARTY_NOTICES.md"),
+  path.join(appDirectory, "THIRD_PARTY_NOTICES.md"),
 );
 cpSync(sourceNativeCore, path.join(desktopDirectory, "build", nativeCoreName));
 writeFileSync(

@@ -7,7 +7,20 @@ Artifact Protocol 定义成果物的身份、版本、内容定位、来源和�
 ## 2. Artifact Manifest
 
 ```ts
-type ArtifactStatus = "DRAFT" | "CANDIDATE" | "APPROVED" | "REJECTED" | "SUPERSEDED";
+type ArtifactType =
+  | "TEXT"
+  | "JSON"
+  | "DOCUMENT"
+  | "SOURCE_CODE"
+  | "FILE"
+  | "PATCH"
+  | "TEST_REPORT"
+  | "DECISION_RECORD"
+  | "EVALUATION_REPORT"
+  | "TOOL_OUTPUT"
+  | "MEMORY_CANDIDATE";
+type ArtifactStatus =
+  "DRAFT" | "CANDIDATE" | "APPROVED" | "REJECTED" | "SUPERSEDED";
 type ArtifactIntegrityStatus = "VALID" | "CORRUPTED" | "MISSING";
 
 type ArtifactManifest = {
@@ -24,6 +37,8 @@ type ArtifactManifest = {
   updatedAt: string;
 };
 ```
+
+`FILE` 表示普通文件或尚不能可靠归入更具体类型的二进制成果。类型只描述成果合同，不表示文件已经存在、通过验收或获得执行权限。
 
 ## 3. Artifact Version
 

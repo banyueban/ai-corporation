@@ -14,35 +14,34 @@ export function presentWorkspace(
   workspace: WorkspacePublic,
 ): WorkspacePresentation {
   const permission =
-    workspace.permissionMode === "READ_WRITE" ? "Read and write" : "Read only";
+    workspace.permissionMode === "READ_WRITE" ? "可读写" : "只读";
   switch (workspace.accessStatus) {
     case "AVAILABLE":
       return {
-        accessLabel: "Available",
+        accessLabel: "可用",
         permissionLabel: permission,
         recoveryAction: undefined,
         tone: "positive",
       };
     case "MISSING":
       return {
-        accessLabel: "Folder missing",
-        permissionLabel: `Last verified: ${permission.toLowerCase()}`,
-        recoveryAction: "Restore the folder or select another workspace.",
+        accessLabel: "文件夹不存在",
+        permissionLabel: `上次验证权限：${permission}`,
+        recoveryAction: "请恢复该文件夹，或选择另一个工作区。",
         tone: "critical",
       };
     case "PERMISSION_DENIED":
       return {
-        accessLabel: "Permission denied",
-        permissionLabel: `Last verified: ${permission.toLowerCase()}`,
-        recoveryAction:
-          "Restore operating-system access, then verify this workspace again.",
+        accessLabel: "没有访问权限",
+        permissionLabel: `上次验证权限：${permission}`,
+        recoveryAction: "请恢复操作系统访问权限，然后重新验证该工作区。",
         tone: "critical",
       };
     case "UNVERIFIED":
       return {
-        accessLabel: "Verification required",
-        permissionLabel: `Last verified: ${permission.toLowerCase()}`,
-        recoveryAction: "Verify before using this workspace.",
+        accessLabel: "需要验证",
+        permissionLabel: `上次验证权限：${permission}`,
+        recoveryAction: "使用该工作区前请先验证。",
         tone: "warning",
       };
   }
@@ -51,18 +50,18 @@ export function presentWorkspace(
 export function workspaceErrorMessage(code: WorkspaceIpcErrorCode): string {
   switch (code) {
     case "NATIVE_CORE_UNAVAILABLE":
-      return "Workspace verification is unavailable. Restart the application, then try again.";
+      return "工作区验证功能暂时不可用。请重启软件后再试。";
     case "STORAGE_UNAVAILABLE":
-      return "Saved workspaces could not be loaded. Restart the application; no new authorization was recorded.";
+      return "无法加载已保存的工作区。请重启软件；本次没有保存新的授权。";
     case "SELECTION_UNAVAILABLE":
-      return "The folder selector could not be opened. Try again after checking the desktop session.";
+      return "无法打开文件夹选择器。请检查桌面会话后再试。";
     case "WORKSPACE_NOT_FOUND":
-      return "This workspace no longer exists in local application data. Reload the dashboard.";
+      return "本地软件数据中已找不到该工作区。请重新加载控制台。";
     case "VERIFICATION_FAILED":
-      return "The selected folder could not be verified. The existing authorization was not changed.";
+      return "无法验证所选文件夹，原有授权没有改变。";
     case "IPC_UNAUTHORIZED":
     case "INVALID_REQUEST":
-      return "The workspace request was rejected by the application security boundary.";
+      return "该工作区请求被软件的安全边界拒绝。";
   }
 }
 

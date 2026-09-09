@@ -25,27 +25,27 @@ test("user manages an app-owned Provider Key through the visible window", async 
       window?.setSize(1024, 700);
       window?.webContents.setZoomFactor(2);
     });
-    await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByRole("button", { name: "设置" }).click();
     await expect(
-      page.getByRole("heading", { name: "Provider credentials" }),
+      page.getByRole("heading", { name: "模型服务商凭据" }),
     ).toBeFocused();
     await expectNoSeriousAxeViolations(page);
-    await expect(page.getByText("No Provider has been saved.")).toBeVisible();
+    await expect(page.getByText("还没有保存模型服务商。")).toBeVisible();
 
-    await page.getByLabel("Name").fill("M2 Primary");
-    await page.getByLabel("Endpoint").fill("https://api.example.test/v1");
+    await page.getByLabel("名称").fill("M2 Primary");
+    await page.getByLabel("API 基础 URL").fill("https://api.example.test/v1");
     const keyInput = page.getByLabel("API Key");
     await keyInput.fill(firstSecret);
     await expect(keyInput).toHaveAttribute("type", "password");
-    const showButton = page.getByRole("button", { name: "Show" });
+    const showButton = page.getByRole("button", { name: "查看" });
     await showButton.scrollIntoViewIfNeeded();
     await expect(showButton).toBeInViewport();
     await showButton.click();
     await expect(keyInput).toHaveAttribute("type", "text");
     await expect(keyInput).toHaveValue(firstSecret);
-    await page.getByRole("button", { name: "Hide" }).click();
+    await page.getByRole("button", { name: "隐藏" }).click();
     await expect(keyInput).toHaveAttribute("type", "password");
-    const saveButton = page.getByRole("button", { name: "Save Provider" });
+    const saveButton = page.getByRole("button", { name: "保存模型服务商" });
     await saveButton.scrollIntoViewIfNeeded();
     await expect(saveButton).toBeInViewport();
     await electronApp.evaluate(({ BrowserWindow }) => {
@@ -53,16 +53,16 @@ test("user manages an app-owned Provider Key through the visible window", async 
       window?.setSize(1440, 900);
       window?.webContents.setZoomFactor(1);
     });
-    await page.getByRole("button", { name: "Show" }).click();
+    await page.getByRole("button", { name: "查看" }).click();
     await expect(keyInput).toHaveAttribute("type", "text");
     await expect(keyInput).toHaveValue(firstSecret);
-    await page.getByRole("button", { name: "Hide" }).click();
+    await page.getByRole("button", { name: "隐藏" }).click();
     await expect(keyInput).toHaveAttribute("type", "password");
-    await page.getByRole("button", { name: "Save Provider" }).click();
+    await page.getByRole("button", { name: "保存模型服务商" }).click();
     await expect(page.locator(".provider-status")).toContainText(
-      "Provider saved.",
+      "模型服务商已保存。",
     );
-    await expect(page.getByText("Key saved")).toBeVisible();
+    await expect(page.getByText("API Key 已保存")).toBeVisible();
     await expect(keyInput).toHaveValue("");
     await expect(keyInput).toHaveAttribute("type", "password");
 
@@ -76,18 +76,18 @@ test("user manages an app-owned Provider Key through the visible window", async 
     expect(readFileSync(masterKeyPath)).toHaveLength(32);
 
     await page.reload();
-    await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByRole("button", { name: "设置" }).click();
     await page.getByRole("button", { name: /M2 Primary/u }).click();
     const restoredInput = page.getByLabel("API Key");
     await expect(restoredInput).toHaveValue("");
     await expect(restoredInput).toHaveAttribute("type", "password");
-    await page.getByRole("button", { name: "Show" }).click();
+    await page.getByRole("button", { name: "查看" }).click();
     await expect(restoredInput).toHaveValue(firstSecret);
-    await page.getByRole("button", { name: "Hide" }).click();
+    await page.getByRole("button", { name: "隐藏" }).click();
     await restoredInput.fill(replacementSecret);
-    await page.getByRole("button", { name: "Save changes" }).click();
+    await page.getByRole("button", { name: "保存修改" }).click();
     await expect(page.locator(".provider-status")).toContainText(
-      "Provider updated.",
+      "模型服务商已更新。",
     );
     assertSecretAbsentFromDatabase(userDataDirectory, firstSecret);
     assertSecretAbsentFromDatabase(userDataDirectory, replacementSecret);
@@ -100,27 +100,27 @@ test("user manages an app-owned Provider Key through the visible window", async 
       window?.setSize(1024, 700);
       window?.webContents.setZoomFactor(1);
     });
-    await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByRole("button", { name: "设置" }).click();
     await page.getByRole("button", { name: /M2 Primary/u }).click();
     const restartedInput = page.getByLabel("API Key");
     await expect(restartedInput).toHaveValue("");
-    await page.getByRole("button", { name: "Show" }).click();
+    await page.getByRole("button", { name: "查看" }).click();
     await expect(restartedInput).toHaveValue(replacementSecret);
-    await page.getByRole("button", { name: "Hide" }).click();
+    await page.getByRole("button", { name: "隐藏" }).click();
 
     page.once("dialog", (dialog) => dialog.accept());
     const deleteButton = page.getByRole("button", {
-      name: "Delete saved Key",
+      name: "删除已保存的 API Key",
     });
     await deleteButton.scrollIntoViewIfNeeded();
     await expect(deleteButton).toBeInViewport();
     await deleteButton.click();
     await expect(page.locator(".provider-status")).toContainText(
-      "Saved Key deleted.",
+      "已删除保存的 API Key。",
     );
-    await expect(page.getByText("Key required")).toBeVisible();
+    await expect(page.getByText("需要 API Key")).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "Delete saved Key" }),
+      page.getByRole("button", { name: "删除已保存的 API Key" }),
     ).toHaveCount(0);
     assertSecretAbsentFromDatabase(userDataDirectory, replacementSecret);
     expect(externalRequests).toEqual([]);

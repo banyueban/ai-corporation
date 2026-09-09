@@ -23,21 +23,19 @@ test("user tests, cancels, and restores Provider connection facts in the visible
       window?.setSize(1024, 700);
       window?.webContents.setZoomFactor(2);
     });
-    await page.getByRole("button", { name: "Settings" }).click();
-    await page.getByLabel("Name").fill("M2 Connection Provider");
-    await page.getByLabel("Endpoint").fill("http://remote.example.test/v1");
+    await page.getByRole("button", { name: "设置" }).click();
+    await page.getByLabel("名称").fill("M2 Connection Provider");
+    await page.getByLabel("API 基础 URL").fill("http://remote.example.test/v1");
     await page.getByLabel("API Key").fill(secret);
-    await page.getByRole("button", { name: "Save Provider" }).click();
+    await page.getByRole("button", { name: "保存模型服务商" }).click();
     await expect(
-      page.getByText(/Remote Endpoints must use HTTPS/u),
+      page.getByText(/远程 API 基础 URL 必须使用 HTTPS/u),
     ).toBeVisible();
-    await expect(page.getByText("No Provider has been saved.")).toBeVisible();
-    await page.getByLabel("Endpoint").fill(`${fixture.endpoint}/success`);
-    await page.getByRole("button", { name: "Save Provider" }).click();
-    await expect(
-      page.getByRole("heading", { name: "Not verified" }),
-    ).toBeVisible();
-    const testButton = page.getByRole("button", { name: "Test connection" });
+    await expect(page.getByText("还没有保存模型服务商。")).toBeVisible();
+    await page.getByLabel("API 基础 URL").fill(`${fixture.endpoint}/success`);
+    await page.getByRole("button", { name: "保存模型服务商" }).click();
+    await expect(page.getByRole("heading", { name: "尚未验证" })).toBeVisible();
+    const testButton = page.getByRole("button", { name: "测试连接" });
     await testButton.scrollIntoViewIfNeeded();
     await expect(testButton).toBeInViewport();
 
@@ -49,7 +47,7 @@ test("user tests, cancels, and restores Provider connection facts in the visible
     await testButton.focus();
     await expect(testButton).toBeFocused();
     await testButton.press("Enter");
-    await expect(page.getByRole("heading", { name: "Verified" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "已验证" })).toBeVisible();
     const connectionPanel = page.locator(".provider-connection-panel");
     await expect(connectionPanel.getByText("fixture-model-a")).toBeVisible();
     await expect(connectionPanel.getByText("fixture-model-b")).toBeVisible();
@@ -61,9 +59,9 @@ test("user tests, cancels, and restores Provider connection facts in the visible
     assertSecretAbsentFromDatabase(userDataDirectory, secret);
 
     await page.reload();
-    await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByRole("button", { name: "设置" }).click();
     await page.getByRole("button", { name: /M2 Connection Provider/u }).click();
-    await expect(page.getByRole("heading", { name: "Verified" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "已验证" })).toBeVisible();
 
     await electronApp.close();
     electronApp = await launchApplication(
@@ -71,36 +69,28 @@ test("user tests, cancels, and restores Provider connection facts in the visible
       userDataDirectory,
     );
     page = await electronApp.firstWindow();
-    await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByRole("button", { name: "设置" }).click();
     await page.getByRole("button", { name: /M2 Connection Provider/u }).click();
-    await expect(page.getByRole("heading", { name: "Verified" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "已验证" })).toBeVisible();
 
-    await page.getByLabel("Endpoint").fill(`${fixture.endpoint}/auth`);
-    await page.getByRole("button", { name: "Save changes" }).click();
+    await page.getByLabel("API 基础 URL").fill(`${fixture.endpoint}/auth`);
+    await page.getByRole("button", { name: "保存修改" }).click();
+    await expect(page.getByRole("heading", { name: "尚未验证" })).toBeVisible();
+    await page.getByRole("button", { name: "测试连接" }).click();
+    await expect(page.getByRole("heading", { name: "测试失败" })).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "Not verified" }),
-    ).toBeVisible();
-    await page.getByRole("button", { name: "Test connection" }).click();
-    await expect(
-      page.getByRole("heading", { name: "Test failed" }),
-    ).toBeVisible();
-    await expect(
-      page
-        .locator(".provider-connection-panel")
-        .getByText(/Authentication failed/u),
+      page.locator(".provider-connection-panel").getByText(/身份验证失败/u),
     ).toBeVisible();
 
-    await page.getByLabel("Endpoint").fill(`${fixture.endpoint}/delay`);
-    await page.getByRole("button", { name: "Save changes" }).click();
-    await page.getByRole("button", { name: "Test connection" }).click();
-    await expect(page.getByRole("heading", { name: "Testing" })).toBeVisible();
-    await page.getByRole("button", { name: "Cancel test" }).click();
+    await page.getByLabel("API 基础 URL").fill(`${fixture.endpoint}/delay`);
+    await page.getByRole("button", { name: "保存修改" }).click();
+    await page.getByRole("button", { name: "测试连接" }).click();
+    await expect(page.getByRole("heading", { name: "正在测试" })).toBeVisible();
+    await page.getByRole("button", { name: "取消测试" }).click();
     await expect(page.locator(".provider-status")).toContainText(
-      "Connection test cancelled.",
+      "连接测试已取消，上一次结果保持不变。",
     );
-    await expect(
-      page.getByRole("heading", { name: "Not verified" }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "尚未验证" })).toBeVisible();
     assertSecretAbsentFromDatabase(userDataDirectory, secret);
   } finally {
     await electronApp.close().catch(() => undefined);

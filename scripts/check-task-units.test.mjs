@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   checkCurrentTaskUnitReference,
+  checkDeferredEnhancementReferences,
   checkTaskUnitCollection,
   checkTaskUnitDocument,
 } from "./check-task-units.mjs";
@@ -29,20 +30,24 @@ function taskUnit({
 内容
 ## 4. 非范围
 内容
-## 5. 依赖与接口
+## 5. 简化与后续增强
+- \`DE-001\`：后续增强
+## 6. 依赖与接口
 内容
-## 6. 交付物与所有权
+## 7. 交付物与所有权
 内容
-## 7. 验收合同
+## 8. 验收合同
 - ${acceptance}
-## 8. 隔离与干扰控制
+## 9. 隔离与干扰控制
 内容
-## 9. 证据计划
+## 10. 证据计划
 内容
-## 10. 完成规则
+## 11. 完成规则
 内容
 `;
 }
+
+const enhancementRegistry = "### DE-001 示例增强\n";
 
 test("accepts a ready task unit with a complete contract", () => {
   const result = checkTaskUnitDocument(
@@ -90,6 +95,48 @@ test("rejects duplicate task unit IDs", () => {
     { fileName: "M1-TU-01-second.md", markdown: taskUnit() },
   ]);
   assert.equal(errors.length, 1);
+});
+
+test("accepts a registered enhancement reference on an unfinished task", () => {
+  const errors = checkDeferredEnhancementReferences(
+    [{ fileName: "M1-TU-01-example.md", markdown: taskUnit() }],
+    enhancementRegistry,
+  );
+  assert.deepEqual(errors, []);
+});
+
+test("rejects an unregistered enhancement reference", () => {
+  const errors = checkDeferredEnhancementReferences(
+    [
+      {
+        fileName: "M1-TU-01-example.md",
+        markdown: taskUnit().replaceAll("DE-001", "DE-999"),
+      },
+    ],
+    enhancementRegistry,
+  );
+  assert.equal(errors.length, 1);
+});
+
+test("rejects an unfinished task without an enhancement section", () => {
+  const markdown = taskUnit().replace(
+    /## 5\. 简化与后续增强[\s\S]*?(?=## 6\.)/u,
+    "",
+  );
+  const errors = checkDeferredEnhancementReferences(
+    [{ fileName: "M1-TU-01-example.md", markdown }],
+    enhancementRegistry,
+  );
+  assert.equal(errors.length, 1);
+});
+
+test("allows an unfinished task to explicitly declare no simplification", () => {
+  const markdown = taskUnit().replace("- `DE-001`：后续增强", "无。");
+  const errors = checkDeferredEnhancementReferences(
+    [{ fileName: "M1-TU-01-example.md", markdown }],
+    enhancementRegistry,
+  );
+  assert.deepEqual(errors, []);
 });
 
 test("accepts a project status reference matching the task contract", () => {

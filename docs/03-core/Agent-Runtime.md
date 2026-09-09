@@ -74,14 +74,14 @@ RUNNING → PRODUCED
 PRODUCED → SUCCEEDED
 ```
 
-`PRODUCED` 表示候选 Artifact 已生成；只有持久化成功后才转 `SUCCEEDED`。
+`PRODUCED` 表示模型候选内容已经由应用验证并持久化，但不等于正式 Artifact 已生成。正式 Artifact 任务把候选内容转换为 Artifact Version 后，Run 才转 `SUCCEEDED`。模型不得生成或指定可信 `contentRef`；引用只能由应用在持久化边界生成。
 
 ## 5. Run Limits
 
 ```ts
 type RunLimits = {
-  maxModelTurns: number;       // 默认 8
-  maxToolCalls: number;        // 默认 12
+  maxModelTurns: number; // 默认 8
+  maxToolCalls: number; // 默认 12
   maxInputTokens: number;
   maxOutputTokens: number;
   maxCostMicros: string;
@@ -129,6 +129,16 @@ type AgentContext = {
 - 工具结果优先保存为 Artifact，只在上下文中放摘要和引用；
 - 达到 70% 上下文预算时进行确定性裁剪；
 - 摘要必须保留来源 ID，不能变成无来源事实。
+
+### 6.3 Pi 员工的 Skill 上下文
+
+Pi 员工按 [Skill Runtime](Skill-Runtime.md) 使用标准 Agent Skills：
+
+- 任务开始只注入当前员工已分配 Skill 的名称和用途；
+- 员工根据当前任务自行调用 `skill.activate`，未启用 Skill 不加载完整说明；
+- 参考资料和资源继续按需读取或复制，不向模型提供应用自管副本的绝对路径；
+- Skill 的任何文字和 `allowed-tools` 都不能提升 Tool 权限；
+- 现有 `coding-task` 只要出现在员工的技能列表中，就继续获得原有编码工具集合；本任务不借多 Skill 改写既有命令授权。
 
 ## 7. Prompt 组装
 
@@ -193,9 +203,11 @@ Agent 的最终输出必须符合 [Agent Protocol 的 `AgentOutputEnvelope`](../
 2. JSON Schema 验证；
 3. 若仅格式错误，执行一次 constrained repair；
 4. 验证 Artifact 引用和路径；
-5. 存入临时区；
-6. 创建 Artifact Version；
-7. 返回给 Task Engine 进入 `VERIFYING`。
+5. 由应用生成可信候选内容引用并持久化，Run 进入 `PRODUCED`；
+6. 后续 Artifact 任务创建 Artifact Version；
+7. Artifact 持久化成功后，Run 进入 `SUCCEEDED`，Task Engine 再进入 `VERIFYING`。
+
+M3-TU-04 只交付上述第 1–5 步。它只运行没有上游 `TASK_OUTPUT`、不需要 Workspace 文件读取/写入或进程权限的首任务；Task 可声明 `requiredTools`，但本切片只把它视为后续工作说明。上下文包含安全规则、Goal 摘要、Task 合同、Agent 职责、输出要求，以及“工具不可用、不得声称已执行工具或读写文件”的硬限制。上游 Artifact、Workspace 文件、Memory、工具调用和工具结果由后续任务接入，UI 必须说明工具尚未执行。
 
 ## 10. Tool Calling
 
@@ -300,20 +312,33 @@ type StructuredError = {
 
 ## 15. Agent 间协作
 
-v0.1 不支持任意 Agent-to-Agent 消息。协作方式：
+Pi 重启版不开放任意 Agent-to-Agent 无限聊天。Milestone 15 的协作由应用管理明确的分工和交接：
 
-1. 上游创建 Artifact；
-2. Task Engine 将 Artifact Ref 注入下游 Task；
-3. 下游按需读取；
-4. Judge 创建 Evaluation Artifact；
-5. 修订 Run 接收结构化反馈。
+1. 一项公司协作任务记录最终负责人和参与员工；
+2. 每个分工只属于一名员工，并说明要交回的结果；
+3. 员工把结果保存为可核对的交接记录或自己负责的独立文件；
+4. 下游员工只接收任务需要的明确结果，不自动继承其他员工的全部上下文；
+5. 最终负责人汇总交接结果、完成自查并提交用户验收。
 
-若确需提问，创建：
+Workspace 使用以下简单规则：
 
-- `ClarificationRequest` 给用户；或
-- `FollowupTask` 给指定能力的 Agent。
+- 同一协作任务只使用用户选定的一个 Workspace；
+- 一个文件只有一名负责人可以修改，不允许多名员工同时覆盖同一文件；
+- 不同员工可以分别负责不同文件；
+- 编码任务只有一名编码员工可以使用代码写入工具以及可能改变项目的命令，其他员工只能提交要求、资料或检查意见；
+- 首版不创建 Git worktree、临时分支或自动合并，也不实现普通文档、图片、音频或视频的通用合并。
 
-两者都受 Task Engine 管理。
+运行过程必须显示每项分工的负责人、员工自己的模型与 Skill、当前状态、交接结果和最终责任。模型不能自行增加参与员工、扩大别人的文件范围或把部分成功说成整项完成。
+
+公司协作由用户在公司工作区明确发起。用户选择 Workspace 和最终负责人，最终负责人可以从当前公司成员中按 Skill 选择零名或多名协助员工；选择结果和分工立即展示并开始，不需要第二次确认。模型不能选择公司外员工，也不能改变用户选择的最终负责人或 Workspace。
+
+协助员工失败时，委派工具返回准确失败并保存分工状态，不自动重试，也不直接把整项任务标记失败。最终负责人可以使用其他已完成交接继续；如果无法继续，必须通过“需要用户决定”工具暂停整项任务。用户可以明确让负责人使用现有结果继续、重新安排失败工作或停止。继续动作产生新的可见模型过程；重新安排不是隐藏重试。
+
+用户停止整项任务时，应用终止最终负责人和全部仍在运行的协助员工，撤销本任务授权，保留已经完成的交接、已登记文件和过程并标记为未完成成果。应用重启把未结束的协作标记为中断，不自动重放模型、工具、委派或命令。
+
+编码协作不增加第二套运行器或任务类型。用户选择的最终负责人必须拥有 `coding-task` Skill，并同时成为唯一编码员工；可信 Main 侧只根据这名员工已保存的 Skill 注册代码写入、成果登记和项目命令工具。协助员工继续使用只读工具，可以整理要求、查询资料或阅读编码员工指出的文件并交回检查意见，不能运行项目命令、修改代码或登记代码成果。检查发现问题后仍由同一编码员工修改并重新运行检查。日常任务允许编码员工不委派；M15-TU-02 的连续验收任务必须至少形成一条真实协助分工和交接。
+
+可信 Main 侧还要把当前真实操作系统写入员工系统说明：Windows 说明使用 Windows 命令解释器，macOS 说明使用 macOS Shell，其他系统说明使用对应 Unix Shell。不能把某一种系统写死给所有安装包；可以使用 Node.js 完成的检查优先采用跨平台写法，减少把 `rm` 发到 Windows 或把 `del` 发到 macOS 的无效尝试。
 
 ## 16. 服务接口
 

@@ -166,6 +166,68 @@ export function checkTaskUnitCollection(documents) {
   return errors;
 }
 
+export function checkDeferredEnhancementReferences(
+  documents,
+  registryMarkdown,
+) {
+  const errors = [];
+  const registryIds = new Set();
+
+  for (const match of registryMarkdown.matchAll(/^###\s+(DE-\d{3})\b/gmu)) {
+    const id = match[1];
+    if (registryIds.has(id)) {
+      errors.push(`Deferred-Enhancements.md: duplicate enhancement ID ${id}`);
+    }
+    registryIds.add(id);
+  }
+
+  if (registryIds.size === 0) {
+    errors.push("Deferred-Enhancements.md: no DE-xxx entries found");
+  }
+
+  for (const document of documents) {
+    const { status } = checkTaskUnitDocument(
+      document.markdown,
+      document.fileName,
+    );
+    if (status === undefined || status === "完成") {
+      continue;
+    }
+
+    const section =
+      /^##\s+\d+\.\s+简化与后续增强\s*$([\s\S]*?)(?=^##\s|(?![\s\S]))/mu.exec(
+        document.markdown,
+      );
+    if (section === null) {
+      errors.push(
+        `${document.fileName}: unfinished task unit is missing section "简化与后续增强"`,
+      );
+      continue;
+    }
+
+    const references = [...section[1].matchAll(/\bDE-\d{3}\b/gmu)].map(
+      (match) => match[0],
+    );
+    if (
+      references.length === 0 &&
+      !/(?:^|[：:\s])无(?:[。；;\s]|$)/mu.test(section[1])
+    ) {
+      errors.push(
+        `${document.fileName}: enhancement section must reference DE-xxx or explicitly state "无"`,
+      );
+    }
+    for (const id of references) {
+      if (!registryIds.has(id)) {
+        errors.push(
+          `${document.fileName}: enhancement reference ${id} is not registered`,
+        );
+      }
+    }
+  }
+
+  return errors;
+}
+
 export function checkCurrentTaskUnitReference(statusMarkdown, documents) {
   const errors = [];
   const reference =
@@ -211,6 +273,13 @@ function run() {
 
   const errors = [
     ...checkTaskUnitCollection(documents),
+    ...checkDeferredEnhancementReferences(
+      documents,
+      readFileSync(
+        resolve("docs/06-engineering/Deferred-Enhancements.md"),
+        "utf8",
+      ),
+    ),
     ...checkCurrentTaskUnitReference(
       readFileSync(resolve("PROJECT_STATUS.md"), "utf8"),
       documents,

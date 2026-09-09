@@ -180,6 +180,8 @@ Adapter 内部还可携带固定安全诊断枚举，区分 HTTP 服务器错误
 
 在默认 Planner 模型策略尚未交付前，每次 Planner 生成必须由用户明确选择已验证 Provider 和精确模型；不得静默沿用 Goal Provider、自动回退或假装默认路由已经存在。Planner Provider 输入只允许当前已批准 Goal Contract 与应用内置的版本化能力、工具和媒体类型白名单，不包含 Workspace 路径、目录或文件内容。
 
+Milestone 3 团队激活使用 Planner、全部 Executor、Judge 三组独立选择。每组可以从任一当前已启用且连接验证有效的 Provider 模型列表中选择精确模型，选择不会修改 Provider 设置中的 `selectedModelId`。激活只验证配置事实并保存路由快照，不发起生成测试或模型调用。Provider 后续变化不会改写快照；运行前发现快照失效时必须阻止执行，不允许自动跟随、自动回退或静默换模。
+
 ## 12. 测试重点
 
 - 各错误归一化；

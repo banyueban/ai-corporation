@@ -7,7 +7,9 @@ import axe from "axe-core";
 import { _electron as electron } from "playwright";
 import type { DesktopApi } from "../src/shared/desktop-api";
 
-test("user creates and cancels real Goal Engine operations in the visible window", async () => {
+// M10 将旧 Goal/Plan 写入流程移出产品主入口；历史数据只读保留，因此不再运行旧写入旅程。
+test.skip("user creates and cancels real Goal Engine operations in the visible window", async () => {
+  test.setTimeout(180_000);
   const fixture = await startGoalFixture();
   const userDataDirectory = mkdtempSync(
     path.join(tmpdir(), "M2-TU-05-electron-user-data-"),
@@ -39,36 +41,38 @@ test("user creates and cancels real Goal Engine operations in the visible window
       window?.setSize(1024, 700);
       window?.webContents.setZoomFactor(2);
     });
-    await page.getByRole("button", { name: "Settings" }).click();
-    await page.getByLabel("Name").fill("Goal Fixture Provider");
-    await page.getByLabel("Endpoint").fill(fixture.endpoint);
+    await page.getByRole("button", { name: "设置" }).click();
+    await page.getByLabel("名称").fill("Goal Fixture Provider");
+    await page.getByLabel("API 基础 URL").fill(fixture.endpoint);
     await page.getByLabel("API Key").fill(secret);
-    await page.getByRole("button", { name: "Save Provider" }).click();
-    await page.getByRole("button", { name: "Test connection" }).click();
-    await expect(page.getByRole("heading", { name: "Verified" })).toBeVisible();
-    await page.getByLabel("Model").selectOption("goal-model");
-    await page.getByRole("button", { name: "Save changes" }).click();
-
-    await page.getByRole("button", { name: "Dashboard", exact: true }).click();
-    await page.getByRole("button", { name: "Select a workspace" }).click();
-    await page.getByRole("button", { name: /Select folder/u }).click();
-    await page.getByLabel("Corporation name *").fill("Generated Corporation");
-    await page.getByLabel("Goal *").fill("Launch a safe pilot");
+    await page.getByRole("button", { name: "保存模型服务商" }).click();
+    await page.getByRole("button", { name: "测试连接" }).click();
+    await expect(page.getByRole("heading", { name: "已验证" })).toBeVisible();
     await page
-      .getByLabel(/Verified Provider and exact model/u)
+      .getByRole("combobox", { name: /^模型/u })
+      .selectOption("goal-model");
+    await page.getByRole("button", { name: "保存修改" }).click();
+
+    await page.getByRole("button", { name: "控制台", exact: true }).click();
+    await page.getByRole("button", { name: "选择工作区" }).click();
+    await page.getByRole("button", { name: /选择文件夹/u }).click();
+    await page.getByLabel("公司名称 *").fill("Generated Corporation");
+    await page.getByLabel("目标 *").fill("Launch a safe pilot");
+    await page
+      .getByLabel(/已验证的模型服务商和准确模型/u)
       .selectOption({ label: "Goal Fixture Provider · goal-model" });
     fixture.enqueue(goalOutput([]));
     await page
-      .getByRole("button", { name: "Analyze and create Provider draft" })
+      .getByRole("button", { name: "分析并创建模型服务商草稿" })
       .click();
     await expect(
-      page.getByRole("heading", { name: "Confirm Goal Contract" }),
+      page.getByRole("heading", { name: "确认目标合同" }),
     ).toBeFocused();
-    await expect(page.getByText("v1 · DRAFT · PROVIDER")).toBeVisible();
     await expect(
-      page
-        .getByRole("status")
-        .filter({ hasText: /usage 12 input \/ 8 output/u }),
+      page.getByText("版本 1 · 草稿 · 模型服务商生成"),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("status").filter({ hasText: /用量：输入 12 \/ 输出 8/u }),
     ).toBeVisible();
     expect(fixture.generationRequests()[0]?.body).toMatchObject({
       max_tokens: 65_536,
@@ -88,23 +92,24 @@ test("user creates and cancels real Goal Engine operations in the visible window
       window?.setSize(1440, 900);
       window?.webContents.setZoomFactor(1);
     });
+    markJourneyStage("provider-ready");
 
-    await page.getByRole("button", { name: "Dashboard", exact: true }).click();
-    await page.getByRole("button", { name: "New Corporation" }).click();
-    await page.getByLabel("Corporation name *").fill("Cancelled Corporation");
-    await page.getByLabel("Goal *").fill("Cancel this analysis");
+    await page.getByRole("button", { name: "控制台", exact: true }).click();
+    await page.getByRole("button", { name: "新建公司" }).click();
+    await page.getByLabel("公司名称 *").fill("Cancelled Corporation");
+    await page.getByLabel("目标 *").fill("Cancel this analysis");
     await page
-      .getByLabel(/Verified Provider and exact model/u)
+      .getByLabel(/已验证的模型服务商和准确模型/u)
       .selectOption({ label: "Goal Fixture Provider · goal-model" });
     fixture.delayNext();
     await page
-      .getByRole("button", { name: "Analyze and create Provider draft" })
+      .getByRole("button", { name: "分析并创建模型服务商草稿" })
       .click({ noWaitAfter: true });
-    await expect(page.getByText("GENERATING", { exact: true })).toBeVisible();
+    await expect(page.getByText("生成中", { exact: true })).toBeVisible();
     await expect.poll(fixture.generationCalls).toBe(2);
-    await page.getByRole("button", { name: "Cancel analysis" }).click();
-    await expect(page.getByText("CANCELLED", { exact: true })).toBeVisible();
-    await expect(page.getByText(/did not save a Goal/u)).toBeVisible();
+    await page.getByRole("button", { name: "取消分析" }).click();
+    await expect(page.getByText("已取消", { exact: true })).toBeVisible();
+    await expect(page.getByText(/没有保存目标/u)).toBeVisible();
 
     await openNewGoal(
       page,
@@ -113,11 +118,9 @@ test("user creates and cancels real Goal Engine operations in the visible window
     );
     fixture.enqueue(goalOutput(["Confirm the current Corporation version"]));
     await page
-      .getByRole("button", { name: "Analyze and create Provider draft" })
+      .getByRole("button", { name: "分析并创建模型服务商草稿" })
       .click();
-    await expect(
-      page.getByText("CLARIFICATION_REQUIRED", { exact: true }),
-    ).toBeVisible();
+    await expect(page.getByText("需要补充说明", { exact: true })).toBeVisible();
     const updateResult = await page.evaluate(async () => {
       const desktop = (window as unknown as { desktop: DesktopApi }).desktop;
       const workspaces = await desktop.workspace.list();
@@ -143,62 +146,60 @@ test("user creates and cancels real Goal Engine operations in the visible window
     await page
       .locator(".clarification-list textarea")
       .fill("Use the current Corporation facts only");
-    await page.getByRole("button", { name: "Submit all answers" }).click();
+    await page.getByRole("button", { name: "提交全部答案" }).click();
     await expect(
-      page.getByText(/facts changed\. Reload before retrying/u),
+      page.getByText(/分析依据已经变化，请重新加载后再试/u),
     ).toBeVisible();
 
     await openNewGoal(page, "Repair Corporation", "Repair one invalid output");
     fixture.enqueue("not valid json");
     fixture.enqueue(goalOutput([]));
     await page
-      .getByRole("button", { name: "Analyze and create Provider draft" })
+      .getByRole("button", { name: "分析并创建模型服务商草稿" })
       .click();
     await expect(
-      page.getByRole("heading", { name: "Confirm Goal Contract" }),
+      page.getByRole("heading", { name: "确认目标合同" }),
     ).toBeVisible();
 
     await openNewGoal(page, "Repair Failure Corporation", "Reject bad output");
     fixture.enqueue("not valid json");
     fixture.enqueue("still not valid json");
     await page
-      .getByRole("button", { name: "Analyze and create Provider draft" })
+      .getByRole("button", { name: "分析并创建模型服务商草稿" })
       .click();
-    await expect(page.getByText("FAILED", { exact: true })).toBeVisible();
-    await expect(page.getByText(/did not save a Goal/u)).toBeVisible();
+    await expect(page.getByText("失败", { exact: true })).toBeVisible();
+    await expect(page.getByText(/没有保存目标/u)).toBeVisible();
 
     await openNewGoal(page, "Extended Corporation", "Clarify until the limit");
     for (let index = 0; index <= 10; index += 1) {
       fixture.enqueue(goalOutput([`Extension question ${index}`]));
     }
     await page
-      .getByRole("button", { name: "Analyze and create Provider draft" })
+      .getByRole("button", { name: "分析并创建模型服务商草稿" })
       .click();
     for (let round = 0; round < 5; round += 1) {
       await page
         .locator(".clarification-list textarea")
         .fill(`Answer ${round}`);
-      await page.getByRole("button", { name: "Submit all answers" }).click();
+      await page.getByRole("button", { name: "提交全部答案" }).click();
     }
     await expect(
-      page.getByText("EXTENSION_REQUIRED", { exact: true }),
+      page.getByText("需要决定是否继续", { exact: true }),
     ).toBeVisible();
-    await expect(page.getByText(/Provider calls are stopped/u)).toBeVisible();
-    await page
-      .getByRole("button", { name: "Continue another 5 rounds" })
-      .click();
-    await expect(page.getByText(/Cycle 2/u)).toBeVisible();
+    await expect(page.getByText(/不会继续调用模型服务商/u)).toBeVisible();
+    await page.getByRole("button", { name: "再继续 5 轮" }).click();
+    await expect(page.getByText(/第 2 个周期/u)).toBeVisible();
     for (let round = 0; round < 5; round += 1) {
       await page
         .locator(".clarification-list textarea")
         .fill(`Extended answer ${round}`);
-      await page.getByRole("button", { name: "Submit all answers" }).click();
+      await page.getByRole("button", { name: "提交全部答案" }).click();
     }
     await expect(
-      page.getByText("EXTENSION_REQUIRED", { exact: true }),
+      page.getByText("需要决定是否继续", { exact: true }),
     ).toBeVisible();
     await expect(
-      page.getByText(/Cycle 2 · completed clarification rounds 5\/5/u),
+      page.getByText(/第 2 个周期 · 已完成补充说明 5\/5 轮/u),
     ).toBeVisible();
     await page.screenshot({
       path: path.resolve(
@@ -207,8 +208,9 @@ test("user creates and cancels real Goal Engine operations in the visible window
         `m2-tu05-dev-${process.platform}-${process.arch}-1440x900-cycle-2.png`,
       ),
     });
-    await page.getByRole("button", { name: "Cancel" }).click();
-    await expect(page.getByText("CANCELLED", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "取消" }).click();
+    await expect(page.getByText("已取消", { exact: true })).toBeVisible();
+    markJourneyStage("goal-matrix-complete");
 
     await openNewGoal(
       page,
@@ -219,16 +221,16 @@ test("user creates and cancels real Goal Engine operations in the visible window
       fixture.enqueue(goalOutput([`Unconfirmed question ${index}`]));
     }
     await page
-      .getByRole("button", { name: "Analyze and create Provider draft" })
+      .getByRole("button", { name: "分析并创建模型服务商草稿" })
       .click();
     for (let round = 0; round < 5; round += 1) {
       await page
         .locator(".clarification-list textarea")
         .fill(`Known answer ${round}`);
-      await page.getByRole("button", { name: "Submit all answers" }).click();
+      await page.getByRole("button", { name: "提交全部答案" }).click();
     }
     await page
-      .getByRole("button", { name: "Save with unconfirmed HIGH assumptions" })
+      .getByRole("button", { name: "保存含未确认高影响假设的草稿" })
       .click();
     await expect(
       page.getByRole("checkbox", { name: /Unconfirmed question 5/u }),
@@ -236,28 +238,31 @@ test("user creates and cancels real Goal Engine operations in the visible window
     await page
       .getByRole("checkbox", { name: /Unconfirmed question 5/u })
       .check();
-    await page.getByRole("button", { name: "Confirm Goal Contract" }).click();
-    await expect(page.getByText("APPROVED", { exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "Start planning setup" }).click();
+    await page.getByRole("button", { name: "确认目标合同" }).click();
+    await expect(page.getByText("已批准", { exact: true })).toBeVisible();
+    markJourneyStage("goal-approved");
+    await page.getByRole("button", { name: "开始规划设置" }).click();
     await expect(
-      page.getByRole("heading", { name: "Generate Plan draft" }),
+      page.getByRole("heading", { name: "生成并验证计划" }),
     ).toBeFocused();
-    await expect(page.getByText(/Not sent: Workspace path/u)).toBeVisible();
+    await expect(page.getByText(/不会发送：工作区路径/u)).toBeVisible();
     await page
-      .getByLabel("Verified Provider / model")
+      .getByLabel("已验证的模型服务商 / 模型")
       .selectOption({ label: "Goal Fixture Provider · goal-model" });
     fixture.enqueue(plannerOutput());
-    await page
-      .getByRole("button", { name: "Generate unvalidated draft" })
-      .click();
+    await page.getByRole("button", { name: "生成并验证计划" }).click();
     await expect(
-      page.getByRole("heading", { name: "Unvalidated Plan draft" }),
+      page.getByRole("heading", { name: "计划已通过本地验证" }),
     ).toBeVisible();
-    await expect(page.getByText(/DRAFT · PENDING/u)).toBeVisible();
-    await expect(page.getByText(/Suggested role:/u)).toContainText(
-      "Writer · not staffed",
+    await expect(page.getByText(/已验证 · 验证通过/u)).toBeVisible();
+    await expect(page.getByText(/仍在等待验证/u)).toHaveCount(0);
+    await expect(page.locator(".inline-status")).toContainText(
+      "已保存并通过本地验证",
     );
-    await expect(page.getByText(/execution is unavailable/u)).toBeVisible();
+    await expect(page.getByText(/建议角色：/u)).toContainText(
+      "Writer · 尚未安排人员",
+    );
+    await expect(page.locator(".success-card")).toContainText("不能执行");
     const plannerRequest = fixture.generationRequests().at(-1)?.body;
     expect(plannerRequest).toMatchObject({
       max_tokens: 65_536,
@@ -272,12 +277,12 @@ test("user creates and cancels real Goal Engine operations in the visible window
       window?.setSize(1024, 700);
       window?.webContents.setZoomFactor(2);
     });
-    await expect(page.getByText(/Unvalidated Plan draft/u)).toBeVisible();
+    await expect(page.getByText(/计划已通过本地验证/u)).toBeVisible();
     await page.screenshot({
       path: path.resolve(
         __dirname,
         "../../../release",
-        `m2-tu06-dev-${process.platform}-${process.arch}-1024x700-200-percent.png`,
+        `m2-tu07-valid-dev-${process.platform}-${process.arch}-1024x700-200-percent.png`,
       ),
     });
     await app.evaluate(({ BrowserWindow }) => {
@@ -289,14 +294,342 @@ test("user creates and cancels real Goal Engine operations in the visible window
       path: path.resolve(
         __dirname,
         "../../../release",
-        `m2-tu06-dev-${process.platform}-${process.arch}-1440x900.png`,
+        `m2-tu07-valid-dev-${process.platform}-${process.arch}-1440x900.png`,
       ),
     });
+    await app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0];
+      window?.setSize(1024, 700);
+      window?.webContents.setZoomFactor(2);
+    });
+
+    const callsBeforePlanReview = fixture.generationCalls();
+    await page.getByRole("button", { name: "编辑计划" }).click();
+    await page.getByLabel("标题").fill("人工修改后的报告任务");
+    await page.getByRole("button", { name: "删除验收标准" }).click();
+    await page.getByRole("button", { name: "保存新版本" }).click();
+    await expect(
+      page.getByRole("heading", { name: "计划验证未通过" }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: /版本 2/u })).toBeVisible();
+    expect(fixture.generationCalls()).toBe(callsBeforePlanReview);
+    await page.getByRole("button", { name: "编辑计划" }).click();
+    await page.getByRole("button", { name: "新增验收标准" }).click();
+    await page.getByLabel("内容").last().fill("报告包含人工新增的检查项");
+    await page.getByLabel("所需证据（每行一项）").last().fill("result");
+    await page.getByRole("button", { name: "保存新版本" }).click();
+    await expect(
+      page.getByRole("heading", { name: "计划已通过本地验证" }),
+    ).toBeVisible();
+    await expect(page.getByText("人工修改后的报告任务")).toBeVisible();
+    await expect(page.getByRole("button", { name: /版本 3/u })).toBeVisible();
+    expect(fixture.generationCalls()).toBe(callsBeforePlanReview);
+    await page.getByRole("button", { name: "批准计划" }).click();
+    await expect(
+      page.getByRole("heading", { name: "计划已批准" }),
+    ).toBeVisible();
+    await app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0];
+      window?.setSize(1440, 900);
+      window?.webContents.setZoomFactor(1);
+    });
+    await page.screenshot({
+      animations: "disabled",
+      fullPage: true,
+      path: path.resolve(
+        __dirname,
+        "../../../release",
+        `m2-tu08-approved-dev-${process.platform}-${process.arch}-1440x900.png`,
+      ),
+    });
+    await expect(
+      page.getByText("此版本已经冻结。没有创建团队，也没有开始执行。"),
+    ).toBeVisible();
+    markJourneyStage("plan-approved");
+    await page.getByRole("button", { name: "开始组队" }).click();
+    await expect(
+      page.getByText(
+        "此版本已经冻结。团队草案已生成但尚未激活，也没有开始执行。",
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "重新生成团队草案" }),
+    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "团队草案" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "分析与文档执行员" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "独立验收员" }),
+    ).toBeVisible();
+    await expect(page.getByText("没有发现能力缺口。")).toBeVisible();
+    expect(fixture.generationCalls()).toBe(callsBeforePlanReview);
+    await page.screenshot({
+      animations: "disabled",
+      fullPage: true,
+      path: path.resolve(
+        __dirname,
+        "../../../release",
+        `m3-tu01-team-proposal-dev-${process.platform}-${process.arch}-1440x900.png`,
+      ),
+    });
+    await expect(page.getByRole("button", { name: "编辑计划" })).toHaveCount(0);
+    expect(fixture.generationCalls()).toBe(callsBeforePlanReview);
+    markJourneyStage("proposal-ready");
+    await app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0];
+      window?.setSize(1024, 700);
+      window?.webContents.setZoomFactor(2);
+    });
+    const configuration = page.getByRole("region", { name: "配置并确认团队" });
+    const selects = configuration.getByRole("combobox");
+    await selects.nth(0).focus();
+    await page.keyboard.type("Goal Fixture Provider");
+    await page.keyboard.press("Tab");
+    await expect(selects.nth(0)).not.toHaveValue("");
+    await expect(selects.nth(1)).toBeFocused();
+    await page.keyboard.type("goal-model");
+    await page.keyboard.press("Tab");
+    await expect(selects.nth(1)).not.toHaveValue("");
+    await selects.nth(2).selectOption({ label: "Goal Fixture Provider" });
+    await selects.nth(3).selectOption("goal-model");
+    await selects.nth(4).selectOption({ label: "Goal Fixture Provider" });
+    await selects.nth(5).selectOption("goal-model");
+    await configuration.getByRole("button", { name: "确认团队" }).click();
+    await expect(
+      page.getByRole("heading", { name: "团队已激活，等待开始执行" }),
+    ).toBeVisible();
+    await expect(page.getByText(/已创建 3 个团队成员/u)).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "重新生成团队草案" }),
+    ).toHaveCount(0);
+    expect(fixture.generationCalls()).toBe(callsBeforePlanReview);
+    const activationFacts = await page.evaluate(async () => {
+      const desktop = (window as unknown as { desktop: DesktopApi }).desktop;
+      const workspaces = await desktop.workspace.list();
+      if (!workspaces.ok) throw new Error("workspace unavailable");
+      const corporations = await desktop.corporation.list({
+        schemaVersion: "1.0",
+        workspaceId: workspaces.value[0]?.workspaceId ?? "",
+      });
+      if (!corporations.ok) throw new Error("corporations unavailable");
+      const corporation = corporations.value.find(
+        ({ name }) => name === "Assumption Corporation",
+      );
+      if (corporation === undefined) throw new Error("corporation unavailable");
+      const activation = await desktop.organizationActivation.getCurrent({
+        schemaVersion: "1.0",
+        corporationId: corporation.id,
+      });
+      return { corporationStatus: corporation.status, activation };
+    });
+    expect(activationFacts.corporationStatus).toBe("DRAFT");
+    expect(activationFacts.activation).toMatchObject({
+      ok: true,
+      value: {
+        status: "ACTIVE",
+        agents: [{ status: "READY" }, { status: "READY" }, { status: "READY" }],
+      },
+    });
+    markJourneyStage("team-activated");
+    await expect(
+      page.getByRole("heading", { name: "团队已激活，等待开始执行" }),
+    ).toBeVisible();
+    expect(
+      await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth <=
+          document.documentElement.clientWidth,
+      ),
+    ).toBe(true);
+    await page.screenshot({
+      animations: "disabled",
+      path: path.resolve(
+        __dirname,
+        "../../../release",
+        `m3-tu02-team-active-dev-${process.platform}-${process.arch}-1024x700-200-percent.png`,
+      ),
+    });
+    await app.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0];
+      window?.setSize(1440, 900);
+      window?.webContents.setZoomFactor(1);
+    });
+    await expect(
+      page.getByRole("heading", { name: "团队已激活，等待开始执行" }),
+    ).toBeVisible();
+    await page.screenshot({
+      animations: "disabled",
+      fullPage: true,
+      path: path.resolve(
+        __dirname,
+        "../../../release",
+        `m3-tu02-team-active-dev-${process.platform}-${process.arch}-1440x900.png`,
+      ),
+    });
+    await page.reload();
+    await openPlannerForCorporation(page, "Assumption Corporation");
+    await expect(
+      page.getByRole("heading", { name: "计划已批准" }),
+    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "团队草案" })).toBeVisible();
+    await expect(
+      page.getByText(
+        "团队已激活，等待开始执行。公司状态仍为草稿，当前没有运行任务。",
+      ),
+    ).toBeVisible();
+    await expect(page.getByText(/已创建 3 个团队成员/u)).toBeVisible();
+    markJourneyStage("activation-restored");
+    const callsBeforeExecutionStart = fixture.generationCalls();
+    fixture.enqueue(agentCandidateOutput());
+    await page.getByRole("button", { name: "开始执行" }).focus();
+    await page.keyboard.press("Enter");
+    await expect(
+      page.getByRole("heading", { name: "执行已开始" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "模型候选内容" }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/当前只生成候选内容.*工具操作仍未执行/u),
+    ).toBeVisible();
+    await expect(page.getByText("尚未成为正式交付物。")).toBeVisible();
+    await expect(page.getByText("候选报告正文")).toBeVisible();
+    await expect(page.getByText(/人工修改后的报告任务：执行中/u)).toBeVisible();
+    await expect(page.getByText(/当前没有运行任务/u)).toHaveCount(0);
+    expect(fixture.generationCalls()).toBe(callsBeforeExecutionStart + 1);
+    const agentRequest = JSON.stringify(
+      fixture.generationRequests().at(-1)?.body,
+    );
+    expect(agentRequest).toContain("workspace.propose_write");
+    expect(agentRequest).toContain("Tools are unavailable in this run");
+    expect(agentRequest).toContain("toolCallsExecuted");
+    expect(agentRequest).toContain("workspaceWrite");
+    const executionFacts = await page.evaluate(async () => {
+      const desktop = (window as unknown as { desktop: DesktopApi }).desktop;
+      const workspaces = await desktop.workspace.list();
+      if (!workspaces.ok) throw new Error("workspace unavailable");
+      const corporations = await desktop.corporation.list({
+        schemaVersion: "1.0",
+        workspaceId: workspaces.value[0]?.workspaceId ?? "",
+      });
+      if (!corporations.ok) throw new Error("corporations unavailable");
+      const corporation = corporations.value.find(
+        ({ name }) => name === "Assumption Corporation",
+      );
+      if (corporation === undefined) throw new Error("corporation unavailable");
+      const execution = await desktop.executionStart.getCurrent({
+        schemaVersion: "1.0",
+        corporationId: corporation.id,
+      });
+      const run = await desktop.agentRun.getCurrent({
+        schemaVersion: "1.0",
+        corporationId: corporation.id,
+      });
+      return { corporation, execution, run };
+    });
+    expect(executionFacts.corporation.status).toBe("EXECUTING");
+    expect(executionFacts.execution).toMatchObject({
+      ok: true,
+      value: { corporationStatus: "EXECUTING", run: { status: "CREATED" } },
+    });
+    expect(executionFacts.run).toMatchObject({
+      ok: true,
+      value: { status: "PRODUCED", outputs: [{ content: "候选报告正文" }] },
+    });
+    await page.reload();
+    await openPlannerForCorporation(page, "Assumption Corporation");
+    await expect(
+      page.getByRole("heading", { name: "执行已开始" }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "开始执行" })).toHaveCount(0);
+    await expect(page.getByText("候选报告正文")).toBeVisible();
+    expect(fixture.generationCalls()).toBe(callsBeforeExecutionStart + 1);
+    markJourneyStage("execution-started-restored");
+    await page.getByRole("button", { name: /版本 1/u }).click();
+    await expect(
+      page.getByRole("heading", { name: "这是只读历史版本" }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "批准计划" })).toHaveCount(0);
+
+    const blockedDeleteCorporation = await createApprovedGoal(
+      page,
+      "Blocked Delete Corporation",
+      "Keep outputs that another task still uses",
+      150,
+    );
+    await openPlannerForCorporation(page, blockedDeleteCorporation.name);
+    await selectPlannerProvider(page, "Goal Fixture Provider · goal-model");
+    fixture.enqueue(twoTaskPlannerOutput());
+    await page.getByRole("button", { name: "生成并验证计划" }).click();
+    await expect(
+      page.getByRole("heading", { name: "计划已通过本地验证" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "编辑计划" }).click();
+    await page.getByRole("button", { name: "删除此任务" }).first().click();
+    await page.getByRole("button", { name: "保存新版本" }).click();
+    await expect(page.getByRole("alert")).toContainText(
+      "保留的任务仍在使用它的输出",
+    );
+    await expect(page.getByRole("alert")).toContainText("Use report");
+    expect(
+      (await getPlannerOperation(page, blockedDeleteCorporation.id))?.plan
+        ?.planVersion,
+    ).toBe(1);
+
+    const invalidCorporation = await createApprovedGoal(
+      page,
+      "Invalid Plan Corporation",
+      "Reject a locally invalid plan",
+      200,
+    );
+    await openPlannerForCorporation(page, invalidCorporation.name);
+    await selectPlannerProvider(page, "Goal Fixture Provider · goal-model");
+    const callsBeforeInvalidPlan = fixture.generationCalls();
+    fixture.enqueue(invalidPlannerOutput());
+    await page.getByRole("button", { name: "生成并验证计划" }).click();
+    await expect(
+      page.getByRole("heading", { name: "计划验证未通过" }),
+    ).toBeVisible();
+    await expect(page.locator(".error-state")).toContainText(
+      "任务缺少必须通过的验收标准",
+    );
+    await expect(page.locator(".error-state")).toContainText(
+      "没有创建正式任务",
+    );
+    await expect(page.locator(".inline-status")).toContainText(
+      "本地验证未通过",
+    );
+    await expect(page.locator(".error-state")).toContainText(
+      "未批准、未组队，也不能执行",
+    );
+    expect(fixture.generationCalls() - callsBeforeInvalidPlan).toBe(1);
+    expect(
+      await getPlannerOperation(page, invalidCorporation.id),
+    ).toMatchObject({
+      status: "PLAN_SAVED",
+      plan: { status: "DRAFT", validationStatus: "INVALID" },
+    });
+    await page.reload();
+    await openPlannerForCorporation(page, invalidCorporation.name);
+    await expect(
+      page.getByRole("heading", { name: "计划验证未通过" }),
+    ).toBeVisible();
+    expect(fixture.generationCalls() - callsBeforeInvalidPlan).toBe(1);
+    await page.getByRole("button", { name: "编辑计划" }).click();
+    await page.getByLabel("级别").selectOption("REQUIRED");
+    await page.getByRole("button", { name: "保存新版本" }).click();
+    await expect(
+      page.getByRole("heading", { name: "计划已通过本地验证" }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: /版本 2/u })).toBeVisible();
+    expect(fixture.generationCalls() - callsBeforeInvalidPlan).toBe(1);
     expect(
       fixture.requests.some(
         ({ authorization }) => authorization === `Bearer ${secret}`,
       ),
     ).toBe(true);
+    markJourneyStage("journey-complete");
   } finally {
     fixture.releaseDelayed();
     await app.close().catch(() => undefined);
@@ -306,7 +639,11 @@ test("user creates and cancels real Goal Engine operations in the visible window
   }
 });
 
-test("user sees an interrupted Goal operation after process restart without replay", async () => {
+function markJourneyStage(stage: string): void {
+  process.stdout.write(`GOAL_E2E_STAGE:${stage}\n`);
+}
+
+test.skip("user sees an interrupted Goal operation after process restart without replay", async () => {
   const fixture = await startGoalFixture();
   const userDataDirectory = mkdtempSync(
     path.join(tmpdir(), "M2-TU-05-restart-user-data-"),
@@ -317,28 +654,30 @@ test("user sees an interrupted Goal operation after process restart without repl
   let app = await launchGoalApplication(userDataDirectory, workspaceDirectory);
   try {
     let page = await app.firstWindow();
-    await page.getByRole("button", { name: "Settings" }).click();
-    await page.getByLabel("Name").fill("Restart Goal Provider");
-    await page.getByLabel("Endpoint").fill(fixture.endpoint);
+    await page.getByRole("button", { name: "设置" }).click();
+    await page.getByLabel("名称").fill("Restart Goal Provider");
+    await page.getByLabel("API 基础 URL").fill(fixture.endpoint);
     await page
       .getByLabel("API Key")
       .fill(`M2-TU-05-${crypto.randomUUID()}-restart-key`);
-    await page.getByRole("button", { name: "Save Provider" }).click();
-    await page.getByRole("button", { name: "Test connection" }).click();
-    await expect(page.getByRole("heading", { name: "Verified" })).toBeVisible();
-    await page.getByLabel("Model").selectOption("goal-model");
-    await page.getByRole("button", { name: "Save changes" }).click();
-    await page.getByRole("button", { name: "Dashboard", exact: true }).click();
-    await page.getByRole("button", { name: "Select a workspace" }).click();
-    await page.getByRole("button", { name: /Select folder/u }).click();
-    await page.getByLabel("Corporation name *").fill("Interrupted Corporation");
-    await page.getByLabel("Goal *").fill("Do not replay after restart");
+    await page.getByRole("button", { name: "保存模型服务商" }).click();
+    await page.getByRole("button", { name: "测试连接" }).click();
+    await expect(page.getByRole("heading", { name: "已验证" })).toBeVisible();
     await page
-      .getByLabel(/Verified Provider and exact model/u)
+      .getByRole("combobox", { name: /^模型/u })
+      .selectOption("goal-model");
+    await page.getByRole("button", { name: "保存修改" }).click();
+    await page.getByRole("button", { name: "控制台", exact: true }).click();
+    await page.getByRole("button", { name: "选择工作区" }).click();
+    await page.getByRole("button", { name: /选择文件夹/u }).click();
+    await page.getByLabel("公司名称 *").fill("Interrupted Corporation");
+    await page.getByLabel("目标 *").fill("Do not replay after restart");
+    await page
+      .getByLabel(/已验证的模型服务商和准确模型/u)
       .selectOption({ label: "Restart Goal Provider · goal-model" });
     fixture.delayNext();
     await page
-      .getByRole("button", { name: "Analyze and create Provider draft" })
+      .getByRole("button", { name: "分析并创建模型服务商草稿" })
       .click({ noWaitAfter: true });
     await expect.poll(fixture.generationCalls).toBe(1);
     await expect.poll(fixture.hasDelayedResponse).toBe(true);
@@ -357,11 +696,9 @@ test("user sees an interrupted Goal operation after process restart without repl
     const interruptedCard = page
       .locator("article")
       .filter({ hasText: "Interrupted Corporation" });
-    await interruptedCard
-      .getByRole("button", { name: "Resume Goal creation" })
-      .click();
-    await expect(page.getByText("INTERRUPTED", { exact: true })).toBeVisible();
-    await expect(page.getByText(/did not save a Goal/u)).toBeVisible();
+    await interruptedCard.getByRole("button", { name: "继续创建目标" }).click();
+    await expect(page.getByText("已中断", { exact: true })).toBeVisible();
+    await expect(page.getByText(/没有保存目标/u)).toBeVisible();
     await expect.poll(fixture.generationCalls).toBe(1);
 
     const plannerCorporation = await createApprovedGoal(
@@ -374,7 +711,7 @@ test("user sees an interrupted Goal operation after process restart without repl
     await selectPlannerProvider(page, "Restart Goal Provider · goal-model");
     fixture.delayNext();
     await page
-      .getByRole("button", { name: "Generate unvalidated draft" })
+      .getByRole("button", { name: "生成并验证计划" })
       .click({ noWaitAfter: true });
     await expect.poll(fixture.generationCalls).toBe(2);
     await expect.poll(fixture.hasDelayedResponse).toBe(true);
@@ -391,10 +728,8 @@ test("user sees an interrupted Goal operation after process restart without repl
     app = await launchGoalApplication(userDataDirectory, workspaceDirectory);
     page = await app.firstWindow();
     await openPlannerForCorporation(page, plannerCorporation.name);
-    await expect(
-      page.getByRole("heading", { name: "INTERRUPTED" }),
-    ).toBeVisible();
-    await expect(page.getByText(/No Plan was saved/u)).toBeVisible();
+    await expect(page.getByRole("heading", { name: "已中断" })).toBeVisible();
+    await expect(page.getByText(/没有保存计划/u)).toBeVisible();
     await expect.poll(fixture.generationCalls).toBe(2);
   } finally {
     fixture.releaseDelayed();
@@ -415,7 +750,7 @@ test("user sees an interrupted Goal operation after process restart without repl
   }
 });
 
-test("Planner repairs once, fails safely, cancels, rejects stale facts, and restores its draft", async () => {
+test.skip("Planner repairs once, fails safely, cancels, rejects stale facts, and restores its draft", async () => {
   test.setTimeout(90_000);
   const fixture = await startGoalFixture();
   const userDataDirectory = mkdtempSync(
@@ -435,9 +770,9 @@ test("Planner repairs once, fails safely, cancels, rejects stale facts, and rest
       fixture.endpoint,
       "Planner Matrix Provider",
     );
-    await page.getByRole("button", { name: "Dashboard", exact: true }).click();
-    await page.getByRole("button", { name: "Select a workspace" }).click();
-    await page.getByRole("button", { name: /Select folder/u }).click();
+    await page.getByRole("button", { name: "控制台", exact: true }).click();
+    await page.getByRole("button", { name: "选择工作区" }).click();
+    await page.getByRole("button", { name: /选择文件夹/u }).click();
 
     const repairCorporation = await createApprovedGoal(
       page,
@@ -450,11 +785,9 @@ test("Planner repairs once, fails safely, cancels, rejects stale facts, and rest
     const callsBeforeRepair = fixture.generationCalls();
     fixture.enqueue("not valid json");
     fixture.enqueue(plannerOutput());
-    await page
-      .getByRole("button", { name: "Generate unvalidated draft" })
-      .click();
+    await page.getByRole("button", { name: "生成并验证计划" }).click();
     await expect(
-      page.getByRole("heading", { name: "Unvalidated Plan draft" }),
+      page.getByRole("heading", { name: "计划已通过本地验证" }),
     ).toBeVisible();
     expect(fixture.generationCalls() - callsBeforeRepair).toBe(2);
     const firstRead = await getPlannerOperation(page, repairCorporation.id);
@@ -465,7 +798,7 @@ test("Planner repairs once, fails safely, cancels, rejects stale facts, and rest
     await page.reload();
     await openPlannerForCorporation(page, repairCorporation.name);
     await expect(
-      page.getByRole("heading", { name: "Unvalidated Plan draft" }),
+      page.getByRole("heading", { name: "计划已通过本地验证" }),
     ).toBeVisible();
     const restored = await getPlannerOperation(page, repairCorporation.id);
     expect(restored?.plan?.planId).toBe(stablePlanId);
@@ -481,10 +814,8 @@ test("Planner repairs once, fails safely, cancels, rejects stale facts, and rest
     const callsBeforeFailure = fixture.generationCalls();
     fixture.enqueue("not valid json");
     fixture.enqueue("still not valid json");
-    await page
-      .getByRole("button", { name: "Generate unvalidated draft" })
-      .click();
-    await expect(page.getByRole("heading", { name: "FAILED" })).toBeVisible();
+    await page.getByRole("button", { name: "生成并验证计划" }).click();
+    await expect(page.getByRole("heading", { name: "失败" })).toBeVisible();
     await expect(
       page.getByText("INVALID_MODEL_OUTPUT", { exact: true }),
     ).toBeVisible();
@@ -492,6 +823,30 @@ test("Planner repairs once, fails safely, cancels, rejects stale facts, and rest
     expect(
       (await getPlannerOperation(page, failureCorporation.id))?.plan,
     ).toBeUndefined();
+
+    await openPlannerForCorporation(page, failureCorporation.name);
+    await expect(
+      page.getByRole("heading", {
+        name: "重新选择模型服务商和准确模型",
+      }),
+    ).toBeVisible();
+    const retryButton = page.getByRole("button", {
+      name: "重新生成并验证计划",
+    });
+    await expect(retryButton).toBeDisabled();
+    await selectPlannerProvider(page, "Planner Matrix Provider · goal-model");
+    await expect(retryButton).toBeEnabled();
+    expect(fixture.generationCalls() - callsBeforeFailure).toBe(2);
+    fixture.enqueue(plannerOutput());
+    await retryButton.click();
+    await expect(
+      page.getByRole("heading", { name: "计划已通过本地验证" }),
+    ).toBeVisible();
+    expect(fixture.generationCalls() - callsBeforeFailure).toBe(3);
+    expect(
+      (await getPlannerOperation(page, failureCorporation.id))?.plan
+        ?.validationStatus,
+    ).toBe("VALID");
 
     const cancelCorporation = await createApprovedGoal(
       page,
@@ -503,14 +858,12 @@ test("Planner repairs once, fails safely, cancels, rejects stale facts, and rest
     await selectPlannerProvider(page, "Planner Matrix Provider · goal-model");
     fixture.delayNext();
     await page
-      .getByRole("button", { name: "Generate unvalidated draft" })
+      .getByRole("button", { name: "生成并验证计划" })
       .click({ noWaitAfter: true });
     await expect.poll(fixture.hasDelayedResponse).toBe(true);
     const cancelStartedAt = Date.now();
-    await page.getByRole("button", { name: "Cancel", exact: true }).click();
-    await expect(
-      page.getByRole("heading", { name: "CANCELLED" }),
-    ).toBeVisible();
+    await page.getByRole("button", { name: "取消", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "已取消" })).toBeVisible();
     expect(Date.now() - cancelStartedAt).toBeLessThan(2_000);
     expect(
       (await getPlannerOperation(page, cancelCorporation.id))?.plan,
@@ -526,7 +879,7 @@ test("Planner repairs once, fails safely, cancels, rejects stale facts, and rest
     await selectPlannerProvider(page, "Planner Matrix Provider · goal-model");
     fixture.delayNext();
     await page
-      .getByRole("button", { name: "Generate unvalidated draft" })
+      .getByRole("button", { name: "生成并验证计划" })
       .click({ noWaitAfter: true });
     await expect.poll(fixture.hasDelayedResponse).toBe(true);
     const update = await page.evaluate(
@@ -548,7 +901,7 @@ test("Planner repairs once, fails safely, cancels, rejects stale facts, and rest
     );
     expect(update.ok).toBe(true);
     fixture.completeDelayed(plannerOutput());
-    await expect(page.getByRole("heading", { name: "FAILED" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "失败" })).toBeVisible();
     await expect(
       page.getByText("VERSION_CONFLICT", { exact: true }),
     ).toBeVisible();
@@ -591,17 +944,19 @@ async function configureFixtureProvider(
   endpoint: string,
   name: string,
 ) {
-  await page.getByRole("button", { name: "Settings" }).click();
-  await page.getByLabel("Name").fill(name);
-  await page.getByLabel("Endpoint").fill(endpoint);
+  await page.getByRole("button", { name: "设置" }).click();
+  await page.getByLabel("名称").fill(name);
+  await page.getByLabel("API 基础 URL").fill(endpoint);
   await page
     .getByLabel("API Key")
     .fill(`M2-TU-06-${crypto.randomUUID()}-fake-key`);
-  await page.getByRole("button", { name: "Save Provider" }).click();
-  await page.getByRole("button", { name: "Test connection" }).click();
-  await expect(page.getByRole("heading", { name: "Verified" })).toBeVisible();
-  await page.getByLabel("Model").selectOption("goal-model");
-  await page.getByRole("button", { name: "Save changes" }).click();
+  await page.getByRole("button", { name: "保存模型服务商" }).click();
+  await page.getByRole("button", { name: "测试连接" }).click();
+  await expect(page.getByRole("heading", { name: "已验证" })).toBeVisible();
+  await page
+    .getByRole("combobox", { name: /^模型/u })
+    .selectOption("goal-model");
+  await page.getByRole("button", { name: "保存修改" }).click();
 }
 
 async function createApprovedGoal(
@@ -683,15 +1038,15 @@ async function openPlannerForCorporation(
 ) {
   await page.reload();
   const card = page.locator("article").filter({ hasText: corporationName });
-  await card.getByRole("button", { name: "Open Goal Contract" }).click();
-  await page.getByRole("button", { name: "Start planning setup" }).click();
+  await card.getByRole("button", { name: "打开目标合同" }).click();
+  await page.getByRole("button", { name: "开始规划设置" }).click();
 }
 
 async function selectPlannerProvider(
   page: import("@playwright/test").Page,
   label: string,
 ) {
-  await page.getByLabel("Verified Provider / model").selectOption({ label });
+  await page.getByLabel("已验证的模型服务商 / 模型").selectOption({ label });
 }
 
 async function getPlannerOperation(
@@ -717,12 +1072,12 @@ async function openNewGoal(
   corporationName: string,
   goal: string,
 ) {
-  await page.getByRole("button", { name: "Dashboard", exact: true }).click();
-  await page.getByRole("button", { name: "New Corporation" }).click();
-  await page.getByLabel("Corporation name *").fill(corporationName);
-  await page.getByLabel("Goal *").fill(goal);
+  await page.getByRole("button", { name: "控制台", exact: true }).click();
+  await page.getByRole("button", { name: "新建公司" }).click();
+  await page.getByLabel("公司名称 *").fill(corporationName);
+  await page.getByLabel("目标 *").fill(goal);
   await page
-    .getByLabel(/Verified Provider and exact model/u)
+    .getByLabel(/已验证的模型服务商和准确模型/u)
     .selectOption({ label: "Goal Fixture Provider · goal-model" });
 }
 
@@ -918,6 +1273,88 @@ function plannerOutput() {
       },
     ],
   });
+}
+
+function agentCandidateOutput() {
+  return JSON.stringify({
+    summary: "报告候选内容已生成。",
+    outputs: [
+      {
+        logicalName: "report",
+        artifactType: "DOCUMENT",
+        mediaType: "text/markdown",
+        content: "候选报告正文",
+      },
+    ],
+    claims: [],
+    unresolvedIssues: [],
+    requestedFollowups: [],
+  });
+}
+
+function invalidPlannerOutput() {
+  const value = JSON.parse(plannerOutput()) as {
+    tasks: {
+      acceptanceCriteria: {
+        severity: "RECOMMENDED" | "REQUIRED";
+      }[];
+    }[];
+  };
+  value.tasks[0]!.acceptanceCriteria[0]!.severity = "RECOMMENDED";
+  return JSON.stringify(value);
+}
+
+function twoTaskPlannerOutput() {
+  const value = JSON.parse(plannerOutput()) as {
+    summary: string;
+    tasks: Record<string, unknown>[];
+    dependencies: Record<string, string>[];
+    milestones: { title: string; taskLocalIds: string[] }[];
+  };
+  const source = value.tasks[0]!;
+  value.summary = "Create and use one verifiable report.";
+  value.tasks.push({
+    ...source,
+    localId: "task-two",
+    title: "Use report",
+    objective: "Use the report produced by the first task.",
+    inputs: [
+      {
+        source: "TASK_OUTPUT",
+        taskLocalId: "task-one",
+        logicalName: "report",
+        mediaType: "text/markdown",
+        required: true,
+      },
+    ],
+    expectedOutputs: [
+      {
+        logicalName: "result",
+        mediaType: "text/markdown",
+        required: true,
+        description: "Result derived from the report.",
+      },
+    ],
+    acceptanceCriteria: [
+      {
+        localId: "criterion-result",
+        description: "The result uses the report.",
+        severity: "REQUIRED",
+        evidenceRequired: ["result"],
+      },
+    ],
+  });
+  value.dependencies = [
+    {
+      upstreamLocalId: "task-one",
+      downstreamLocalId: "task-two",
+      condition: "ON_SUCCESS",
+    },
+  ];
+  value.milestones = [
+    { title: "Delivery", taskLocalIds: ["task-one", "task-two"] },
+  ];
+  return JSON.stringify(value);
 }
 
 async function expectNoSeriousAxeViolations(

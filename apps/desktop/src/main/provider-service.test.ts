@@ -595,6 +595,41 @@ describe("ProviderService", () => {
 });
 
 describe("ProviderService internal generation", () => {
+  it("lets an existing employee use the current valid Provider after it is updated", async () => {
+    const { database, service } = fixture(
+      new DeterministicMockProvider(
+        { type: "SUCCESS", modelIds: ["model-a"] },
+        () => "2026-08-02T00:00:00.000Z",
+      ),
+    );
+    const configured = await createVerifiedProvider(service);
+    const updated = service.save({
+      schemaVersion: 1,
+      commandId: "019b7f4d-a000-7000-8000-000000000102",
+      providerId: configured.id,
+      expectedVersion: configured.version,
+      name: "Updated Provider Name",
+      endpoint: configured.endpoint,
+      configStatus: configured.configStatus,
+      apiDialect: "CHAT_COMPLETIONS",
+      selectedModelId: "model-a",
+      generationTimeoutMs: 60_000,
+    });
+    if (!updated.ok) throw new Error("fixture update failed");
+
+    expect(() =>
+      service.resolvePiRuntime(configured.id, configured.version, "model-a"),
+    ).toThrow();
+    expect(
+      service.resolveCurrentPiRuntime(configured.id, "model-a"),
+    ).toMatchObject({
+      endpoint: configured.endpoint,
+      key: "M2-TU-04-fake-generation-key",
+      timeoutMs: 60_000,
+    });
+    database.close();
+  });
+
   it("uses the exact verified Provider without writing a public test snapshot", async () => {
     const { database, repository, service } = fixture(
       new DeterministicMockProvider(

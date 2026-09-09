@@ -10,17 +10,18 @@
     "build": "pnpm run build:electron && pnpm run build:renderer",
     "build:electron": "esbuild src/main/index.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist/electron/main/index.js && esbuild src/preload/index.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist/electron/preload/index.js",
     "build:renderer": "vite build",
-    "package": "pnpm --workspace-root build:rust:release && pnpm run build && node scripts/prepare-package.mjs && electron-builder --publish never",
-    "package:dir": "pnpm --workspace-root build:rust:release && pnpm run build && node scripts/prepare-package.mjs && electron-builder --dir --publish never",
-    "start": "pnpm --workspace-root build:rust && pnpm run build && electron .",
+    "prepare:skill-runtime": "node scripts/prepare-skill-runtime.mjs",
+    "package": "pnpm --workspace-root build:rust:release && pnpm run build && pnpm run prepare:skill-runtime && node scripts/prepare-package.mjs && electron-builder --publish never",
+    "package:dir": "pnpm --workspace-root build:rust:release && pnpm run build && pnpm run prepare:skill-runtime && node scripts/prepare-package.mjs && electron-builder --dir --publish never",
+    "start": "pnpm --workspace-root build:rust && pnpm run prepare:skill-runtime && pnpm run build && electron .",
     "test": "vitest run",
-    "test:e2e": "pnpm --workspace-root build:rust && pnpm run build && playwright test",
-    "test:packaged": "node scripts/test-packaged-app.mjs",
+    "test:e2e": "pnpm --workspace-root build:rust && pnpm run prepare:skill-runtime && pnpm run build && playwright test",
+    "test:packaged": "node scripts/test-packaged-pi.mjs",
     "typecheck": "tsc --project tsconfig.electron.json --noEmit && tsc --project tsconfig.json --noEmit && tsc --project tsconfig.test.json --noEmit"
   },
   "devDependencies": {
-    "@ai-corporation/providers": "workspace:*",
     "@ai-corporation/protocols": "workspace:*",
+    "@ai-corporation/providers": "workspace:*",
     "@ai-corporation/storage": "workspace:*",
     "@playwright/test": "1.62.0",
     "@types/node": "26.1.2",
@@ -31,9 +32,12 @@
     "electron": "43.2.0",
     "electron-builder": "26.15.3",
     "esbuild": "0.28.1",
+    "extract-zip": "2.0.1",
+    "npm": "11.6.2",
     "playwright": "1.62.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "tar": "7.5.22",
     "typescript": "5.9.2",
     "vite": "8.1.5",
     "vitest": "4.1.10"
@@ -55,7 +59,8 @@
         "to": ".",
         "filter": [
           "native-core",
-          "native-core.exe"
+          "native-core.exe",
+          "runtime/**/*"
         ]
       }
     ],
@@ -70,5 +75,14 @@
         "dmg"
       ]
     }
+  },
+  "dependencies": {
+    "@earendil-works/pi-agent-core": "0.84.1",
+    "@earendil-works/pi-ai": "0.84.1",
+    "@fontsource-variable/noto-sans-sc": "5.3.0",
+    "docx": "9.7.1",
+    "mammoth": "1.12.2",
+    "pdfjs-dist": "6.3.289",
+    "yaml": "2.9.0"
   }
 }

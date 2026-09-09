@@ -1,13 +1,17 @@
 import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { PlannerDraftCandidate } from "@ai-corporation/protocols";
+import type {
+  PlannerDraftCandidate,
+  TaskContract,
+} from "@ai-corporation/protocols";
 import { applyMigrations, loadMigrations } from "./migrations";
 import {
   PlannerRepository,
   PlannerStateConflictError,
   PlannerVersionConflictError,
 } from "./planner-repository";
+import { PlanValidationRepository } from "./plan-validation-repository";
 
 const migrationDirectory = fileURLToPath(
   new URL("../migrations/", import.meta.url),
@@ -140,7 +144,147 @@ describe("PlannerRepository", () => {
       }),
     ).toThrow(PlannerStateConflictError);
   });
+
+  it("atomically materializes validated Tasks and stays idempotent", () => {
+    savePendingPlan();
+    const validation = new PlanValidationRepository(database);
+    const stored = validation.readInput(planId);
+    const report = {
+      schemaVersion: "1.0" as const,
+      validatorVersion: "1.0" as const,
+      planId,
+      planVersion: 1,
+      status: "VALID" as const,
+      issues: [],
+      warnings: [],
+      validatedAt: now,
+    };
+    const committed = validation.commit({
+      draftHash: "d".repeat(64),
+      plan: stored.plan,
+      report,
+      tasks: [formalTask()],
+    });
+    expect(committed).toMatchObject({
+      status: "VALIDATED",
+      validationStatus: "VALID",
+    });
+    expect(
+      database.prepare("SELECT COUNT(*) AS count FROM task").get(),
+    ).toEqual({ count: 1 });
+    validation.commit({
+      draftHash: "d".repeat(64),
+      plan: stored.plan,
+      report,
+      tasks: [formalTask()],
+    });
+    expect(
+      database.prepare("SELECT COUNT(*) AS count FROM task").get(),
+    ).toEqual({ count: 1 });
+    expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+  });
+
+  it("persists an invalid report without materializing Tasks", () => {
+    savePendingPlan();
+    const validation = new PlanValidationRepository(database);
+    const stored = validation.readInput(planId);
+    const committed = validation.commit({
+      draftHash: "e".repeat(64),
+      plan: stored.plan,
+      report: {
+        schemaVersion: "1.0",
+        validatorVersion: "1.0",
+        planId,
+        planVersion: 1,
+        status: "INVALID",
+        issues: [
+          {
+            code: "TASK_MISSING_REQUIRED_ACCEPTANCE",
+            path: "tasks.0.acceptanceCriteria",
+            taskId,
+          },
+        ],
+        warnings: [],
+        validatedAt: now,
+      },
+      tasks: [],
+    });
+    expect(committed).toMatchObject({
+      status: "DRAFT",
+      validationStatus: "INVALID",
+    });
+    expect(
+      database.prepare("SELECT COUNT(*) AS count FROM task").get(),
+    ).toEqual({ count: 0 });
+  });
 });
+
+function savePendingPlan(): void {
+  const operation = repository.begin(beginInput());
+  repository.savePlan({
+    operation,
+    candidate: candidate(),
+    planId,
+    taskIds: [taskId],
+    usage: { costSource: "UNKNOWN" },
+    now,
+  });
+}
+
+function formalTask(): TaskContract {
+  return {
+    schemaVersion: "1.0",
+    id: taskId,
+    corporationId,
+    planVersion: 1,
+    title: "Create output",
+    objective: "Create the requested output.",
+    kind: "GENERATION",
+    priority: 50,
+    riskLevel: "LOW",
+    requiredCapabilities: [],
+    requiredTools: [],
+    inputRefs: [
+      {
+        source: "GOAL_CONTRACT",
+        goalVersion: 1,
+        logicalName: "approved-goal",
+        required: true,
+      },
+    ],
+    expectedOutputs: [
+      {
+        logicalName: "result",
+        artifactType: "TEXT",
+        mediaType: "text/plain",
+        required: true,
+        description: "Requested result.",
+      },
+    ],
+    acceptanceCriteria: [
+      {
+        id: "criterion-result",
+        description: "The result exists.",
+        severity: "REQUIRED",
+        evidenceRequired: ["result"],
+      },
+    ],
+    dependencies: [],
+    budget: {},
+    retryPolicy: {
+      maxAttempts: 1,
+      maxEvaluationRevisions: 0,
+      retryableCategories: [],
+    },
+    permissionRequest: {
+      workspaceRead: false,
+      workspaceWrite: [],
+      processProfiles: [],
+    },
+    assumptions: [],
+    nonGoals: [],
+  };
+}
 
 function beginInput() {
   return {

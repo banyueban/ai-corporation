@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { normalizedUsageSchema } from "./provider-generation";
+import { planValidationReportSchema } from "./plan-validation";
 
 export const PLANNER_SCHEMA_VERSION = "1.0" as const;
 export const PLANNER_START_IPC_CHANNEL = "planner:start" as const;
@@ -195,8 +196,9 @@ export const plannerDraftPublicSchema = z
     corporationId: uuidV7,
     planVersion: positiveVersion,
     goalVersion: positiveVersion,
-    status: z.literal("DRAFT"),
-    validationStatus: z.literal("PENDING"),
+    status: z.enum(["DRAFT", "VALIDATED", "APPROVED", "SUPERSEDED"]),
+    validationStatus: z.enum(["PENDING", "VALID", "INVALID"]),
+    validationReport: planValidationReportSchema.optional(),
     summary: summaryText,
     tasks: z.array(plannerTaskDraftPublicSchema).min(1).max(50),
     dependencies: z.array(plannerDependencyCandidateSchema).max(200),
@@ -211,9 +213,66 @@ export const plannerDraftPublicSchema = z
       })
       .strict(),
     usage: normalizedUsageSchema,
+    supersedesPlanId: uuidV7.optional(),
+    approvedAt: utcTimestamp.optional(),
     createdAt: utcTimestamp,
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    const pending =
+      value.status === "DRAFT" && value.validationStatus === "PENDING";
+    const invalid =
+      value.status === "DRAFT" && value.validationStatus === "INVALID";
+    const valid =
+      value.status === "VALIDATED" && value.validationStatus === "VALID";
+    const approved =
+      value.status === "APPROVED" && value.validationStatus === "VALID";
+    const superseded =
+      value.status === "SUPERSEDED" && value.validationStatus !== "PENDING";
+    if (!pending && !invalid && !valid && !approved && !superseded) {
+      context.addIssue({
+        code: "custom",
+        path: ["validationStatus"],
+        message: "Invalid plan state",
+      });
+    }
+    if ((value.status === "APPROVED") !== (value.approvedAt !== undefined)) {
+      context.addIssue({
+        code: "custom",
+        path: ["approvedAt"],
+        message: "Approval timestamp mismatch",
+      });
+    }
+    if ((value.planVersion === 1) !== (value.supersedesPlanId === undefined)) {
+      context.addIssue({
+        code: "custom",
+        path: ["supersedesPlanId"],
+        message: "Plan predecessor mismatch",
+      });
+    }
+    if (
+      (value.validationStatus === "PENDING") !==
+      (value.validationReport === undefined)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["validationReport"],
+        message: "Validation report mismatch",
+      });
+    }
+    if (
+      value.validationReport !== undefined &&
+      (value.validationReport.planId !== value.planId ||
+        value.validationReport.planVersion !== value.planVersion ||
+        value.validationReport.status !== value.validationStatus)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["validationReport"],
+        message: "Validation identity mismatch",
+      });
+    }
+  });
 
 export const plannerOperationStatusSchema = z.enum([
   "GENERATING",

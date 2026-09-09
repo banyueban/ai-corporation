@@ -9,5 +9,7 @@ publish.workspace = true
 workspace = true
 
 [dependencies]
+atomicwrites = "0.4"
 getrandom = "0.3"
 serde = { version = "1.0.229", features = ["derive"] }
+sha2 = "0.10"

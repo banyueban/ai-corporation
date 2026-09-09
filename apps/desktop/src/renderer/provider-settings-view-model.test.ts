@@ -2,18 +2,18 @@ import { describe, expect, it } from "vitest";
 import type { ProviderErrorCode } from "@ai-corporation/protocols";
 import { providerErrorMessage } from "./provider-settings-view-model";
 
-describe("ProviderSettings recovery messages", () => {
+describe("模型服务商设置的恢复提示", () => {
   it.each<[ProviderErrorCode, RegExp]>([
-    ["INVALID_REQUEST", /check.+retry/iu],
-    ["UNAUTHORIZED_CALLER", /not authorized/iu],
-    ["NOT_FOUND", /reload/iu],
-    ["CONFLICT", /reload before saving/iu],
-    ["IDEMPOTENCY_CONFLICT", /already used/iu],
-    ["VAULT_KEY_UNAVAILABLE", /no Key change was saved/iu],
-    ["VAULT_INTEGRITY_FAILED", /delete it and enter a new Key/iu],
-    ["STORAGE_UNAVAILABLE", /input is retained/iu],
-    ["INTERNAL", /no successful Key change was confirmed/iu],
-  ])("maps %s to a fixed impact and recovery message", (code, expected) => {
+    ["INVALID_REQUEST", /检查.+重试/u],
+    ["UNAUTHORIZED_CALLER", /没有.+权限/u],
+    ["NOT_FOUND", /重新加载/u],
+    ["CONFLICT", /重新加载后再保存/u],
+    ["IDEMPOTENCY_CONFLICT", /已被其他修改使用/u],
+    ["VAULT_KEY_UNAVAILABLE", /API Key 修改没有保存/u],
+    ["VAULT_INTEGRITY_FAILED", /删除后重新输入/u],
+    ["STORAGE_UNAVAILABLE", /输入的内容仍然保留/u],
+    ["INTERNAL", /不能确认 API Key 修改成功/u],
+  ])("把 %s 映射为固定且可操作的中文提示", (code, expected) => {
     expect(providerErrorMessage(code)).toMatch(expected);
   });
 });

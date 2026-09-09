@@ -2,10 +2,17 @@
 
 use std::fmt;
 use std::fs::{self, OpenOptions};
-use std::io;
+use std::io::{self, BufReader, Read, Write};
 use std::path::{Component, Path, PathBuf};
 
 use serde::Serialize;
+use sha2::{Digest, Sha256};
+
+pub const MAX_TEXT_BYTES: usize = 1024 * 1024;
+pub const MAX_BINARY_CREATE_BYTES: usize = 10 * 1024 * 1024;
+pub const MAX_DELIVERABLE_BYTES: u64 = 100 * 1024 * 1024;
+pub const MAX_LIST_ENTRIES: usize = 200;
+pub const MAX_LIST_DEPTH: usize = 3;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
@@ -18,6 +25,14 @@ pub enum WorkspacePathErrorCode {
     PathIdentityUnavailable,
     PermissionProbeFailed,
     PermissionProbeCleanupFailed,
+    NotFound,
+    NotFile,
+    NotDirectory,
+    SensitivePath,
+    BinaryFile,
+    FileTooLarge,
+    Conflict,
+    WriteFailed,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -52,8 +67,482 @@ impl fmt::Display for WorkspacePathError {
             WorkspacePathErrorCode::PermissionProbeCleanupFailed => {
                 "workspace permission probe cleanup failed"
             }
+            WorkspacePathErrorCode::NotFound => "workspace entry not found",
+            WorkspacePathErrorCode::NotFile => "workspace entry is not a file",
+            WorkspacePathErrorCode::NotDirectory => "workspace entry is not a directory",
+            WorkspacePathErrorCode::SensitivePath => "workspace path is sensitive",
+            WorkspacePathErrorCode::BinaryFile => "workspace file is not UTF-8 text",
+            WorkspacePathErrorCode::FileTooLarge => "workspace text file is too large",
+            WorkspacePathErrorCode::Conflict => "workspace file changed",
+            WorkspacePathErrorCode::WriteFailed => "workspace write failed",
         })
     }
+}
+
+#[derive(Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceListEntry {
+    relative_path: String,
+    kind: &'static str,
+    // 目录没有可展示的文件大小。协议约定此时省略字段，不能序列化成
+    // null，否则桌面端会把整次目录列表判为无效响应。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    size_bytes: Option<u64>,
+}
+
+#[derive(Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceTextRead {
+    relative_path: String,
+    content: String,
+    size_bytes: u64,
+    sha256: String,
+}
+
+#[derive(Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceFileInspection {
+    canonical_path: String,
+    relative_path: String,
+    size_bytes: u64,
+    sha256: String,
+}
+
+#[derive(Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceTextWrite {
+    relative_path: String,
+    created: bool,
+    previous_sha256: Option<String>,
+    sha256: String,
+    size_bytes: u64,
+}
+
+#[derive(Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceAssetCopy {
+    relative_path: String,
+    created: bool,
+    sha256: String,
+    size_bytes: u64,
+}
+
+/// 新建二进制成果的核对结果。二进制接口不允许覆盖已有文件。
+pub type WorkspaceBinaryCreate = WorkspaceAssetCopy;
+
+/// Lists a bounded, non-sensitive view of an authorized workspace.
+pub fn list_workspace(
+    root: &Path,
+    candidate_relative_path: &Path,
+) -> Result<Vec<WorkspaceListEntry>, WorkspacePathError> {
+    reject_sensitive(candidate_relative_path)?;
+    let resolution = resolve_workspace_path(root, candidate_relative_path)?;
+    if !resolution.target_exists() {
+        return Err(WorkspacePathError::new(WorkspacePathErrorCode::NotFound));
+    }
+    if !resolution.canonical_path().is_dir() {
+        return Err(WorkspacePathError::new(
+            WorkspacePathErrorCode::NotDirectory,
+        ));
+    }
+
+    let mut entries = Vec::new();
+    collect_entries(
+        resolution.canonical_root_path(),
+        resolution.canonical_path(),
+        0,
+        &mut entries,
+    )?;
+    entries.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
+    Ok(entries)
+}
+
+/// Reads one ordinary UTF-8 text file and returns a concurrency hash.
+pub fn read_workspace_text(
+    root: &Path,
+    candidate_relative_path: &Path,
+) -> Result<WorkspaceTextRead, WorkspacePathError> {
+    reject_sensitive(candidate_relative_path)?;
+    let resolution = resolve_workspace_path(root, candidate_relative_path)?;
+    if !resolution.target_exists() {
+        return Err(WorkspacePathError::new(WorkspacePathErrorCode::NotFound));
+    }
+    if !resolution.canonical_path().is_file() {
+        return Err(WorkspacePathError::new(WorkspacePathErrorCode::NotFile));
+    }
+    let metadata = fs::metadata(resolution.canonical_path()).map_err(classify_candidate_error)?;
+    if metadata.len() > MAX_TEXT_BYTES as u64 {
+        return Err(WorkspacePathError::new(
+            WorkspacePathErrorCode::FileTooLarge,
+        ));
+    }
+    let bytes = fs::read(resolution.canonical_path()).map_err(classify_candidate_error)?;
+    let content = String::from_utf8(bytes.clone())
+        .map_err(|_| WorkspacePathError::new(WorkspacePathErrorCode::BinaryFile))?;
+    if content.contains('\0') {
+        return Err(WorkspacePathError::new(WorkspacePathErrorCode::BinaryFile));
+    }
+    Ok(WorkspaceTextRead {
+        relative_path: portable_relative(resolution.relative_path()),
+        content,
+        size_bytes: bytes.len() as u64,
+        sha256: hash_bytes(&bytes),
+    })
+}
+
+/// Verifies and hashes one deliverable without interpreting or modifying it.
+pub fn inspect_workspace_file(
+    root: &Path,
+    candidate_relative_path: &Path,
+) -> Result<WorkspaceFileInspection, WorkspacePathError> {
+    reject_sensitive(candidate_relative_path)?;
+    let resolution = resolve_workspace_path(root, candidate_relative_path)?;
+    if !resolution.target_exists() {
+        return Err(WorkspacePathError::new(WorkspacePathErrorCode::NotFound));
+    }
+    if !resolution.canonical_path().is_file() {
+        return Err(WorkspacePathError::new(WorkspacePathErrorCode::NotFile));
+    }
+    let metadata = fs::metadata(resolution.canonical_path()).map_err(classify_candidate_error)?;
+    if metadata.len() > MAX_DELIVERABLE_BYTES {
+        return Err(WorkspacePathError::new(
+            WorkspacePathErrorCode::FileTooLarge,
+        ));
+    }
+    let file = fs::File::open(resolution.canonical_path()).map_err(classify_candidate_error)?;
+    let mut reader = BufReader::new(file);
+    let mut hasher = Sha256::new();
+    let mut buffer = [0_u8; 64 * 1024];
+    let mut size_bytes = 0_u64;
+    loop {
+        let read = reader.read(&mut buffer).map_err(classify_candidate_error)?;
+        if read == 0 {
+            break;
+        }
+        size_bytes += read as u64;
+        if size_bytes > MAX_DELIVERABLE_BYTES {
+            return Err(WorkspacePathError::new(
+                WorkspacePathErrorCode::FileTooLarge,
+            ));
+        }
+        hasher.update(&buffer[..read]);
+    }
+    if size_bytes != metadata.len() {
+        return Err(WorkspacePathError::new(WorkspacePathErrorCode::Conflict));
+    }
+    Ok(WorkspaceFileInspection {
+        canonical_path: resolution.canonical_path().to_string_lossy().into_owned(),
+        relative_path: portable_relative(resolution.relative_path()),
+        size_bytes,
+        sha256: format!("{:x}", hasher.finalize()),
+    })
+}
+
+/// Creates or atomically replaces one ordinary text file after a hash check.
+pub fn write_workspace_text(
+    root: &Path,
+    candidate_relative_path: &Path,
+    content: &str,
+    base_sha256: Option<&str>,
+) -> Result<WorkspaceTextWrite, WorkspacePathError> {
+    use atomicwrites::{AtomicFile, OverwriteBehavior};
+
+    if content.len() > MAX_TEXT_BYTES {
+        return Err(WorkspacePathError::new(
+            WorkspacePathErrorCode::FileTooLarge,
+        ));
+    }
+    if content.contains('\0') {
+        return Err(WorkspacePathError::new(WorkspacePathErrorCode::BinaryFile));
+    }
+    reject_sensitive(candidate_relative_path)?;
+    let resolution = resolve_workspace_path(root, candidate_relative_path)?;
+    if resolution.relative_path().as_os_str().is_empty() {
+        return Err(WorkspacePathError::new(WorkspacePathErrorCode::NotFile));
+    }
+    let created = !resolution.target_exists();
+    let previous_sha256 = if created {
+        if base_sha256.is_some() {
+            return Err(WorkspacePathError::new(WorkspacePathErrorCode::Conflict));
+        }
+        let parent = resolution
+            .canonical_path()
+            .parent()
+            .ok_or_else(|| WorkspacePathError::new(WorkspacePathErrorCode::InvalidPath))?;
+        if !parent.is_dir() {
+            return Err(WorkspacePathError::new(
+                WorkspacePathErrorCode::NotDirectory,
+            ));
+        }
+        None
+    } else {
+        if !resolution.canonical_path().is_file() {
+            return Err(WorkspacePathError::new(WorkspacePathErrorCode::NotFile));
+        }
+        let bytes = fs::read(resolution.canonical_path()).map_err(classify_candidate_error)?;
+        if bytes.len() > MAX_TEXT_BYTES {
+            return Err(WorkspacePathError::new(
+                WorkspacePathErrorCode::FileTooLarge,
+            ));
+        }
+        if String::from_utf8(bytes.clone())
+            .map(|value| value.contains('\0'))
+            .unwrap_or(true)
+        {
+            return Err(WorkspacePathError::new(WorkspacePathErrorCode::BinaryFile));
+        }
+        let current_hash = hash_bytes(&bytes);
+        if base_sha256 != Some(current_hash.as_str()) {
+            return Err(WorkspacePathError::new(WorkspacePathErrorCode::Conflict));
+        }
+        Some(current_hash)
+    };
+
+    let target_hash = hash_bytes(content.as_bytes());
+    AtomicFile::new(
+        resolution.canonical_path(),
+        OverwriteBehavior::AllowOverwrite,
+    )
+    .write(|file| {
+        file.write_all(content.as_bytes())?;
+        file.sync_all()
+    })
+    .map_err(|_| WorkspacePathError::new(WorkspacePathErrorCode::WriteFailed))?;
+
+    Ok(WorkspaceTextWrite {
+        relative_path: portable_relative(resolution.relative_path()),
+        created,
+        previous_sha256,
+        sha256: target_hash,
+        size_bytes: content.len() as u64,
+    })
+}
+
+/// 在工作区中原子创建一个新的二进制文件，绝不覆盖已有目标。
+pub fn create_workspace_binary(
+    root: &Path,
+    candidate_relative_path: &Path,
+    bytes: &[u8],
+) -> Result<WorkspaceBinaryCreate, WorkspacePathError> {
+    use atomicwrites::{AtomicFile, OverwriteBehavior};
+
+    if bytes.is_empty() || bytes.len() > MAX_BINARY_CREATE_BYTES {
+        return Err(WorkspacePathError::new(
+            WorkspacePathErrorCode::FileTooLarge,
+        ));
+    }
+    reject_sensitive(candidate_relative_path)?;
+    let resolution = resolve_workspace_path(root, candidate_relative_path)?;
+    if resolution.relative_path().as_os_str().is_empty() {
+        return Err(WorkspacePathError::new(WorkspacePathErrorCode::NotFile));
+    }
+    if resolution.target_exists() {
+        return Err(WorkspacePathError::new(WorkspacePathErrorCode::Conflict));
+    }
+    let parent = resolution
+        .canonical_path()
+        .parent()
+        .ok_or_else(|| WorkspacePathError::new(WorkspacePathErrorCode::InvalidPath))?;
+    if !parent.is_dir() {
+        return Err(WorkspacePathError::new(
+            WorkspacePathErrorCode::NotDirectory,
+        ));
+    }
+
+    AtomicFile::new(
+        resolution.canonical_path(),
+        OverwriteBehavior::DisallowOverwrite,
+    )
+    .write(|file| {
+        file.write_all(bytes)?;
+        file.sync_all()
+    })
+    .map_err(|_| WorkspacePathError::new(WorkspacePathErrorCode::WriteFailed))?;
+
+    Ok(WorkspaceBinaryCreate {
+        relative_path: portable_relative(resolution.relative_path()),
+        created: true,
+        sha256: hash_bytes(bytes),
+        size_bytes: bytes.len() as u64,
+    })
+}
+
+/// Copies one verified Skill asset into a new workspace file without overwriting.
+pub fn copy_workspace_asset(
+    source_root: &Path,
+    source_relative_path: &Path,
+    expected_sha256: &str,
+    expected_size_bytes: u64,
+    workspace_root: &Path,
+    target_relative_path: &Path,
+) -> Result<WorkspaceAssetCopy, WorkspacePathError> {
+    use atomicwrites::{AtomicFile, OverwriteBehavior};
+
+    // Main 只会传应用自管 Skill 的根目录；Native 再次限制来源必须位于
+    // 该根目录的 assets/ 下，避免协议调用把任意 Skill 文件当成资源复制。
+    let mut source_components = source_relative_path.components();
+    if !matches!(source_components.next(), Some(Component::Normal(first)) if first == "assets")
+        || source_components.next().is_none()
+    {
+        return Err(WorkspacePathError::new(WorkspacePathErrorCode::InvalidPath));
+    }
+    reject_sensitive(source_relative_path)?;
+    let source = resolve_workspace_path(source_root, source_relative_path)?;
+    if !source.target_exists() {
+        return Err(WorkspacePathError::new(WorkspacePathErrorCode::NotFound));
+    }
+    if !source.canonical_path().is_file() {
+        return Err(WorkspacePathError::new(WorkspacePathErrorCode::NotFile));
+    }
+    let source_metadata =
+        fs::metadata(source.canonical_path()).map_err(classify_candidate_error)?;
+    if source_metadata.len() > MAX_DELIVERABLE_BYTES {
+        return Err(WorkspacePathError::new(
+            WorkspacePathErrorCode::FileTooLarge,
+        ));
+    }
+    let bytes = fs::read(source.canonical_path()).map_err(classify_candidate_error)?;
+    if bytes.len() as u64 != source_metadata.len() {
+        return Err(WorkspacePathError::new(WorkspacePathErrorCode::Conflict));
+    }
+    let source_sha256 = hash_bytes(&bytes);
+    if source_metadata.len() != expected_size_bytes || source_sha256 != expected_sha256 {
+        return Err(WorkspacePathError::new(WorkspacePathErrorCode::Conflict));
+    }
+
+    reject_sensitive(target_relative_path)?;
+    let target = resolve_workspace_path(workspace_root, target_relative_path)?;
+    if target.relative_path().as_os_str().is_empty() {
+        return Err(WorkspacePathError::new(WorkspacePathErrorCode::NotFile));
+    }
+    if target.target_exists() {
+        return Err(WorkspacePathError::new(WorkspacePathErrorCode::Conflict));
+    }
+    let parent = target
+        .canonical_path()
+        .parent()
+        .ok_or_else(|| WorkspacePathError::new(WorkspacePathErrorCode::InvalidPath))?;
+    if !parent.is_dir() {
+        return Err(WorkspacePathError::new(
+            WorkspacePathErrorCode::NotDirectory,
+        ));
+    }
+
+    AtomicFile::new(
+        target.canonical_path(),
+        OverwriteBehavior::DisallowOverwrite,
+    )
+    .write(|file| {
+        file.write_all(&bytes)?;
+        file.sync_all()
+    })
+    .map_err(|_| WorkspacePathError::new(WorkspacePathErrorCode::WriteFailed))?;
+
+    Ok(WorkspaceAssetCopy {
+        relative_path: portable_relative(target.relative_path()),
+        created: true,
+        sha256: source_sha256,
+        size_bytes: bytes.len() as u64,
+    })
+}
+
+fn collect_entries(
+    root: &Path,
+    directory: &Path,
+    depth: usize,
+    output: &mut Vec<WorkspaceListEntry>,
+) -> Result<(), WorkspacePathError> {
+    if depth >= MAX_LIST_DEPTH || output.len() >= MAX_LIST_ENTRIES {
+        return Ok(());
+    }
+    let directory_entries = fs::read_dir(directory).map_err(classify_candidate_error)?;
+    for entry in directory_entries {
+        if output.len() >= MAX_LIST_ENTRIES {
+            break;
+        }
+        let entry = entry.map_err(classify_candidate_error)?;
+        let relative = entry
+            .path()
+            .strip_prefix(root)
+            .map_err(|_| WorkspacePathError::new(WorkspacePathErrorCode::OutsideRoot))?
+            .to_path_buf();
+        if is_sensitive(&relative) || is_ignored_directory(&relative) {
+            continue;
+        }
+        let resolution = resolve_workspace_path(root, &relative)?;
+        if !resolution.target_exists() {
+            continue;
+        }
+        let metadata =
+            fs::metadata(resolution.canonical_path()).map_err(classify_candidate_error)?;
+        let is_directory = metadata.is_dir();
+        output.push(WorkspaceListEntry {
+            relative_path: portable_relative(&relative),
+            kind: if is_directory { "DIRECTORY" } else { "FILE" },
+            size_bytes: if metadata.is_file() {
+                Some(metadata.len())
+            } else {
+                None
+            },
+        });
+        if is_directory {
+            collect_entries(root, resolution.canonical_path(), depth + 1, output)?;
+        }
+    }
+    Ok(())
+}
+
+fn reject_sensitive(path: &Path) -> Result<(), WorkspacePathError> {
+    if is_sensitive(path) {
+        Err(WorkspacePathError::new(
+            WorkspacePathErrorCode::SensitivePath,
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+fn is_sensitive(path: &Path) -> bool {
+    path.components().any(|component| {
+        let Component::Normal(segment) = component else {
+            return false;
+        };
+        let name = segment.to_string_lossy().to_ascii_lowercase();
+        name == ".git"
+            || name == ".env"
+            || name.starts_with(".env.")
+            || matches!(
+                name.as_str(),
+                "id_rsa" | "id_ed25519" | "credentials" | "credentials.json"
+            )
+            || name.ends_with(".pem")
+            || name.ends_with(".key")
+            || name.ends_with(".p12")
+            || name.ends_with(".pfx")
+    })
+}
+
+fn is_ignored_directory(path: &Path) -> bool {
+    path.file_name().is_some_and(|name| {
+        matches!(
+            name.to_string_lossy().to_ascii_lowercase().as_str(),
+            "node_modules" | ".pnpm-store" | "target"
+        )
+    })
+}
+
+fn portable_relative(path: &Path) -> String {
+    path.components()
+        .filter_map(|component| match component {
+            Component::Normal(segment) => Some(segment.to_string_lossy()),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
+fn hash_bytes(bytes: &[u8]) -> String {
+    format!("{:x}", Sha256::digest(bytes))
 }
 
 impl std::error::Error for WorkspacePathError {}
@@ -359,8 +848,9 @@ mod tests {
 
     use super::{
         PERMISSION_PROBE_PREFIX, PermissionMode, WorkspacePathError, WorkspacePathErrorCode,
-        WorkspacePathResolution, classify_candidate_error, cleanup_probe_with,
-        resolve_workspace_path,
+        classify_candidate_error, cleanup_probe_with, copy_workspace_asset,
+        create_workspace_binary, hash_bytes, inspect_workspace_file, list_workspace,
+        read_workspace_text, resolve_workspace_path, write_workspace_text,
     };
 
     static FIXTURE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
@@ -400,10 +890,7 @@ mod tests {
         }
     }
 
-    fn rejected(
-        result: Result<WorkspacePathResolution, WorkspacePathError>,
-        message: &str,
-    ) -> WorkspacePathError {
+    fn rejected<T>(result: Result<T, WorkspacePathError>, message: &str) -> WorkspacePathError {
         match result {
             Ok(_) => panic!("{message}"),
             Err(error) => error,
@@ -546,6 +1033,11 @@ mod tests {
             "link escape must be rejected",
         );
         assert_eq!(error.code(), WorkspacePathErrorCode::LinkEscape);
+        let inspect_error = rejected(
+            inspect_workspace_file(&fixture.root, Path::new("escape/outside.txt")),
+            "linked deliverable outside the workspace must be rejected",
+        );
+        assert_eq!(inspect_error.code(), WorkspacePathErrorCode::LinkEscape);
 
         remove_directory_link(&link)?;
         fixture.cleanup()
@@ -574,6 +1066,197 @@ mod tests {
         ));
         assert_eq!(denied.code(), WorkspacePathErrorCode::PermissionDenied);
         assert!(!denied.to_string().contains("sensitive"));
+
+        fixture.cleanup()
+    }
+
+    #[test]
+    fn lists_reads_creates_and_modifies_text_with_conflict_protection() -> io::Result<()> {
+        let fixture = Fixture::create()?;
+        let entries = list_workspace(&fixture.root, Path::new("")).map_err(io::Error::other)?;
+        assert!(
+            entries
+                .iter()
+                .any(|entry| entry.relative_path == "nested/inside.txt")
+        );
+
+        let original = read_workspace_text(&fixture.root, Path::new("nested/inside.txt"))
+            .map_err(io::Error::other)?;
+        assert_eq!(original.content, "inside");
+        assert_eq!(original.sha256.len(), 64);
+
+        let created = write_workspace_text(&fixture.root, Path::new("result.md"), "first", None)
+            .map_err(io::Error::other)?;
+        assert!(created.created);
+        assert_eq!(fs::read_to_string(fixture.root.join("result.md"))?, "first");
+        let inspected = inspect_workspace_file(&fixture.root, Path::new("result.md"))
+            .map_err(io::Error::other)?;
+        assert_eq!(inspected.sha256, created.sha256);
+        assert_eq!(inspected.size_bytes, 5);
+        assert!(inspected.canonical_path.ends_with("result.md"));
+
+        let modified = write_workspace_text(
+            &fixture.root,
+            Path::new("result.md"),
+            "second",
+            Some(&created.sha256),
+        )
+        .map_err(io::Error::other)?;
+        assert!(!modified.created);
+
+        fs::write(fixture.root.join("result.md"), "user change")?;
+        let conflict = rejected(
+            write_workspace_text(
+                &fixture.root,
+                Path::new("result.md"),
+                "stale overwrite",
+                Some(&modified.sha256),
+            ),
+            "a stale hash must not overwrite the user's newer file",
+        );
+        assert_eq!(conflict.code(), WorkspacePathErrorCode::Conflict);
+        assert_eq!(
+            fs::read_to_string(fixture.root.join("result.md"))?,
+            "user change"
+        );
+        fixture.cleanup()
+    }
+
+    #[test]
+    fn copies_binary_assets_without_overwriting_workspace_files() -> io::Result<()> {
+        let fixture = Fixture::create()?;
+        let skill_root = fixture.base.join("skill");
+        fs::create_dir_all(skill_root.join("assets"))?;
+        fs::write(skill_root.join("assets/template.bin"), [0_u8, 1, 2, 255])?;
+        let expected_sha256 = hash_bytes(&[0_u8, 1, 2, 255]);
+
+        let copied = copy_workspace_asset(
+            &skill_root,
+            Path::new("assets/template.bin"),
+            &expected_sha256,
+            4,
+            &fixture.root,
+            Path::new("template.bin"),
+        )
+        .map_err(io::Error::other)?;
+        assert!(copied.created);
+        assert_eq!(fs::read(fixture.root.join("template.bin"))?, [0, 1, 2, 255]);
+
+        let conflict = rejected(
+            copy_workspace_asset(
+                &skill_root,
+                Path::new("assets/template.bin"),
+                &expected_sha256,
+                4,
+                &fixture.root,
+                Path::new("template.bin"),
+            ),
+            "an existing workspace file must not be overwritten",
+        );
+        assert_eq!(conflict.code(), WorkspacePathErrorCode::Conflict);
+
+        let wrong_hash = rejected(
+            copy_workspace_asset(
+                &skill_root,
+                Path::new("assets/template.bin"),
+                &"0".repeat(64),
+                4,
+                &fixture.root,
+                Path::new("other.bin"),
+            ),
+            "a source changed after inspection must not be copied",
+        );
+        assert_eq!(wrong_hash.code(), WorkspacePathErrorCode::Conflict);
+        assert!(!fixture.root.join("other.bin").exists());
+
+        fs::write(skill_root.join("SKILL.md"), "instructions")?;
+        let outside_assets = rejected(
+            copy_workspace_asset(
+                &skill_root,
+                Path::new("SKILL.md"),
+                &hash_bytes(b"instructions"),
+                12,
+                &fixture.root,
+                Path::new("instructions.md"),
+            ),
+            "only assets are valid copy sources",
+        );
+        assert_eq!(outside_assets.code(), WorkspacePathErrorCode::InvalidPath);
+        fixture.cleanup()
+    }
+
+    #[test]
+    fn creates_binary_files_atomically_without_overwriting() -> io::Result<()> {
+        let fixture = Fixture::create()?;
+        let created =
+            create_workspace_binary(&fixture.root, Path::new("报告.pdf"), b"%PDF-1.7\nbinary")
+                .map_err(io::Error::other)?;
+        assert!(created.created);
+        assert_eq!(created.relative_path, "报告.pdf");
+        assert_eq!(
+            fs::read(fixture.root.join("报告.pdf"))?,
+            b"%PDF-1.7\nbinary"
+        );
+
+        let conflict = rejected(
+            create_workspace_binary(&fixture.root, Path::new("报告.pdf"), b"changed"),
+            "binary creation must never overwrite an existing file",
+        );
+        assert_eq!(conflict.code(), WorkspacePathErrorCode::Conflict);
+        assert_eq!(
+            fs::read(fixture.root.join("报告.pdf"))?,
+            b"%PDF-1.7\nbinary"
+        );
+        fixture.cleanup()
+    }
+
+    #[test]
+    fn rejects_sensitive_and_binary_files() -> io::Result<()> {
+        let fixture = Fixture::create()?;
+        fs::write(fixture.root.join(".env"), "SECRET=value")?;
+        fs::write(fixture.root.join("binary.dat"), [0xff, 0xfe, 0xfd])?;
+
+        let listed = list_workspace(&fixture.root, Path::new("")).map_err(io::Error::other)?;
+        assert!(!listed.iter().any(|entry| entry.relative_path == ".env"));
+        assert_eq!(
+            rejected(
+                read_workspace_text(&fixture.root, Path::new(".env")),
+                "sensitive files must be rejected",
+            )
+            .code(),
+            WorkspacePathErrorCode::SensitivePath,
+        );
+        assert_eq!(
+            rejected(
+                read_workspace_text(&fixture.root, Path::new("binary.dat")),
+                "binary files must be rejected",
+            )
+            .code(),
+            WorkspacePathErrorCode::BinaryFile,
+        );
+        fixture.cleanup()
+    }
+
+    #[test]
+    fn inspect_rejects_untrusted_or_invalid_deliverables() -> io::Result<()> {
+        let fixture = Fixture::create()?;
+        fs::write(fixture.root.join(".env"), "SECRET=value")?;
+        let oversized = fs::File::create(fixture.root.join("oversized.bin"))?;
+        oversized.set_len(100 * 1024 * 1024 + 1)?;
+
+        for (path, expected) in [
+            ("missing.txt", WorkspacePathErrorCode::NotFound),
+            ("nested", WorkspacePathErrorCode::NotFile),
+            (".env", WorkspacePathErrorCode::SensitivePath),
+            ("../outside.txt", WorkspacePathErrorCode::OutsideRoot),
+            ("oversized.bin", WorkspacePathErrorCode::FileTooLarge),
+        ] {
+            let error = rejected(
+                inspect_workspace_file(&fixture.root, Path::new(path)),
+                "invalid deliverable must be rejected",
+            );
+            assert_eq!(error.code(), expected);
+        }
 
         fixture.cleanup()
     }

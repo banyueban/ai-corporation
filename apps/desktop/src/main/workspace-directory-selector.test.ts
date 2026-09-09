@@ -43,9 +43,9 @@ describe("Workspace directory selector", () => {
 
     await expect(selector.select()).resolves.toBe("E:\\example");
     expect(showDialog).toHaveBeenCalledWith({
-      buttonLabel: "Select workspace",
+      buttonLabel: "选择工作区",
       properties: ["openDirectory"],
-      title: "Select a workspace folder",
+      title: "选择工作区文件夹",
     });
   });
 

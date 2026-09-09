@@ -18,33 +18,33 @@ test("user generates, restores, cancels, and times out in the visible window", a
   );
   try {
     let page = await electronApp.firstWindow();
-    await page.getByRole("button", { name: "Settings" }).click();
-    await page.getByLabel("Name").fill("M2 Generation Provider");
-    await page.getByLabel("Endpoint").fill(`${fixture.endpoint}/success`);
+    await page.getByRole("button", { name: "设置" }).click();
+    await page.getByLabel("名称").fill("M2 Generation Provider");
+    await page.getByLabel("API 基础 URL").fill(`${fixture.endpoint}/success`);
     await page.getByLabel("API Key").fill(secret);
-    await page.getByRole("button", { name: "Save Provider" }).click();
-    await page.getByRole("button", { name: "Test connection" }).click();
-    await expect(page.getByRole("heading", { name: "Verified" })).toBeVisible();
-    await page.getByLabel("Model").selectOption("fixture-model-a");
-    await page.getByLabel("Generation timeout (seconds)").fill("60");
-    await page.getByRole("button", { name: "Save changes" }).click();
+    await page.getByRole("button", { name: "保存模型服务商" }).click();
+    await page.getByRole("button", { name: "测试连接" }).click();
+    await expect(page.getByRole("heading", { name: "已验证" })).toBeVisible();
+    await page
+      .getByRole("combobox", { name: /^模型/u })
+      .selectOption("fixture-model-a");
+    await page.getByLabel("生成超时（秒）").fill("60");
+    await page.getByRole("button", { name: "保存修改" }).click();
     await expect(page.locator(".provider-status")).toContainText(
-      "Provider updated.",
+      "模型服务商已更新。",
     );
 
     const generationButton = page.getByRole("button", {
-      name: "Test generation",
+      name: "测试生成",
     });
     await expect(generationButton).toBeEnabled();
     await generationButton.focus();
     await expect(generationButton).toBeFocused();
     await generationButton.press("Enter");
-    await expect(
-      page.getByRole("heading", { name: "Generation succeeded" }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "生成成功" })).toBeVisible();
     await expect(page.getByText("Fixture acknowledged.")).toBeVisible();
-    await expect(page.getByText(/Input 11 · Output 3/u)).toBeVisible();
-    await expect(page.getByText(/Cost unknown/u)).toBeVisible();
+    await expect(page.getByText(/输入 11 · 输出 3/u)).toBeVisible();
+    await expect(page.getByText(/费用未知/u)).toBeVisible();
     expect(fixture.requests).toContainEqual({
       path: "/success/chat/completions",
       authorization: `Bearer ${secret}`,
@@ -65,11 +65,9 @@ test("user generates, restores, cancels, and times out in the visible window", a
     await expectNoSeriousAxeViolations(page);
 
     await page.reload();
-    await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByRole("button", { name: "设置" }).click();
     await page.getByRole("button", { name: /M2 Generation Provider/u }).click();
-    await expect(
-      page.getByRole("heading", { name: "Generation succeeded" }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "生成成功" })).toBeVisible();
     const callsAfterReload = fixture.generationCalls();
 
     await electronApp.close();
@@ -78,37 +76,29 @@ test("user generates, restores, cancels, and times out in the visible window", a
       userDataDirectory,
     );
     page = await electronApp.firstWindow();
-    await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByRole("button", { name: "设置" }).click();
     await page.getByRole("button", { name: /M2 Generation Provider/u }).click();
-    await expect(
-      page.getByRole("heading", { name: "Generation succeeded" }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "生成成功" })).toBeVisible();
     expect(fixture.generationCalls()).toBe(callsAfterReload);
 
     fixture.setMode("delay");
-    await page.getByRole("button", { name: "Test generation" }).click();
-    await expect(
-      page.getByRole("heading", { name: "Generating" }),
-    ).toBeVisible();
-    await page.getByRole("button", { name: "Cancel generation" }).click();
+    await page.getByRole("button", { name: "测试生成" }).click();
+    await expect(page.getByRole("heading", { name: "正在生成" })).toBeVisible();
+    await page.getByRole("button", { name: "取消生成" }).click();
     await expect(page.locator(".provider-status")).toContainText(
-      "Generation test cancelled.",
+      "生成测试已取消，上一次结果保持不变。",
     );
-    await expect(
-      page.getByRole("heading", { name: "Generation succeeded" }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "生成成功" })).toBeVisible();
 
-    await page.getByLabel("Generation timeout (seconds)").fill("5");
-    await page.getByRole("button", { name: "Save changes" }).click();
-    await expect(
-      page.getByRole("heading", { name: "Not tested" }),
-    ).toBeVisible();
-    await page.getByRole("button", { name: "Test generation" }).click();
-    await expect(
-      page.getByRole("heading", { name: "Generation failed" }),
-    ).toBeVisible({ timeout: 10_000 });
+    await page.getByLabel("生成超时（秒）").fill("5");
+    await page.getByRole("button", { name: "保存修改" }).click();
+    await expect(page.getByRole("heading", { name: "尚未测试" })).toBeVisible();
+    await page.getByRole("button", { name: "测试生成" }).click();
+    await expect(page.getByRole("heading", { name: "生成失败" })).toBeVisible({
+      timeout: 10_000,
+    });
     await expect(page.locator(".provider-generation-panel")).toContainText(
-      /within 5 seconds/u,
+      /在 5 秒内没有响应/u,
     );
   } finally {
     await electronApp.close().catch(() => undefined);
