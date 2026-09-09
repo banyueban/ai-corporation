@@ -108,8 +108,12 @@ test("one coding owner uses helper handoffs and alone changes and tests code", a
     await expect(
       assignments.getByText("协助员工", { exact: true }),
     ).toHaveCount(2);
-    await expect(page.getByText("整理快排的输入和边界要求")).toBeVisible();
-    await expect(page.getByText("检查 sort.js 的边界处理")).toBeVisible();
+    await expect(
+      assignments.getByText("整理快排的输入和边界要求", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      assignments.getByText("检查 sort.js 的边界处理", { exact: true }),
+    ).toBeVisible();
     await expect(page.locator(".pi-task-assignments")).toContainText(
       "必须拒绝非数组输入",
     );
