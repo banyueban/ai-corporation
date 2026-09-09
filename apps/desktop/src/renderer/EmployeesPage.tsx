@@ -774,6 +774,16 @@ export function EmployeesPage(props: {
         </div>
       </header>
 
+      {message.length > 0 && (
+        <p
+          aria-live="polite"
+          className="employee-message employee-action-message"
+          role="status"
+        >
+          {message}
+        </p>
+      )}
+
       <div className="employee-layout">
         <section className="selection-panel">
           <div className="section-heading">
@@ -1726,15 +1736,6 @@ export function EmployeesPage(props: {
           )}
         </section>
       </div>
-      {message.length > 0 && (
-        <p
-          aria-live="polite"
-          className="employee-message employee-action-message"
-          role="status"
-        >
-          {message}
-        </p>
-      )}
     </section>
   );
 }
