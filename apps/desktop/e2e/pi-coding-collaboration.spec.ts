@@ -134,7 +134,7 @@ test("one coding owner uses helper handoffs and alone changes and tests code", a
       "唯一编码员工 · 工具结果",
     );
     await expect(page.locator(".pi-task-details")).toContainText(
-      "唯一编码员工 · 实时工具过程",
+      "唯一编码员工 · 确认结果",
     );
 
     const helperPayloads = fixture.requests
