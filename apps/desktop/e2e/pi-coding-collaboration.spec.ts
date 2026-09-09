@@ -101,13 +101,13 @@ test("one coding owner uses helper handoffs and alone changes and tests code", a
     await expect(
       page.getByRole("heading", { name: "分工与交接" }),
     ).toBeVisible();
+    const assignments = page.locator(".pi-task-assignments");
     await expect(
-      page.getByText("唯一编码员工", { exact: true }).last(),
-    ).toBeVisible();
-    await expect(page.getByText("唯一编码员工", { exact: true })).toHaveCount(
-      2,
-    );
-    await expect(page.getByText("协助员工", { exact: true })).toHaveCount(2);
+      assignments.getByText("唯一编码员工", { exact: true }),
+    ).toHaveCount(2);
+    await expect(
+      assignments.getByText("协助员工", { exact: true }),
+    ).toHaveCount(2);
     await expect(page.getByText("整理快排的输入和边界要求")).toBeVisible();
     await expect(page.getByText("检查 sort.js 的边界处理")).toBeVisible();
     await expect(page.locator(".pi-task-assignments")).toContainText(
