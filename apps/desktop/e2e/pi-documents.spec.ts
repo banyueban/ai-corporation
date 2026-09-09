@@ -207,8 +207,6 @@ test("employee reads a fixed attachment and creates real Word and PDF results", 
             document.documentElement.clientWidth + 1,
         ),
       ).toBe(true);
-      await expect(deliveryFile).toBeInViewport();
-      await expect(revealButton).toBeInViewport();
       const screenshotPath = test
         .info()
         .outputPath(`m14-document-task-${view.label}.png`);
@@ -217,6 +215,8 @@ test("employee reads a fixed attachment and creates real Word and PDF results", 
       } else {
         await page.screenshot({ path: screenshotPath, fullPage: false });
       }
+      await expect(deliveryFile).toBeInViewport();
+      await expect(revealButton).toBeInViewport();
     }
 
     await page.getByText("查看完整模型和工具过程").click();
