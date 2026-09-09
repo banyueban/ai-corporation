@@ -197,9 +197,9 @@ test("employee reads a fixed attachment and creates real Word and PDF results", 
       const revealButton = deliveryFile.getByRole("button", {
         name: "查看所在位置",
       });
-      await revealButton.evaluate((element) =>
-        element.scrollIntoView({ block: "center", inline: "nearest" }),
-      );
+      // 打包程序在 200% 缩放后可能稍晚完成可滚动区域换算；让
+      // Playwright 按最终布局滚动真实按钮，避免只滚到按钮所在卡片。
+      await revealButton.scrollIntoViewIfNeeded();
       expect(
         await page.evaluate(
           () =>
