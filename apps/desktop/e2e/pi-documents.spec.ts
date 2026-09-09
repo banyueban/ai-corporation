@@ -157,6 +157,11 @@ test("employee reads a fixed attachment and creates real Word and PDF results", 
     await expect(page.locator(".pi-delivery-preview pre")).toContainText(
       "这是一份由附件整理出的文档。",
     );
+    // 旧测试只等预览区里已有的文字，第二次读取时可能直接误判为完成。
+    // 现在按钮会如实显示读取状态，必须等本次读取真的结束再检查布局。
+    await expect(
+      docxCard.getByRole("button", { name: "查看内容" }),
+    ).toBeEnabled();
     const pdfCard = page
       .locator(".pi-delivery-file")
       .filter({ hasText: "整理结果.pdf" });
@@ -167,6 +172,9 @@ test("employee reads a fixed attachment and creates real Word and PDF results", 
     await expect(page.locator(".pi-delivery-preview pre")).not.toContainText(
       "**重点内容**",
     );
+    await expect(
+      pdfCard.getByRole("button", { name: "查看内容" }),
+    ).toBeEnabled();
     for (const view of [
       { label: "1024x700", width: 1024, height: 700, zoom: 1 },
       { label: "1440x900", width: 1440, height: 900, zoom: 1 },
