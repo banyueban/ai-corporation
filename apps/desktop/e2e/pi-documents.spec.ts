@@ -215,8 +215,21 @@ test("employee reads a fixed attachment and creates real Word and PDF results", 
       } else {
         await page.screenshot({ path: screenshotPath, fullPage: false });
       }
-      await expect(deliveryFile).toBeInViewport();
-      await expect(revealButton).toBeInViewport();
+      // Electron 在 200% 缩放后会让 IntersectionObserver 偶发返回 0，
+      // 这里直接按当前窗口和元素的真实坐标验收，结果也与截图一致。
+      for (const element of [deliveryFile, revealButton]) {
+        expect(
+          await element.evaluate((node) => {
+            const rect = node.getBoundingClientRect();
+            return (
+              rect.bottom > 0 &&
+              rect.right > 0 &&
+              rect.top < window.innerHeight &&
+              rect.left < window.innerWidth
+            );
+          }),
+        ).toBe(true);
+      }
     }
 
     await page.getByText("查看完整模型和工具过程").click();
